@@ -1,0 +1,68 @@
+# Moneyora — static analysis configuration
+# Enforces NFR-MNT-001 (Clean Architecture) and NFR-MNT-003 (documented public APIs).
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    # Treats implicit downcasts / dynamic inference as errors. This is the single
+    # highest-value setting for catching bugs before runtime.
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    # Promote the rules that cost real money in production to build-breaking.
+    invalid_annotation_target: ignore   # noisy with freezed/riverpod codegen
+    missing_required_param: error
+    missing_return: error
+    todo: ignore
+    avoid_print: error
+    unawaited_futures: error
+    always_declare_return_types: error
+
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/generated_plugin_registrant.dart"
+    - "build/**"
+
+linter:
+  rules:
+    # ── Correctness ────────────────────────────────────────────────
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    avoid_slow_async_io: true
+    cancel_subscriptions: true
+    close_sinks: true
+    unawaited_futures: true
+    test_types_in_equals: true
+    throw_in_finally: true
+    avoid_catches_without_on_clauses: true
+    only_throw_errors: true
+
+    # ── Money-app specific: never lose precision or state ──────────
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    avoid_positional_boolean_parameters: true
+
+    # ── Style / readability ────────────────────────────────────────
+    prefer_single_quotes: true
+    directives_ordering: true
+    sort_pub_dependencies: true
+    require_trailing_commas: true
+    unnecessary_lambdas: true
+    use_super_parameters: true
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+
+    # ── Documentation (NFR-MNT-003) ────────────────────────────────
+    public_member_api_docs: false  # flip to true before v1.0 release
+    package_api_docs: false
+
+    # ── Flutter ────────────────────────────────────────────────────
+    use_key_in_widget_constructors: true
+    sized_box_for_whitespace: true
+    avoid_unnecessary_containers: true
+    use_colored_box: true

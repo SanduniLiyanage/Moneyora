@@ -1,6 +1,6 @@
 # Miscellaneous
 *.class
-*.lock
+# NOTE: pubspec.lock IS committed for apps (reproducible builds). Do not ignore *.lock.
 *.log
 *.pyc
 *.swp
@@ -117,3 +117,24 @@ app.*.symbols
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
+# ── Moneyora: app-specific ──────────────────────────────────────────────
+# Secrets & signing — NEVER commit
+.env
+.env.*
+!.env.example
+**/android/app/*.jks
+**/android/app/upload-keystore.*
+**/ios/Runner/GoogleService-Info.plist
+**/android/app/google-services.json
+lib/firebase_options.dart
+secrets/
+
+# Local tooling
+.fvm/
+.vscode/settings.json
+*.iml
+
+# Test & build artifacts
+coverage/lcov.info
+test/**/failures/
+build/
