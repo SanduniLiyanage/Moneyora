@@ -1,17 +1,17 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Moneyora — one-time project bootstrap
+﻿# -----------------------------------------------------------------------------
+# Moneyora -- one-time project bootstrap
 #
 # Run ONCE, from the repo root, AFTER the Flutter SDK is installed:
 #     .\scripts\bootstrap.ps1
 #
 # It is idempotent-ish: safe to re-run, but it will not overwrite lib/ files
 # you have already written.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
 
 Write-Host "`n=== 0. Preflight ===" -ForegroundColor Cyan
 if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
-    Write-Error "Flutter is not on PATH. Install it first — see docs/SETUP.md."
+    Write-Error "Flutter is not on PATH. Install it first -- see docs/SETUP.md."
 }
 flutter --version
 flutter doctor
@@ -24,7 +24,7 @@ flutter create --org com.moneyora --project-name moneyora --platforms android,io
 
 Write-Host "`n=== 2. Runtime dependencies ===" -ForegroundColor Cyan
 # `pub add` (not hand-pinned versions) so the resolver picks the newest release
-# compatible with your Flutter SDK. The version numbers in SDD §10.1 were
+# compatible with your Flutter SDK. The version numbers in SDD Sec 10.1 were
 # written in mid-2026 and are already stale.
 flutter pub add `
     flutter_riverpod `

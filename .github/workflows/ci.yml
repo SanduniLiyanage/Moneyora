@@ -53,6 +53,29 @@ jobs:
         if: steps.probe.outputs.ready == 'true'
         run: flutter analyze --fatal-infos --fatal-warnings
 
+      # Windows PowerShell 5.1 reads .ps1 using the system ANSI codepage unless
+      # the file starts with a UTF-8 BOM. A stray em-dash therefore breaks
+      # parsing on a contributor's machine while looking perfectly fine in the
+      # diff. This cost real debugging time once; it will not do so again.
+      - name: PowerShell scripts are ASCII, or carry a UTF-8 BOM
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+          bad = []
+          for f in pathlib.Path('.').rglob('*.ps1'):
+              if 'build' in f.parts:
+                  continue
+              raw = f.read_bytes()
+              if raw.startswith(b'\xef\xbb\xbf'):
+                  continue
+              if any(b > 127 for b in raw):
+                  bad.append(str(f))
+          for f in bad:
+              print(f"::error file={f}::Non-ASCII bytes without a UTF-8 BOM. "
+                    f"Windows PowerShell 5.1 will fail to parse this file.")
+          sys.exit(1 if bad else 0)
+          PY
+
       - name: Clean Architecture boundaries
         run: bash scripts/check_architecture.sh
 
