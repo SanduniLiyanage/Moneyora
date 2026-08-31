@@ -1,0 +1,27 @@
+# Normalise to LF in the repository; Git may still hand CRLF to Windows tools
+# for text files where that matters.
+* text=auto
+
+# Must be LF on disk everywhere: bash chokes on \r, and these run in CI
+# (ubuntu-latest) as well as locally through Git Bash on Windows.
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+gradlew     text eol=lf
+
+# Windows-only tooling
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+
+# Never mangle: line-ending conversion corrupts binaries
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.webp      binary
+*.ico       binary
+*.ttf       binary
+*.otf       binary
+*.jks       binary
+*.keystore  binary
+*.tflite    binary
+*.pdf       binary
