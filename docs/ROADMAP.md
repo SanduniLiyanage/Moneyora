@@ -39,7 +39,8 @@ Goal: *it compiles, the schema exists, navigation works.* No features yet.
 - [x] Retire branch `sanduni`; `main` is trunk (see docs/WORKFLOW.md)
 - [ ] Enable branch protection on `main` (require PR + Analyze & Test)
 - [ ] `core/theme/` — colour tokens, light + dark `ThemeData`
-      (green = income, red = expense, teal = transfers/AI, per SRS 4.1)
+      (indigo brand + amber accent per E-01; green = income, red = expense,
+      teal = transfers, per SRS 4.1. Verify 4.5:1 contrast, do not assume it.)
 - [ ] `core/errors/` — `Failure` hierarchy + `Exception` hierarchy
 - [ ] `core/usecases/usecase.dart` — the `UseCase<Type, Params>` base
 - [ ] `core/database/database_helper.dart` — SQLCipher open + key from

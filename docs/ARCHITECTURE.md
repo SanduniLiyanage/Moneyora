@@ -3,6 +3,10 @@
 Implements SDD v1.0 §2–§3. This document is the rule book; `scripts/check_architecture.sh`
 is the enforcement. If the two ever disagree, fix the script.
 
+Where this guide or the baselines conflict with [`SPEC_ERRATA.md`](SPEC_ERRATA.md),
+the errata wins — it records ten defects found in SRS/SDD v1.0, four of them
+blocking the Sprint 1 schema.
+
 ---
 
 ## 1. The one rule
