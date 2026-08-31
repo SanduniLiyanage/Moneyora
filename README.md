@@ -8,6 +8,10 @@
 
 Offline-first Flutter app with on-device receipt scanning and statistical budget planning.
 
+[![CI](https://github.com/SanduniLiyanage/Moneyora/actions/workflows/ci.yml/badge.svg)](https://github.com/SanduniLiyanage/Moneyora/actions/workflows/ci.yml)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 </div>
 
 ---
@@ -57,7 +61,7 @@ lib/
 ├── main.dart
 ├── app.dart
 └── injection.dart
-docs/              SETUP · ARCHITECTURE · WORKFLOW · SRS · SDD
+docs/              guides, plus the approved SRS and SDD in docs/specs/
 scripts/           bootstrap + architecture boundary checker
 test/              mirrors lib/
 ```
@@ -71,6 +75,20 @@ test/              mirrors lib/
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commits, releases |
 | [ROADMAP.md](docs/ROADMAP.md) | Deciding what to build next |
 | [CLAUDE.md](CLAUDE.md) | Working with Claude Code in this repo |
+| [SPEC_ERRATA.md](docs/SPEC_ERRATA.md) | **Defects found in the baselines.** Where it and a spec disagree, it wins |
+| [specs/](docs/specs/) | The approved SRS v1.0 and SDD v1.0, unmodified |
+
+### On the errata
+
+The SRS and SDD in [`docs/specs/`](docs/specs/) are the approved baselines and
+are left exactly as approved. Reviewing them before writing the schema turned up
+fourteen defects — four of which block Sprint 1, including a `transactions`
+table with no way to record a transfer's destination account, and a plan
+generator built on `STDDEV()`, which SQLite does not provide.
+
+Rather than silently editing the specifications, every deviation is recorded in
+[`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning, and folds into v1.1
+at milestone M2. The baseline stays auditable; the corrections stay traceable.
 
 ## Security
 

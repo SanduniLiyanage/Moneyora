@@ -38,7 +38,7 @@ flutter pub add `
     local_auth `
     flutter_local_notifications `
     flutter_secure_storage `
-    dartz `
+    fpdart `
     intl `
     share_plus `
     http `

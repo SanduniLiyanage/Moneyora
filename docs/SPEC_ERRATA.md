@@ -26,6 +26,15 @@ follows the Resolution sections.
 | [E-08](#e-08) | Low | Backup file extension contradiction | Resolved |
 | [E-09](#e-09) | Low | App-size figures contradict | Clarified |
 | [E-10](#e-10) | Low | Category limit contradiction | Clarified |
+| [E-11](#e-11) | Medium | Category-grouped list view unspecified | Resolved |
+| [E-12](#e-12) | Medium | FR-SET-011 copied from the reference app's paywall | Withdrawn |
+| [E-13](#e-13) | Low | Two entry-screen affordances missing from SDD §4.1 | Resolved |
+| [E-14](#e-14) | Low | SDD §10.1 pins a deprecated API and an unmaintained package | Resolved |
+
+**E-11 to E-13** were raised on 2026-09-01 from a walkthrough of the reference
+app (Monefy), against which the original requirements were gathered. They are
+omissions rather than errors: the SRS describes what it describes correctly, but
+missed behaviour that the reference app has and the stakeholder expects.
 
 ---
 
@@ -329,6 +338,120 @@ its own gate in Sprint 10.
 §5.6's 50 is a **performance-tested ceiling**, not a cap: it states the scale at
 which the category picker and donut chart are verified to stay inside
 NFR-PER-005. Read §5.6 as "tested to 50", never "refuses the 51st".
+
+---
+
+<a id="e-11"></a>
+
+## E-11 — The category-grouped list view is unspecified
+
+**Severity:** Medium · **Affects:** FR-EXP-006, SDD SCR-005
+
+FR-EXP-006 specifies only one list mode: *"a chronological list, grouped by date
+with collapsible date section headers showing daily totals."* The reference app
+has **two**, toggled by a control to the right of the balance bar:
+
+| Mode | Groups by | Header shows | Specified? |
+|---|---|---|---|
+| Chronological | Date | Date + that day's net total | Yes — FR-EXP-006 |
+| **By category** | Category | Icon, name, **transaction count badge**, category total | **No** |
+
+In the second mode, expanding a category reveals its individual transactions
+with note and date. The count badge is load-bearing: seeing *Food 1082* against
+*House 14* communicates spending habits faster than any chart, and it is how a
+user finds a miscategorised entry.
+
+### Resolution — new requirement FR-EXP-011
+
+> The system **shall** provide a category-grouped transaction list as an
+> alternative to the chronological list, toggled from the home screen. Each
+> group displays the category icon, name, transaction count, and period total,
+> and expands to reveal its transactions.
+
+Both modes read the same filtered set, so this is a presentation concern: one
+use case, two widgets. Build it in Sprint 2 alongside the chronological list
+while the query is fresh, not as a retrofit.
+
+---
+
+<a id="e-12"></a>
+
+## E-12 — FR-SET-011 was copied from the reference app's paywall
+
+**Severity:** Medium · **Affects:** FR-SET-011
+
+FR-SET-011 requires *"a 'Copy Purchase ID' function for in-app purchase
+verification."* That control exists in the reference app because it sells a paid
+unlock, and support needs the ID to resolve entitlement disputes. It appears in
+its settings screen directly above the sync options, which is presumably how it
+reached the SRS.
+
+Moneyora has no in-app purchase, no paid tier, and no support desk. The
+requirement has no referent — implementing it would produce a button that copies
+an identifier nothing consumes.
+
+### Resolution — withdraw FR-SET-011
+
+Withdrawn, not deferred. If monetisation is ever added, purchase-ID handling
+comes with whichever billing SDK is chosen and would be specified then.
+
+The general lesson is worth recording, because the same trap is live for the
+rest of the settings screen: **a reference app's UI encodes its business model,
+not only its features.** Copy the interaction patterns; check each individual
+control against your own product before adopting it.
+
+---
+
+<a id="e-13"></a>
+
+## E-13 — Two entry-screen affordances missing from the screen inventory
+
+**Severity:** Low · **Affects:** SDD §4.1 SCR-002 / SCR-003
+
+SDD §4.1 describes the add-expense and add-income screens as *"Custom keypad,
+category row, account selector, note field."* The reference app's equivalent
+screens carry two further controls, both of which implement requirements the SRS
+already has but the SDD forgot to place:
+
+1. **A recurring toggle**, top-right of the entry screen — the entry point for
+   FR-EXP-008 and FR-INC-004. Without it those requirements have no UI at all.
+2. **An inline `+` at the end of the category row**, creating a category without
+   leaving the entry flow — FR-EXP-004 and FR-INC-003.
+
+### Resolution
+
+Add both to SCR-002 and SCR-003. The inline `+` matters more than it looks: it
+is the difference between "I can add a category" and "I can add a category at
+the moment I discover I need one", which is the only moment anyone ever wants
+to. The Categories drawer keeps its own `+` for deliberate management.
+
+---
+
+<a id="e-14"></a>
+
+## E-14 — SDD §10.1 pins a deprecated API and a thinly-maintained package
+
+**Severity:** Low · **Affects:** SDD §10.1, §6.2
+
+Two dependency choices in the baseline have aged out since it was written:
+
+| Baseline | Issue | Replacement |
+|---|---|---|
+| `StateNotifier` (SDD §6.2) | Superseded in Riverpod 2.x by `Notifier` / `AsyncNotifier`; retained only for backward compatibility | `AsyncNotifier` |
+| `dartz ^0.10.1` (SDD §10.1) | Broad Haskell port, thinly maintained | `fpdart` |
+
+Neither is broken, and neither changes the architecture — the `Either` API is
+near-identical and only import lines and a base class name move.
+
+### Resolution — adopt both replacements
+
+The deciding factor is not correctness but **what the code says about its
+author**. A 2026 Flutter codebase built on a deprecated notifier and an
+abandoned functional library reads as assembled from an old tutorial, whatever
+its actual quality. Currency with the ecosystem is part of the work.
+
+Applied in `lib/core/usecases/usecase.dart` and `scripts/bootstrap.ps1`. Every
+`Either<Failure, T>` signature in `ARCHITECTURE.md` §3 is unchanged.
 
 ---
 
