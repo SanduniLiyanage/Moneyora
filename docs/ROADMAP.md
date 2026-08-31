@@ -36,7 +36,8 @@ Goal: *it compiles, the schema exists, navigation works.* No features yet.
 
 - [ ] Install Flutter + Android SDK, pin JDK 21 (`docs/SETUP.md`)
 - [ ] Run `scripts/bootstrap.ps1`
-- [ ] Rename branch `sanduni` -> `develop`, protect `main`
+- [x] Retire branch `sanduni`; `main` is trunk (see docs/WORKFLOW.md)
+- [ ] Enable branch protection on `main` (require PR + Analyze & Test)
 - [ ] `core/theme/` — colour tokens, light + dark `ThemeData`
       (green = income, red = expense, teal = transfers/AI, per SRS 4.1)
 - [ ] `core/errors/` — `Failure` hierarchy + `Exception` hierarchy
