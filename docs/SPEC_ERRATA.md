@@ -30,6 +30,13 @@ follows the Resolution sections.
 | [E-12](#e-12) | Medium | FR-SET-011 copied from the reference app's paywall | Withdrawn |
 | [E-13](#e-13) | Low | Two entry-screen affordances missing from SDD §4.1 | Resolved |
 | [E-14](#e-14) | Low | SDD §10.1 pins a deprecated API and an unmaintained package | Resolved |
+| [E-15](#e-15) | Medium | Transfer writes 3 rows with circular FKs, no wrapper | Resolved |
+| [E-16](#e-16) | **Blocking** | Transfer debit and credit rows are indistinguishable | Resolved |
+| [E-17](#e-17) | **Blocking** | `category_id NOT NULL` conflicts with transfers | Resolved |
+| [E-18](#e-18) | Medium | `current_balance` stored, mutated in place, never reconciled | Resolved |
+
+**E-02, E-03 and E-05 are amended** by the DBD audit — see
+[Amendment A](#amendment-a). Read that before implementing any of them.
 
 **E-11 to E-13** were raised on 2026-09-01 from a walkthrough of the reference
 app (Monefy), against which the original requirements were gathered. They are
@@ -454,6 +461,190 @@ Applied in `lib/core/usecases/usecase.dart` and `scripts/bootstrap.ps1`. Every
 `Either<Failure, T>` signature in `ARCHITECTURE.md` §3 is unchanged.
 
 ---
+
+<a id="amendment-a"></a>
+
+## Amendment A — DBD v1.0 audit (2026-09-01)
+
+E-01 to E-14 were raised against the SRS and SDD only. `Moneyora_DBD_v1.0.pdf`
+came to light afterwards. It is a dedicated Database Design Document from the
+same generation session, and **it, not SRS §6.2, is the authoritative schema.**
+
+Re-auditing against it amends three earlier findings and adds four.
+
+### Amended
+
+**E-03 — withdrawn.** DBD §3.6 defines `recurring_rules`. The finding was
+correct against SRS §6.2, which omits the table, but the DBD supplies it. Its
+design differs from the one proposed above: it stores a `template_tx_id`
+pointing at a transaction to copy, rather than duplicating the fields onto the
+rule.
+
+One residual gap survives: the DBD's version has no `day_of_week` or
+`day_of_month` column, so `frequency='monthly'` cannot express *which* day it
+recurs on. Add both columns, keeping the 1–28 bound on `day_of_month` for the
+reason given in E-03.
+
+**E-02 — superseded, but read E-15 to E-17.** DBD §3.5 defines a `transfers`
+table with `from_account_id` and `to_account_id`. Transfers are representable
+after all, so the `to_account_id` column proposed for `transactions` is dropped.
+
+The other half of E-02 stands and matters *more* under this design, not less:
+**analytics must exclude `type='transfer'`.** The DBD creates two `transactions`
+rows per transfer, so a query that forgets the exclusion double-counts every one
+of them.
+
+**E-05 — still open, different defect.** The DBD replaced the SDD's `STDDEV()`
+query with one that does not use `STDDEV` — but which averages a column the
+query never defines:
+
+```sql
+SELECT t.category_id, AVG(monthly_total) AS avg_monthly, ...
+FROM transactions t
+WHERE t.type = 'expense' AND t.date >= date('now','-6 months')
+GROUP BY t.category_id, strftime('%Y-%m', t.date)
+```
+
+There is no `monthly_total` column on `transactions` and no subquery producing
+one. It fails as written, exactly as the SDD version did. **The E-05 resolution
+is unchanged:** fetch rows, aggregate in Dart.
+
+### Confirmed across all three documents
+
+**E-04** — no split table exists in the DBD either, so FR-EXP-010 remains
+unimplementable. **E-06** — the DBD uses `REAL` for every monetary column,
+matching SRS §6.2 and SDD §5. Three documents, one defect, three times; the
+integer-cents override stands.
+
+---
+
+<a id="e-15"></a>
+
+### E-15 — A transfer writes three rows across two tables with circular references
+
+**Severity:** Medium · **Affects:** DBD §3.5
+
+`transfers.from_tx_id` and `to_tx_id` are foreign keys into `transactions`,
+while the rows they point at are the transfer's own two halves. Neither table
+can be written first without the other's ids, so a transfer is necessarily:
+insert two transaction rows, read back their ids, insert the transfer row.
+Three writes, ordered, all-or-nothing.
+
+FR-TRF-002 calls a transfer *"a single atomic transaction"* and NFR-REL-002
+requires atomic writes, but the DBD specifies neither the ordering nor a
+wrapper.
+
+**Resolution:** every transfer write is wrapped in `BEGIN … COMMIT` inside the
+datasource, in the order above. This is one of the few places where the
+repository must expose an explicitly transactional method rather than three
+separate calls. A partial write here leaves money that has left one account
+without arriving in the other — the worst failure this application can produce.
+
+---
+
+<a id="e-16"></a>
+
+### E-16 — The two halves of a transfer are indistinguishable
+
+**Severity:** **Blocking** · **Affects:** DBD §3.4, §3.5
+
+`transactions.amount` carries `CHECK(amount > 0)`, so every row is positive.
+There is no sign column, no direction column, and both halves of a transfer
+carry `type='transfer'`. Given a transfer row from `transactions` alone,
+**nothing identifies it as the debit or the credit.**
+
+Every balance calculation and every list view therefore has to join back to
+`transfers` on `from_tx_id` / `to_tx_id` to discover which way the money moved.
+The DBD's own "Account balance calculation" row in §5.2 does not mention that
+join, which suggests the query behind it was never written.
+
+**Resolution:** put the direction on the transaction row.
+
+```sql
+transfer_direction TEXT CHECK(transfer_direction IN ('out','in')),
+
+CHECK (
+  (type =  'transfer' AND transfer_direction IS NOT NULL)
+  OR
+  (type <> 'transfer' AND transfer_direction IS NULL)
+)
+```
+
+Balance then reads from `transactions` alone, and `transfers` becomes what it
+should have been — a header row for display and editing, not a table the
+balance depends on.
+
+---
+
+<a id="e-17"></a>
+
+### E-17 — `category_id` is NOT NULL, but transfers have no category
+
+**Severity:** **Blocking** · **Affects:** DBD §3.4 against §3.5
+
+`transactions.category_id` is `FK categories(id), NOT NULL`. A transfer between
+your own accounts has no category — it is not spending. Yet §3.5 requires two
+`transactions` rows per transfer, each of which must supply one.
+
+As specified, the only way to insert a transfer is to invent a sentinel
+category, which then leaks into the category list, the donut chart, and plan
+allocations.
+
+**Resolution:** make the column nullable and tie it to type with a constraint.
+
+```sql
+category_id INTEGER REFERENCES categories(id),
+
+CHECK (
+  (type =  'transfer' AND category_id IS NULL)
+  OR
+  (type <> 'transfer' AND category_id IS NOT NULL)
+)
+```
+
+The constraint does the work the `NOT NULL` was there for, without lying about
+what a transfer is.
+
+---
+
+<a id="e-18"></a>
+
+### E-18 — `current_balance` is stored and incrementally mutated
+
+**Severity:** Medium · **Affects:** DBD §3.2, §6.2
+
+`accounts.current_balance` is a stored column, updated in place on every write:
+
+```sql
+UPDATE accounts SET current_balance = current_balance - ? WHERE id = ?;
+```
+
+Two problems compound. Any write path that forgets the update — an edit, a
+delete, a receipt batch, a transfer, a restored backup — silently desynchronises
+the balance from the transactions that produced it, with nothing in the schema
+able to detect the drift. And because the column is `REAL` (E-06), repeated
+increment accumulates floating-point error even when every path is correct.
+
+The DBD specifies no reconciliation procedure.
+
+**Resolution:** keep the column — recomputing from full history on every home
+screen render will not meet NFR-PER-005 at 100,000 transactions — but treat it
+strictly as a **cache**:
+
+1. It is written **only** inside the same `BEGIN … COMMIT` as the transaction
+   row that changes it. Never as a separate call.
+2. `INTEGER` cents, per E-06, so every increment is exact.
+3. A `RecomputeAccountBalance` use case re-derives it from
+   `initial_balance_cents` plus all transactions, and runs on app start after a
+   restore, and behind a Settings action.
+
+Point 3 is the reconciliation the DBD lacks, and it doubles as the test oracle:
+a property test asserting *cached == recomputed* after a random sequence of
+writes catches every missed update path at once, which no amount of manual
+testing reliably does.
+
+---
+
 
 ## Traceability
 
