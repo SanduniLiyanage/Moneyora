@@ -5,18 +5,29 @@ Everything below was verified against this machine's current state on 2026-08-24
 
 ---
 
-## Machine audit (as found)
+## Machine audit
+
+Re-verified 2026-09-01. Items marked done were resolved after the original
+2026-08-24 audit.
 
 | Item | Status | Action |
 |---|---|---|
 | Git | Installed | — |
-| Java (Adoptium JDK 21) | Installed | Keep — Gradle needs it |
-| Java on PATH | **Reports v25** | **Fix — see §3** |
+| VS Code | Installed | — |
+| Adoptium JDK 21 | Installed (`C:\Program Files\Eclipse Adoptium\jdk-21.0.8.9-hotspot`) | — |
+| `JAVA_HOME` | **Set to JDK 21** | Done — see §3 |
+| Java on PATH | Reports v25 | Harmless: Gradle and Flutter read `JAVA_HOME`, which now wins |
+| Free disk space on `C:` | **67 GB** (was 6.6 GB) | Done — §0 no longer blocking |
+| Free disk space on `D:` | 43 GB | Caches relocated here |
+| `PUB_CACHE` / `GRADLE_USER_HOME` / `ANDROID_SDK_ROOT` | Set to `D:\dev\...` | Done |
 | Flutter SDK | **Not installed** | **Install — see §1** |
-| VS Code Flutter/Dart extension | **Not installed** | **Install — see §1** |
-| Free disk space on C: | **6.6 GB / 224 GB (98% full)** | **Free ~20 GB — see §0** |
-| Android SDK | **Not found** | **Install — see §2** |
+| VS Code Flutter/Dart extensions | **Not installed** | **Install — see §1** |
+| Android SDK / Android Studio | **Not installed** | **Install — see §2** |
 | Xcode / macOS | N/A (Windows) | iOS builds need a Mac or CI runner |
+
+> Environment variables are read by processes **at launch**. After the changes
+> above, VS Code and every open terminal must be fully restarted — not just a
+> new terminal tab — before they see the new values.
 
 ---
 
