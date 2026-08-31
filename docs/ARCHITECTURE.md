@@ -133,8 +133,13 @@ Doing it now costs one column rename; doing it in Sprint 8 costs a data migratio
   the actively-maintained alternative with a near-identical `Either` API.
 
 Neither changes the architecture — only import lines and a base class name.
-If your evaluation rubric checks conformance to the SDD, keep the SDD's choices
-and note the tradeoff in your report instead. Say the word and I'll switch them.
+
+**Decision (2026-09-01): take the modern option for both.** `AsyncNotifier`
+over `StateNotifier`, `fpdart` over `dartz`. This project's audience is a
+reviewer reading the repository, and a 2026 Flutter codebase built on a
+deprecated notifier and a thinly-maintained functional library reads as one
+assembled from an old tutorial. Recorded as a deviation from SDD §10.1 in
+[`SPEC_ERRATA.md`](SPEC_ERRATA.md) E-14 rather than applied silently.
 
 ## 7. Testing strategy
 

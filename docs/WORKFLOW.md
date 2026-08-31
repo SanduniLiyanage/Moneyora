@@ -39,8 +39,9 @@ within a few days.
 `feat` / `fix` / `refactor` / `test` / `docs` / `chore` / `perf`.
 
 Map branches to requirement IDs where you can — `feat/frpln-007-allocation-calc`
-gives you traceability from the SRS straight to the diff, which is exactly what
-an evaluation panel asks for.
+gives you traceability from the SRS straight to the diff. Someone reviewing this
+repository can pick any requirement and find the commit that implemented it,
+which is a far stronger signal than a README claiming the feature exists.
 
 ### Protecting main
 
