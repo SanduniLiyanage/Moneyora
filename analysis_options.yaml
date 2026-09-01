@@ -25,6 +25,8 @@ analyzer:
     - "**/*.freezed.dart"
     - "**/generated_plugin_registrant.dart"
     - "build/**"
+    - android/**
+    - ios/**
 
 linter:
   rules:
@@ -59,7 +61,6 @@ linter:
 
     # ── Documentation (NFR-MNT-003) ────────────────────────────────
     public_member_api_docs: false  # flip to true before v1.0 release
-    package_api_docs: false
 
     # ── Flutter ────────────────────────────────────────────────────
     use_key_in_widget_constructors: true
