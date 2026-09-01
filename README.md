@@ -90,6 +90,16 @@ Rather than silently editing the specifications, every deviation is recorded in
 [`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning, and folds into v1.1
 at milestone M2. The baseline stays auditable; the corrections stay traceable.
 
+## Platform status
+
+| Platform | Status |
+|---|---|
+| Android 8.0+ (API 26) | Primary target. Built and tested. |
+| iOS 14+ | **Compile-verified only** — CI builds it on macOS every PR, but it has never been run on a device or simulator. See [E-19](docs/SPEC_ERRATA.md). |
+
+The distinction matters: "builds on iOS" and "works on iOS" are different
+claims, and only the first is being made.
+
 ## Security
 
 Database encrypted with AES-256 (SQLCipher); key held in the iOS Keychain /
