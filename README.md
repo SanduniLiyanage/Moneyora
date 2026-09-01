@@ -95,7 +95,7 @@ at milestone M2. The baseline stays auditable; the corrections stay traceable.
 | Platform | Status |
 |---|---|
 | Android 8.0+ (API 26) | Primary target. Built and tested. |
-| iOS 14+ | **Compile-verified only** — CI builds it on macOS every PR, but it has never been run on a device or simulator. See [E-19](docs/SPEC_ERRATA.md). |
+| iOS 15.5+ | **Compile-verified only** — CI builds it on macOS every PR, but it has never been run on a device or simulator. Floor raised from the SRS's iOS 14 because ML Kit requires 15.5. See [E-19](docs/SPEC_ERRATA.md), [E-20](docs/SPEC_ERRATA.md). |
 
 The distinction matters: "builds on iOS" and "works on iOS" are different
 claims, and only the first is being made.
