@@ -87,6 +87,14 @@ jobs:
       - name: Enforce domain-layer coverage >= 75%
         if: steps.probe.outputs.ready == 'true'
         run: |
+          # The floor is meaningless before any domain/ code exists: lcov
+          # extracts nothing, the percentage parses as empty, and the gate
+          # fails a PR that is not actually undercovered. Self-removing, like
+          # the pubspec probe above.
+          if [ -z "$(find lib -path '*/domain/*' -name '*.dart' -print -quit)" ]; then
+            echo "::notice title=Pre-Sprint-1::No domain/ code yet - coverage floor not applicable."
+            exit 0
+          fi
           sudo apt-get update -qq && sudo apt-get install -y lcov
           lcov --extract coverage/lcov.info '*/domain/*' -o coverage/domain.info
           PCT=$(lcov --summary coverage/domain.info 2>&1 \

@@ -12,7 +12,8 @@ sealed class AppException implements Exception {
   final Object? cause;
 
   @override
-  String toString() => '$runtimeType: $message${cause == null ? '' : ' ($cause)'}';
+  String toString() =>
+      '$runtimeType: $message${cause == null ? '' : ' ($cause)'}';
 }
 
 /// A local database read/write failed (sqflite/SQLCipher error, constraint

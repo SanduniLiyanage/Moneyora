@@ -93,8 +93,7 @@ class InsufficientDataFailure extends Failure {
       monthsRequired == other.monthsRequired;
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, monthsAvailable, monthsRequired);
+  int get hashCode => Object.hash(runtimeType, monthsAvailable, monthsRequired);
 }
 
 /// A device permission was denied.
