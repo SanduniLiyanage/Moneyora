@@ -144,3 +144,27 @@ jobs:
           MB=$((BYTES / 1024 / 1024))
           echo "Debug APK: ${MB} MB"
           [ "$MB" -lt 150 ] || { echo "::error::Debug APK ${MB}MB — release budget is 80MB, investigate."; exit 1; }
+
+  build-ios:
+    name: Build iOS (compile only)
+    runs-on: macos-latest
+    needs: analyze-and-test
+    if: needs.analyze-and-test.outputs.ready == 'true'
+    # This job exists because the project is developed on Windows, where iOS
+    # cannot be built at all - Xcode is macOS-only. Without it, SRS 2.3's
+    # "iOS 14.0+" would be a claim nothing had ever checked.
+    #
+    # It proves the code COMPILES for iOS. It does not prove the app RUNS:
+    # there is no simulator interaction, no gestures, no camera, no manual QA
+    # on any iOS device. Read a green tick here as "the Dart and the plugin
+    # podspecs are iOS-compatible", nothing more. See E-19.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # --no-codesign: signing needs an Apple Developer account and
+      # provisioning profiles. Compilation does not.
+      - run: flutter build ios --no-codesign

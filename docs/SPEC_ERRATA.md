@@ -34,6 +34,7 @@ follows the Resolution sections.
 | [E-16](#e-16) | **Blocking** | Transfer debit and credit rows are indistinguishable | Resolved |
 | [E-17](#e-17) | **Blocking** | `category_id NOT NULL` conflicts with transfers | Resolved |
 | [E-18](#e-18) | Medium | `current_balance` stored, mutated in place, never reconciled | Resolved |
+| [E-19](#e-19) | Medium | iOS claimed but unbuildable on the dev machine | Mitigated |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -645,6 +646,62 @@ testing reliably does.
 
 ---
 
+
+<a id="e-19"></a>
+
+## E-19 — iOS is claimed but cannot be tested on the development machine
+
+**Severity:** Medium · **Affects:** SRS §2.3, NFR-PRT-001, SDD §1
+
+SRS §2.3 targets *"iOS 14.0 or later"* and NFR-PRT-001 requires *"a single
+Flutter codebase targeting both iOS and Android"*. The project is developed on
+Windows, and iOS binaries can only be produced by Xcode, which runs solely on
+macOS. There is no Windows toolchain, plugin, or workaround; a connected iPhone
+is not even enumerated by `flutter devices`.
+
+The developer's only iOS device is an iPhone 11, which for this purpose is
+irrelevant — the constraint is the build host, not the target.
+
+Left unaddressed, "iOS 14+" would be a requirement nothing had ever checked,
+and the first attempt at an iOS build would land in Sprint 10 alongside store
+submission, which is the worst possible moment to discover a plugin without an
+iOS implementation.
+
+### Resolution — compile on CI, and say plainly what that does and does not prove
+
+A `build-ios` job runs `flutter build ios --no-codesign` on a `macos-latest`
+runner for every pull request. GitHub provides macOS runners free for public
+repositories.
+
+**What a green tick proves:** the Dart compiles for iOS, every plugin resolves
+an iOS implementation, the CocoaPods dependency graph is satisfiable, and the
+Xcode project builds. That is genuinely the majority of what breaks
+cross-platform, and it catches it on the PR that introduces it rather than in
+Sprint 10.
+
+**What it does not prove:** that the app runs. There is no simulator
+interaction, no gesture testing, no camera, no biometric prompt, no manual QA
+on any iOS device. Layout, scroll behaviour, safe-area insets, keyboard
+handling and Cupertino-specific behaviour are all unverified.
+
+The distinction has to be stated wherever the platform is claimed, because
+"builds on iOS" and "works on iOS" are different assertions and only the first
+is being made. `README.md` therefore describes the app as Android-tested and
+iOS-compile-verified rather than simply cross-platform.
+
+### Residual risk
+
+Accepted, and it is not small: an iOS build that compiles can still be
+unusable. Closing it requires physical access to a Mac and an iOS device for a
+manual pass before any store submission. Until that happens, no claim stronger
+than "compiles for iOS" is supportable.
+
+Two features carry more iOS risk than the rest and should be checked first when
+a Mac becomes available: the receipt scanner (camera permissions and ML Kit's
+iOS path) and biometric authentication (Face ID differs materially from
+Android's fingerprint flow).
+
+---
 
 ## Traceability
 
