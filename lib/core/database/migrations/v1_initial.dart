@@ -23,8 +23,8 @@ const int v1SchemaVersion = 1;
 ///
 /// SRS NFR-MNT-005 requires versioned schema migrations; SDD §5.3 names this
 /// table for multi-step upgrades.
-const String _createSchemaMigrations = '''
-CREATE TABLE schema_migrations (
+const String createSchemaMigrations = '''
+CREATE TABLE IF NOT EXISTS schema_migrations (
   version     INTEGER PRIMARY KEY,
   applied_at  TEXT NOT NULL
 )''';
@@ -351,7 +351,7 @@ const List<String> _createIndexes = <String>[
 /// which SQLite tolerates because the constraint is checked on write, not on
 /// create — `transactions` is created first and `recurring_rules` follows.
 const List<String> v1Statements = <String>[
-  _createSchemaMigrations,
+  createSchemaMigrations,
   _createUsers,
   _createAccounts,
   _createCategories,
