@@ -35,6 +35,7 @@ follows the Resolution sections.
 | [E-17](#e-17) | **Blocking** | `category_id NOT NULL` conflicts with transfers | Resolved |
 | [E-18](#e-18) | Medium | `current_balance` stored, mutated in place, never reconciled | Resolved |
 | [E-19](#e-19) | Medium | iOS claimed but unbuildable on the dev machine | Mitigated |
+| [E-20](#e-20) | Medium | iOS 14 target impossible with ML Kit (needs 15.5) | Resolved |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -700,6 +701,55 @@ Two features carry more iOS risk than the rest and should be checked first when
 a Mac becomes available: the receipt scanner (camera permissions and ML Kit's
 iOS path) and biometric authentication (Face ID differs materially from
 Android's fingerprint flow).
+
+---
+
+<a id="e-20"></a>
+
+## E-20 — The iOS 14 target is unachievable with the mandated OCR library
+
+**Severity:** Medium · **Affects:** SRS §2.3, D2, SDD §10.1
+
+SRS §2.3 sets the minimum platform at *"iOS 14.0 or later"*. Dependency D2 and
+SDD §10.1 mandate `google_mlkit_text_recognition`, and FR-RCP-004 requires
+Google ML Kit Text Recognition v2 specifically.
+
+Those two requirements cannot both hold. The package's iOS podspec declares:
+
+```ruby
+s.platform = :ios, '15.5'
+s.ios.deployment_target = '15.5'
+```
+
+CocoaPods refuses outright when an app's deployment target is lower than a
+pod's, so an iOS 14 build does not merely warn — it cannot link. This surfaced
+on the very first iOS build the project ever attempted, which is the argument
+for having added that CI job (E-19) rather than deferring it to Sprint 10.
+
+The generated Xcode project already carried 15.0, itself above the SRS figure,
+so the specification's iOS 14 claim had never matched the code even before
+ML Kit was considered.
+
+### Resolution — raise the floor to iOS 15.5
+
+`IPHONEOS_DEPLOYMENT_TARGET` moves to 15.5, the lowest value that satisfies
+ML Kit. **SRS §2.3's iOS 14.0 is superseded.**
+
+The cost is real but small: iOS 15.5 shipped in May 2022, and Apple's adoption
+curve is steep enough that devices below it are a rounding error — every iPhone
+back to the 6s runs iOS 15. The alternative was dropping on-device OCR, which
+is one of the project's two headline features.
+
+Android is unaffected. Its ML Kit path needs only API 21, well under the API 26
+floor that SRS §2.3 sets there.
+
+### Worth noting for later
+
+Raising a deployment target is a one-line change now and a support problem
+after release. If a future dependency demands iOS 16 or 17, the same conflict
+recurs with real users on the other side of it. Check the iOS deployment
+target in any PR that adds a plugin — the CI job will catch it, but knowing
+why it failed saves an afternoon.
 
 ---
 
