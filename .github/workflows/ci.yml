@@ -135,7 +135,31 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --debug
+
+      # Retried, because the failure being guarded against is a download, not
+      # a defect. sqlite3 - a transitive dependency of the sqflite_common_ffi
+      # dev dependency - runs a native-assets build hook that fetches
+      # libsqlite3.so from GitHub Releases, and that fetch failed three runs in
+      # a row with "Connection reset by peer" from GitHub's own CDN.
+      #
+      # Configuring the hook away was tried first and rejected: `source: system`
+      # stops the download but breaks every database test, since Windows has no
+      # system SQLite to resolve against. A retry is the proportionate response
+      # to a flaky network call.
+      #
+      # If this starts needing all three attempts regularly, stop retrying and
+      # vendor the library instead.
+      - name: Build debug APK
+        run: |
+          for attempt in 1 2 3; do
+            if flutter build apk --debug; then
+              exit 0
+            fi
+            echo "::warning::APK build attempt $attempt failed, retrying in 15s"
+            sleep 15
+          done
+          echo "::error::APK build failed three times - not a transient fault"
+          exit 1
 
       # SRS §2.4: total app size MUST remain under 80 MB.
       - name: Check APK size budget
