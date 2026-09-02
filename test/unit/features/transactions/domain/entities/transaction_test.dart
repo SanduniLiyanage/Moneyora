@@ -47,6 +47,8 @@ void main() {
         'time': base.copyWith(time: '09:00'),
         'note': base.copyWith(note: 'Something else'),
         'receiptScanId': base.copyWith(receiptScanId: 5),
+        'receiptImagePath': base.copyWith(receiptImagePath: '/tmp/r.jpg'),
+        'recurringRuleId': base.copyWith(recurringRuleId: 3),
         'isRecurring': base.copyWith(isRecurring: true),
         'splits': base.copyWith(
           splits: const [TransactionSplit(categoryId: 1, amountCents: 125000)],
