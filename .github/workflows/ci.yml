@@ -108,22 +108,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: analyze-and-test
     if: needs.analyze-and-test.outputs.ready == 'true'
-    # KNOWN FAILING - do not merge this comment away without checking.
+    # Blocking, as of the first green run on 2026-09-02.
     #
-    # Android cmdline-tools 23.0.0 replaced sdkmanager with a shim that splits
-    # package names on ';' and crashes under Gradle (STATUS_STACK_BUFFER_OVERRUN)
-    # when Flutter's plugin auto-installs the NDK. Reproduced locally; the CI
-    # failure has the same shape but its log is not readable without repo admin.
+    # It was continue-on-error while broken, which was the right call - a job
+    # that cannot pass should not block work, but should stay visible so the
+    # day it goes green is noticed. Three fixes got it there: compileSdk 37
+    # for flutter_secure_storage, a retry around sqlite3's flaky binary
+    # download, and correcting a size threshold that had been set by guesswork.
     #
-    # Non-blocking rather than deleted: the job still runs and its result is
-    # still visible, so the day it goes green we will see that too. Nothing in
-    # Sprints 1-5 needs an APK - the domain layer is pure Dart and covered by
-    # flutter test.
-    #
-    # REMOVE continue-on-error once the toolchain is fixed, and add this job to
-    # the branch ruleset alongside Analyze & Test. Revisit: Sprint 6 at the
-    # latest, when the receipt scanner needs a real camera.
-    continue-on-error: true
+    # It gates now because a passing check that cannot fail protects nothing.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
