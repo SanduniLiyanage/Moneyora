@@ -208,6 +208,26 @@ void main() {
       );
     });
 
+    test('reports an overshoot as well as a shortfall', () async {
+      // Both directions are worth a distinct message: "short by" and "exceeds
+      // by" send someone to different halves of the form.
+      final result = await addTransaction(
+        expense(
+          amountCents: 10000,
+          splits: const [
+            TransactionSplit(categoryId: 1, amountCents: 6000),
+            TransactionSplit(categoryId: 2, amountCents: 7000),
+          ],
+        ),
+      );
+
+      expect(result.isLeft(), isTrue);
+      result.fold(
+        (f) => expect(f.message, contains('exceeds')),
+        (_) => fail('should not have saved'),
+      );
+    });
+
     test('rejects a zero-value part', () async {
       final result = await addTransaction(
         expense(
