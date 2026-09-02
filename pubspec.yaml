@@ -38,7 +38,15 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^2.6.1
-  flutter_secure_storage: ^11.0.0
+  # Pinned below 11 deliberately. flutter_secure_storage 11 declares an AAR
+  # metadata minimum of compileSdk 37, and API 37 ships as "37.0" - a decimal
+  # API level that AGP 9.1.0 cannot resolve, so Gradle installs
+  # platforms/android-37.0 and then fails looking for android-37.
+  #
+  # Flutter's default compileSdk is 36 and AGP 9.1.0 recommends 36 as its
+  # maximum; 10.3.1 sits inside that. Revisit when the Flutter toolchain moves
+  # to an AGP that understands decimal API levels.
+  flutter_secure_storage: ^10.3.1
   fpdart: ^1.2.0
   go_router: ^18.0.0
   google_mlkit_text_recognition: ^0.17.1

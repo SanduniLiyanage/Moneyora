@@ -6,20 +6,18 @@ plugins {
 
 android {
     namespace = "com.moneyora.moneyora"
-    // Pinned rather than inherited from flutter.compileSdkVersion (36),
-    // because flutter_secure_storage 11 declares an AAR metadata minimum of
-    // 37 and Gradle refuses to link below it.
+    // Back to Flutter's default (36), after compileSdk = 37 turned out not to
+    // work. API 37 ships as "37.0" - Android now uses decimal API levels - and
+    // AGP 9.1.0 cannot resolve them: Gradle installs platforms/android-37.0
+    // and then fails looking for a target named android-37.
     //
-    // compileSdk is not the same knob as targetSdk or minSdk, and only this
-    // one moves:
-    //   compileSdk - which APIs the code may reference. No device impact.
-    //   targetSdk  - which runtime behaviours the app opts in to.
-    //   minSdk     - the oldest device that can install it. Still 26 per SRS 2.3.
+    // AGP 9.1.0 warned that 36 was its maximum recommended compileSdk when 37
+    // was set. That warning was correct and worth having believed.
     //
-    // AGP 9.1.0 warns that its maximum *recommended* compileSdk is 36. That is
-    // advisory: compiling against a newer SDK is backward compatible, which is
-    // the whole reason the three values are separate.
-    compileSdk = 37
+    // The only thing that wanted 37 was flutter_secure_storage 11, now pinned
+    // to 10.3.1. Revisit when the Flutter toolchain ships an AGP that
+    // understands decimal API levels.
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
