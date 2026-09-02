@@ -94,6 +94,8 @@ class Transaction extends Equatable {
     this.note,
     this.splits = const [],
     this.receiptScanId,
+    this.receiptImagePath,
+    this.recurringRuleId,
     this.isRecurring = false,
   });
 
@@ -130,7 +132,26 @@ class Transaction extends Equatable {
   /// The receipt scan that produced this, if any. FR-RCP-009.
   final int? receiptScanId;
 
+  /// Where the attached receipt photo lives on disk, if any. FR-RCP-009.
+  ///
+  /// A path rather than the bytes: images are large, and NFR-PER-005 has the
+  /// transaction list scrolling 100,000 rows. A row that carried its own
+  /// photo could not be read cheaply.
+  final String? receiptImagePath;
+
+  /// The recurring rule that generated this, if any. FR-EXP-008, FR-INC-004.
+  ///
+  /// On the entity rather than hidden in the persistence model because it is a
+  /// real relationship, not storage bookkeeping. Without it, loading a
+  /// generated transaction would lose the link back to the rule that made it,
+  /// and "stop this repeating" would have nothing to act on.
+  final int? recurringRuleId;
+
   /// Whether a recurring rule generated this. FR-EXP-008.
+  ///
+  /// Redundant with `recurringRuleId != null` today, and kept because the DBD
+  /// defines the column and a transaction detached from its rule (rule
+  /// deleted, series ended) should still read as having been generated.
   final bool isRecurring;
 
   /// True when this row is split across categories.
@@ -165,6 +186,8 @@ class Transaction extends Equatable {
     String? note,
     List<TransactionSplit>? splits,
     int? receiptScanId,
+    String? receiptImagePath,
+    int? recurringRuleId,
     bool? isRecurring,
   }) => Transaction(
     id: id ?? this.id,
@@ -178,6 +201,8 @@ class Transaction extends Equatable {
     note: note ?? this.note,
     splits: splits ?? this.splits,
     receiptScanId: receiptScanId ?? this.receiptScanId,
+    receiptImagePath: receiptImagePath ?? this.receiptImagePath,
+    recurringRuleId: recurringRuleId ?? this.recurringRuleId,
     isRecurring: isRecurring ?? this.isRecurring,
   );
 
@@ -194,6 +219,8 @@ class Transaction extends Equatable {
     note,
     splits,
     receiptScanId,
+    receiptImagePath,
+    recurringRuleId,
     isRecurring,
   ];
 }
