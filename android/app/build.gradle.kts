@@ -6,7 +6,20 @@ plugins {
 
 android {
     namespace = "com.moneyora.moneyora"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned rather than inherited from flutter.compileSdkVersion (36),
+    // because flutter_secure_storage 11 declares an AAR metadata minimum of
+    // 37 and Gradle refuses to link below it.
+    //
+    // compileSdk is not the same knob as targetSdk or minSdk, and only this
+    // one moves:
+    //   compileSdk - which APIs the code may reference. No device impact.
+    //   targetSdk  - which runtime behaviours the app opts in to.
+    //   minSdk     - the oldest device that can install it. Still 26 per SRS 2.3.
+    //
+    // AGP 9.1.0 warns that its maximum *recommended* compileSdk is 36. That is
+    // advisory: compiling against a newer SDK is backward compatible, which is
+    // the whole reason the three values are separate.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

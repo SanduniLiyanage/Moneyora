@@ -330,10 +330,15 @@ app base"*; A1 assumes *"at least 150 MB free storage"*.
 | 80 MB | Release APK / AAB **download** size | Store listing; release CI gate |
 | 150 MB | **Installed** footprint: extracted binary, ML Kit model, seed data | A1's free-space assumption |
 
-The gate currently in `.github/workflows/ci.yml` checks a **debug** APK against
-150 MB. Debug builds carry unstripped symbols and every ABI, so they run far
-larger than release; the 80 MB figure applies to a release build only and gets
-its own gate in Sprint 10.
+The gate in `.github/workflows/ci.yml` checks a **debug** APK, which is not the
+same artefact. Debug builds carry every ABI, unstripped symbols and ML Kit's
+models; the first successful build measured **203 MB**. That ceiling was
+originally set to 150 MB by guesswork and failed the moment a build reached it —
+measure before asserting.
+
+It is now a 280 MB tripwire for "someone committed something enormous", and is
+explicitly not the SRS budget. The real 80 MB gate measures a **release** build,
+split per ABI, and lands in Sprint 10 alongside store preparation.
 
 ---
 
