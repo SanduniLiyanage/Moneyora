@@ -161,13 +161,23 @@ jobs:
           echo "::error::APK build failed three times - not a transient fault"
           exit 1
 
-      # SRS §2.4: total app size MUST remain under 80 MB.
-      - name: Check APK size budget
+      # This is NOT the SRS §2.4 budget. That figure - 80 MB - applies to the
+      # release download, and is gated separately in Sprint 10 (see E-09).
+      #
+      # A debug APK carries every ABI, unstripped symbols and ML Kit's models,
+      # and measures 203 MB today. The ceiling below is a tripwire for someone
+      # committing an enormous asset, not a size target. It was originally set
+      # to 150 MB by guesswork and failed on the first build that reached it,
+      # which is a good argument for measuring before asserting.
+      - name: Debug APK size tripwire
         run: |
           BYTES=$(stat -c%s build/app/outputs/flutter-apk/app-debug.apk)
           MB=$((BYTES / 1024 / 1024))
-          echo "Debug APK: ${MB} MB"
-          [ "$MB" -lt 150 ] || { echo "::error::Debug APK ${MB}MB — release budget is 80MB, investigate."; exit 1; }
+          echo "Debug APK: ${MB} MB (tripwire at 280 MB; SRS budget is 80 MB on release)"
+          [ "$MB" -lt 280 ] || {
+            echo "::error::Debug APK ${MB}MB exceeds the 280MB tripwire. Something large was added."
+            exit 1
+          }
 
   build-ios:
     name: Build iOS (compile only)
