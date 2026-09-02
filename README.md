@@ -75,6 +75,7 @@ test/              mirrors lib/
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commits, releases |
 | [ROADMAP.md](docs/ROADMAP.md) | Deciding what to build next |
 | [CLAUDE.md](CLAUDE.md) | Working with Claude Code in this repo |
+| [HANDOFF.md](docs/HANDOFF.md) | **Start here.** Project state, what is next, and the environment traps |
 | [SPEC_ERRATA.md](docs/SPEC_ERRATA.md) | **Defects found in the baselines.** Where it and a spec disagree, it wins |
 | [specs/](docs/specs/) | The approved SRS v1.0 and SDD v1.0, unmodified |
 
