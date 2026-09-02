@@ -19,7 +19,8 @@ Re-verified 2026-09-01. Items marked done were resolved after the original
 | Java on PATH | Reports v25 | Harmless: Gradle and Flutter read `JAVA_HOME`, which now wins |
 | Free disk space on `C:` | **67 GB** (was 6.6 GB) | Done — §0 no longer blocking |
 | Free disk space on `D:` | 43 GB | Caches relocated here |
-| `PUB_CACHE` / `GRADLE_USER_HOME` / `ANDROID_SDK_ROOT` | Set to `D:\dev\...` | Done |
+| `GRADLE_USER_HOME` / `ANDROID_SDK_ROOT` | `D:\dev\...` | Done |
+| `PUB_CACHE` | **`C:\dev\pub-cache`** — must share a drive with the repo | Done — see §0.1 |
 | Flutter SDK | **Not installed** | **Install — see §1** |
 | VS Code Flutter/Dart extensions | **Not installed** | **Install — see §1** |
 | Android SDK / Android Studio | **Not installed** | **Install — see §2** |
@@ -74,7 +75,8 @@ the Android SDK support it:
 
 ```powershell
 # Flutter at D:\dev\flutter, and relocate the two caches that grow the most
-[Environment]::SetEnvironmentVariable('PUB_CACHE',        'D:\dev\pub-cache',   'User')
+# PUB_CACHE must stay on the SAME DRIVE as the repository - see 0.1 below.
+[Environment]::SetEnvironmentVariable('PUB_CACHE',        'C:\dev\pub-cache',   'User')
 [Environment]::SetEnvironmentVariable('GRADLE_USER_HOME', 'D:\dev\gradle',      'User')
 [Environment]::SetEnvironmentVariable('ANDROID_SDK_ROOT', 'D:\dev\android-sdk', 'User')
 ```
@@ -83,6 +85,43 @@ the Android SDK support it:
 > files mid-build and corrupts `build/` in ways that look like compiler bugs.
 > This repo lives at `C:\Users\ASUS\Documents\GitHub\Moneyora`, which is *not*
 > the OneDrive-redirected Documents folder — that is correct, leave it there.
+
+## 0.1 PUB_CACHE must share a drive with the repository
+
+Move the Gradle cache and the Android SDK to a second drive freely. **Do not
+move `PUB_CACHE` there** unless the repository lives on the same drive.
+
+Kotlin's incremental compiler resolves plugin sources against the project
+directory using a *relative* path, and on Windows there is no relative path
+between two drive letters. With the repo on `C:` and the cache on `D:`, every
+plugin written in Kotlin fails to build:
+
+```
+IllegalArgumentException: this and base files have different roots:
+  D:\dev\pub-cache\...\google_mlkit_commons-0.13.0\...\GenericModelManager.kt
+  and C:\Users\ASUS\Documents\GitHub\Moneyora\android
+```
+
+**The message that surfaces is not that one.** Gradle reports pages of
+`Could not close incremental caches` and `Daemon compilation failed`, and the
+real cause appears only in a *suppressed* exception far down the trace — which
+is why this cost an evening. Two `flutter clean` runs and a daemon restart
+changed nothing, because nothing was corrupt.
+
+To move an existing cache without re-downloading it:
+
+```powershell
+robocopy 'D:\dev\pub-cache' 'C:\dev\pub-cache' /E /MOVE
+[Environment]::SetEnvironmentVariable('PUB_CACHE', 'C:\dev\pub-cache', 'User')
+```
+
+Then open a new terminal, since environment variables are read at process
+start.
+
+`GRADLE_USER_HOME` and `ANDROID_SDK_ROOT` are unaffected — neither holds Kotlin
+sources that are compiled relative to the project.
+
+---
 
 ## 1. Install the Flutter SDK
 
