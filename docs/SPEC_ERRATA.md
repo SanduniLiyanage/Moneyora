@@ -36,6 +36,9 @@ follows the Resolution sections.
 | [E-18](#e-18) | Medium | `current_balance` stored, mutated in place, never reconciled | Resolved |
 | [E-19](#e-19) | Medium | iOS claimed but unbuildable on the dev machine | Mitigated |
 | [E-20](#e-20) | Medium | iOS 14 target impossible with ML Kit (needs 15.5) | Resolved |
+| [E-21](#e-21) | High | Money Plan cannot run for a user with no history | Resolved |
+| [E-22](#e-22) | Medium | No empty state specified for any surface | Resolved |
+| [E-23](#e-23) | Medium | Deleting a transaction is irreversible | Resolved |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -44,6 +47,13 @@ follows the Resolution sections.
 app (Monefy), against which the original requirements were gathered. They are
 omissions rather than errors: the SRS describes what it describes correctly, but
 missed behaviour that the reference app has and the stakeholder expects.
+
+**E-21 to E-23** were raised on 2026-09-03 — see [Amendment B](#amendment-b).
+They are omissions of the same kind, found by asking a different question: not
+"is this specified correctly?" but "what happens on the first open?" The
+baselines describe what the app *can do* and say almost nothing about how it
+feels to start using, which for an app judged on first impression is the gap
+that matters most.
 
 ---
 
@@ -755,6 +765,155 @@ after release. If a future dependency demands iOS 16 or 17, the same conflict
 recurs with real users on the other side of it. Check the iOS deployment
 target in any PR that adds a plugin — the CI job will catch it, but knowing
 why it failed saves an afternoon.
+
+---
+
+<a id="amendment-b"></a>
+
+## Amendment B — first-run and usability audit (2026-09-03)
+
+E-01 to E-20 were raised against correctness: contradictions between documents,
+constructs the database cannot execute, claims the platform cannot meet. This
+pass asked a different question — **what does a person see the first time they
+open the app, and can they act on it without being taught?**
+
+Three gaps surfaced. None is a contradiction; each is an absence. All three are
+cheapest now, in Sprint 2, while the screens that would carry them are still
+being written.
+
+They are recorded here rather than fixed silently for the same reason as every
+other entry: a gap found by deliberate audit is worth more, to anyone reading
+this repository as evidence of judgement, than a feature that quietly appeared.
+
+---
+
+<a id="e-21"></a>
+
+### E-21 — The Money Plan cannot run for a user with no history
+
+**Severity:** High · **Affects:** SRS §7.1, FR-PLN-001, FR-PLN-008,
+Appendix C risk R6
+
+The plan generator derives every allocation from the user's own spending
+history. It needs six months of it to classify a category, and twenty-four
+before seasonal detection is honest (E-07). **A user who installs the app today
+has none.**
+
+The headline feature is therefore unavailable for the first six months of use —
+well past the point at which most people decide whether to keep an app. SRS
+Appendix C records this as risk R6, but its mitigation column names no
+behaviour, and neither §7.1 nor any FR-PLN requirement says what the plan screen
+does when the history is empty. FR-PLN-008 Option A allocates in proportion to
+existing spending, which is the closest the baselines come to an answer and
+still assumes the proportions already exist.
+
+There is a second cost that is easy to miss: this is also the state a *reviewer*
+sees. Someone opening the app to evaluate it meets the headline feature in a
+condition indistinguishable from broken.
+
+### Resolution — a ladder, and always say which rung you are on
+
+| History held | Where the allocation comes from | Confidence |
+|---|---|---|
+| None | One question — monthly income — allocated across the seeded default categories on published baseline proportions | Low, every category |
+| 1–5 months | Blend: the user's observed proportions weighted by how many months exist, baseline for the remainder | Low, rising to Medium |
+| 6–23 months | The statistical engine as specified in §7.1 | Per category, per FR-PLN-007 |
+| 24 months or more | As above, plus seasonal detection | Per category |
+
+Two rules make the ladder work.
+
+**Ask one question, not a survey.** Monthly income is the only input that cannot
+be derived from transactions later. Every extra question is another chance to
+abandon setup before the app has shown its value.
+
+**Label the rung.** The plan reads *"Based on 0 months of your spending"*, and
+that line updates as history accumulates. A starter plan presented as a
+statistical one is a claim the user will eventually catch out; a starter plan
+that visibly improves is a reason to keep using the app.
+
+**New requirement FR-PLN-011** — cold-start plan.
+
+---
+
+<a id="e-22"></a>
+
+### E-22 — No empty state is specified for any surface
+
+**Severity:** Medium · **Affects:** SRS §4, FR-RPT-001, FR-EXP-006, FR-PLN-001
+
+The SRS specifies what every screen shows when it has data, and never what it
+shows when it has none. Zero transactions is not an edge case — it is the state
+**every user is in on first open**, and one that any filter can produce
+afterwards.
+
+Left undefined it renders as a donut chart with no segments, a list with no rows
+and a plan with no allocations: three blank screens, at exactly the moment a new
+user is deciding whether the app works.
+
+### Resolution — every collection defines two empty states, not one
+
+The distinction matters more than the copy. Conflating them produces the
+familiar bug of telling a user with four hundred transactions to *"add your
+first expense"* because they picked a quiet date range.
+
+| Surface | Nothing yet | Nothing matching the filter |
+|---|---|---|
+| Transaction list | "No transactions yet. Tap + to add your first." | "No transactions between 1 and 14 March. Change the dates or clear the filter." |
+| Donut chart (FR-RPT-001) | "Your spending breakdown appears here once you have added an expense." | "No spending in this period." |
+| Money Plan | "Answer one question and Moneyora will draft you a starter plan." (E-21) | — |
+| Search (FR-RPT-008) | — | "No transactions match 'xyz'." |
+| Accounts | Cannot occur — `default_seed.dart` seeds one Cash account, per FR-ACC-001 | — |
+
+Each empty state carries three things: what belongs here, why it is empty, and
+the single action that fills it. No apology, and no illustration standing in for
+an explanation.
+
+**New requirement NFR-USA-001** — recorded as a non-functional requirement
+rather than under one feature, because it binds every surface in the app.
+
+---
+
+<a id="e-23"></a>
+
+### E-23 — Deleting a transaction is irreversible
+
+**Severity:** Medium · **Affects:** FR-EXP-006
+
+FR-EXP-006 specifies deleting a transaction. Nothing specifies getting one back.
+
+The delete is a permanent write against financial history, fired by one tap, on
+a list where rows sit close together. A mis-tap destroys a record the user may
+have no second copy of — the receipt is in a bin and the bank statement is a
+week away.
+
+### Resolution — a snackbar with Undo, five seconds, on every delete
+
+The interaction is unremarkable. **The implementation detail is not, and it is
+the reason this is worth recording rather than leaving to whoever writes the
+screen.**
+
+Do not delete and re-insert. It looks equivalent and is not:
+
+- the restored row takes a **new `id`** from `AUTOINCREMENT`, so the
+  `transaction_splits` children that cascaded away with it (E-04) cannot be
+  reattached to their original parent, and any `receipt_scan_id` link is
+  orphaned;
+- `accounts.current_balance_cents` would be adjusted twice in opposite
+  directions (E-18), doubling the number of paths that can miss one;
+- a transfer is three rows across two tables (E-15), so all three ids would have
+  to be reissued consistently or the header row points at rows that no longer
+  exist.
+
+**Defer the write instead.** Remove the row from the visible list immediately,
+hold the pending delete in memory, and commit it inside its `BEGIN … COMMIT`
+only once the undo window closes. If the app is killed mid-window then nothing
+was deleted — the safe direction to fail when the data is someone's money.
+
+**New requirement FR-EXP-012** — undo delete.
+
+The same pattern generalises to accounts and categories, where the stakes are
+higher still because deleting an account takes its transactions with it. That
+belongs to Sprint 3 and is deliberately out of scope here.
 
 ---
 
