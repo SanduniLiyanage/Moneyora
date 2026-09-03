@@ -4,8 +4,13 @@ Implements SDD v1.0 §2–§3. This document is the rule book; `scripts/check_ar
 is the enforcement. If the two ever disagree, fix the script.
 
 Where this guide or the baselines conflict with [`SPEC_ERRATA.md`](SPEC_ERRATA.md),
-the errata wins — it records ten defects found in SRS/SDD v1.0, four of them
-blocking the Sprint 1 schema.
+the errata wins — it records twenty-three defects across SRS, SDD and DBD v1.0,
+six of them blocking the Sprint 1 schema. Two were later withdrawn on evidence,
+which is recorded there too.
+
+Note that the DBD came to light after the first audit and **it, not SRS §6.2, is
+the authoritative schema** (Amendment A). Several entries are superseded further
+down that file than their own Resolution section, so read an entry to its end.
 
 ---
 
@@ -27,7 +32,7 @@ floor without fighting for it.
 
 | Layer | May import | Must never import |
 |---|---|---|
-| `domain/` | `dart:*`, `dartz`, `equatable` | Flutter, sqflite, http, ML Kit, `data/`, `presentation/` |
+| `domain/` | `dart:*`, `fpdart`, `equatable` | Flutter, sqflite, http, ML Kit, `data/`, `presentation/` |
 | `data/` | `domain/`, any package | `presentation/` |
 | `presentation/` | `domain/`, Flutter, Riverpod | `data/` (except `injection.dart`) |
 | any `features/x/` | `core/`, own feature | another feature |
@@ -101,10 +106,13 @@ Money is stored as **integer minor units** (cents), never `double`. See §6.
 - Widget that knows about one entity → that feature's `presentation/widgets/`
 - SQL → `data/datasources/` or `core/database/`. Nowhere else. Enforced.
 
-## 6. Two deviations from SDD v1.0 you should consider
+## 6. Two deviations from SDD v1.0, both now settled
 
-The SDD is approved, so these are **recommendations, not unilateral changes**.
-Both are cheap now and expensive after Sprint 4.
+This section was written while both were open questions. **Both have since been
+decided and implemented**, and are recorded as deviations in
+[`SPEC_ERRATA.md`](SPEC_ERRATA.md) — E-06 and E-14 — rather than applied
+silently. They are kept here because the reasoning is worth reading before you
+are tempted to undo either one.
 
 ### 6.1 Store money as integers, not `REAL`
 
@@ -122,7 +130,11 @@ Users notice; graders notice faster.
 **Fix:** store `amount_cents INTEGER NOT NULL` (LKR has 2 decimals, so
 `Rs 1,250.75` → `125075`), and convert only at the display edge in
 `core/utils/currency_utils.dart`. This is what every production finance app does.
-Doing it now costs one column rename; doing it in Sprint 8 costs a data migration.
+
+**Done in Sprint 1.** Every monetary column in `v1_initial.dart` is
+`*_cents INTEGER`, and `currency_utils.dart` is the only file permitted to turn
+cents into text or text into cents. All three baseline documents specify `REAL`;
+the override is E-06.
 
 ### 6.2 `StateNotifier` and `dartz` are both legacy
 
