@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 
 /// Route paths, as constants rather than string literals scattered about.
 ///
@@ -26,7 +27,7 @@ abstract final class Routes {
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
 ///
-/// Only the home route has a real screen. The rest are declared now, as
+/// Home and transactions have real screens. The rest are declared now, as
 /// placeholders, because the shape of the navigation graph is a design
 /// decision worth settling before five features each invent their own — and
 /// because a route that exists is a route a deep link can already reach.
@@ -41,8 +42,7 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.transactions,
       name: 'transactions',
-      builder: (context, state) =>
-          const _PlannedScreen(title: 'Transactions', sprint: 'Sprint 2'),
+      builder: (context, state) => const TransactionListPage(),
     ),
     GoRoute(
       path: Routes.moneyPlan,
