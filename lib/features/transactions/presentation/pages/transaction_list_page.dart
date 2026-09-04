@@ -34,9 +34,40 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
   bool get _isFiltered => _typeFilter != null;
 
+  Future<void> _edit(Transaction transaction) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => AddTransactionPage(initial: transaction),
+    ),
+  );
+
+  /// Hides the row and starts the undo window. E-23.
+  void _delete(Transaction transaction) {
+    final id = transaction.id;
+    if (id == null) return;
+
+    ref.read(pendingDeletionsProvider.notifier).schedule(id);
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Transaction deleted'),
+          // The same window the controller is counting down, so the offer
+          // disappears exactly when it stops being true.
+          duration: PendingDeletions.window,
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () =>
+                ref.read(pendingDeletionsProvider.notifier).undo(id),
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionsProvider(_filter));
+    final pending = ref.watch(pendingDeletionsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -63,7 +94,11 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
           title: 'Could not load your transactions',
           body: failureMessage(error) ?? 'Please try again.',
         ),
-        data: (rows) {
+        data: (all) {
+          // A row inside its undo window is gone as far as this screen is
+          // concerned, even though nothing has been written yet (E-23).
+          final rows = all.where((t) => !pending.contains(t.id)).toList();
+
           if (rows.isEmpty) {
             // E-22. The two empty states are genuinely different situations,
             // and telling someone with a filter on to "add your first
@@ -93,8 +128,19 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             padding: const EdgeInsets.only(bottom: 88),
             itemCount: rows.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) =>
-                _TransactionTile(transaction: rows[index]),
+            itemBuilder: (context, index) {
+              final transaction = rows[index];
+              return Dismissible(
+                key: ValueKey(transaction.id),
+                direction: DismissDirection.endToStart,
+                background: const _DeleteBackground(),
+                onDismissed: (_) => _delete(transaction),
+                child: _TransactionTile(
+                  transaction: transaction,
+                  onTap: () => _edit(transaction),
+                ),
+              );
+            },
           );
         },
       ),
@@ -104,9 +150,10 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
 /// One row. Amount on the right, coloured by what it did to the balance.
 class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.transaction});
+  const _TransactionTile({required this.transaction, this.onTap});
 
   final Transaction transaction;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +172,7 @@ class _TransactionTile extends StatelessWidget {
     };
 
     return ListTile(
+      onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: tint.withValues(alpha: 0.12),
         child: Icon(
@@ -165,6 +213,27 @@ class _TransactionTile extends StatelessWidget {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return '${date.year}-$month-$day';
+  }
+}
+
+/// What shows behind a row being swiped away.
+class _DeleteBackground extends StatelessWidget {
+  const _DeleteBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>()!;
+
+    return ColoredBox(
+      color: colors.expense,
+      child: const Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: EdgeInsets.only(right: 24),
+          child: Icon(Icons.delete_outline, color: Colors.white),
+        ),
+      ),
+    );
   }
 }
 

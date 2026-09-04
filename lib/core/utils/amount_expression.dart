@@ -60,6 +60,14 @@ class AmountExpression {
   /// A blank keypad.
   factory AmountExpression.empty() => const AmountExpression();
 
+  /// A keypad pre-filled with a stored amount, for editing.
+  ///
+  /// Seeded through the same text `entry` a user would have typed, so every
+  /// key behaves afterwards exactly as it would have on a fresh entry —
+  /// backspace included.
+  factory AmountExpression.fromCents(int cents) =>
+      AmountExpression(entry: _plainText(cents));
+
   /// The running total of everything before [pendingOperator].
   ///
   /// Null until an operator has been pressed.

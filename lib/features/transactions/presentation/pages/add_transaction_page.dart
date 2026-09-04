@@ -18,20 +18,44 @@ import '../widgets/amount_keypad.dart';
 /// then the details most entries never touch. Save is reachable without
 /// scrolling.
 class AddTransactionPage extends ConsumerStatefulWidget {
-  /// Creates the entry screen.
-  const AddTransactionPage({super.key});
+  /// Creates the entry screen, empty for a new transaction or filled from
+  /// [initial] to edit an existing one.
+  ///
+  /// One screen for both. An edit form that is a separate screen drifts from
+  /// the entry form it is supposed to mirror, and the divergence always shows
+  /// up as a field you can set when creating and not when correcting.
+  const AddTransactionPage({super.key, this.initial});
+
+  /// The transaction being edited, or null when recording a new one.
+  final Transaction? initial;
 
   @override
   ConsumerState<AddTransactionPage> createState() => _AddTransactionPageState();
 }
 
 class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
-  AmountExpression _amount = AmountExpression.empty();
-  TransactionType _type = TransactionType.expense;
+  late AmountExpression _amount;
+  late TransactionType _type;
   int? _categoryId;
   int? _accountId;
-  DateTime _date = DateTime.now();
-  final TextEditingController _note = TextEditingController();
+  late DateTime _date;
+  late final TextEditingController _note;
+
+  bool get _isEditing => widget.initial != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    _amount = initial == null
+        ? AmountExpression.empty()
+        : AmountExpression.fromCents(initial.amountCents);
+    _type = initial?.type ?? TransactionType.expense;
+    _categoryId = initial?.categoryId;
+    _accountId = initial?.accountId;
+    _date = initial?.date ?? DateTime.now();
+    _note = TextEditingController(text: initial?.note ?? '');
+  }
 
   @override
   void dispose() {
@@ -45,6 +69,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       _accountId != null;
 
   Transaction _build() => Transaction(
+    // Carried through so save() knows this is an edit rather than an entry.
+    id: widget.initial?.id,
     accountId: _accountId!,
     categoryId: _categoryId,
     amountCents: _amount.valueCents!,
@@ -82,9 +108,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _type == TransactionType.expense ? 'New expense' : 'New income',
-        ),
+        title: Text(switch ((_isEditing, _type)) {
+          (true, TransactionType.income) => 'Edit income',
+          (true, _) => 'Edit expense',
+          (false, TransactionType.income) => 'New income',
+          (false, _) => 'New expense',
+        }),
       ),
       body: catalog.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -94,6 +123,13 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           // on a fresh install where there is only one. Sprint 3 adds the
           // selector, when there is something to select between.
           _accountId ??= data.accounts.isEmpty ? null : data.accounts.first.id;
+
+          // An edit of a transaction whose category was since deleted would
+          // otherwise show nothing selected and silently save a null.
+          if (_categoryId != null &&
+              !data.categories.any((c) => c.id == _categoryId)) {
+            _categoryId = null;
+          }
 
           final categories = _type == TransactionType.expense
               ? data.expenseCategories
