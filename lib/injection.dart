@@ -5,6 +5,14 @@ import 'core/database/database_helper.dart';
 import 'core/database/database_summary.dart';
 import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
+import 'features/transactions/data/datasources/transaction_local_datasource.dart';
+import 'features/transactions/data/repositories/transaction_repository_impl.dart';
+import 'features/transactions/domain/repositories/transaction_repository.dart';
+import 'features/transactions/domain/usecases/add_transaction.dart';
+import 'features/transactions/domain/usecases/delete_transaction.dart';
+import 'features/transactions/domain/usecases/make_transfer.dart';
+import 'features/transactions/domain/usecases/update_transaction.dart';
+import 'features/transactions/domain/usecases/watch_transactions.dart';
 
 /// Dependency wiring, per SDD §3.3.
 ///
@@ -80,3 +88,64 @@ final databaseSummaryProvider = FutureProvider<DatabaseSummary>((ref) async {
   final db = await ref.watch(databaseProvider.future);
   return readDatabaseSummary(db);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transactions
+//
+// This file is the one place allowed to name a concrete `data/` class; the
+// layer check forbids it everywhere above `domain/`. Everything below is a
+// `FutureProvider` because the database opens asynchronously, and pretending
+// otherwise would mean a synchronous provider that throws on first use.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reads and writes transaction rows. The only holder of SQL for the feature.
+final transactionLocalDataSourceProvider =
+    FutureProvider<TransactionLocalDataSource>((ref) async {
+      final source = TransactionLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+      );
+      // The change stream is a broadcast controller. Closing it on dispose
+      // stops a hot restart from leaving listeners attached to the old one,
+      // which presents as a screen that updates twice per write.
+      ref.onDispose(source.dispose);
+      return source;
+    });
+
+/// Turns data-layer exceptions into failures. The layer boundary.
+final transactionRepositoryProvider = FutureProvider<TransactionRepository>((
+  ref,
+) async {
+  return TransactionRepositoryImpl(
+    await ref.watch(transactionLocalDataSourceProvider.future),
+  );
+});
+
+/// Records a new expense or income, after validating it. FR-EXP-001.
+final addTransactionProvider = FutureProvider<AddTransaction>(
+  (ref) async =>
+      AddTransaction(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+/// Edits an existing transaction. FR-EXP-006.
+final updateTransactionProvider = FutureProvider<UpdateTransaction>(
+  (ref) async =>
+      UpdateTransaction(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+/// Removes a transaction, and a whole transfer if it is half of one.
+final deleteTransactionProvider = FutureProvider<DeleteTransaction>(
+  (ref) async =>
+      DeleteTransaction(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+/// Moves money between two accounts atomically. FR-TRF-002.
+final makeTransferProvider = FutureProvider<MakeTransfer>(
+  (ref) async =>
+      MakeTransfer(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+/// Watches the transactions matching a filter. FR-RPT-002.
+final watchTransactionsProvider = FutureProvider<WatchTransactions>(
+  (ref) async =>
+      WatchTransactions(await ref.watch(transactionRepositoryProvider.future)),
+);
