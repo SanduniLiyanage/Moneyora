@@ -97,6 +97,19 @@ void main() {
 
   final saveButton = find.widgetWithText(FilledButton, 'Save');
 
+  /// Records one expense through the UI, leaving the list showing it.
+  Future<void> addExpense(
+    WidgetTester tester, {
+    String amount = '500',
+    String category = 'Food',
+  }) async {
+    await tapText(tester, 'Add');
+    await keyIn(tester, amount);
+    await tapText(tester, category);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+  }
+
   group('the empty list', () {
     testWidgets('says what belongs here and how to fill it', (tester) async {
       await pumpApp(tester);
@@ -219,6 +232,80 @@ void main() {
     });
   });
 
+  group('editing', () {
+    testWidgets('opens the row already filled in', (tester) async {
+      await pumpApp(tester);
+      await addExpense(tester, amount: '1250');
+
+      await tapText(tester, '−Rs1,250.00');
+
+      expect(find.text('Edit expense'), findsOneWidget);
+      // Prefilled through the same text entry a user would have typed, so the
+      // keypad behaves afterwards exactly as it does on a fresh entry.
+      expect(find.text('Rs1,250.00'), findsOneWidget);
+    });
+
+    testWidgets('saves the change rather than adding a second row', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await addExpense(tester, amount: '1250');
+
+      await tapText(tester, '−Rs1,250.00');
+      await tapText(tester, '⌫');
+      await tapText(tester, '⌫');
+      await tapText(tester, '⌫');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved, hasLength(1), reason: 'edited, not duplicated');
+      expect(repository.updated.single.id, 1);
+      expect(repository.updated.single.amountCents, 125000);
+    });
+  });
+
+  group('deleting, with the undo window', () {
+    testWidgets('hides the row immediately', (tester) async {
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('−Rs500.00'), findsNothing);
+      expect(find.text('Undo'), findsOneWidget);
+    });
+
+    testWidgets('writes nothing at all if undo is tapped', (tester) async {
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Undo');
+
+      // The point of E-23: nothing was deleted and re-inserted, so the row
+      // keeps its id and any child rows it had. The delete simply never ran.
+      expect(repository.deleted, isEmpty);
+      expect(find.text('−Rs500.00'), findsOneWidget);
+    });
+
+    testWidgets('commits once the window closes', (tester) async {
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(repository.deleted, isEmpty, reason: 'not written yet');
+
+      await tester.pump(PendingDeletions.window);
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, [1]);
+      expect(find.text('No transactions yet'), findsOneWidget);
+    });
+  });
+
   group('the filter', () {
     testWidgets('narrows to what was asked for, and back', (tester) async {
       await pumpApp(tester);
@@ -274,12 +361,27 @@ class _FakeRepository implements TransactionRepository {
           .followedBy(_changes.stream)
           .map((_) => Right(_matching(filter)));
 
-  @override
-  Future<Either<Failure, Unit>> update(Transaction transaction) async =>
-      const Right(unit);
+  final List<Transaction> updated = [];
+  final List<int> deleted = [];
 
   @override
-  Future<Either<Failure, Unit>> delete(int id) async => const Right(unit);
+  Future<Either<Failure, Unit>> update(Transaction transaction) async {
+    if (failWith case final failure?) return Left(failure);
+    updated.add(transaction);
+    final at = saved.indexWhere((t) => t.id == transaction.id);
+    if (at != -1) saved[at] = transaction;
+    _changes.add(null);
+    return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) async {
+    if (failWith case final failure?) return Left(failure);
+    deleted.add(id);
+    saved.removeWhere((t) => t.id == id);
+    _changes.add(null);
+    return const Right(unit);
+  }
 
   @override
   Future<Either<Failure, List<Transaction>>> list(
