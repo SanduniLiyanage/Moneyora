@@ -1,3 +1,4 @@
+import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
@@ -52,7 +53,14 @@ abstract interface class TransactionRepository {
 }
 
 /// Which transactions to read. FR-RPT-002, FR-RPT-003, FR-RPT-008.
-class TransactionFilter {
+///
+/// Compared by value, which is not decoration. A screen passes one of these as
+/// a Riverpod family key, and a family keys on `==`: without value equality
+/// every rebuild would look like a *different* filter, tear down the running
+/// watch and start a new one. The symptom is a list that flickers and a
+/// database queried on every frame — plausible enough to be blamed on the
+/// stream rather than on identity.
+class TransactionFilter extends Equatable {
   /// Creates a filter. Every field is optional; omitting all of them means
   /// "everything".
   const TransactionFilter({
@@ -112,4 +120,17 @@ class TransactionFilter {
 
   /// Drop transfers entirely. Set by [TransactionFilter.forAnalytics].
   final bool excludeTransfers;
+
+  @override
+  List<Object?> get props => [
+    accountId,
+    categoryId,
+    type,
+    from,
+    to,
+    noteContains,
+    minAmountCents,
+    maxAmountCents,
+    excludeTransfers,
+  ];
 }
