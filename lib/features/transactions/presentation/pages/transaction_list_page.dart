@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -119,6 +120,11 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                     body:
                         'Tap Add to record your first one. Everything you '
                         'enter stays on this phone.',
+                    // Debug builds only, and stripped from release by the
+                    // constant. Two years of shaped sample history is what
+                    // makes the list, and later the charts and the plan
+                    // generator, testable by eye instead of only by unit test.
+                    action: kDebugMode ? _LoadSampleDataButton() : null,
                   );
           }
 
@@ -233,6 +239,35 @@ class _DeleteBackground extends StatelessWidget {
           child: Icon(Icons.delete_outline, color: Colors.white),
         ),
       ),
+    );
+  }
+}
+
+/// Debug-only shortcut to the fixture generator built in Sprint 1.
+///
+/// `dev_seed.dart` existed from the first sprint precisely so that Sprint 5
+/// would not arrive with a handful of test rows — and until now nothing in the
+/// app could load it, so only tests could reach it. `kDebugMode` is a
+/// compile-time constant, so this and everything it references are removed
+/// from a release build.
+class _LoadSampleDataButton extends ConsumerWidget {
+  const _LoadSampleDataButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loading = ref.watch(devSeedLoaderProvider).isLoading;
+
+    return TextButton.icon(
+      onPressed: loading
+          ? null
+          : () => ref.read(devSeedLoaderProvider.notifier).load(),
+      icon: loading
+          ? const SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.science_outlined),
+      label: const Text('Load 24 months of sample data'),
     );
   }
 }

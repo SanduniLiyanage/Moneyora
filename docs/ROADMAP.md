@@ -67,18 +67,22 @@ Goal: *it compiles, the schema exists, navigation works.* No features yet.
 stub screen, and `sqlite3` shows the seeded rows in the encrypted DB.
 *Met, and verified running on an Android emulator.*
 
-## Sprint 2 — Transactions (Weeks 3–4) — **in progress**
+## Sprint 2 — Transactions (Weeks 3–4) — **complete**
 
 Full vertical slice, domain-first. Custom keypad with arithmetic (FR-EXP-002),
 category picker, account selector, date-grouped list with daily totals.
 Write the use case tests as you go — do not defer them to Sprint 9.
 
-Done so far: the domain layer (entity, repository contract, `AddTransaction`
-with its validation) and `data/models/transaction_model.dart`. Next is the
-datasource, where the three-row transfer of E-15, the split writes of E-04 and
-the balance cache of E-18 all land.
+Delivered: the full vertical slice — entity, repository contract, five use
+cases, model, datasource, repository, providers and both screens. The keypad's
+arithmetic lives in `core/utils/amount_expression.dart` as pure Dart.
+E-22's two empty states and E-23's undo window are implemented.
 
-## Sprint 3 — Accounts & transfers (Week 5)
+Deferred deliberately: the account selector (Sprint 3, when there is more than
+one account to choose between) and E-13's inline `+` for creating a category
+mid-entry, which belongs with FR-EXP-004 in the categories work.
+
+## Sprint 3 — Accounts & transfers (Week 5) — **next**
 
 Account CRUD, archiving, multi-currency, atomic transfers (FR-TRF-002 —
 do the debit and credit **in one sqflite transaction**, or a crash mid-write
