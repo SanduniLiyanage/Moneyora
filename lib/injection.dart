@@ -5,6 +5,15 @@ import 'core/database/database_helper.dart';
 import 'core/database/database_summary.dart';
 import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
+import 'features/accounts/data/datasources/account_local_datasource.dart';
+import 'features/accounts/data/repositories/account_repository_impl.dart';
+import 'features/accounts/domain/repositories/account_repository.dart';
+import 'features/accounts/domain/usecases/add_account.dart';
+import 'features/accounts/domain/usecases/archive_account.dart';
+import 'features/accounts/domain/usecases/delete_account.dart';
+import 'features/accounts/domain/usecases/recompute_account_balance.dart';
+import 'features/accounts/domain/usecases/update_account.dart';
+import 'features/accounts/domain/usecases/watch_accounts.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -148,4 +157,62 @@ final makeTransferProvider = FutureProvider<MakeTransfer>(
 final watchTransactionsProvider = FutureProvider<WatchTransactions>(
   (ref) async =>
       WatchTransactions(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Accounts
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reads and writes account rows, and re-derives their balances.
+final accountLocalDataSourceProvider = FutureProvider<AccountLocalDataSource>((
+  ref,
+) async {
+  final source = AccountLocalDataSourceImpl(
+    await ref.watch(databaseProvider.future),
+  );
+  ref.onDispose(source.dispose);
+  return source;
+});
+
+/// Turns account data-layer exceptions into failures.
+final accountRepositoryProvider = FutureProvider<AccountRepository>(
+  (ref) async => AccountRepositoryImpl(
+    await ref.watch(accountLocalDataSourceProvider.future),
+  ),
+);
+
+/// Creates an account. FR-ACC-001.
+final addAccountProvider = FutureProvider<AddAccount>(
+  (ref) async => AddAccount(await ref.watch(accountRepositoryProvider.future)),
+);
+
+/// Edits an account. FR-ACC-002.
+final updateAccountProvider = FutureProvider<UpdateAccount>(
+  (ref) async =>
+      UpdateAccount(await ref.watch(accountRepositoryProvider.future)),
+);
+
+/// Hides an account without losing its history. FR-ACC-005.
+final archiveAccountProvider = FutureProvider<ArchiveAccount>(
+  (ref) async =>
+      ArchiveAccount(await ref.watch(accountRepositoryProvider.future)),
+);
+
+/// Removes an account that has never been used. FR-ACC-003.
+final deleteAccountProvider = FutureProvider<DeleteAccount>(
+  (ref) async =>
+      DeleteAccount(await ref.watch(accountRepositoryProvider.future)),
+);
+
+/// Watches accounts and their balances. FR-ACC-001.
+final watchAccountsProvider = FutureProvider<WatchAccounts>(
+  (ref) async =>
+      WatchAccounts(await ref.watch(accountRepositoryProvider.future)),
+);
+
+/// Re-derives a cached balance from history. E-18.
+final recomputeAccountBalanceProvider = FutureProvider<RecomputeAccountBalance>(
+  (ref) async => RecomputeAccountBalance(
+    await ref.watch(accountRepositoryProvider.future),
+  ),
 );
