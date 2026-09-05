@@ -290,6 +290,33 @@ void main() {
       expect(find.text('−Rs500.00'), findsOneWidget);
     });
 
+    testWidgets('commits when the app goes to the background', (tester) async {
+      // The case that would otherwise look like a bug: swipe a row away, close
+      // the app inside five seconds, and find it back on the next launch. A
+      // pause is an orderly shutdown, not a crash, so the delete is honoured.
+      // A force-stop runs no callback and still fails safe, per E-23.
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(repository.deleted, isEmpty, reason: 'window still open');
+
+      // The real sequence Android sends. Skipping a state trips an assertion
+      // in the framework, which is itself the reminder that these are a state
+      // machine and not a set of independent flags.
+      for (final phase in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(phase);
+      }
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, [1], reason: 'committed without waiting');
+    });
+
     testWidgets('commits once the window closes', (tester) async {
       await pumpApp(tester);
       await addExpense(tester);

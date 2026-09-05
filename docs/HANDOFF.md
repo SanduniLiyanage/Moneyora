@@ -1,7 +1,7 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-03**, `main` at `4ed0802`, after 18 merged
-pull requests.
+State of the project as of **2026-09-06**, `main` at `fb83fab`, after 26
+merged pull requests.
 
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
@@ -62,7 +62,8 @@ When implementing anything, check the errata for its requirement ID first.
 
 ## What is built
 
-**Sprint 1 is complete and verified running on a real Android emulator.**
+**Sprints 1 and 2 are complete**, both verified running on an Android
+emulator. 261 tests pass; domain coverage is 100% against a 75% floor.
 
 ```
 lib/
@@ -108,37 +109,36 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 2 — transactions.** The domain layer is done; the data layer is not.
-Build order is fixed by `CLAUDE.md` and must be followed:
+**Sprint 3 — accounts and transfers.** Sprint 2 is complete: a transaction can
+be recorded on the custom keypad, listed, filtered, edited and deleted with an
+undo window, and every layer beneath that is tested.
 
-1. `data/models/transaction_model.dart` — extends the entity, adds
-   `toMap`/`fromMap`
-2. `data/datasources/transaction_local_datasource.dart` — **the only place SQL
-   may live** for this feature
-3. `data/repositories/transaction_repository_impl.dart` — catches exceptions,
-   returns `Either<Failure, T>`
-4. `presentation/providers/` then `presentation/pages/` — the add-expense
-   screen with the custom keypad (FR-EXP-002)
+Two things are already built and idle, waiting for this sprint to call them:
 
-Three things the datasource must get right, all from the errata:
+- `MakeTransfer` and the datasource's `createTransfer` — written, tested, wired
+  into DI, with no screen that reaches them.
+- The entry screen's account selector, currently pinned to the first account
+  because a picker with one option is not a picker.
 
-- **Transfers write three rows across two tables** with circular foreign keys
-  (E-15). Insert both `transactions` rows, read back their ids, then the
-  `transfers` row — all inside one `BEGIN … COMMIT`.
-- **Splits write inside the parent's transaction** (E-04), and the sum
-  invariant is enforced by `AddTransaction`, not by SQL.
-- **`accounts.current_balance_cents` is a cache** (E-18). Write it only inside
-  the same transaction as the row that changes it, and build
-  `RecomputeAccountBalance` as the reconciliation — it doubles as a property
-  test: *cached == recomputed* after a random write sequence.
+The sprint is therefore: account CRUD and archiving, the transfer screen on top
+of `MakeTransfer`, and `RecomputeAccountBalance` — the reconciliation E-18 asks
+for, which has no home until accounts have a slice of their own. Its oracle
+already exists as a property test in
+`transaction_local_datasource_test.dart`: after a random sequence of writes,
+the cached balance must equal the balance recomputed from history.
 
 Then Sprint 4's home screen, which replaces the current proof screen with the
-donut chart. Note for that work: the database currently opens during the first
-frame and stalls the UI for roughly ten seconds
-(`Skipped 608 frames` in logcat). NFR-PER-001 requires a sub-2-second cold
-start, so that needs a splash screen and an off-main-thread open.
+donut chart. Note for that work: the database opens during the first frame and
+stalls the UI for roughly ten seconds (`Skipped 608 frames` in logcat).
+NFR-PER-001 requires a sub-2-second cold start, so that needs a splash screen
+and an off-main-thread open.
 
----
+### Seeing the app with real data
+
+The transaction list's empty state carries a **Load 24 months of sample data**
+button in debug builds. It runs `dev_seed.dart`, which until PR #27 nothing in
+the app could reach — the fixture existed for tests alone, which is half of
+what Sprint 1 built it for.
 
 ## Environment — the traps, all of which have already bitten
 

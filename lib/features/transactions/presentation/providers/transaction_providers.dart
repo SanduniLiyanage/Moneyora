@@ -8,10 +8,13 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/database/entry_catalog.dart';
+import '../../../../core/database/seed/dev_seed.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/transaction.dart';
@@ -127,6 +130,7 @@ String? failureMessage(Object? error) => switch (error) {
 /// deleted, which is the safe direction to fail when the data is money.
 class PendingDeletions extends Notifier<Set<int>> {
   final Map<int, Timer> _timers = {};
+  AppLifecycleListener? _lifecycle;
 
   /// How long the user has to change their mind. Matches the snackbar.
   static const Duration window = Duration(seconds: 5);
@@ -143,7 +147,27 @@ class PendingDeletions extends Notifier<Set<int>> {
     // tried to flush here and threw "read from a ProviderContainer that was
     // already disposed" — the framework refusing to let a write outlive the
     // app that ordered it.
+    // Backgrounding the app commits immediately, rather than waiting out a
+    // window the user can no longer see.
+    //
+    // Without this, swiping a row away and then closing the app inside five
+    // seconds brings the row back on the next launch — correct by the letter
+    // of E-23 and indistinguishable from a bug to anyone who does not know
+    // the rule. A pause is not a kill: the user asked for the delete and the
+    // app is being shut down in an orderly way, so honouring it is both safe
+    // and what they meant.
+    //
+    // A real crash or a force-stop runs no callback at all, and there E-23's
+    // original answer still holds — nothing was written, which is the safe
+    // direction to fail when the data is someone's money.
+    _lifecycle = AppLifecycleListener(onPause: _flush, onDetach: _flush);
+
     ref.onDispose(() {
+      _lifecycle?.dispose();
+      _lifecycle = null;
+      // Teardown of the container itself cannot commit: `ref.read` after
+      // dispose throws, which is the framework declining to let a write
+      // outlive the app that ordered it. Cancelling is E-23's safe direction.
       for (final timer in _timers.values) {
         timer.cancel();
       }
@@ -164,6 +188,14 @@ class PendingDeletions extends Notifier<Set<int>> {
     state = {...state}..remove(id);
   }
 
+  /// Writes every pending delete now, without waiting for its window.
+  void _flush() {
+    for (final id in _timers.keys.toList()) {
+      _timers.remove(id)?.cancel();
+      unawaited(_commit(id));
+    }
+  }
+
   Future<void> _commit(int id) async {
     _timers.remove(id);
     final deleteTransaction = await ref.read(deleteTransactionProvider.future);
@@ -178,3 +210,44 @@ class PendingDeletions extends Notifier<Set<int>> {
 final pendingDeletionsProvider = NotifierProvider<PendingDeletions, Set<int>>(
   PendingDeletions.new,
 );
+
+/// Loads the synthetic history from `dev_seed.dart`, in debug builds only.
+///
+/// That generator is 24 months of deliberately shaped data — a fixed cost, a
+/// noisy one, one that spikes each April and December, one climbing 8% a
+/// month, and one with three transactions that must score low confidence. It
+/// is the Money Plan's test oracle and the demo dataset both.
+///
+/// It was written in Sprint 1 exactly so that Sprint 5 would not arrive with
+/// eleven test expenses and no way to exercise the algorithm — and then
+/// nothing in the app could load it, which made it a fixture that only tests
+/// could reach. This is the missing half.
+///
+/// Guarded by [kDebugMode] so it cannot ship, per `docs/ROADMAP.md`.
+class DevSeedLoader extends AutoDisposeAsyncNotifier<int?> {
+  @override
+  Future<int?> build() async => null;
+
+  /// Writes the sample history and refreshes everything reading from it.
+  Future<void> load() async {
+    if (!kDebugMode) return;
+    state = const AsyncValue<int?>.loading();
+
+    state = await AsyncValue.guard(() async {
+      final db = await ref.read(databaseProvider.future);
+      final written = await DevSeed.populate(db);
+
+      // The rows went in underneath the datasource, so its change stream never
+      // fired. Invalidating is what tells every watcher to ask again.
+      ref
+        ..invalidate(transactionsProvider)
+        ..invalidate(entryCatalogProvider);
+
+      return written;
+    });
+  }
+}
+
+/// Controller for the debug-only "load sample data" action.
+final devSeedLoaderProvider =
+    AutoDisposeAsyncNotifierProvider<DevSeedLoader, int?>(DevSeedLoader.new);
