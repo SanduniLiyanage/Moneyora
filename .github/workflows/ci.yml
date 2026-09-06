@@ -142,16 +142,31 @@ jobs:
       #
       # If this starts needing all three attempts regularly, stop retrying and
       # vendor the library instead.
+      # Retries exist because artifact resolution fails for reasons that have
+      # nothing to do with this repository. Maven Central rate-limits GitHub's
+      # runner ranges and answers 403 Forbidden; Gradle reports it as
+      # "Could not resolve org.jetbrains.kotlin:kotlin-stdlib", which reads
+      # like a dependency problem and is not one.
+      #
+      # The backoff is exponential rather than a flat 15s. Three attempts 15
+      # seconds apart span 30 seconds, which is inside the window a rate limit
+      # is still in force - so the retry that was meant to absorb the fault
+      # reliably hit it three times and gave up, which is what happened to
+      # 1b56f7f on main. 15s, 60s, then 180s reaches four minutes, and a
+      # re-run by hand has always passed by then.
       - name: Build debug APK
         run: |
-          for attempt in 1 2 3; do
+          delays=(15 60 180)
+          for attempt in 1 2 3 4; do
             if flutter build apk --debug; then
               exit 0
             fi
-            echo "::warning::APK build attempt $attempt failed, retrying in 15s"
-            sleep 15
+            if [ "$attempt" -eq 4 ]; then break; fi
+            delay=${delays[$((attempt - 1))]}
+            echo "::warning::APK build attempt $attempt failed, retrying in ${delay}s"
+            sleep "$delay"
           done
-          echo "::error::APK build failed three times - not a transient fault"
+          echo "::error::APK build failed four times over four minutes - not a transient fault"
           exit 1
 
       # This is NOT the SRS §2.4 budget. That figure - 80 MB - applies to the
