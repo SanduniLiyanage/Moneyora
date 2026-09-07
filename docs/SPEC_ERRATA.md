@@ -39,6 +39,7 @@ follows the Resolution sections.
 | [E-21](#e-21) | High | Money Plan cannot run for a user with no history | Resolved |
 | [E-22](#e-22) | Medium | No empty state specified for any surface | Resolved |
 | [E-23](#e-23) | Medium | Deleting a transaction is irreversible | Resolved |
+| [E-24](#e-24) | High | Copilot specifies five tools, three of which wrap nothing | Resolved |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -914,6 +915,78 @@ was deleted — the safe direction to fail when the data is someone's money.
 The same pattern generalises to accounts and categories, where the stakes are
 higher still because deleting an account takes its transactions with it. That
 belongs to Sprint 3 and is deliberately out of scope here.
+
+---
+
+<a id="e-24"></a>
+
+## E-24 — Three of the Copilot's five tools wrap features that do not exist
+
+**Severity:** High · **Affects:** `SRS_Copilot.md` §3.3, §3.4 (draft v0.1),
+`SDD_Copilot.md` §5, §6
+
+The Copilot specification rests on one claim, stated in SDD §1: *"Reuse, don't
+rebuild — tools wrap existing `domain/usecases`; the module adds orchestration,
+not business logic."* That claim is what makes the feature buildable in weeks
+rather than months, and it is the reason the design is worth having.
+
+Audited against the repository at PR #29, it does not hold for three of the
+five tools:
+
+| Tool | Wraps | Exists? |
+|---|---|---|
+| `get_spending_by_category` (FR-COP-007) | an analytics use case | **No** — `lib/features/analytics/` is empty. The `transactions` and `categories` tables and the seed data do exist, so the query is buildable now. |
+| `get_income_for_period` (FR-COP-008) | an accounts use case | **No** aggregate exists; the rows do (`transactions.type = 'income'`). |
+| `compare_periods` (FR-COP-021) | analytics | **No** — same as above. |
+| `get_budget_plan` (FR-COP-009) | Money Plan Generator | **No.** Sprint 5, weeks 7–8. Nothing to wrap until then. |
+| `get_savings_goal_progress` (FR-COP-020) | a savings-goal use case | **No**, and no `savings_goal` table exists. SDD §6.1 proposes one, which is new persistence for a concept the app does not otherwise have. |
+
+The consequence is concentrated in FR-COP-032, the specification's flagship
+query — *"can I afford Rs. 50,000 this month?"* — which plans across income,
+spending-to-date, the budget plan **and** the savings-goal buffer. Three of
+those four inputs are unavailable, so the headline capability is the one that
+cannot be built first. A specification whose flagship is unreachable invites
+building the missing features inside the Copilot module, which would contradict
+its own §1 and put budget logic in a chat feature.
+
+### Resolution
+
+**v1 ships three tools, not five**, and a different flagship query.
+
+1. `get_spending_by_category`, `get_income_for_period` and `compare_periods`
+   are in scope. All three are backed by real tables and by `dev_seed.dart`'s
+   24 months of shaped data. Each is implemented as a **Sprint 4 analytics use
+   case first** and wrapped second, so the tool is a genuine wrapper and the
+   work also serves the donut chart. No aggregate query is written twice.
+2. `get_budget_plan` is deferred behind Sprint 5, and
+   `get_savings_goal_progress` behind a `savings_goal` table introduced with
+   the savings feature itself — not by the Copilot.
+3. **FR-COP-032 is deferred with them.** The v1 flagship is FR-COP-031,
+   *"where did my budget slip in August?"*, which needs two or three tool calls
+   and real reasoning over the deltas, and which the seed fixtures already
+   contain a verifiable answer to (Car trends ~8% a month; Gifts spikes each
+   April and December).
+
+Requirements FR-COP-009, FR-COP-020 and FR-COP-032 are **deferred, not
+withdrawn**. They return when the features they depend on exist.
+
+### Two further deviations from `SDD_Copilot.md`, recorded here
+
+- **§4's tool contract.** `CopilotTool.execute` returns
+  `Either<Failure, ToolResult>` rather than throwing on malformed arguments.
+  Arguments come from a language model, so bad input is ordinary rather than
+  exceptional; this keeps rejection on the normal path and honours the
+  repository rule that `try`/`catch` lives no higher than `data/`.
+- **§4's loop.** A rejected tool call is reported back to the model as a
+  result carrying an error string, rather than skipped silently as the
+  pseudocode has it. A request that vanishes leaves the model repeating it
+  until the iteration cap is reached — five round trips to arrive nowhere.
+  The feedback carries only the tool name and the reason, both produced by the
+  model itself, so FR-COP-010 is unaffected. Rejected calls are excluded from
+  the user-visible trace.
+
+The full rationale, scope and build order live in
+[`COPILOT.md`](COPILOT.md).
 
 ---
 

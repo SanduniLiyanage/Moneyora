@@ -20,14 +20,14 @@ iOS 15.5+. Two headline features distinguish it from a plain expense tracker:
 - **Receipt Scanner** — ML Kit OCR on-device, with a three-layer keyword
   categoriser that learns from corrections.
 
-Built by Sanduni as a solo portfolio project, aimed at securing a software
-internship in Sri Lanka. That goal shapes several decisions: the repository is
-the artefact an interviewer reads, so commit messages, PR history and CI
-matter as much as the code.
+A solo project, built to production discipline rather than demo discipline:
+commit messages, PR history and CI are part of the deliverable, not overhead
+around it. That is why several conventions below are stricter than a project
+this size would normally need.
 
-**Sanduni has not built a mobile app before.** Guidance should be explicit and
-step-by-step, and any PR link should arrive together with the exact terminal
-commands that go with it.
+Guidance here is written to be followed exactly. A PR link arrives with the
+terminal commands that go with it, and no step is done until `flutter analyze`,
+`flutter test` and `check_architecture.sh` are all green.
 
 ---
 
