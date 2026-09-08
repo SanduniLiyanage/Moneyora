@@ -3,13 +3,13 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../entities/agent_tool.dart';
 import '../entities/llm_step.dart';
-import '../entities/tool_result.dart';
+import '../entities/tool_exchange.dart';
 
 /// The reasoning model, as the domain sees it.
 ///
 /// One method, because reasoning is one operation: given the question, the
-/// tools that exist, and everything the tools have returned so far, decide the
-/// next step. The model holds no state between calls — the [history] is the
+/// tools that exist, and every call made so far with what it returned, decide
+/// the next step. The model holds no state between calls — the [history] is the
 /// state, and it lives in the loop, which is what makes the loop testable
 /// without a network.
 ///
@@ -25,6 +25,6 @@ abstract class LlmRepository {
   Future<Either<Failure, LlmStep>> reason({
     required String question,
     required List<AgentTool> tools,
-    required List<ToolResult> history,
+    required List<ToolExchange> history,
   });
 }

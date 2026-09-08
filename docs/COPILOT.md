@@ -153,7 +153,14 @@ Three properties this layout buys, each enforced rather than intended:
    ordinary rather than exceptional. This keeps rejection on the normal path
    and keeps `try`/`catch` out of the domain, per repository convention.
 
-2. **A rejected tool call is reported back to the model**, not silently
+2. **`LlmRepository.reason` takes `List<ToolExchange>`, not `List<ToolResult>`.**
+   A function-calling API records a conversation: the model's own request has
+   to appear in the transcript before the response to it, or the provider is
+   being told about a reply to something never asked. The pair also lets the
+   model tell its second call from its first, which two same-named results
+   cannot.
+
+3. **A rejected tool call is reported back to the model**, not silently
    dropped. A request that vanishes leaves the model asking for the same
    impossible thing until its turns run out — five round trips to arrive
    nowhere. Telling it *"no such tool"* or *"that date is not real"* is what
@@ -181,39 +188,81 @@ model on the next turn, multi-tool turns, the offline gate, failure
 passthrough, invented tool names, rejected arguments, and termination at
 exactly *N* turns.
 
-### ▶ Step 3 — The analytics query the app needs anyway
-`GetSpendingByCategory` as a real Sprint 4 use case: entity, repository
-contract, datasource with the `GROUP BY` (transfers excluded, per E-02),
-repository impl, tests. Then `SpendingByCategoryReader` becomes a four-line
-adapter over it.
+### ✅ Step 3 — The analytics query the app needs anyway *(done)*
+`GetSpendingByCategory` as a real Sprint 4 use case — `CategoryTotal`,
+`DateRange`, the repository contract, the aggregate query, the repository impl
+and the DI wiring — plus 33 tests.
 
-*Why this order:* it is Sprint 4's foundation, so nothing here is built twice.
-The donut chart consumes the same use case.
+Two traps the query had to get right, both errata: a transfer writes **two**
+rows, so a total that forgets E-02 counts the same movement twice in opposite
+directions; and a split's parent row carries the full amount *and* the dominant
+category, so counting parents and parts together double-counts the transaction
+(E-04). The query reads unsplit expenses `UNION ALL` the split parts.
 
-**Done when:** the use case returns correct totals over `dev_seed`'s 24 months,
-with a test asserting the shaped categories (Bills fixed, Gifts spiking in
-April and December).
+`SpendingByCategoryReader` moved from the Copilot's domain to
+[`lib/core/ports/`](../lib/core/ports/spending_by_category_reader.dart), and
+`AnalyticsRepositoryImpl` implements it directly. No adapter, no second query:
+the feature's own callers get ids and colours for the chart, and everything
+outside the feature gets names and amounts only — which is the shape that may
+be sent onward, so the ids are dropped at the port rather than by whoever
+happens to call it.
 
-### Step 4 — The model, wired
-`GeminiRemoteDataSource` (the only `http` in the feature), `llm_dtos.dart` with
-the request builder and response parser, `LlmRepositoryImpl` mapping exceptions
-to failures, and `egress_guard_test.dart`.
+`get_spending_by_category_tool_over_database_test.dart` assembles the whole
+chain the app assembles and runs the Copilot's tool against a seeded database.
+The single-tool path now works end to end, minus the model.
 
-Includes a decision the SDD does not cover: **how the key reaches secure
-storage on a fresh device.** A debug-only field in Settings that writes to
-`flutter_secure_storage` under `gemini_api_key` — never a constant, never an
-asset, never committed.
+### ✅ Step 4 — The model, wired *(done)*
+`GeminiDtos` (the request builder and response parser),
+`GeminiRemoteDataSource` (the only `http` in the application),
+`SecureLlmApiKeyStore`, `LlmRepositoryImpl`, `ConnectivityNetworkInfo`, the DI
+wiring, and 44 tests including the egress guard.
 
-**Done when:** the egress test is green and a scripted request parses a real
-Gemini function-call response.
+Four decisions worth naming:
 
-### Step 5 — The screen
-Riverpod `AsyncNotifier`, the ask screen, the loading state, the answer with
-its tool trace, the offline fallback, and a `go_router` route.
+- **The key travels in the `x-goog-api-key` header, not `?key=`.** URLs are
+  logged by proxies, crash reporters and `flutter run` itself; headers are not.
+- **The key is read per call and never held in a field**, so it is not resident
+  in memory — or in a heap dump — for the life of the app.
+- **A 429 keeps its status code** through the datasource so the repository can
+  raise `QuotaFailure` rather than a generic `ServerFailure`. Waiting fixes a
+  spent quota and fixes nothing else, so it is the one status whose advice
+  differs.
+- **A reply carrying both text and a function call is treated as a call.** A
+  model thinking aloud on its way to a tool would otherwise end the loop one
+  step early, with its musing presented as the answer.
 
-**Done when:** *"How much did I spend on food in August?"* is answered
-correctly on the emulator, against seeded data. This is the first milestone
-worth showing anyone: the whole path works end to end, on one tool.
+The API key still has no way *in*: entering it is a screen, so it lands with
+Step 5.
+
+**Done when:** the egress guard is green and a scripted Gemini reply — text,
+function call, safety block, 429, unparseable body — is handled in each case.
+*Met.*
+
+### ✅ Step 5 — The screen *(built; needs a real key to prove)*
+`CopilotNotifier`, the ask screen, the loading state, the answer with its tool
+trace, the offline fallback, the `/copilot` route, and 11 widget tests.
+
+**The API key is entered on the Copilot screen itself, not in Settings.** It
+belongs to this feature alone: without one the Copilot cannot run, and with one
+nothing else behaves differently. Putting it in Settings would leave a stray
+field there the day the feature is removed. The field is obscured, and the key
+goes straight to `flutter_secure_storage` under `gemini_api_key`.
+
+Three things the screen does deliberately:
+
+- **The tool trace is named in plain language.** The model sees
+  `get_spending_by_category`; the user reads "your spending by category". The
+  trace is not debug output — it is what lets someone check an answer against
+  their own figures.
+- **Only what actually ran appears in the trace.** A rejected call is fed back
+  to the model but never shown, because a trace listing attempts would claim
+  the agent consulted something it never read.
+- **The offline state is a designed screen**, not an error page. One optional
+  feature is unavailable; the app is not broken, and the screen says so.
+
+**Done when:** *"How much did I spend on food in August?"* is answered on the
+emulator against seeded data. **The code is finished; this is now a manual
+step — it needs a real API key and a running device.**
 
 ### Step 6 — The second and third tools
 `get_income_for_period`, then `compare_periods`.

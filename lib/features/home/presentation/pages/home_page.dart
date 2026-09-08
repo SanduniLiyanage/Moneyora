@@ -88,6 +88,7 @@ class _Ready extends StatelessWidget {
         const SizedBox(height: 8),
         for (final (label, route) in const [
           ('Transactions', Routes.transactions),
+          ('Ask Moneyora', Routes.copilot),
           ('Money Plan', Routes.moneyPlan),
           ('Scan Receipt', Routes.scanReceipt),
         ])

@@ -977,6 +977,14 @@ withdrawn**. They return when the features they depend on exist.
   Arguments come from a language model, so bad input is ordinary rather than
   exceptional; this keeps rejection on the normal path and honours the
   repository rule that `try`/`catch` lives no higher than `data/`.
+- **§3.2's repository signature.** `LlmRepository.reason` takes
+  `List<ToolExchange>` — each call paired with its result — rather than
+  `List<ToolResult>`. A function-calling API records a conversation, and a
+  `functionResponse` sent without the `functionCall` it answers describes a
+  reply to something the transcript does not contain.
+- **§8's request shape.** The API key is sent in the `x-goog-api-key` header
+  rather than as the `?key=` query parameter the SDD's endpoint implies. A URL
+  is logged by proxies, crash reporters and the Flutter tool; a header is not.
 - **§4's loop.** A rejected tool call is reported back to the model as a
   result carrying an error string, rather than skipped silently as the
   pseudocode has it. A request that vanishes leaves the model repeating it

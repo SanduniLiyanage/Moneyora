@@ -7,6 +7,7 @@ import '../entities/agent_tool.dart';
 import '../entities/copilot_answer.dart';
 import '../entities/llm_step.dart';
 import '../entities/tool_call.dart';
+import '../entities/tool_exchange.dart';
 import '../entities/tool_result.dart';
 import '../repositories/llm_repository.dart';
 import 'tools/copilot_tool.dart';
@@ -79,18 +80,18 @@ class RunCopilotQuery implements UseCase<CopilotAnswer, String> {
     // FR-COP-013. Checked before the request rather than after it fails, so
     // being offline reads as the ordinary state it is and not as an error.
     if (!await _network.isConnected) {
+      // Says what is unavailable and no more. The screen adds the reassurance
+      // that the rest of the app still works; saying it in both places puts
+      // the same sentence on screen twice.
       return const Left(
-        NetworkFailure(
-          'The Copilot needs a connection to think. Everything else in '
-          'Moneyora works offline as usual.',
-        ),
+        NetworkFailure('The Copilot needs a connection, so it is offline too.'),
       );
     }
 
     final schemas = _tools.values
         .map((tool) => tool.descriptor)
         .toList(growable: false);
-    final history = <ToolResult>[];
+    final history = <ToolExchange>[];
     final trace = <ToolCall>[];
 
     for (var turn = 0; turn < maxIterations; turn++) {
@@ -113,9 +114,11 @@ class RunCopilotQuery implements UseCase<CopilotAnswer, String> {
 
         case ToolCallsRequested(:final calls):
           for (final call in calls) {
-            final result = await _run(call);
-            history.add(result.$1);
-            if (result.$2) trace.add(call);
+            final (result, ran) = await _run(call);
+            history.add(ToolExchange(call: call, result: result));
+            // Only what actually ran is shown to the user. A trace that listed
+            // attempts would say the agent consulted something it never read.
+            if (ran) trace.add(call);
           }
       }
     }

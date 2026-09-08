@@ -1,9 +1,9 @@
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../../core/errors/failures.dart';
+import '../../../../../core/ports/spending_by_category_reader.dart';
 import '../../entities/agent_tool.dart';
 import '../../entities/tool_result.dart';
-import '../../repositories/spending_by_category_reader.dart';
 import 'copilot_tool.dart';
 
 /// Answers "how much did I spend on food in August?" — the first tool, and the

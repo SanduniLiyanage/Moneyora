@@ -43,6 +43,16 @@ class ServerFailure extends Failure {
   const ServerFailure([super.message = 'The service is unavailable.']);
 }
 
+/// An optional remote service refused because its quota or rate limit is spent.
+///
+/// Distinct from [ServerFailure] because the remedy is different and the user
+/// can act on it: waiting works, retrying now does not. FR-COP-015.
+class QuotaFailure extends Failure {
+  const QuotaFailure([
+    super.message = 'That service has hit its usage limit. Try again later.',
+  ]);
+}
+
 /// The device is offline. Expected and recoverable — never surface this as an
 /// error for a core (offline-first) feature.
 class NetworkFailure extends Failure {

@@ -100,6 +100,10 @@ Money is stored as **integer minor units** (cents), never `double`. See §6.
 ## 5. Where things go when you are unsure
 
 - Used by two features → `lib/core/`
+- A contract two features share, so neither imports the other →
+  `lib/core/ports/`. The owning feature implements it; the other depends on the
+  contract. `SpendingByCategoryReader` is the worked example: analytics owns
+  the query, the Copilot reads through the port, and rule 4 stays intact.
 - Used by one feature, more than one layer → that feature's `domain/`
 - Formats or parses a value → `lib/core/utils/`
 - Reusable widget with no business logic → `lib/core/widgets/`

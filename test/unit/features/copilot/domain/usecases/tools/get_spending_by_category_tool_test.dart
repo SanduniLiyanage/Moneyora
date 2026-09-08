@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/spending_by_category_reader.dart';
 import 'package:moneyora/features/copilot/domain/entities/tool_result.dart';
-import 'package:moneyora/features/copilot/domain/repositories/spending_by_category_reader.dart';
 import 'package:moneyora/features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
 
 /// Records what it was asked for, and can be told to fail.

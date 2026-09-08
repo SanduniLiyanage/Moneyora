@@ -5,6 +5,7 @@ import 'package:moneyora/core/network/network_info.dart';
 import 'package:moneyora/features/copilot/domain/entities/agent_tool.dart';
 import 'package:moneyora/features/copilot/domain/entities/llm_step.dart';
 import 'package:moneyora/features/copilot/domain/entities/tool_call.dart';
+import 'package:moneyora/features/copilot/domain/entities/tool_exchange.dart';
 import 'package:moneyora/features/copilot/domain/entities/tool_result.dart';
 import 'package:moneyora/features/copilot/domain/repositories/llm_repository.dart';
 import 'package:moneyora/features/copilot/domain/usecases/run_copilot_query.dart';
@@ -27,7 +28,7 @@ class _ScriptedLlm implements LlmRepository {
   final List<Either<Failure, LlmStep>> script;
 
   final List<String> questionsSeen = <String>[];
-  final List<List<ToolResult>> historySeen = <List<ToolResult>>[];
+  final List<List<ToolExchange>> historySeen = <List<ToolExchange>>[];
   final List<List<AgentTool>> toolsSeen = <List<AgentTool>>[];
 
   int get turns => questionsSeen.length;
@@ -36,13 +37,13 @@ class _ScriptedLlm implements LlmRepository {
   Future<Either<Failure, LlmStep>> reason({
     required String question,
     required List<AgentTool> tools,
-    required List<ToolResult> history,
+    required List<ToolExchange> history,
   }) async {
     questionsSeen.add(question);
     toolsSeen.add(tools);
     // Copied, because the loop keeps appending to the list it passed in and a
     // stored reference would show the final state at every turn.
-    historySeen.add(List<ToolResult>.of(history));
+    historySeen.add(List<ToolExchange>.of(history));
 
     final index = turns - 1;
     return script[index < script.length ? index : script.length - 1];
@@ -174,7 +175,9 @@ void main() {
       await RunCopilotQuery(llm, network, tools: [spending]).call(question);
 
       expect(llm.historySeen.first, isEmpty);
-      expect(llm.historySeen.last.single.aggregate, {'total_cents': 3420000});
+      expect(llm.historySeen.last.single.result.aggregate, {
+        'total_cents': 3420000,
+      });
     });
 
     test('the same question on every turn', () async {
@@ -353,8 +356,9 @@ void main() {
         await RunCopilotQuery(llm, network, tools: [spending]).call(question);
 
         final feedback = llm.historySeen.last.single;
-        expect(feedback.toolName, 'get_horoscope');
-        expect(feedback.aggregate['error'], isNotNull);
+        expect(feedback.call.toolName, 'get_horoscope');
+        expect(feedback.result.toolName, 'get_horoscope');
+        expect(feedback.result.aggregate['error'], isNotNull);
       },
     );
 
@@ -392,7 +396,7 @@ void main() {
           (answer) => expect(answer.trace, isEmpty),
         );
         expect(
-          llm.historySeen.last.single.aggregate['error'],
+          llm.historySeen.last.single.result.aggregate['error'],
           contains('YYYY-MM-DD'),
         );
       },
