@@ -90,9 +90,17 @@ loses money).
 
 Delivered in PR #28: the entity, the repository contract, six use cases, the
 datasource and the repository impl, including `RecomputeAccountBalance` for
-E-18. Outstanding: every screen — `features/accounts/presentation/` is still
-empty — plus the transfer screen on top of `MakeTransfer`, and the entry
-screen's account selector.
+E-18.
+
+Delivered since: `DatabaseChangeBus`, without which any balance on screen goes
+stale the moment a transaction is written (E-18), and **FR-ACC-003's side
+panel** — the accounts, their balances, a total, and a line naming what the
+total left out where that applies.
+
+Outstanding: account CRUD and archiving (FR-ACC-001, 002, 004, 007), the
+transfer screen on top of `MakeTransfer` (FR-TRF-001 to 003), the entry
+screen's account selector, and FR-TRF-004's `From`/`To` labels on transfer
+rows.
 
 ### FR-ACC-005 (multi-currency) is deferred out of this sprint
 

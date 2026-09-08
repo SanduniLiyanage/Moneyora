@@ -19,13 +19,28 @@ import '../../../../injection.dart';
 /// screen is how it gets answered.
 class HomePage extends ConsumerWidget {
   /// Creates the home screen.
-  const HomePage({super.key});
+  const HomePage({super.key, this.drawer});
+
+  /// The side panel opened from the app bar, if one was supplied.
+  ///
+  /// Passed in by `core/router/app_router.dart` rather than constructed here,
+  /// because the panel FR-ACC-003 asks for belongs to the accounts feature and
+  /// `features/home/` importing `features/accounts/` is what rule 4 of
+  /// `scripts/check_architecture.sh` forbids. The router already names every
+  /// feature's pages, so composing one more widget there is the shape the
+  /// project already uses — the same reason `injection.dart` is the only file
+  /// allowed to name a concrete `data/` class.
+  ///
+  /// Nullable so a widget test can build this screen without the accounts
+  /// slice behind it.
+  final Widget? drawer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(databaseSummaryProvider);
 
     return Scaffold(
+      drawer: drawer,
       appBar: AppBar(
         title: const Text('Moneyora'),
         actions: [

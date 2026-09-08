@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/app.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
+import 'package:moneyora/features/accounts/domain/entities/account.dart';
+import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/injection.dart';
 
@@ -174,6 +176,46 @@ void main() {
 
         expect(find.text('Database ready'), findsOneWidget);
       }
+    });
+
+    testWidgets('the accounts panel opens from the home screen', (
+      tester,
+    ) async {
+      // FR-ACC-003 asks for the accounts to be reachable "from the main
+      // screen". The panel belongs to the accounts feature and the home
+      // screen must not import it, so `app_router.dart` composes the two —
+      // which means this wiring is only ever exercised through the real
+      // router, as it is here.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseSummaryProvider.overrideWith((ref) => ready),
+            // The panel reads accounts through a use case that would open a
+            // real database, which never completes in a widget test's
+            // fake-async zone.
+            accountsProvider(false).overrideWith(
+              (ref) => Stream.value([
+                Account(
+                  id: 1,
+                  name: 'Cash',
+                  icon: 'wallet',
+                  initialBalanceDate: DateTime(2026),
+                  currentBalanceCents: 125000,
+                ),
+              ]),
+            ),
+          ],
+          child: const MoneyoraApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Total balance'), findsOneWidget);
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('Rs1,250.00'), findsNWidgets(2));
     });
   });
 }

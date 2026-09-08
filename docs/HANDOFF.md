@@ -95,7 +95,7 @@ lib/
 │   ├── usecases/        UseCase<T, Params> base
 │   └── utils/           currency_utils, date_utils — the only formatters
 ├── features/
-│   ├── accounts/        domain + data complete, presentation empty
+│   ├── accounts/        domain + data complete; presentation is the drawer
 │   ├── analytics/       spending-by-category: domain + data, no charts yet
 │   ├── copilot/         all three layers. The only http in the application
 │   ├── home/            Sprint 1 proof screen, still the home route
@@ -105,14 +105,20 @@ lib/
 └── main.dart         ProviderScope
 ```
 
-**469 tests pass; domain-layer line coverage is 96.6% against a 75% floor.**
-CI runs format, analyze, tests, that coverage floor, the architecture boundary
-check, an Android APK build and an iOS compile — all three jobs blocking.
+**506 tests pass; domain-layer line coverage is 96.4% against a 75% floor**
+(299 of 310 lines, across 26 files). CI runs format, analyze, tests, that
+coverage floor, the architecture boundary check, an Android APK build and an
+iOS compile — all three jobs blocking.
 
-The uncovered lines are five: the two unreachable `default` arms in
+Eleven lines are uncovered, at six sites: the unreachable `default` arms in
 `transaction_repository.dart` and `analytics_repository.dart`, `copyWith` on
-`category_total.dart` and `tool_exchange.dart`, and one guard in
-`run_copilot_query.dart`. Coverage is measured the way CI measures it —
+`category_total.dart` and `tool_exchange.dart`, one guard in
+`run_copilot_query.dart`, and `ArchiveParams`' const constructor — which has
+reported both covered and uncovered across runs with no change to the file,
+as a const constructor evaluated at compile time can.
+
+An earlier version of this paragraph said "five", counting sites and calling
+them lines. Coverage is measured the way CI measures it —
 `lcov --extract coverage/lcov.info '*/domain/*'` — so this is the number the
 gate prints, not a differently-scoped one.
 
@@ -129,10 +135,19 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 3's screens.** The accounts slice has a domain layer and a data layer
-and no UI. Outstanding: account CRUD and archiving, the transfer screen, and
-the entry screen's account selector — still pinned to the first account,
-because a picker with one option is not a picker.
+**Sprint 3's screens.** FR-ACC-003's side panel is in: the accounts and their
+balances, a total, and — where it applies — a line saying which accounts that
+total left out and why. Outstanding: account CRUD and archiving, the transfer
+screen, and the entry screen's account selector, still pinned to the first
+account because a picker with one option is not a picker.
+
+The panel is composed in `core/router/app_router.dart` and passed to
+`HomePage` as a widget, rather than imported by the home screen. A feature
+importing another feature is what rule 4 of `check_architecture.sh` forbids,
+and the router already names every feature's pages — so it is where the app is
+assembled, the way `injection.dart` is the only file allowed to name a
+concrete `data/` class. Any later screen needing another feature's widget goes
+the same way.
 
 Three things are built, tested, wired into DI, and idle for want of a screen
 that calls them: `MakeTransfer`, the datasource's `createTransfer`, and
