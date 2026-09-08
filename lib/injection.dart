@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
+import 'core/database/database_change_bus.dart';
 import 'core/database/database_helper.dart';
 import 'core/database/database_summary.dart';
 import 'core/database/encryption_key_store.dart';
@@ -122,15 +123,33 @@ final databaseSummaryProvider = FutureProvider<DatabaseSummary>((ref) async {
 // otherwise would mean a synchronous provider that throws on first use.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The one change signal every datasource publishes to. E-18, FR-ACC-003.
+///
+/// Shared rather than per-datasource because a write in one feature can move
+/// another's rows: every transaction write adjusts
+/// `accounts.current_balance_cents`, inside the same database transaction, so
+/// an accounts watcher listening only to accounts writes shows a stale
+/// balance. Owned here — the datasources are handed it and never close it,
+/// because the first one disposed would otherwise silence the rest.
+///
+/// Synchronous, unlike everything below it: the bus needs no database.
+final databaseChangeBusProvider = Provider<DatabaseChangeBus>((ref) {
+  final bus = DatabaseChangeBus();
+  ref.onDispose(bus.close);
+  return bus;
+});
+
 /// Reads and writes transaction rows. The only holder of SQL for the feature.
 final transactionLocalDataSourceProvider =
     FutureProvider<TransactionLocalDataSource>((ref) async {
       final source = TransactionLocalDataSourceImpl(
         await ref.watch(databaseProvider.future),
+        changeBus: ref.watch(databaseChangeBusProvider),
       );
-      // The change stream is a broadcast controller. Closing it on dispose
-      // stops a hot restart from leaving listeners attached to the old one,
-      // which presents as a screen that updates twice per write.
+      // Disposing the datasource no longer closes the change stream — the bus
+      // owns it, and closing it here would silence the accounts datasource
+      // too. The bus's own provider closes it, which still stops a hot restart
+      // from leaving listeners attached to a dead controller.
       ref.onDispose(source.dispose);
       return source;
     });
@@ -184,6 +203,7 @@ final accountLocalDataSourceProvider = FutureProvider<AccountLocalDataSource>((
 ) async {
   final source = AccountLocalDataSourceImpl(
     await ref.watch(databaseProvider.future),
+    changeBus: ref.watch(databaseChangeBusProvider),
   );
   ref.onDispose(source.dispose);
   return source;

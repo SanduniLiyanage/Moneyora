@@ -4,6 +4,7 @@ library;
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneyora/core/database/database_change_bus.dart';
 import 'package:moneyora/core/database/migrations/v1_initial.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/features/accounts/data/datasources/account_local_datasource.dart';
@@ -385,6 +386,114 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(seen, hasLength(2));
+      await subscription.cancel();
+    });
+
+    test('a private bus does not hear another datasource, by design', () async {
+      // `accounts` and `transactions` are built without a shared bus in
+      // setUp, which is how every unit test builds them and how this file
+      // behaved before the bus existed. Asserted rather than assumed, because
+      // it is the fallback the shared case is measured against.
+      final seen = <void>[];
+      final subscription = accounts.changes.listen(seen.add);
+
+      await transactions.add(expense());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, isEmpty);
+      await subscription.cancel();
+    });
+  });
+
+  group('a shared change bus', () {
+    late DatabaseChangeBus bus;
+    late AccountLocalDataSourceImpl sharedAccounts;
+    late TransactionLocalDataSourceImpl sharedTransactions;
+
+    setUp(() {
+      bus = DatabaseChangeBus();
+      sharedAccounts = AccountLocalDataSourceImpl(db, changeBus: bus);
+      sharedTransactions = TransactionLocalDataSourceImpl(db, changeBus: bus);
+    });
+
+    tearDown(() async {
+      await sharedAccounts.dispose();
+      await sharedTransactions.dispose();
+      await bus.close();
+    });
+
+    test('an account watcher hears a transaction write', () async {
+      // The reason the bus exists. `current_balance_cents` is a cache (E-18)
+      // moved inside the same database transaction as the row that changes
+      // it, so the write happens in the transactions datasource while the
+      // changed row belongs to accounts. Without this, FR-ACC-003's drawer
+      // shows a balance that is correct until the first expense is added.
+      final seen = <void>[];
+      final subscription = sharedAccounts.changes.listen(seen.add);
+
+      await sharedTransactions.add(expense(amountCents: 30000));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, hasLength(1));
+      await subscription.cancel();
+    });
+
+    test('a transfer is one signal, not one per row it writes', () async {
+      // A transfer writes three rows across two tables (E-15) inside a single
+      // database transaction. It is one change, and a watcher that re-queried
+      // three times would show two intermediate states in which money has
+      // left one account without arriving in the other.
+      final seen = <void>[];
+      final subscription = sharedAccounts.changes.listen(seen.add);
+
+      await sharedTransactions.createTransfer(
+        fromAccountId: cash,
+        toAccountId: card,
+        amountCents: 25000,
+        date: DateTime.utc(2026, 3, 4),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, hasLength(1));
+      await subscription.cancel();
+    });
+
+    test('stays quiet when a write fails', () async {
+      // A rolled-back write changed nothing, so re-querying is pointless. The
+      // failing path here is a transfer to an account that does not exist,
+      // which throws after the first half has already inserted.
+      final seen = <void>[];
+      final subscription = sharedAccounts.changes.listen(seen.add);
+
+      await expectLater(
+        sharedTransactions.createTransfer(
+          fromAccountId: cash,
+          toAccountId: 9999,
+          amountCents: 25000,
+          date: DateTime.utc(2026, 3, 4),
+        ),
+        throwsA(isA<CacheException>()),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, isEmpty);
+      await subscription.cancel();
+    });
+
+    test('disposing one datasource does not silence the other', () async {
+      // The ownership rule. A datasource handed a bus must not close it: the
+      // first one disposed would otherwise take the signal down with it, and
+      // the accounts drawer would stop updating as soon as anything else in
+      // the app was torn down.
+      final seen = <void>[];
+      final subscription = sharedAccounts.changes.listen(seen.add);
+
+      await sharedTransactions.dispose();
+      await sharedAccounts.add(model());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen, hasLength(1));
+      expect(bus.isClosed, isFalse);
       await subscription.cancel();
     });
   });
