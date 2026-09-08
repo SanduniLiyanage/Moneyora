@@ -59,18 +59,19 @@ No image and no total ever leaves the phone.
 | Theme, navigation, error handling, CI pipeline | **Built** |
 | Transactions — entry keypad, list, filter, edit, undo | **Built** |
 | Accounts and transfers — domain and data layers | **Built** |
-| Accounts and transfers — screens | In progress |
+| Accounts and transfers — screens | Not started |
 | Analytics — the spending-by-category query | **Built** |
 | AI Copilot — agent loop, first tool, model integration | **Built** |
-| AI Copilot — the ask screen | **Built** |
+| AI Copilot — the ask screen | **Built** — not yet proven against the live API |
 | Analytics — donut chart, trends, heatmap | Planned |
 | Money Plan Generator | Planned |
 | Receipt Scanner | Planned |
 | PIN and biometrics, backup and export | Planned |
 
-Sprints 1 and 2 of 10 are complete and verified on an Android emulator, and
-Sprint 3's domain layer is in. 469 tests pass. For the detail — what exists,
-what is next, and the environment traps — see
+Sprints 1 and 2 of 10 are complete and verified on an Android emulator.
+Sprint 3's domain and data layers are in; none of its screens exist yet. 469
+tests pass, and domain-layer line coverage is 96.6% against a 75% floor. For
+the detail — what exists, what is next, and the environment traps — see
 [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 Everything above works offline. The AI Copilot, cloud backup and live exchange

@@ -67,9 +67,10 @@ emulator. **Sprint 3 is half done**: PR #28 landed the accounts domain and data
 layers together with E-18's reconciliation, but accounts have no screens —
 `lib/features/accounts/presentation/` holds nothing but `.gitkeep` files.
 
-Running ahead of its sprint, the **Copilot's domain layer** is also built: the
-agent loop, its contracts, and the first tool. See [`COPILOT.md`](COPILOT.md)
-for what it is scoped to and why.
+Running ahead of its sprint, **all three of the Copilot's layers** are built:
+the agent loop and its contracts, the first tool, the Gemini datasource and the
+ask screen at `/copilot`. What it has never had is a run against the live API.
+See [`COPILOT.md`](COPILOT.md) for what it is scoped to and why.
 
 ```
 lib/
@@ -100,9 +101,16 @@ lib/
 └── main.dart         ProviderScope
 ```
 
-**469 tests pass; domain coverage is 100% against a 75% floor.** CI runs
-format, analyze, tests, that coverage floor, the architecture boundary check,
-an Android APK build and an iOS compile — all three jobs blocking.
+**469 tests pass; domain-layer line coverage is 96.6% against a 75% floor.**
+CI runs format, analyze, tests, that coverage floor, the architecture boundary
+check, an Android APK build and an iOS compile — all three jobs blocking.
+
+The uncovered lines are five: the two unreachable `default` arms in
+`transaction_repository.dart` and `analytics_repository.dart`, `copyWith` on
+`category_total.dart` and `tool_exchange.dart`, and one guard in
+`run_copilot_query.dart`. Coverage is measured the way CI measures it —
+`lcov --extract coverage/lcov.info '*/domain/*'` — so this is the number the
+gate prints, not a differently-scoped one.
 
 ### The dev seed is a test oracle, not filler
 
