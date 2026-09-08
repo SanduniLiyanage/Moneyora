@@ -1,6 +1,6 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-06**, `main` at `fb83fab`, after 26
+State of the project as of **2026-09-08**, `main` at `7419a09`, after 29
 merged pull requests.
 
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
@@ -20,14 +20,14 @@ iOS 15.5+. Two headline features distinguish it from a plain expense tracker:
 - **Receipt Scanner** — ML Kit OCR on-device, with a three-layer keyword
   categoriser that learns from corrections.
 
-Built by Sanduni as a solo portfolio project, aimed at securing a software
-internship in Sri Lanka. That goal shapes several decisions: the repository is
-the artefact an interviewer reads, so commit messages, PR history and CI
-matter as much as the code.
+A solo project, built to production discipline rather than demo discipline:
+commit messages, PR history and CI are part of the deliverable, not overhead
+around it. That is why several conventions below are stricter than a project
+this size would normally need.
 
-**Sanduni has not built a mobile app before.** Guidance should be explicit and
-step-by-step, and any PR link should arrive together with the exact terminal
-commands that go with it.
+Guidance here is written to be followed exactly. A PR link arrives with the
+terminal commands that go with it, and no step is done until `flutter analyze`,
+`flutter test` and `check_architecture.sh` are all green.
 
 ---
 
@@ -63,7 +63,14 @@ When implementing anything, check the errata for its requirement ID first.
 ## What is built
 
 **Sprints 1 and 2 are complete**, both verified running on an Android
-emulator. 261 tests pass; domain coverage is 100% against a 75% floor.
+emulator. **Sprint 3 is half done**: PR #28 landed the accounts domain and data
+layers together with E-18's reconciliation, but accounts have no screens —
+`lib/features/accounts/presentation/` holds nothing but `.gitkeep` files.
+
+Running ahead of its sprint, **all three of the Copilot's layers** are built:
+the agent loop and its contracts, the first tool, the Gemini datasource and the
+ask screen at `/copilot`. What it has never had is a run against the live API.
+See [`COPILOT.md`](COPILOT.md) for what it is scoped to and why.
 
 ```
 lib/
@@ -77,24 +84,33 @@ lib/
 │   │       ├── default_seed.dart        15 expense + 3 income categories
 │   │       └── dev_seed.dart            ~700 synthetic transactions, 24 months
 │   ├── errors/          Failure + Exception hierarchies
-│   ├── router/          go_router, 5 routes
+│   ├── network/         NetworkInfo — the abstract connectivity check
+│   ├── ports/           contracts two features share (see ARCHITECTURE §5)
+│   ├── router/          go_router, 6 routes: 3 real screens, 3 stubs
 │   ├── theme/           indigo/amber, contrast-verified light + dark
 │   ├── usecases/        UseCase<T, Params> base
-│   └── utils/           currency_utils — the only file that formats money
+│   └── utils/           currency_utils, date_utils — the only formatters
 ├── features/
-│   ├── home/presentation/pages/home_page.dart   Sprint 1 proof screen
-│   └── transactions/domain/                     Sprint 2, in progress
-│       ├── entities/transaction.dart
-│       ├── repositories/transaction_repository.dart
-│       └── usecases/add_transaction.dart
+│   ├── accounts/        domain + data complete, presentation empty
+│   ├── analytics/       spending-by-category: domain + data, no charts yet
+│   ├── copilot/         all three layers. The only http in the application
+│   ├── home/            Sprint 1 proof screen, still the home route
+│   └── transactions/    full slice: keypad entry, list, filter, edit, undo
 ├── app.dart          MaterialApp.router
 ├── injection.dart    Riverpod providers = the DI container
 └── main.dart         ProviderScope
 ```
 
-**104 tests pass. Domain coverage 100%.** CI runs format, analyze, tests, a
-75% domain-coverage floor, an architecture boundary check, an Android APK
-build and an iOS compile — all three jobs blocking.
+**469 tests pass; domain-layer line coverage is 96.6% against a 75% floor.**
+CI runs format, analyze, tests, that coverage floor, the architecture boundary
+check, an Android APK build and an iOS compile — all three jobs blocking.
+
+The uncovered lines are five: the two unreachable `default` arms in
+`transaction_repository.dart` and `analytics_repository.dart`, `copyWith` on
+`category_total.dart` and `tool_exchange.dart`, and one guard in
+`run_copilot_query.dart`. Coverage is measured the way CI measures it —
+`lcov --extract coverage/lcov.info '*/domain/*'` — so this is the number the
+gate prints, not a differently-scoped one.
 
 ### The dev seed is a test oracle, not filler
 
@@ -109,29 +125,43 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 3 — accounts and transfers.** Sprint 2 is complete: a transaction can
-be recorded on the custom keypad, listed, filtered, edited and deleted with an
-undo window, and every layer beneath that is tested.
+**Sprint 3's screens.** The accounts slice has a domain layer and a data layer
+and no UI. Outstanding: account CRUD and archiving, the transfer screen, and
+the entry screen's account selector — still pinned to the first account,
+because a picker with one option is not a picker.
 
-Two things are already built and idle, waiting for this sprint to call them:
+Three things are built, tested, wired into DI, and idle for want of a screen
+that calls them: `MakeTransfer`, the datasource's `createTransfer`, and
+`RecomputeAccountBalance`. The last one's oracle already exists as a property
+test in `transaction_local_datasource_test.dart`: after a random sequence of
+writes, the cached balance must equal the balance recomputed from history.
 
-- `MakeTransfer` and the datasource's `createTransfer` — written, tested, wired
-  into DI, with no screen that reaches them.
-- The entry screen's account selector, currently pinned to the first account
-  because a picker with one option is not a picker.
+**Then Sprint 4 — analytics.** Its first query is already in:
+`GetSpendingByCategory`, with the datasource, the repository and the DI wiring,
+tested against `dev_seed`'s 24 months for the E-02 and E-04 traps. What remains
+is the donut chart itself, period filters, and the rest of the reports.
 
-The sprint is therefore: account CRUD and archiving, the transfer screen on top
-of `MakeTransfer`, and `RecomputeAccountBalance` — the reconciliation E-18 asks
-for, which has no home until accounts have a slice of their own. Its oracle
-already exists as a property test in
-`transaction_local_datasource_test.dart`: after a random sequence of writes,
-the cached balance must equal the balance recomputed from history.
+Two notes for that work:
 
-Then Sprint 4's home screen, which replaces the current proof screen with the
-donut chart. Note for that work: the database opens during the first frame and
-stalls the UI for roughly ten seconds (`Skipped 608 frames` in logcat).
-NFR-PER-001 requires a sub-2-second cold start, so that needs a splash screen
-and an off-main-thread open.
+- The same query is what the Copilot's spending tool reads, through
+  `core/ports/spending_by_category_reader.dart`. Change what counts as
+  spending in one place and both move together — that is the point.
+- The database opens during the first frame and stalls the UI for roughly ten
+  seconds (`Skipped 608 frames` in logcat). NFR-PER-001 requires a sub-2-second
+  cold start, so this needs a splash screen and an off-main-thread open.
+
+**The Copilot is a parallel workstream, not a sprint.** All three layers are
+built and reachable at `/copilot` from the home screen: the agent loop, the
+spending tool over the real database, the Gemini datasource, the egress guard,
+and the ask screen with its key entry.
+
+What remains is not code. It needs a free Google AI Studio key typed into the
+screen on a running device, and then one real question asked. Until that
+happens the feature is unproven against the live API — the wire format is
+built to the documented shape and covered by tests, but no test can tell you
+Google accepts it. It does not jump ahead of Sprint 5 or Sprint 6 —
+two of its five specified tools wrap features those sprints build, which is
+recorded as [E-24](SPEC_ERRATA.md).
 
 ### Seeing the app with real data
 

@@ -1,10 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import 'core/database/database_helper.dart';
 import 'core/database/database_summary.dart';
 import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
+import 'core/network/connectivity_network_info.dart';
+import 'core/network/network_info.dart';
+import 'core/ports/spending_by_category_reader.dart';
 import 'features/accounts/data/datasources/account_local_datasource.dart';
 import 'features/accounts/data/repositories/account_repository_impl.dart';
 import 'features/accounts/domain/repositories/account_repository.dart';
@@ -14,6 +18,17 @@ import 'features/accounts/domain/usecases/delete_account.dart';
 import 'features/accounts/domain/usecases/recompute_account_balance.dart';
 import 'features/accounts/domain/usecases/update_account.dart';
 import 'features/accounts/domain/usecases/watch_accounts.dart';
+import 'features/analytics/data/datasources/analytics_local_datasource.dart';
+import 'features/analytics/data/repositories/analytics_repository_impl.dart';
+import 'features/analytics/domain/repositories/analytics_repository.dart';
+import 'features/analytics/domain/usecases/get_spending_by_category.dart';
+import 'features/copilot/data/datasources/gemini_remote_datasource.dart';
+import 'features/copilot/data/datasources/secure_llm_api_key_store.dart';
+import 'features/copilot/data/repositories/llm_repository_impl.dart';
+import 'features/copilot/domain/repositories/llm_repository.dart';
+import 'features/copilot/domain/usecases/run_copilot_query.dart';
+import 'features/copilot/domain/usecases/tools/copilot_tool.dart';
+import 'features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -214,5 +229,129 @@ final watchAccountsProvider = FutureProvider<WatchAccounts>(
 final recomputeAccountBalanceProvider = FutureProvider<RecomputeAccountBalance>(
   (ref) async => RecomputeAccountBalance(
     await ref.watch(accountRepositoryProvider.future),
+  ),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytics
+//
+// Read-only: nothing here writes a row. The aggregates are derived from
+// history every time they are asked for, which is the only way they cannot
+// drift from it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Runs the aggregate queries. The only holder of SQL for the feature.
+final analyticsLocalDataSourceProvider =
+    FutureProvider<AnalyticsLocalDataSource>(
+      (ref) async => AnalyticsLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+      ),
+    );
+
+/// The concrete repository, named by its class rather than its interface.
+///
+/// Private, and typed concretely, because it satisfies two contracts —
+/// [AnalyticsRepository] for this feature and [SpendingByCategoryReader] for
+/// anything outside it — and both views must be the same object. Two providers
+/// each calling the constructor would be two repositories over one database:
+/// harmless today, and exactly the kind of thing that stops being harmless
+/// once one of them caches.
+final _analyticsRepositoryImplProvider =
+    FutureProvider<AnalyticsRepositoryImpl>(
+      (ref) async => AnalyticsRepositoryImpl(
+        await ref.watch(analyticsLocalDataSourceProvider.future),
+      ),
+    );
+
+/// Turns analytics data-layer exceptions into failures. The layer boundary.
+final analyticsRepositoryProvider = FutureProvider<AnalyticsRepository>(
+  (ref) async => ref.watch(_analyticsRepositoryImplProvider.future),
+);
+
+/// What was spent per category over a period. FR-RPT-001.
+final getSpendingByCategoryProvider = FutureProvider<GetSpendingByCategory>(
+  (ref) async => GetSpendingByCategory(
+    await ref.watch(analyticsRepositoryProvider.future),
+  ),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Copilot
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The narrow read the Copilot's spending tool runs on.
+///
+/// The same object as [analyticsRepositoryProvider], seen through the contract
+/// in `core/ports/`. That is what keeps the agent and the donut chart counting
+/// spending the same way — there is one query, not two.
+final spendingByCategoryReaderProvider =
+    FutureProvider<SpendingByCategoryReader>(
+      (ref) async => ref.watch(_analyticsRepositoryImplProvider.future),
+    );
+
+/// Every tool the agent may call, registered declaratively.
+///
+/// Adding a tool is one entry in this list and no change to the loop, which
+/// indexes them by their own descriptor names (NFR-POR-007).
+final copilotToolsProvider = FutureProvider<List<CopilotTool>>(
+  (ref) async => [
+    GetSpendingByCategoryTool(
+      await ref.watch(spendingByCategoryReaderProvider.future),
+    ),
+  ],
+);
+
+/// The HTTP client, shared by everything that talks to the network.
+///
+/// One client rather than one per call, because each `http.Client()` opens its
+/// own connection pool; closed on dispose so a hot restart does not leave the
+/// old pool holding sockets.
+final httpClientProvider = Provider<http.Client>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return client;
+});
+
+/// Whether the radio is up. FR-COP-013.
+///
+/// Only optional features ask. Everything core to Moneyora works offline, so a
+/// second caller here would be a bug worth investigating rather than a feature.
+final networkInfoProvider = Provider<NetworkInfo>(
+  (ref) => ConnectivityNetworkInfo(),
+);
+
+/// The Copilot's API key, in the platform keychain and nowhere else.
+///
+/// Non-negotiable #3. Overridden with [InMemoryLlmApiKeyStore] in tests, which
+/// is the whole reason this is a provider and not a constructor call.
+final llmApiKeyStoreProvider = Provider<LlmApiKeyStore>(
+  (ref) => SecureLlmApiKeyStore(),
+);
+
+/// Asks Gemini what to do next. The only networked code in the application.
+final geminiRemoteDataSourceProvider = Provider<GeminiRemoteDataSource>(
+  (ref) => GeminiRemoteDataSource(
+    ref.watch(httpClientProvider),
+    ref.watch(llmApiKeyStoreProvider),
+  ),
+);
+
+/// Turns transport and provider errors into failures. The layer boundary.
+///
+/// Typed as [LlmRepository], so swapping Gemini for another provider changes
+/// this line and nothing above it (NFR-POR-007).
+final llmRepositoryProvider = Provider<LlmRepository>(
+  (ref) => LlmRepositoryImpl(ref.watch(geminiRemoteDataSourceProvider)),
+);
+
+/// The agent loop. FR-COP-004.
+///
+/// A [FutureProvider] because the tools reach the database, which opens
+/// asynchronously — not because the loop itself is slow to build.
+final runCopilotQueryProvider = FutureProvider<RunCopilotQuery>(
+  (ref) async => RunCopilotQuery(
+    ref.watch(llmRepositoryProvider),
+    ref.watch(networkInfoProvider),
+    tools: await ref.watch(copilotToolsProvider.future),
   ),
 );

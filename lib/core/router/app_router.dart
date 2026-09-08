@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 
@@ -23,6 +24,10 @@ abstract final class Routes {
 
   /// SCR-016 — settings.
   static const String settings = '/settings';
+
+  /// The AI Copilot. Not in the SDD's screen inventory — it is a later
+  /// addition, specified in `SRS_Copilot.md` §5.1.
+  static const String copilot = '/copilot';
 }
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
@@ -61,6 +66,13 @@ GoRouter buildRouter() => GoRouter(
       name: 'settings',
       builder: (context, state) =>
           const _PlannedScreen(title: 'Settings', sprint: 'Sprint 7'),
+    ),
+    // One route, and nothing else in the app reaches into the feature. Taking
+    // the Copilot out again is deleting this entry (NFR-REL-004).
+    GoRoute(
+      path: Routes.copilot,
+      name: 'copilot',
+      builder: (context, state) => const CopilotPage(),
     ),
   ],
   errorBuilder: (context, state) => _RouteNotFound(location: state.uri.path),

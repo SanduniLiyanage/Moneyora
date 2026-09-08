@@ -16,7 +16,7 @@ with the radio off.
      alt="Moneyora on an Android emulator: the encrypted database open, showing schema version, one account and eighteen seeded categories">
 
 <sub>Sprint 1 on an Android emulator — the encrypted database open and seeded.<br>
-The entry screen and transaction list arrive in Sprint 2.</sub>
+The entry screen and transaction list landed in Sprint 2.</sub>
 
 </div>
 
@@ -57,22 +57,28 @@ No image and no total ever leaves the phone.
 |---|---|
 | Encrypted database, schema, migrations, seed data | **Built** |
 | Theme, navigation, error handling, CI pipeline | **Built** |
-| Transactions — the domain layer and SQLite mapping | **Built** |
-| Transactions — storage, screens, custom keypad | In progress |
-| Accounts and transfers | Planned |
+| Transactions — entry keypad, list, filter, edit, undo | **Built** |
+| Accounts and transfers — domain and data layers | **Built** |
+| Accounts and transfers — screens | Not started |
+| Analytics — the spending-by-category query | **Built** |
+| AI Copilot — agent loop, first tool, model integration | **Built** |
+| AI Copilot — the ask screen | **Built** — not yet proven against the live API |
 | Analytics — donut chart, trends, heatmap | Planned |
 | Money Plan Generator | Planned |
 | Receipt Scanner | Planned |
 | PIN and biometrics, backup and export | Planned |
 
-Sprint 1 of 10 is complete and verified on an Android emulator; Sprint 2 is
-underway. 138 tests pass. For the detail —
-what exists, what is next, and the environment traps — see
+Sprints 1 and 2 of 10 are complete and verified on an Android emulator.
+Sprint 3's domain and data layers are in; none of its screens exist yet. 469
+tests pass, and domain-layer line coverage is 96.6% against a 75% floor. For
+the detail — what exists, what is next, and the environment traps — see
 [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
-Everything above works offline. Cloud backup, live exchange rates and AI
-coaching tips are the only networked features, each optional and each behind a
-connectivity check with a fallback.
+Everything above works offline. The AI Copilot, cloud backup and live exchange
+rates are the only networked features — each optional, each behind a
+connectivity check with a fallback, and none of them handling raw financial
+data. The Copilot's tools run on-device and send only computed aggregates; see
+[`docs/COPILOT.md`](docs/COPILOT.md).
 
 ---
 
@@ -129,6 +135,7 @@ every push rather than trusting anyone to remember.
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Adding any feature — layer rules and conventions |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commits, releases |
 | [ROADMAP.md](docs/ROADMAP.md) | Deciding what to build next |
+| [COPILOT.md](docs/COPILOT.md) | Working on the AI Copilot — its scope, privacy design and build order |
 | [CLAUDE.md](CLAUDE.md) | Working with Claude Code in this repo |
 | [specs/](docs/specs/) | The approved SRS, SDD, DBD and ERD — unmodified |
 
@@ -139,8 +146,10 @@ baselines and are left exactly as approved. Auditing them before writing the
 schema turned up **twenty defects**, six of them blocking — including a
 `transactions` table in which no transfer could be inserted, and a plan
 generator built on `STDDEV()`, which SQLite does not provide. A later pass
-asking what a person meets on first open added **three more**, bringing the
-total to twenty-three.
+asking what a person meets on first open added **three more**, and auditing the
+Copilot's own draft specification against the code added a fourth — three of
+its five tools wrapped features that do not exist. Twenty-four findings in
+total.
 
 Rather than silently editing the specifications, every deviation is recorded in
 [`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning and folds into v1.1

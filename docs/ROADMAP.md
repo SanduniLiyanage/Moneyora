@@ -82,17 +82,30 @@ Deferred deliberately: the account selector (Sprint 3, when there is more than
 one account to choose between) and E-13's inline `+` for creating a category
 mid-entry, which belongs with FR-EXP-004 in the categories work.
 
-## Sprint 3 — Accounts & transfers (Week 5) — **next**
+## Sprint 3 — Accounts & transfers (Week 5) — **domain done, screens next**
 
 Account CRUD, archiving, multi-currency, atomic transfers (FR-TRF-002 —
 do the debit and credit **in one sqflite transaction**, or a crash mid-write
 loses money).
 
-## Sprint 4 — Analytics (Week 6)
+Delivered in PR #28: the entity, the repository contract, six use cases, the
+datasource and the repository impl, including `RecomputeAccountBalance` for
+E-18. Outstanding: every screen — `features/accounts/presentation/` is still
+empty — plus the transfer screen on top of `MakeTransfer`, and the entry
+screen's account selector.
+
+## Sprint 4 — Analytics (Week 6) — **next**
 
 Donut chart, period filters, income-vs-expense bars, trend lines, heatmap.
 Benchmark now: NFR-PER-006 says <100ms per query at 10k transactions. Seed 10k
 and measure. Fixing indexes here is cheap; in Sprint 9 it is not.
+
+**The category-total use case is already built** — `GetSpendingByCategory`,
+its datasource, its repository and its DI wiring, tested against the seed for
+the E-02 (transfers) and E-04 (splits) traps. It is what the donut chart
+renders *and* what the Copilot's spending tool reads, through
+`core/ports/spending_by_category_reader.dart`: written once, consumed twice.
+What remains here is the charts themselves.
 
 ## Sprint 5 — Money Plan Generator (Weeks 7–8) — the headline feature
 
@@ -129,6 +142,27 @@ Beta, bug fixes, store assets, user manual, final docs.
 
 ---
 
+## The Copilot — a workstream, not a sprint
+
+The AI Copilot (an on-device tool-using agent — see [`COPILOT.md`](COPILOT.md))
+is built in the gaps between sprints, under one rule: **it never jumps the
+queue.** Two of its five specified tools wrap the Money Plan Generator and a
+savings-goal feature that Sprints 5 and 6 build, so the dependency runs one
+way, and an unfinished app is never the price of a finished agent ([E-24](SPEC_ERRATA.md)).
+
+| Stage | Depends on | Status |
+|---|---|---|
+| Domain: entities, contracts, agent loop, first tool | nothing | **Done** — 55 tests |
+| The category-total analytics use case | Sprint 4 | **Done** — runs against the real database |
+| Gemini datasource, egress guard | the above | **Done** — 44 tests |
+| The ask screen, with key entry | the above | **Done** — 11 widget tests |
+| One real question on a device, then the demo recording | a Gemini API key | Next — manual |
+| `get_income_for_period`, `compare_periods` | Sprint 4 | Planned |
+| `get_budget_plan` | **Sprint 5** | Deferred |
+| `get_savings_goal_progress`, affordability query | **Sprint 5+** | Deferred |
+
+---
+
 ## Risks worth watching (beyond SRS Appendix C)
 
 | Risk | Why it bites | Mitigation |
@@ -138,3 +172,4 @@ Beta, bug fixes, store assets, user manual, final docs.
 | `double` money columns | Cent-level drift in totals; painful late migration | Integer minor units from day one |
 | iOS untested until the end | No Mac in the loop; Xcode surprises land in week 13 | Add a macOS CI job early, even if it only builds |
 | Perf measured on emulator | Emulator timings do not reflect NFR-PER targets | Benchmark on a real device from Sprint 4 |
+| The Copilot grows past its scope | Five tools, a chat history, a proactive agent — each plausible, and together they displace two sprints | Three tools in v1, the rest gated behind the features they wrap ([E-24](SPEC_ERRATA.md)) |

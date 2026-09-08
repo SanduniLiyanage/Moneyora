@@ -4,7 +4,8 @@ Guidance for Claude Code when working in this repository.
 
 ## What this is
 
-Moneyora: offline-first personal finance app. Flutter, Android 8.0+ / iOS 14+.
+Moneyora: offline-first personal finance app. Flutter, Android 8.0+ / iOS 15.5+
+(the SRS says 14; E-20 raised the floor because ML Kit requires 15.5).
 Two headline features: a statistical **Money Plan Generator** and an on-device
 **OCR Receipt Scanner**. Specs live in `docs/` (SRS v1.0, SDD v1.0).
 

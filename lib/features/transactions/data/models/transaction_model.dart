@@ -26,6 +26,7 @@
 /// happen.
 library;
 
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/transaction.dart';
 
 /// A [Transaction] that can be written to and read from SQLite.
@@ -192,13 +193,7 @@ class TransactionModel extends Transaction {
   ///
   /// Any time component is dropped: the entity keeps the time separately in
   /// [Transaction.time], and `date` is a date.
-  static String encodeDate(DateTime date) {
-    final local = date.toLocal();
-    final year = local.year.toString().padLeft(4, '0');
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
-  }
+  static String encodeDate(DateTime date) => encodeIsoDay(date);
 
   static DateTime _decodeDate(String value) {
     final parts = value.split('-');
