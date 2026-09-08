@@ -25,6 +25,7 @@ import 'dart:async';
 
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
+import '../../../../core/database/database_change_bus.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
@@ -81,20 +82,31 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
   /// and migrating are somebody else's job — done once in `injection.dart` —
   /// and a datasource that could also open a connection is a datasource that
   /// will eventually open a second one.
-  TransactionLocalDataSourceImpl(this._db);
+  /// Pass [changeBus] to share one change signal with the accounts datasource,
+  /// which is what `injection.dart` does. Every write here can move
+  /// `accounts.current_balance_cents` (E-18), and an accounts watcher that
+  /// cannot hear those writes shows a stale balance. Omit it and this
+  /// datasource gets a private bus, hearing only its own writes.
+  TransactionLocalDataSourceImpl(this._db, {DatabaseChangeBus? changeBus})
+    : _changes = changeBus ?? DatabaseChangeBus(),
+      _ownsChanges = changeBus == null;
 
   final Database _db;
-  final StreamController<void> _changes = StreamController<void>.broadcast();
+  final DatabaseChangeBus _changes;
+
+  /// Whether this datasource made [_changes] and must therefore close it.
+  final bool _ownsChanges;
 
   @override
-  Stream<void> get changes => _changes.stream;
+  Stream<void> get changes => _changes.changes;
 
   @override
-  Future<void> dispose() => _changes.close();
-
-  void _notify() {
-    if (!_changes.isClosed) _changes.add(null);
+  Future<void> dispose() async {
+    // Never close a bus handed in — see AccountLocalDataSourceImpl.dispose.
+    if (_ownsChanges) await _changes.close();
   }
+
+  void _notify() => _changes.notify();
 
   @override
   Future<int> add(TransactionModel transaction) async {

@@ -80,6 +80,7 @@ lib/
 ├── core/
 │   ├── database/
 │   │   ├── migrations/v1_initial.dart   13 tables, 11 indexes, errata-corrected
+│   │   ├── database_change_bus.dart     one "something was written" signal
 │   │   ├── database_helper.dart         SQLCipher open + migration runner
 │   │   ├── database_summary.dart        row counts (SQL lives here, not in DI)
 │   │   ├── encryption_key_store.dart    AES-256 key -> platform keychain
@@ -149,11 +150,14 @@ decided while planning it are worth knowing before touching the code:
   only and says on screen what it excluded.
 - **`FR-ACC-007` is new** (E-25), raised for `DeleteAccount`, which shipped in
   PR #28 citing FR-ACC-003 — the account side-drawer, an unrelated screen.
-- **Account balances will render stale until a write bus exists.**
+- **Account balances follow transaction writes, via a shared change bus.**
   `AccountRepositoryImpl.watch` listens to `accountLocalDataSource.changes`,
   but an expense or a transfer moves `current_balance_cents` from the
-  *transactions* datasource, which notifies a different stream. The first
-  screen showing a balance needs this fixed, or it shows a wrong number.
+  *transactions* datasource. `core/database/database_change_bus.dart` is the
+  one signal both publish to; `injection.dart` owns it and hands it to each.
+  A datasource given a bus never closes it — the first one disposed would
+  otherwise silence the rest — and a datasource given none makes a private
+  one, which is how every unit test constructs them.
 
 **Then Sprint 4 — analytics.** Its first query is already in:
 `GetSpendingByCategory`, with the datasource, the repository and the DI wiring,

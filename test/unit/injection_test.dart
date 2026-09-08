@@ -4,6 +4,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/encryption_key_store.dart';
+import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
 import 'package:moneyora/injection.dart';
@@ -20,6 +21,22 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart' hide Transaction;
 ///
 /// So this resolves the real providers, with only the database swapped for an
 /// in-memory one, and drives a transaction all the way down and back.
+/// Waits for [done], failing with [what] rather than hanging if it never comes.
+///
+/// A repository's watch re-reads asynchronously, so there is no number of
+/// microtask turns that reliably covers it. The deadline keeps a broken
+/// change signal to a two-second failure with a sentence attached, instead of
+/// the suite's default timeout and no explanation.
+Future<void> pumpUntil(bool Function() done, String what) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  while (!done()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('timed out waiting for $what');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 void main() {
   sqfliteFfiInit();
 
@@ -87,6 +104,61 @@ void main() {
     // The repository converts at the boundary; a model here would compare
     // unequal to an identical entity everywhere above.
     expect(transactions.single.runtimeType, Transaction);
+  });
+
+  test('an account balance on screen follows a transaction write', () async {
+    // The wiring E-18 depends on, asserted through the real providers rather
+    // than the datasources directly. `current_balance_cents` is moved by the
+    // transactions datasource, and the accounts repository watches a stream
+    // fed by the accounts one; they only meet because injection.dart hands
+    // both the same DatabaseChangeBus.
+    //
+    // Remove that from either provider and this test fails: FR-ACC-003's
+    // drawer would show a balance correct only until the first expense.
+    //
+    // The initial read **must** be allowed to land before the write. It is
+    // scheduled when the stream is subscribed to but runs asynchronously, so
+    // a write issued immediately is folded into it — after which the very
+    // first emission already carries the new balance and the test passes
+    // whether the bus exists or not. Not hypothetical: the first draft of
+    // this test did exactly that and passed with the wiring removed.
+    final watchAccounts = await container.read(watchAccountsProvider.future);
+    final addTransaction = await container.read(addTransactionProvider.future);
+
+    final emissions = <List<Account>>[];
+    final subscription = watchAccounts(false)
+        .map((result) => result.getOrElse((_) => <Account>[]))
+        .listen(emissions.add);
+    addTearDown(subscription.cancel);
+
+    await pumpUntil(() => emissions.isNotEmpty, 'the initial account read');
+    final opening = emissions.first
+        .singleWhere((account) => account.id == 1)
+        .currentBalanceCents;
+
+    final saved = await addTransaction(
+      Transaction(
+        accountId: 1,
+        categoryId: 1,
+        amountCents: 125000,
+        type: TransactionType.expense,
+        date: DateTime(2026, 9, 2),
+      ),
+    );
+    expect(saved.isRight(), isTrue, reason: 'add failed: $saved');
+
+    await pumpUntil(
+      () => emissions.length > 1,
+      'a second emission after the transaction write',
+    );
+
+    expect(
+      emissions.last
+          .singleWhere((account) => account.id == 1)
+          .currentBalanceCents,
+      opening - 125000,
+      reason: 'the watched balance did not follow the write',
+    );
   });
 
   test('validation runs before anything is written', () async {

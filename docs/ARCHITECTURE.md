@@ -100,6 +100,14 @@ Money is stored as **integer minor units** (cents), never `double`. See §6.
 ## 5. Where things go when you are unsure
 
 - Used by two features → `lib/core/`
+- A *signal* two features share, rather than a contract →
+  `lib/core/database/database_change_bus.dart`. One feature's write can move
+  another's rows: every transaction write adjusts
+  `accounts.current_balance_cents` inside the same database transaction
+  (E-18), so an accounts watcher hearing only accounts writes shows a stale
+  balance. Both datasources publish to one bus, `injection.dart` owns and
+  closes it, and neither feature imports the other — which rule 4 forbids and
+  which would be the wrong shape anyway.
 - A contract two features share, so neither imports the other →
   `lib/core/ports/`. The owning feature implements it; the other depends on the
   contract. `SpendingByCategoryReader` is the worked example: analytics owns
