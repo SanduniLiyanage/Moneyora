@@ -28,9 +28,11 @@ class CopilotNotifier extends AsyncNotifier<CopilotAnswer?> {
   ///
   /// The failure lands in [AsyncError] rather than being thrown, so the screen
   /// renders it as a message. Nothing above `data/` catches anything.
+  ///
+  /// An empty question is *not* filtered out here. The use case rejects it with
+  /// a [ValidationFailure] that says so, and a button that answers a tap by
+  /// doing nothing at all is indistinguishable from one that is broken.
   Future<void> ask(String question) async {
-    if (question.trim().isEmpty) return;
-
     state = const AsyncLoading();
     final runQuery = await ref.read(runCopilotQueryProvider.future);
     final result = await runQuery(question);

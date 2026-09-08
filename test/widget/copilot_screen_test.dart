@@ -264,15 +264,52 @@ void main() {
       expect(find.textContaining('quota'), findsOneWidget);
     });
 
-    testWidgets('a blank question does nothing at all', (tester) async {
+    testWidgets('a blank question says so rather than doing nothing', (
+      tester,
+    ) async {
+      // A button that answers a tap with silence is indistinguishable from one
+      // that is broken — which is exactly how it read on the emulator.
       await tester.pumpWidget(boot());
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Ask'));
       await tester.pumpAndSettle();
 
-      // Still the resting state: no spinner, no error, no wasted request.
-      expect(find.text('Try asking'), findsOneWidget);
+      expect(find.text('Ask a question first.'), findsOneWidget);
+    });
+
+    testWidgets('the offline reassurance is only for being offline', (
+      tester,
+    ) async {
+      // "Everything else works without a connection" is not an answer to an
+      // empty question.
+      await tester.pumpWidget(boot());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ask'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Everything else in Moneyora works'),
+        findsNothing,
+      );
+    });
+  });
+
+  group('the examples', () {
+    testWidgets('tapping one asks it, with no typing at all', (tester) async {
+      // Typing a sentence on a phone keyboard is the slowest part of asking
+      // anything, and an example that has to be retyped will not be used.
+      await tester.pumpWidget(boot());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('How much did I spend on food in August?'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('You spent Rs. 34,200 on food in August.'),
+        findsOneWidget,
+      );
     });
   });
 }

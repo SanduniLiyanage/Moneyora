@@ -73,6 +73,12 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transactions'),
+        // The fixture loader also lives in the empty state, which is where it
+        // is first needed — but a single real transaction hides that state and
+        // takes the 24-month dataset with it. Since that dataset is what the
+        // analytics, plan and Copilot work are demonstrated on, it has to stay
+        // reachable with rows on screen.
+        actions: kDebugMode ? const [_LoadSampleDataAction()] : null,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
           child: _FilterBar(
@@ -268,6 +274,34 @@ class _LoadSampleDataButton extends ConsumerWidget {
             )
           : const Icon(Icons.science_outlined),
       label: const Text('Load 24 months of sample data'),
+    );
+  }
+}
+
+/// The same shortcut as [_LoadSampleDataButton], in the app bar.
+///
+/// Two entry points rather than one because they answer different moments: the
+/// empty state offers the fixture to someone who has nothing, and this offers
+/// it to someone who has one row and wants twenty-four months. Both call the
+/// same loader, and `kDebugMode` removes both from a release build.
+class _LoadSampleDataAction extends ConsumerWidget {
+  const _LoadSampleDataAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loading = ref.watch(devSeedLoaderProvider).isLoading;
+
+    return IconButton(
+      onPressed: loading
+          ? null
+          : () => ref.read(devSeedLoaderProvider.notifier).load(),
+      icon: loading
+          ? const SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.science_outlined),
+      tooltip: 'Load 24 months of sample data',
     );
   }
 }

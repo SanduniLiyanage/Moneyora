@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/app.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
+import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/injection.dart';
 
 /// Widget tests for the app shell: theming, routing, and the three states the
@@ -130,6 +131,49 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Arrives in Sprint 7.'), findsOneWidget);
+    });
+
+    testWidgets('every screen opened from home can be left again', (
+      tester,
+    ) async {
+      // `context.go` replaces the location instead of stacking on it, which
+      // leaves a screen with no back arrow and a device back button that
+      // exits the app. Every destination is checked, because the mistake is
+      // per-call-site and one corrected navigation says nothing about the
+      // next.
+      for (final destination in const [
+        'Ask Moneyora',
+        'Money Plan',
+        'Scan Receipt',
+      ]) {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              databaseSummaryProvider.overrideWith((ref) => ready),
+              // The Copilot screen asks the platform keychain whether a key
+              // exists, and a platform channel never answers in a widget test.
+              llmApiKeyStoreProvider.overrideWithValue(
+                InMemoryLlmApiKeyStore(),
+              ),
+            ],
+            child: const MoneyoraApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(destination));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byType(BackButton),
+          findsOneWidget,
+          reason: '$destination opened with no way back',
+        );
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Database ready'), findsOneWidget);
+      }
     });
   });
 }
