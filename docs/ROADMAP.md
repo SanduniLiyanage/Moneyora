@@ -94,6 +94,42 @@ E-18. Outstanding: every screen — `features/accounts/presentation/` is still
 empty — plus the transfer screen on top of `MakeTransfer`, and the entry
 screen's account selector.
 
+### FR-ACC-005 (multi-currency) is deferred out of this sprint
+
+"Multi-currency" in the line above reads as one word and is a feature.
+FR-ACC-005 requires *user-configurable exchange rates for balance conversion* —
+a rates table, therefore a **v2 migration**, plus a conversion policy and a
+change to every total in the app. That should not ride along with the account
+screens, and a migration written to meet a deadline is the one you regret.
+
+**Sprint 3 ships per-account currency display only.** Accounts already carry a
+`currency` column and `currency_utils.dart` already formats any ISO code, so
+displaying it costs nothing.
+
+The deferral leaves two behaviours undefined, because FR-TRF-001 permits a
+transfer between *any* two active accounts and this sprint builds transfers.
+The interim rules, recorded in [E-25](SPEC_ERRATA.md) and removable in one
+commit when FR-ACC-005 lands:
+
+1. Base currency is **LKR** — the `Account.currency` default and what the seed
+   creates.
+2. **Cross-currency transfers are refused**, in `MakeTransfer.validate`, with a
+   sentence rather than a wrong number.
+3. **The Total Balance sums base-currency accounts only**, and says on screen
+   which accounts it left out and why. Not the same thing as FR-ACC-002's
+   Include-in-Total toggle: that is the user's choice, this is the app's limit.
+
+FR-ACC-005 keeps its ID and is scheduled below rather than dropped, so it stays
+in the traceability matrix instead of disappearing between two sprints.
+
+### FR-ACC-007 is new — see E-25
+
+Auditing the FR-ACC citations while planning this sprint found that no FR-ACC
+authorised deleting an account, though `DeleteAccount` had shipped in PR #28.
+[E-25](SPEC_ERRATA.md) raises **FR-ACC-007** for it, scoped to what the code
+already enforces: permanent deletion only for an account with no transactions,
+archiving (FR-ACC-004) for everything else.
+
 ## Sprint 4 — Analytics (Week 6) — **next**
 
 Donut chart, period filters, income-vs-expense bars, trend lines, heatmap.
@@ -125,6 +161,22 @@ crumpled, faded, handwritten) and build a fixture suite from them. Target is
 
 PIN + biometrics + lockout backoff, dark theme toggle, recurring reminders,
 budget alerts at 80% / 100%.
+
+**Plus FR-ACC-005, deferred here from Sprint 3.** Multi-currency accounts with
+user-configurable exchange rates: a `exchange_rates` table behind a **v2
+migration**, a base-currency setting, and conversion applied wherever balances
+are summed. It lands here because the rate table is user-editable and its
+screen is a settings screen, and because a migration is safer in a sprint that
+is not also shipping five new pages.
+
+Landing it removes three interim rules from Sprint 3, all named in
+[E-25](SPEC_ERRATA.md): the LKR base-currency constant, the same-currency guard
+in `MakeTransfer.validate`, and the Total Balance's exclusion of
+foreign-currency accounts. Delete all three in the same commit that adds
+conversion, or the app will refuse transfers it is now capable of making.
+
+Also here: E-18's reconciliation behind a Settings action —
+`RecomputeAccountBalance` is built and has no caller outside app start.
 
 ## Sprint 8 — Backup, export, sync (Week 12)
 

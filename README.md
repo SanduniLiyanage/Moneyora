@@ -148,8 +148,10 @@ schema turned up **twenty defects**, six of them blocking — including a
 generator built on `STDDEV()`, which SQLite does not provide. A later pass
 asking what a person meets on first open added **three more**, and auditing the
 Copilot's own draft specification against the code added a fourth — three of
-its five tools wrapped features that do not exist. Twenty-four findings in
-total.
+its five tools wrapped features that do not exist. A twenty-fifth runs the
+other way: auditing the *code's* citations against the SRS found four
+requirement IDs naming the wrong requirements, and one use case shipped with no
+requirement behind it at all. Twenty-five findings in total.
 
 Rather than silently editing the specifications, every deviation is recorded in
 [`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning and folds into v1.1

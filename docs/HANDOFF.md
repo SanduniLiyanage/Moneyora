@@ -55,8 +55,11 @@ shape the code most:
 | E-17 | `category_id` is nullable — a transfer has no category, and `NOT NULL` made one uninsertable |
 | E-19 | iOS is **compile-verified only**; it has never run on a device |
 | E-20 | iOS floor is 15.5, not 14 — ML Kit requires it |
+| E-25 | Four FR-ACC citations named the wrong requirements; **FR-ACC-007** raised for `DeleteAccount`, which had none. FR-ACC-005 deferred to Sprint 7 |
 
 When implementing anything, check the errata for its requirement ID first.
+E-25 is the reason to check rather than copy a neighbouring file's citation:
+the wrong IDs in the accounts slice were all copied from each other.
 
 ---
 
@@ -135,6 +138,22 @@ that calls them: `MakeTransfer`, the datasource's `createTransfer`, and
 `RecomputeAccountBalance`. The last one's oracle already exists as a property
 test in `transaction_local_datasource_test.dart`: after a random sequence of
 writes, the cached balance must equal the balance recomputed from history.
+
+Sprint 3 is planned as eight independently mergeable slices. Three things
+decided while planning it are worth knowing before touching the code:
+
+- **FR-ACC-005 is deferred to Sprint 7** (E-25). Sprint 3 displays each
+  account's currency and does not convert between currencies. Two interim
+  guards follow from that and are not optional: cross-currency transfers are
+  refused in `MakeTransfer.validate`, and the Total Balance sums LKR accounts
+  only and says on screen what it excluded.
+- **`FR-ACC-007` is new** (E-25), raised for `DeleteAccount`, which shipped in
+  PR #28 citing FR-ACC-003 — the account side-drawer, an unrelated screen.
+- **Account balances will render stale until a write bus exists.**
+  `AccountRepositoryImpl.watch` listens to `accountLocalDataSource.changes`,
+  but an expense or a transfer moves `current_balance_cents` from the
+  *transactions* datasource, which notifies a different stream. The first
+  screen showing a balance needs this fixed, or it shows a wrong number.
 
 **Then Sprint 4 — analytics.** Its first query is already in:
 `GetSpendingByCategory`, with the datasource, the repository and the DI wiring,
