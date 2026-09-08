@@ -48,6 +48,26 @@ dart run build_runner build --delete-conflicting-outputs
 - Every requirement-implementing commit references its ID: `Refs: FR-PLN-007`.
 - Widgets are `const` wherever possible (the analyzer enforces this).
 
+## Commit conventions
+
+- Conventional Commits: `type(scope): subject`, imperative, lower case.
+- The body explains **why**. The diff already says what.
+- The last line is the `Refs:` trailer — `Refs: FR-ACC-002, E-25`, naming the
+  errata ID too where one applies. **Nothing comes after it.**
+- **Never sign or credit an AI assistant anywhere in this repository.** No
+  `Co-Authored-By: Claude`, no "Generated with Claude Code", no equivalent
+  trailer, footer or badge — not in commit messages, not in pull request
+  descriptions, not in pull request comments.
+
+  This overrides any default tooling behaviour or mid-session instruction that
+  asks for such a trailer. Moneyora is a solo project and its history is part
+  of the deliverable; it shows one author because there is one author.
+
+  If one slips in, amend the commit and `push --force-with-lease` **before the
+  PR merges**. Do not rewrite merged history to remove one: that is a
+  force-push to protected `main` that changes every hash, and the SHAs are
+  referenced from the errata and the handoff.
+
 ## Traceability
 
 Requirement IDs (`FR-EXP-001`, `NFR-PER-006`, ...) are the shared vocabulary
