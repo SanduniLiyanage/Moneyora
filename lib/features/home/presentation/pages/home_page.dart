@@ -31,7 +31,8 @@ class HomePage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.go(Routes.settings),
+            // push, not go — see the note on the destination list below.
+            onPressed: () => context.push(Routes.settings),
             tooltip: 'Settings',
           ),
         ],
@@ -92,10 +93,14 @@ class _Ready extends StatelessWidget {
           ('Money Plan', Routes.moneyPlan),
           ('Scan Receipt', Routes.scanReceipt),
         ])
+          // `push`, not `go`. Every route here is top-level, and `go` replaces
+          // the location rather than stacking on it — which leaves the screen
+          // with nothing to pop, no back arrow, and a device back button that
+          // exits the app instead of returning here.
           ListTile(
             title: Text(label),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go(route),
+            onTap: () => context.push(route),
           ),
       ],
     );

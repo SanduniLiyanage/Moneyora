@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/copilot_answer.dart';
 import '../providers/copilot_providers.dart';
@@ -85,7 +86,10 @@ class _AskAndAnswer extends ConsumerWidget {
                 maxLines: null,
                 textInputAction: TextInputAction.send,
                 decoration: const InputDecoration(
-                  hintText: 'How much did I spend on food in August?',
+                  // Not one of the examples below: the same sentence in both
+                  // places reads as a question already typed, which is exactly
+                  // how it was misread on a device.
+                  hintText: 'Ask about your money…',
                   border: OutlineInputBorder(),
                 ),
                 onSubmitted: (_) => onAsk(),
@@ -107,11 +111,14 @@ class _AskAndAnswer extends ConsumerWidget {
         Expanded(
           child: switch (state) {
             AsyncLoading() => const _Thinking(),
-            AsyncError(:final error) => _Problem(
-              message: copilotErrorMessage(error),
-            ),
+            AsyncError(:final error) => _Problem(error: error),
             AsyncData(value: final answer?) => _Answer(answer: answer),
-            _ => const _Suggestions(),
+            _ => _Suggestions(
+              onPick: (example) {
+                controller.text = example;
+                onAsk();
+              },
+            ),
           },
         ),
       ],
@@ -125,7 +132,10 @@ class _AskAndAnswer extends ConsumerWidget {
 /// no idea what this thing can do, and "ask me anything" is the least helpful
 /// instruction an interface can give.
 class _Suggestions extends StatelessWidget {
-  const _Suggestions();
+  const _Suggestions({required this.onPick});
+
+  /// Fills the question box with the tapped example and asks it.
+  final ValueChanged<String> onPick;
 
   @override
   Widget build(BuildContext context) {
@@ -136,21 +146,32 @@ class _Suggestions extends StatelessWidget {
       children: [
         Text('Try asking', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
+        // Tappable, not decorative. An example a person has to retype is an
+        // example they will not use, and typing a sentence on a phone keyboard
+        // is the slowest part of asking anything.
         for (final example in const [
           'How much did I spend on food in August?',
           'What were my three biggest categories last month?',
           'Did I spend more on transport this month than last?',
         ])
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('· '),
-                Expanded(
-                  child: Text(example, style: theme.textTheme.bodyMedium),
-                ),
-              ],
+          InkWell(
+            onTap: () => onPick(example),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.north_east,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(example, style: theme.textTheme.bodyMedium),
+                  ),
+                ],
+              ),
             ),
           ),
         const SizedBox(height: 24),
@@ -253,13 +274,17 @@ class _Answer extends StatelessWidget {
 /// feature is unavailable, and the screen says so in a way that does not
 /// suggest the app itself is broken (NFR-REL-004).
 class _Problem extends StatelessWidget {
-  const _Problem({required this.message});
+  const _Problem({required this.error});
 
-  final String message;
+  final Object error;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Only the offline case gets the reassurance, and only the offline case
+    // needs it. Attaching "works without a connection" to a mistyped question
+    // answers something nobody asked.
+    final offline = error is NetworkFailure;
 
     return Center(
       child: Padding(
@@ -268,24 +293,26 @@ class _Problem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.cloud_off_outlined,
+              offline ? Icons.cloud_off_outlined : Icons.info_outline,
               size: 40,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
-              message,
+              copilotErrorMessage(error),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Everything else in Moneyora works without a connection.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            if (offline) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Everything else in Moneyora works without a connection.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
