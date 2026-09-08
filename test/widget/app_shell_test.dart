@@ -37,6 +37,28 @@ void main() {
   Widget bootApp(Override summaryOverride) =>
       ProviderScope(overrides: [summaryOverride], child: const MoneyoraApp());
 
+  /// The whole app, with one account behind the accounts panel.
+  ///
+  /// The panel reads accounts through a use case that would open a real
+  /// database, which never completes in a widget test's fake-async zone.
+  Widget bootWithAccounts() => ProviderScope(
+    overrides: [
+      databaseSummaryProvider.overrideWith((ref) => ready),
+      accountsProvider(false).overrideWith(
+        (ref) => Stream.value([
+          Account(
+            id: 1,
+            name: 'Cash',
+            icon: 'wallet',
+            initialBalanceDate: DateTime(2026),
+            currentBalanceCents: 125000,
+          ),
+        ]),
+      ),
+    ],
+    child: const MoneyoraApp(),
+  );
+
   group('home screen states', () {
     testWidgets('shows a spinner while the database opens', (tester) async {
       // A Completer that is never completed holds the provider in its loading
@@ -186,28 +208,7 @@ void main() {
       // screen must not import it, so `app_router.dart` composes the two —
       // which means this wiring is only ever exercised through the real
       // router, as it is here.
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            databaseSummaryProvider.overrideWith((ref) => ready),
-            // The panel reads accounts through a use case that would open a
-            // real database, which never completes in a widget test's
-            // fake-async zone.
-            accountsProvider(false).overrideWith(
-              (ref) => Stream.value([
-                Account(
-                  id: 1,
-                  name: 'Cash',
-                  icon: 'wallet',
-                  initialBalanceDate: DateTime(2026),
-                  currentBalanceCents: 125000,
-                ),
-              ]),
-            ),
-          ],
-          child: const MoneyoraApp(),
-        ),
-      );
+      await tester.pumpWidget(bootWithAccounts());
       await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('Open navigation menu'));
@@ -216,6 +217,37 @@ void main() {
       expect(find.text('Total balance'), findsOneWidget);
       expect(find.text('Cash'), findsOneWidget);
       expect(find.text('Rs1,250.00'), findsNWidgets(2));
+    });
+
+    testWidgets('the panel opens an empty form for a new account', (
+      tester,
+    ) async {
+      await tester.pumpWidget(bootWithAccounts());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New account'), findsOneWidget);
+    });
+
+    testWidgets('tapping an account opens it for editing', (tester) async {
+      // The account travels as go_router's `extra`, which is untyped. This is
+      // the only test that exercises that cast with a real Account in it.
+      await tester.pumpWidget(bootWithAccounts());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cash'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit account'), findsOneWidget);
+      // Filled in, rather than a blank form that would silently create a
+      // second account on save.
+      expect(find.widgetWithText(TextField, 'Cash'), findsOneWidget);
     });
   });
 }

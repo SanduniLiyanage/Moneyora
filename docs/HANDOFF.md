@@ -105,7 +105,7 @@ lib/
 └── main.dart         ProviderScope
 ```
 
-**506 tests pass; domain-layer line coverage is 96.4% against a 75% floor**
+**531 tests pass; domain-layer line coverage is 96.4% against a 75% floor**
 (299 of 310 lines, across 26 files). CI runs format, analyze, tests, that
 coverage floor, the architecture boundary check, an Android APK build and an
 iOS compile — all three jobs blocking.

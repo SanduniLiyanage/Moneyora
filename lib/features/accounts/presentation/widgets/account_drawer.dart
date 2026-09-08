@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/account_icons.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/entities/account_totals.dart';
 import '../providers/account_providers.dart';
@@ -66,6 +69,18 @@ class _Accounts extends StatelessWidget {
                   itemBuilder: (context, index) =>
                       _AccountTile(account: accounts[index]),
                 ),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.add),
+          title: const Text('Add account'),
+          onTap: () {
+            // Close the panel first. Pushing over an open drawer leaves it
+            // open underneath, so returning from the form lands on a screen
+            // with the panel still covering it.
+            Navigator.of(context).pop();
+            context.push(Routes.accountForm);
+          },
         ),
         if (totals.hasExcludedForeign) ...[
           const Divider(height: 1),
@@ -144,8 +159,19 @@ class _AccountTile extends StatelessWidget {
     final balance = account.currentBalanceCents;
 
     return ListTile(
-      leading: Icon(_iconFor(account.type)),
+      // The account's chosen icon (FR-ACC-006), falling back to its type when
+      // the key is one the catalogue does not know — a restored backup, or a
+      // row from an older build.
+      leading: Icon(
+        account.icon.isEmpty
+            ? _iconFor(account.type)
+            : accountIconFor(account.icon),
+      ),
       title: Text(account.name),
+      onTap: () {
+        Navigator.of(context).pop();
+        context.push(Routes.accountForm, extra: account);
+      },
       // Only worth saying when it is not the assumed one; repeating "LKR" on
       // every row on an install that has never seen another currency is noise.
       subtitle:

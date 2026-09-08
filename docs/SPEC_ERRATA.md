@@ -41,6 +41,7 @@ follows the Resolution sections.
 | [E-23](#e-23) | Medium | Deleting a transaction is irreversible | Resolved |
 | [E-24](#e-24) | High | Copilot specifies five tools, three of which wrap nothing | Resolved |
 | [E-25](#e-25) | Medium | Accounts slice cites requirement IDs belonging to other requirements | Resolved |
+| [E-26](#e-26) | Low | FR-ACC-006 names icons that are other companies' trademarks | Resolved |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -1098,6 +1099,54 @@ interim rules, until FR-ACC-005 lands:
 All three are deletions when FR-ACC-005 lands, not migrations. Recorded in
 [`ROADMAP.md`](ROADMAP.md) so FR-ACC-005 keeps a place in traceability instead
 of disappearing between sprints.
+
+---
+
+<a id="e-26"></a>
+
+## E-26 — FR-ACC-006 names icons that belong to other companies
+
+**Severity:** Low · **Affects:** SRS §3.3 FR-ACC-006
+
+> The system shall provide 20+ built-in account icons including: Cash, AMEX,
+> VISA, Mastercard, PayPal, Bitcoin, JCB, QIWI, Stripe, Discover, and others.
+
+Eight of the ten named are registered trademarks of companies with nothing to
+do with this project. Their marks are not free to redraw and ship: each brand
+publishes usage rules, several require written permission for use in an app's
+interface, and "it is only an icon" has never been a defence. Material Icons —
+which ship with Flutter under Apache-2.0, and are the only icon set this
+project has — contain none of them, so meeting the requirement literally would
+mean sourcing eight sets of brand assets and clearing each one.
+
+The requirement is also written from the reference app's shape rather than
+this app's. Monefy ships card-brand icons because it markets itself around
+cards; here an account's icon is a way to recognise your own account in a
+list of six, and "the blue one that is my salary account" does that as well as
+a VISA mark does.
+
+### Resolution — twenty-five icons, chosen by purpose rather than brand
+
+`lib/core/widgets/account_icons.dart` provides twenty-five, which satisfies the
+countable half of the requirement, covering the same ground functionally:
+cash, bank, card, savings, mobile wallet, cryptocurrency, foreign currency,
+investment, business, salary, joint, emergency fund, fixed deposit, goal, gift
+card, loyalty, travel, home, vehicle, education, health, shopping, petty cash,
+wallet and other.
+
+Cash and Bitcoin — the two named brands that are *not* anyone's trademark —
+are both present.
+
+Keys are stable strings written to `accounts.icon`, never enum names or list
+positions, so reordering the catalogue or retiring an icon in a later release
+cannot silently change what an existing account displays. `accountIconFor`
+falls back rather than throwing, because an unknown key arrives from a restored
+backup or an older build rather than from a bug, and a crash is a far worse
+answer than a wallet.
+
+**Not withdrawn.** If the app is ever distributed somewhere that makes brand
+assets worth licensing, the catalogue is a list to extend and the storage keys
+already accommodate it.
 
 ---
 
