@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/accounts/domain/entities/account.dart';
+import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/account_drawer.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
@@ -29,6 +31,15 @@ abstract final class Routes {
   /// The AI Copilot. Not in the SDD's screen inventory — it is a later
   /// addition, specified in `SRS_Copilot.md` §5.1.
   static const String copilot = '/copilot';
+
+  /// Creating or editing one account. FR-ACC-001, FR-ACC-002.
+  ///
+  /// One path for both, with the account to edit passed as `extra`. A path
+  /// parameter would read better, but nothing can yet load an account by id —
+  /// there is no use case for it — so `/accounts/form/7` would be a URL the
+  /// app could not honour. Reached with no `extra`, it creates a new account,
+  /// which is the right answer for a deep link.
+  static const String accountForm = '/accounts/form';
 }
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
@@ -78,6 +89,16 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.copilot,
       name: 'copilot',
       builder: (context, state) => const CopilotPage(),
+    ),
+    GoRoute(
+      path: Routes.accountForm,
+      name: 'accountForm',
+      // `extra` is untyped by go_router, so the cast is checked rather than
+      // assumed: anything that is not an Account — including the null a deep
+      // link brings — opens the form empty rather than crashing.
+      builder: (context, state) => AccountFormPage(
+        initial: state.extra is Account ? state.extra! as Account : null,
+      ),
     ),
   ],
   errorBuilder: (context, state) => _RouteNotFound(location: state.uri.path),

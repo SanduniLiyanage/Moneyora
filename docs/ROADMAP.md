@@ -97,10 +97,12 @@ stale the moment a transaction is written (E-18), and **FR-ACC-003's side
 panel** — the accounts, their balances, a total, and a line naming what the
 total left out where that applies.
 
-Outstanding: account CRUD and archiving (FR-ACC-001, 002, 004, 007), the
-transfer screen on top of `MakeTransfer` (FR-TRF-001 to 003), the entry
-screen's account selector, and FR-TRF-004's `From`/`To` labels on transfer
-rows.
+Also delivered: the account form — create and edit, with the twenty-five
+built-in icons E-26 substituted for FR-ACC-006's trademarked list.
+
+Outstanding: archiving and deleting (FR-ACC-004, FR-ACC-007), the transfer
+screen on top of `MakeTransfer` (FR-TRF-001 to 003), the entry screen's
+account selector, and FR-TRF-004's `From`/`To` labels on transfer rows.
 
 ### FR-ACC-005 (multi-currency) is deferred out of this sprint
 

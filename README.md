@@ -60,7 +60,8 @@ No image and no total ever leaves the phone.
 | Transactions — entry keypad, list, filter, edit, undo | **Built** |
 | Accounts and transfers — domain and data layers | **Built** |
 | Accounts — the side panel of balances | **Built** |
-| Accounts — add, edit, archive and delete screens | Not started |
+| Accounts — add and edit, with 25 built-in icons | **Built** |
+| Accounts — archive and delete | Not started |
 | Transfers — the screen | Not started |
 | Analytics — the spending-by-category query | **Built** |
 | AI Copilot — agent loop, first tool, model integration | **Built** |
@@ -72,7 +73,7 @@ No image and no total ever leaves the phone.
 
 Sprints 1 and 2 of 10 are complete and verified on an Android emulator.
 Sprint 3's domain and data layers are in, along with the first of its screens.
-506 tests pass, and domain-layer line coverage is 96.4% against a 75% floor.
+531 tests pass, and domain-layer line coverage is 96.4% against a 75% floor.
 For the detail — what exists, what is next, and the environment traps — see
 [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
@@ -153,7 +154,9 @@ Copilot's own draft specification against the code added a fourth — three of
 its five tools wrapped features that do not exist. A twenty-fifth runs the
 other way: auditing the *code's* citations against the SRS found four
 requirement IDs naming the wrong requirements, and one use case shipped with no
-requirement behind it at all. Twenty-five findings in total.
+requirement behind it at all. A twenty-sixth found that eight of the ten
+account icons the SRS names are other companies' trademarks. Twenty-six
+findings in total.
 
 Rather than silently editing the specifications, every deviation is recorded in
 [`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning and folds into v1.1
