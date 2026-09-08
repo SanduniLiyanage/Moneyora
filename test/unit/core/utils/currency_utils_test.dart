@@ -108,4 +108,45 @@ void main() {
       expect(parseToCents('1250', currency: yen), 1250);
     });
   });
+
+  group('forCode', () {
+    test('returns the real LKR format, symbol and all', () {
+      expect(CurrencyFormat.forCode('LKR'), same(CurrencyFormat.lkr));
+      expect(
+        formatCents(125000, currency: CurrencyFormat.forCode('LKR')),
+        'Rs1,250.00',
+      );
+    });
+
+    test('accepts the code in any case, with stray spacing', () {
+      expect(CurrencyFormat.forCode(' lkr ').code, 'LKR');
+      expect(CurrencyFormat.forCode('usd').code, 'USD');
+    });
+
+    test('falls back to the code itself rather than borrowing a symbol', () {
+      // E-25: until FR-ACC-005 lands there is no conversion, so an account in
+      // another currency must not render as though it held rupees. `USD 300.00`
+      // is unambiguous; `Rs300.00` on a dollar balance is a lie.
+      expect(
+        formatCents(30000, currency: CurrencyFormat.forCode('USD')),
+        'USD 300.00',
+      );
+    });
+
+    test('keeps the sign in front of the code', () {
+      // Same rule as the symbol case: `USD -300.00` reads as a typo.
+      expect(
+        formatCents(-30000, currency: CurrencyFormat.forCode('USD')),
+        '-USD 300.00',
+      );
+    });
+
+    test('an unknown code still round-trips through parseToCents', () {
+      final euro = CurrencyFormat.forCode('EUR');
+      expect(
+        parseToCents(formatCents(4599, currency: euro), currency: euro),
+        4599,
+      );
+    });
+  });
 }

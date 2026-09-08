@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/accounts/presentation/widgets/account_drawer.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
@@ -42,7 +43,11 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.home,
       name: 'home',
-      builder: (context, state) => const HomePage(),
+      // The accounts panel (FR-ACC-003) is composed in here rather than
+      // imported by the home screen, which would be one feature importing
+      // another. This file already names every feature's pages, so it is
+      // where the app is assembled.
+      builder: (context, state) => const HomePage(drawer: AccountDrawer()),
     ),
     GoRoute(
       path: Routes.transactions,

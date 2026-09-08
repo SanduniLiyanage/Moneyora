@@ -34,6 +34,23 @@ class CurrencyFormat {
   /// Sri Lankan rupee — the default (SRS §2.3).
   static const CurrencyFormat lkr = CurrencyFormat(code: 'LKR', symbol: 'Rs');
 
+  /// Display rules for [code], falling back to the code itself as the symbol.
+  ///
+  /// LKR is the only currency with a real symbol here, because it is the only
+  /// one the app can do arithmetic in until FR-ACC-005 lands (deferred to
+  /// Sprint 7 by E-25). An account held in dollars therefore renders as
+  /// `USD 1,234.56` rather than borrowing `Rs`, which would state something
+  /// false about money the app cannot convert.
+  ///
+  /// A symbol table arrives with conversion. Guessing `$` for USD now would
+  /// mean guessing it for a dozen others, and `$` is ambiguous across at
+  /// least five currencies before you reach the hard cases.
+  static CurrencyFormat forCode(String code) {
+    final normalised = code.trim().toUpperCase();
+    if (normalised == lkr.code) return lkr;
+    return CurrencyFormat(code: normalised, symbol: '$normalised ');
+  }
+
   /// How many minor units make one major unit.
   int get minorUnitsPerMajor => switch (decimalDigits) {
     0 => 1,
