@@ -3,7 +3,11 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../entities/account.dart';
 
-/// What the app can do with accounts. FR-ACC-001 to FR-ACC-005.
+/// What the app can do with accounts. FR-ACC-001 to FR-ACC-004, FR-ACC-007.
+///
+/// FR-ACC-005 (multi-currency conversion) is deliberately absent: accounts
+/// carry a currency, but nothing here converts between two of them. See E-25
+/// and `ROADMAP.md` for what Sprint 3 does instead.
 ///
 /// Declared here and implemented in `data/`, so the use cases above it depend
 /// on this interface rather than on sqflite. Every method returns
@@ -20,7 +24,7 @@ abstract interface class AccountRepository {
   /// disagreement nothing could detect.
   Future<Either<Failure, Unit>> update(Account account);
 
-  /// Hides an account without touching its transactions. FR-ACC-005.
+  /// Hides an account without touching its transactions. FR-ACC-004.
   Future<Either<Failure, Unit>> setArchived(int id, {required bool archived});
 
   /// Permanently removes an account.

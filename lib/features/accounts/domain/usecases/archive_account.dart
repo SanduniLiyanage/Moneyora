@@ -16,7 +16,7 @@ class ArchiveParams {
   final bool archived;
 }
 
-/// Hides an account without losing its history. FR-ACC-005.
+/// Hides an account without losing its history. FR-ACC-004.
 ///
 /// This is the answer to "I closed that bank account". The transactions stay,
 /// so every past total the user has already seen still adds up, and the

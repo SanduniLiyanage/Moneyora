@@ -40,6 +40,7 @@ follows the Resolution sections.
 | [E-22](#e-22) | Medium | No empty state specified for any surface | Resolved |
 | [E-23](#e-23) | Medium | Deleting a transaction is irreversible | Resolved |
 | [E-24](#e-24) | High | Copilot specifies five tools, three of which wrap nothing | Resolved |
+| [E-25](#e-25) | Medium | Accounts slice cites requirement IDs belonging to other requirements | Resolved |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -48,6 +49,12 @@ follows the Resolution sections.
 app (Monefy), against which the original requirements were gathered. They are
 omissions rather than errors: the SRS describes what it describes correctly, but
 missed behaviour that the reference app has and the stakeholder expects.
+
+**E-25** was raised on 2026-09-09, planning Sprint 3, by reading the SRS's
+FR-ACC list against the citations the accounts slice already carried. It is the
+first entry raised against **the code's traceability** rather than against a
+baseline: the requirement text is correct, and the code points at the wrong
+parts of it.
 
 **E-21 to E-23** were raised on 2026-09-03 — see [Amendment B](#amendment-b).
 They are omissions of the same kind, found by asking a different question: not
@@ -995,6 +1002,102 @@ withdrawn**. They return when the features they depend on exist.
 
 The full rationale, scope and build order live in
 [`COPILOT.md`](COPILOT.md).
+
+---
+
+<a id="e-25"></a>
+
+## E-25 — The accounts slice cites requirement IDs that describe other requirements
+
+**Severity:** Medium · **Affects:** SRS §3.3 (FR-ACC), `lib/features/accounts/`,
+`lib/injection.dart`
+
+Every entry above this one records a defect in a baseline. This one records a
+defect in **the code's citations of a baseline**, which matters here because
+`CLAUDE.md` and `ARCHITECTURE.md` §4 make those citations the traceability
+record: *"Requirement IDs are the shared vocabulary between the SRS, the code,
+and the commit log."* A doc comment naming the wrong ID is not a typo. It is a
+false entry in the record, and it survives review precisely because an ID looks
+like a checked fact.
+
+Read against SRS §3.3, the accounts slice delivered in PR #28 cites four IDs
+that belong elsewhere:
+
+| Cited | On | SRS §3.3 actually assigns that ID to | Correct ID |
+|---|---|---|---|
+| FR-ACC-004 | `Account.includeInTotal` | stored fields, incl. the Include-in-Total toggle | **FR-ACC-002** |
+| FR-ACC-005 | `Account.isArchived`, `ArchiveAccount`, `setArchived` | multi-currency + exchange rates | **FR-ACC-004** |
+| FR-ACC-001 | `WatchAccounts` | account types | **FR-ACC-003** |
+| FR-ACC-003 | `DeleteAccount` | **the account side-drawer** | **FR-ACC-007** (new — see below) |
+
+The errors are not a uniform off-by-one, which is why they were not caught by
+inspection: archiving is shifted by one, Include-in-Total is shifted by two, and
+`DeleteAccount` names a screen requirement that Sprint 3 has not built yet.
+
+`currency_utils.dart` cites FR-ACC-005 correctly for multi-currency, so before
+this entry the repository contradicted itself on what FR-ACC-005 means.
+
+### Resolution, part 1 — correct the citations
+
+Applied to six files — `account.dart`, `account_repository.dart`,
+`archive_account.dart`, `delete_account.dart`, `watch_accounts.dart` and
+`injection.dart`. Doc comments only: no signature, no behaviour and no test
+changes, so the corrected record is verifiable by reading the diff beside the
+table above.
+
+### Resolution, part 2 — new requirement FR-ACC-007
+
+`DeleteAccount` is the real finding. Correcting its number is impossible,
+because **no FR-ACC authorises deleting an account at all.** SRS §3.3 offers
+only FR-ACC-004 archiving, whose stated purpose is *"hiding accounts from
+active views without deleting transaction history."* A use case shipped,
+tested and wired into DI with no requirement behind it is exactly the kind of
+scope drift the errata exists to catch.
+
+> **FR-ACC-007** The system **shall** permit permanent deletion of an account
+> that has no transactions. An account with transaction history **shall** be
+> archived (FR-ACC-004) rather than deleted, and the system shall say so rather
+> than refusing silently.
+
+**Raised, not withdrawn — the E-11 precedent, not E-12's.** E-12 withdrew
+FR-SET-011 because it was imported from the reference app's business model and
+had no referent in this product. `DeleteAccount` is the opposite: it answers a
+case the SRS did not consider rather than one it rejected. Someone adds an
+account with a typo, or picks the wrong type, and never uses it. FR-ACC-004's
+purpose is preserving transaction history, and an account that has never been
+used has none to preserve — archiving it would leave the archive a graveyard of
+typos with no way to clear them.
+
+The requirement is written to match what already ships rather than to license
+anything wider: `DeleteAccount` refuses once `transactionCount > 0` and returns
+a `ValidationFailure` naming the count and directing the user to archive. The
+narrow scope is the point. Deleting an account with history would orphan its
+rows or take them with it, and both silently change totals the user has already
+seen.
+
+### FR-ACC-005 is deferred, not dropped
+
+Sprint 3 ships per-account currency **display** only. Conversion and
+user-configurable rates need a rates table — a v2 migration — which should not
+ride along with the account screens.
+
+That deferral leaves two behaviours undefined, because FR-TRF-001 permits a
+transfer between *any* two active accounts and Sprint 3 builds transfers. The
+interim rules, until FR-ACC-005 lands:
+
+1. **The base currency is LKR** — the `Account.currency` default and what
+   `default_seed.dart` creates.
+2. **A transfer requires both accounts to share a currency.** Enforced in
+   `MakeTransfer.validate` as a `ValidationFailure`, beside the same-account and
+   future-date rules, so it produces a sentence rather than a wrong number.
+3. **The Total Balance sums only base-currency accounts**, and states the
+   exclusion where the number appears. This is distinct from FR-ACC-002's
+   Include-in-Total toggle, which is a user's choice; this is a stated limit of
+   the app, in the same spirit as the iOS "compile-verified only" claim (E-19).
+
+All three are deletions when FR-ACC-005 lands, not migrations. Recorded in
+[`ROADMAP.md`](ROADMAP.md) so FR-ACC-005 keeps a place in traceability instead
+of disappearing between sprints.
 
 ---
 

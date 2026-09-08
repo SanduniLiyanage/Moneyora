@@ -93,16 +93,17 @@ class Account extends Equatable {
   /// mid-year enter history without their balance going wrong.
   final DateTime initialBalanceDate;
 
-  /// Whether this account counts towards the overall net worth. FR-ACC-004.
+  /// Whether this account counts towards the overall net worth. FR-ACC-002.
   ///
   /// A shared household account, or one held for someone else, is real money
   /// that is not *your* money.
   final bool includeInTotal;
 
-  /// Archived accounts are hidden but keep their transactions. FR-ACC-005.
+  /// Archived accounts are hidden but keep their transactions. FR-ACC-004.
   ///
   /// The alternative — deleting — would take the history with it and silently
-  /// change every past total the user has already seen.
+  /// change every past total the user has already seen. Deletion is therefore
+  /// confined to an account with no transactions at all (FR-ACC-007, E-25).
   final bool isArchived;
 
   /// A copy with the given fields replaced.

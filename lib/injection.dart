@@ -207,19 +207,19 @@ final updateAccountProvider = FutureProvider<UpdateAccount>(
       UpdateAccount(await ref.watch(accountRepositoryProvider.future)),
 );
 
-/// Hides an account without losing its history. FR-ACC-005.
+/// Hides an account without losing its history. FR-ACC-004.
 final archiveAccountProvider = FutureProvider<ArchiveAccount>(
   (ref) async =>
       ArchiveAccount(await ref.watch(accountRepositoryProvider.future)),
 );
 
-/// Removes an account that has never been used. FR-ACC-003.
+/// Removes an account that has never been used. FR-ACC-007, E-25.
 final deleteAccountProvider = FutureProvider<DeleteAccount>(
   (ref) async =>
       DeleteAccount(await ref.watch(accountRepositoryProvider.future)),
 );
 
-/// Watches accounts and their balances. FR-ACC-001.
+/// Watches accounts and their balances. FR-ACC-003.
 final watchAccountsProvider = FutureProvider<WatchAccounts>(
   (ref) async =>
       WatchAccounts(await ref.watch(accountRepositoryProvider.future)),

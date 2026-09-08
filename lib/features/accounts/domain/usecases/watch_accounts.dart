@@ -5,7 +5,7 @@ import '../../../../core/usecases/usecase.dart';
 import '../entities/account.dart';
 import '../repositories/account_repository.dart';
 
-/// Watches the account list, and the balances on it. FR-ACC-001.
+/// Watches the account list, and the balances on it. FR-ACC-003.
 ///
 /// A stream because a balance is the most derived thing on screen: it moves
 /// whenever any transaction anywhere is written, and a screen that read it
