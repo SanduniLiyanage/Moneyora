@@ -19,19 +19,25 @@ import '../providers/account_providers.dart';
 /// that names every feature's pages, the same way `injection.dart` is the one
 /// place allowed to name concrete `data/` classes.
 ///
-/// Archived accounts are absent (FR-ACC-004) — that is what archiving is for.
+/// Archived accounts are hidden by default (FR-ACC-004) — that is what
+/// archiving is for — and shown behind a toggle, because an account that can
+/// be hidden and never seen again cannot be restored.
 class AccountDrawer extends ConsumerWidget {
   /// Creates the drawer.
   const AccountDrawer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accounts = ref.watch(accountsProvider(false));
+    final showArchived = ref.watch(showArchivedAccountsProvider);
+    final accounts = ref.watch(accountsProvider(showArchived));
 
     return Drawer(
       child: SafeArea(
         child: switch (accounts) {
-          AsyncData(:final value) => _Accounts(accounts: value),
+          AsyncData(:final value) => _Accounts(
+            accounts: value,
+            showingArchived: showArchived,
+          ),
           AsyncError(:final error) => _Problem(error: error),
           _ => const Center(child: CircularProgressIndicator()),
         },
@@ -40,13 +46,16 @@ class AccountDrawer extends ConsumerWidget {
   }
 }
 
-class _Accounts extends StatelessWidget {
-  const _Accounts({required this.accounts});
+class _Accounts extends ConsumerWidget {
+  const _Accounts({required this.accounts, required this.showingArchived});
 
   final List<Account> accounts;
 
+  /// Whether archived accounts are currently included. FR-ACC-004.
+  final bool showingArchived;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final totals = AccountTotals.from(accounts);
 
@@ -58,11 +67,13 @@ class _Accounts extends StatelessWidget {
         Expanded(
           // E-22 lists the accounts surface as one whose empty state "cannot
           // occur": the seed creates a Cash account and ArchiveAccount refuses
-          // to archive the last one. Handled anyway, because "cannot occur" is
-          // a claim about today's code and an empty ListView would otherwise
-          // present as a drawer that failed to load.
+          // to archive the last one. That reasoning holds for the default
+          // list and not for this one — turning the archived filter on with
+          // nothing archived empties it, which E-22's table does not cover.
+          // So there are two empty states here, per its own rule that "nothing
+          // yet" and "nothing matching the filter" are different sentences.
           child: accounts.isEmpty
-              ? const _NoAccounts()
+              ? _NoAccounts(showingArchived: showingArchived)
               : ListView.builder(
                   padding: EdgeInsets.zero,
                   itemCount: accounts.length,
@@ -81,6 +92,14 @@ class _Accounts extends StatelessWidget {
             Navigator.of(context).pop();
             context.push(Routes.accountForm);
           },
+        ),
+        SwitchListTile(
+          value: showingArchived,
+          onChanged: (next) =>
+              ref.read(showArchivedAccountsProvider.notifier).state = next,
+          secondary: const Icon(Icons.archive_outlined),
+          title: const Text('Show archived'),
+          dense: true,
         ),
         if (totals.hasExcludedForeign) ...[
           const Divider(height: 1),
@@ -172,12 +191,20 @@ class _AccountTile extends StatelessWidget {
         Navigator.of(context).pop();
         context.push(Routes.accountForm, extra: account);
       },
-      // Only worth saying when it is not the assumed one; repeating "LKR" on
-      // every row on an install that has never seen another currency is noise.
-      subtitle:
-          account.currency.toUpperCase() == AccountTotals.defaultBaseCurrency
-          ? null
-          : Text(account.currency.toUpperCase()),
+      // Two things can want the second line, and archived is the one that
+      // changes what the row means — a currency label beside a closed account
+      // answers a question nobody is asking.
+      //
+      // Otherwise the currency, and only when it is not the assumed one:
+      // repeating "LKR" on every row on an install that has never seen
+      // another currency is noise.
+      subtitle: switch (account) {
+        Account(isArchived: true) => const Text('Archived'),
+        Account(:final currency)
+            when currency.toUpperCase() != AccountTotals.defaultBaseCurrency =>
+          Text(currency.toUpperCase()),
+        _ => null,
+      },
       trailing: Text(
         formatCents(
           balance,
@@ -205,13 +232,28 @@ class _AccountTile extends StatelessWidget {
   };
 }
 
+/// The two empty states this list can reach. E-22, NFR-USA-001.
+///
+/// E-22's rule is that "nothing yet" and "nothing matching the filter" are
+/// different sentences, and its own table then lists Accounts as a surface
+/// where the first cannot occur. Both halves are true, and they are about
+/// different lists: the default one is never empty, while the archived filter
+/// empties it the moment it is switched on with nothing archived.
 class _NoAccounts extends StatelessWidget {
-  const _NoAccounts();
+  const _NoAccounts({required this.showingArchived});
+
+  final bool showingArchived;
 
   @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.all(24),
-    child: Text('No accounts yet.', textAlign: TextAlign.center),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Text(
+      showingArchived
+          // Not "nothing here" — the reason it is empty is the good news.
+          ? 'Nothing archived. Every account you have is in the list above.'
+          : 'No accounts yet.',
+      textAlign: TextAlign.center,
+    ),
   );
 }
 

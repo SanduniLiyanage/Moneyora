@@ -13,6 +13,7 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/account.dart';
+import '../../domain/usecases/archive_account.dart';
 
 /// The accounts, kept live, archived ones included only when asked.
 ///
@@ -95,4 +96,60 @@ class SaveAccountController extends AutoDisposeAsyncNotifier<void> {
 final saveAccountControllerProvider =
     AutoDisposeAsyncNotifierProvider<SaveAccountController, void>(
       SaveAccountController.new,
+    );
+
+/// Whether the account panel is currently showing archived accounts too.
+///
+/// Presentation state, not persisted: it is a way of looking at the list
+/// rather than a preference, and a filter that survived a restart would leave
+/// someone wondering why closed accounts are back.
+final showArchivedAccountsProvider = StateProvider<bool>((ref) => false);
+
+/// Archiving, restoring and deleting an account. FR-ACC-004, FR-ACC-007.
+///
+/// Separate from [SaveAccountController] because these are not saves: each is
+/// a single decision with its own refusal, and both refusals are the whole
+/// point. `ArchiveAccount` will not archive the last usable account, and
+/// `DeleteAccount` will not delete one that has transactions — the messages
+/// come from the use cases and are shown, never swallowed.
+class AccountActionsController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Archives [accountId], or restores it when [archived] is false.
+  ///
+  /// Returns the failure rather than true/false, because the caller needs the
+  /// sentence to show and not merely the fact that something went wrong.
+  Future<Failure?> setArchived(int accountId, {required bool archived}) async {
+    state = const AsyncValue<void>.loading();
+    final archiveAccount = await ref.read(archiveAccountProvider.future);
+    final result = await archiveAccount(
+      ArchiveParams(accountId: accountId, archived: archived),
+    );
+    return _settle(result);
+  }
+
+  /// Permanently removes [accountId]. FR-ACC-007.
+  Future<Failure?> delete(int accountId) async {
+    state = const AsyncValue<void>.loading();
+    final deleteAccount = await ref.read(deleteAccountProvider.future);
+    return _settle(await deleteAccount(accountId));
+  }
+
+  Failure? _settle(Either<Failure, Unit> result) => result.match(
+    (failure) {
+      state = AsyncValue<void>.error(failure, StackTrace.current);
+      return failure;
+    },
+    (_) {
+      state = const AsyncValue<void>.data(null);
+      return null;
+    },
+  );
+}
+
+/// Controller for the archive, restore and delete actions.
+final accountActionsControllerProvider =
+    AutoDisposeAsyncNotifierProvider<AccountActionsController, void>(
+      AccountActionsController.new,
     );

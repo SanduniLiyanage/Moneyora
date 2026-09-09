@@ -22,6 +22,16 @@ import 'package:moneyora/injection.dart';
 class _FakeRepository implements AccountRepository {
   final List<Account> added = [];
   final List<Account> updated = [];
+  final List<(int, bool)> archived = [];
+  final List<int> deleted = [];
+
+  /// What `list` returns. `ArchiveAccount` reads it to decide whether the
+  /// account being archived is the last usable one.
+  List<Account> existing = const [];
+
+  /// What `transactionCount` returns. `DeleteAccount` reads it to decide
+  /// whether FR-ACC-007 permits the delete at all.
+  int transactions = 0;
 
   /// Set to make the next write fail, as a locked database would.
   Failure? failWith;
@@ -44,18 +54,27 @@ class _FakeRepository implements AccountRepository {
   Future<Either<Failure, Unit>> setArchived(
     int id, {
     required bool archived,
-  }) async => const Right(unit);
+  }) async {
+    if (failWith case final failure?) return Left(failure);
+    this.archived.add((id, archived));
+    return const Right(unit);
+  }
 
   @override
-  Future<Either<Failure, Unit>> delete(int id) async => const Right(unit);
+  Future<Either<Failure, Unit>> delete(int id) async {
+    if (failWith case final failure?) return Left(failure);
+    deleted.add(id);
+    return const Right(unit);
+  }
 
   @override
-  Future<Either<Failure, int>> transactionCount(int id) async => const Right(0);
+  Future<Either<Failure, int>> transactionCount(int id) async =>
+      Right(transactions);
 
   @override
   Future<Either<Failure, List<Account>>> list({
     bool includeArchived = false,
-  }) async => const Right([]);
+  }) async => Right(existing);
 
   @override
   Stream<Either<Failure, List<Account>>> watch({
@@ -321,6 +340,147 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.added.single.icon, 'wallet');
+    });
+  });
+
+  group('archiving', () {
+    testWidgets('is offered only once the account exists', (tester) async {
+      // Nothing to archive on a form that has never been saved, and a greyed
+      // control there would be furniture rather than information.
+      await open(tester);
+
+      expect(find.text('Archive account'), findsNothing);
+      expect(find.text('Delete account'), findsNothing);
+    });
+
+    testWidgets('hides the account without touching its transactions', (
+      tester,
+    ) async {
+      // FR-ACC-004. Two accounts exist, so archiving one is allowed.
+      repository.existing = [
+        existing(),
+        Account(
+          id: 9,
+          name: 'Cash',
+          icon: 'wallet',
+          initialBalanceDate: DateTime(2026),
+        ),
+      ];
+      await open(tester, initial: existing());
+
+      await tester.tap(find.text('Archive account'));
+      await tester.pumpAndSettle();
+
+      expect(repository.archived, [(4, true)]);
+      expect(repository.deleted, isEmpty);
+    });
+
+    testWidgets('refuses to archive the only account, in its own words', (
+      tester,
+    ) async {
+      // ArchiveAccount owns this sentence. Archiving the last usable account
+      // leaves nowhere to record a transaction — a dead end reached through a
+      // control that looks harmless.
+      repository.existing = [existing()];
+      await open(tester, initial: existing());
+
+      await tester.tap(find.text('Archive account'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'This is your only account. Add another before archiving it.',
+        ),
+        findsOneWidget,
+      );
+      expect(repository.archived, isEmpty);
+    });
+
+    testWidgets('offers to restore an account that is already archived', (
+      tester,
+    ) async {
+      // Restoring never needs the last-account check, so it is allowed even
+      // when it is the only one there is.
+      final closed = existing().copyWith(isArchived: true);
+      repository.existing = [closed];
+      await open(tester, initial: closed);
+
+      expect(find.text('Archive account'), findsNothing);
+
+      await tester.tap(find.text('Restore account'));
+      await tester.pumpAndSettle();
+
+      expect(repository.archived, [(4, false)]);
+    });
+  });
+
+  group('deleting', () {
+    testWidgets('asks before doing something irreversible', (tester) async {
+      await open(tester, initial: existing());
+
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete this account?'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, isEmpty);
+    });
+
+    testWidgets('removes an account that has never been used', (tester) async {
+      // FR-ACC-007, raised by E-25 for exactly this case: an account added by
+      // mistake and never used.
+      repository.transactions = 0;
+      await open(tester, initial: existing());
+
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, [4]);
+    });
+
+    testWidgets('refuses once the account has history, and says how much', (
+      tester,
+    ) async {
+      // DeleteAccount owns this sentence too. Deleting an account with history
+      // would orphan those rows or take them with it, and both silently change
+      // totals the user has already seen.
+      repository.transactions = 14;
+      await open(tester, initial: existing());
+
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('This account has 14 transactions'),
+        findsOneWidget,
+      );
+      expect(repository.deleted, isEmpty);
+    });
+
+    testWidgets('uses the singular for exactly one transaction', (
+      tester,
+    ) async {
+      // "This account has 1 transactions" is the kind of detail that makes an
+      // app feel unfinished, and the use case already gets it right.
+      repository.transactions = 1;
+      await open(tester, initial: existing());
+
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('This account has one transaction'),
+        findsOneWidget,
+      );
     });
   });
 }

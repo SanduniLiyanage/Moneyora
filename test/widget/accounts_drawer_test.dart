@@ -39,20 +39,32 @@ void main() {
   ///
   /// Rendered as a Scaffold's drawer rather than bare, so the test exercises
   /// the widget in the position it actually occupies.
-  Widget boot({List<Account>? accounts, Object? failure, bool hold = false}) =>
-      ProviderScope(
-        overrides: [
-          accountsProvider(false).overrideWith((ref) {
-            if (hold) return const Stream<List<Account>>.empty();
-            if (failure != null) return Stream<List<Account>>.error(failure);
-            return Stream<List<Account>>.value(accounts ?? const []);
-          }),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const Scaffold(drawer: AccountDrawer(), body: SizedBox()),
-        ),
-      );
+  Widget boot({
+    List<Account>? accounts,
+    Object? failure,
+    bool hold = false,
+    List<Account>? archivedToo,
+  }) {
+    Stream<List<Account>> streamOf(List<Account>? value) {
+      if (hold) return const Stream<List<Account>>.empty();
+      if (failure != null) return Stream<List<Account>>.error(failure);
+      return Stream<List<Account>>.value(value ?? const []);
+    }
+
+    return ProviderScope(
+      overrides: [
+        accountsProvider(false).overrideWith((ref) => streamOf(accounts)),
+        // The archived view is a different query, not a filter applied to the
+        // first one — the datasource is what excludes archived rows.
+        accountsProvider(true)
+            .overrideWith((ref) => streamOf(archivedToo ?? accounts)),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(drawer: AccountDrawer(), body: SizedBox()),
+      ),
+    );
+  }
 
   Future<void> openDrawer(WidgetTester tester) async {
     tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
@@ -258,6 +270,95 @@ void main() {
 
       expect(find.text('No accounts yet.'), findsOneWidget);
       expect(find.text('Rs0.00'), findsOneWidget);
+    });
+  });
+
+  group('archived accounts', () {
+    Account archived({required int id, String name = 'Old bank'}) => Account(
+      id: id,
+      name: name,
+      icon: 'bank',
+      initialBalanceDate: DateTime(2026),
+      isArchived: true,
+    );
+
+    testWidgets('are hidden until asked for', (tester) async {
+      // FR-ACC-004 — hiding them from active views is the whole point.
+      await tester.pumpWidget(
+        boot(
+          accounts: [account(id: 1, balanceCents: 125000)],
+          archivedToo: [account(id: 1, balanceCents: 125000), archived(id: 2)],
+        ),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('Old bank'), findsNothing);
+      expect(find.text('Show archived'), findsOneWidget);
+    });
+
+    testWidgets('appear when the toggle is turned on, and say they are', (
+      tester,
+    ) async {
+      // Reachable, or an archived account could never be restored — the
+      // control that hides it would be one-way.
+      await tester.pumpWidget(
+        boot(
+          accounts: [account(id: 1, balanceCents: 125000)],
+          archivedToo: [account(id: 1, balanceCents: 125000), archived(id: 2)],
+        ),
+      );
+      await openDrawer(tester);
+
+      await tester.tap(find.text('Show archived'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Old bank'), findsOneWidget);
+      expect(find.text('Archived'), findsOneWidget);
+    });
+
+    testWidgets('an archived account is not in the total', (tester) async {
+      // AccountTotals ignores archived accounts, so switching the filter on
+      // must not move the number at the top.
+      await tester.pumpWidget(
+        boot(
+          accounts: [account(id: 1, balanceCents: 125000)],
+          archivedToo: [
+            account(id: 1, balanceCents: 125000),
+            archived(id: 2).copyWith(currentBalanceCents: 900000),
+          ],
+        ),
+      );
+      await openDrawer(tester);
+
+      await tester.tap(find.text('Show archived'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rs1,250.00'), findsNWidgets(2));
+      expect(find.text('Rs9,000.00'), findsOneWidget);
+    });
+
+    testWidgets('says why the archived list is empty, not just that it is', (
+      tester,
+    ) async {
+      // The E-22 gap. Its table calls the accounts empty state impossible,
+      // which is true of the default list and not of this one: turning the
+      // filter on with nothing archived empties it. Two lists, two sentences,
+      // per E-22's own rule.
+      await tester.pumpWidget(
+        boot(
+          accounts: [account(id: 1, balanceCents: 125000)],
+          archivedToo: const [],
+        ),
+      );
+      await openDrawer(tester);
+
+      await tester.tap(find.text('Show archived'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Nothing archived'), findsOneWidget);
+      // Not the "nothing yet" sentence, which would be wrong — they have an
+      // account, it simply is not archived.
+      expect(find.text('No accounts yet.'), findsNothing);
     });
   });
 }

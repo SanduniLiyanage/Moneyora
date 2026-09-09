@@ -146,10 +146,82 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     }
   }
 
+  /// Archives the account, or restores it. FR-ACC-004.
+  ///
+  /// `ArchiveAccount` refuses to archive the last usable account, because
+  /// doing so leaves nowhere to record a transaction and an entry screen with
+  /// no account to default to — a dead end reached through a control that
+  /// looks harmless. Its sentence is shown rather than swallowed.
+  Future<void> _setArchived({required bool archived}) async {
+    final id = widget.initial?.id;
+    if (id == null) return;
+
+    final failure = await ref
+        .read(accountActionsControllerProvider.notifier)
+        .setArchived(id, archived: archived);
+
+    if (!mounted) return;
+    if (failure != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message)));
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
+  /// Permanently removes the account. FR-ACC-007, raised by E-25.
+  ///
+  /// Asks first, because this is the one action here that cannot be undone —
+  /// unlike archiving, which is a view filter with a restore beside it.
+  /// `DeleteAccount` refuses anyway once the account has transactions, naming
+  /// the count and sending the user to archive instead.
+  Future<void> _delete() async {
+    final id = widget.initial?.id;
+    if (id == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this account?'),
+        content: Text(
+          'This removes ${widget.initial!.name} for good. An account with '
+          'transactions cannot be deleted — archive it instead, so the '
+          'records are kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final failure = await ref
+        .read(accountActionsControllerProvider.notifier)
+        .delete(id);
+
+    if (!mounted) return;
+    if (failure != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message)));
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final saving = ref.watch(saveAccountControllerProvider).isLoading;
+    final busy = ref.watch(accountActionsControllerProvider).isLoading;
+    final archived = widget.initial?.isArchived ?? false;
     final currency = _currency.text.trim().toUpperCase();
     final foreign =
         currency.isNotEmpty && currency != AccountTotals.defaultBaseCurrency;
@@ -291,6 +363,60 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                     )
                   : Text(_isEditing ? 'Save changes' : 'Add account'),
             ),
+            // Only an account that exists can be archived or deleted. On a
+            // new one there is nothing to act on, and offering the controls
+            // greyed out would be furniture rather than information.
+            if (_isEditing) ...[
+              const Divider(height: 40),
+              OutlinedButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => _setArchived(archived: !archived),
+                icon: Icon(
+                  archived ? Icons.unarchive_outlined : Icons.archive_outlined,
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                label: Text(archived ? 'Restore account' : 'Archive account'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                // FR-ACC-004. Archiving is the answer to "I closed that bank
+                // account", and saying what it keeps is what stops someone
+                // reaching for Delete instead.
+                archived
+                    ? 'Restoring brings it back into your account list and '
+                          'your total balance.'
+                    : 'Hides the account without touching its transactions, so '
+                          'every past total still adds up.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextButton.icon(
+                onPressed: busy ? null : _delete,
+                icon: const Icon(Icons.delete_outline),
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                label: const Text('Delete account'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                // FR-ACC-007, raised by E-25. Stating the limit up front
+                // rather than letting the refusal be the first they hear of
+                // it — the use case will refuse either way, but a rule
+                // discovered by being told "no" reads as the app being awkward.
+                'Only possible while the account has no transactions. '
+                'Otherwise archive it, so the records are kept.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
           ],
         ),
       ),

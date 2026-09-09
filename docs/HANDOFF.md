@@ -1,6 +1,6 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-08**, `main` at `7419a09`, after 29
+State of the project as of **2026-09-09**, `main` at `8c97daf`, after 36
 merged pull requests.
 
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
@@ -66,9 +66,12 @@ the wrong IDs in the accounts slice were all copied from each other.
 ## What is built
 
 **Sprints 1 and 2 are complete**, both verified running on an Android
-emulator. **Sprint 3 is half done**: PR #28 landed the accounts domain and data
-layers together with E-18's reconciliation, but accounts have no screens —
-`lib/features/accounts/presentation/` holds nothing but `.gitkeep` files.
+emulator. **Sprint 3 has its accounts half done**: PR #28 landed the domain and
+data layers with E-18's reconciliation, and the screens followed — the side
+panel (FR-ACC-003), the create-and-edit form with its icon catalogue
+(FR-ACC-001, 002, 006), and archiving, restoring and deleting (FR-ACC-004,
+FR-ACC-007). What is missing is the transfer half: no screen calls
+`MakeTransfer` yet.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -95,7 +98,7 @@ lib/
 │   ├── usecases/        UseCase<T, Params> base
 │   └── utils/           currency_utils, date_utils — the only formatters
 ├── features/
-│   ├── accounts/        domain + data complete; presentation is the drawer
+│   ├── accounts/        full slice: panel, form, icons, archive, delete
 │   ├── analytics/       spending-by-category: domain + data, no charts yet
 │   ├── copilot/         all three layers. The only http in the application
 │   ├── home/            Sprint 1 proof screen, still the home route
@@ -105,7 +108,7 @@ lib/
 └── main.dart         ProviderScope
 ```
 
-**531 tests pass; domain-layer line coverage is 96.4% against a 75% floor**
+**543 tests pass; domain-layer line coverage is 96.4% against a 75% floor**
 (299 of 310 lines, across 26 files). CI runs format, analyze, tests, that
 coverage floor, the architecture boundary check, an Android APK build and an
 iOS compile — all three jobs blocking.
@@ -135,11 +138,18 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 3's screens.** FR-ACC-003's side panel is in: the accounts and their
-balances, a total, and — where it applies — a line saying which accounts that
-total left out and why. Outstanding: account CRUD and archiving, the transfer
-screen, and the entry screen's account selector, still pinned to the first
-account because a picker with one option is not a picker.
+**Sprint 3's transfer half.** The accounts side is finished — the panel, the
+form, archiving, restoring and deleting. Outstanding: the transfer screen on
+top of `MakeTransfer`, the entry screen's account selector (still pinned to the
+first account, because a picker with one option is not a picker), and
+FR-TRF-004's `From`/`To` labels on transfer rows.
+
+Two refusals are worth knowing about before touching that work, because both
+are already written and both matter: `ArchiveAccount` will not archive the last
+usable account, and `DeleteAccount` will not delete one with transactions. The
+screens show those sentences rather than inventing their own — that is what the
+widget tests assert, so a rule cannot drift between the form and the use case
+that enforces it.
 
 The panel is composed in `core/router/app_router.dart` and passed to
 `HomePage` as a widget, rather than imported by the home screen. A feature
