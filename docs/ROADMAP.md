@@ -123,7 +123,7 @@ Left open: a release APK has been built but never run. R8 can break
 reflection-based code that compiles cleanly, so installing one on the emulator
 is on the next emulator session.
 
-## Sprint 3 — Accounts & transfers (Week 5) — **two items outstanding**
+## Sprint 3 — Accounts & transfers (Week 5) — **complete**
 
 Account CRUD, archiving, multi-currency, atomic transfers (FR-TRF-002 —
 do the debit and credit **in one sqflite transaction**, or a crash mid-write
@@ -148,20 +148,25 @@ And the transfer screen (FR-TRF-001 to 003), on top of the `MakeTransfer` and
 same-currency guard, which lives in `MakeTransfer.validate` beside the rules
 that were already there.
 
-Outstanding, and both verified still unbuilt at `7c917a7`:
+The last two pieces, both presentation on top of use cases that already had
+passing tests:
 
 1. **The entry screen's account selector (FR-EXP-001).**
-   `add_transaction_page.dart` pins the account to `data.accounts.first` and
-   renders the name of that account as fixed text. FR-EXP-001 specifies
-   recording an expense with amount, category, **account**, date, time and an
-   optional note, so the selector is that requirement's, not an FR-ACC's — a
-   distinction worth stating given [E-25](SPEC_ERRATA.md).
+   `add_transaction_page.dart` no longer pins the account to
+   `data.accounts.first`; an `_AccountPicker` offers every account as a
+   `ChoiceChip`, matching the category picker beside it, and still defaults to
+   the first account so a fresh install with one account needs no extra tap.
 2. **FR-TRF-004's `From`/`To` labels on transfer rows.**
-   `transaction_list_page.dart` renders the literal string `Transfer`.
-   `FR-TRF-004` appears nowhere in `lib/` or `test/`. The direction itself *is*
-   wired — E-16's `transfer_direction` already picks the row's `+` or `−` sign —
-   so what is missing is naming the other account, not knowing which way the
-   money went.
+   `transaction_list_page.dart` no longer renders the literal string
+   `Transfer`. E-16's `transfer_direction` already picked the row's `+` or `−`
+   sign; naming the other account turned out not to be presentation-only,
+   because nothing above `data/` had ever read `transfers` — the header row
+   E-15 writes to link both halves of a transfer, and the only place
+   `from_account_id`/`to_account_id` lived. `TransactionLocalDataSourceImpl`
+   now joins it for transfer rows, one extra query per page of results rather
+   than one per row (matching `_readSplits`'s shape), and a new
+   `Transaction.counterpartyAccountId` field carries the result up to the
+   list screen.
 
 ### FR-ACC-005 (multi-currency) is deferred out of this sprint
 

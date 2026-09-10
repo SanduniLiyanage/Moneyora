@@ -43,6 +43,10 @@ void main() {
         'categoryId': base.copyWith(categoryId: 2),
         'amountCents': base.copyWith(amountCents: 999),
         'type': base.copyWith(type: TransactionType.income),
+        'transferDirection': base.copyWith(
+          transferDirection: TransferDirection.out,
+        ),
+        'counterpartyAccountId': base.copyWith(counterpartyAccountId: 2),
         'date': base.copyWith(date: DateTime(2026, 9, 3)),
         'time': base.copyWith(time: '09:00'),
         'note': base.copyWith(note: 'Something else'),

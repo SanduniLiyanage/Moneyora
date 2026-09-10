@@ -486,6 +486,37 @@ void main() {
       expect(rows.single.transferDirection, TransferDirection.out);
     });
 
+    test('names each transfer half by the account on the other side', () async {
+      // FR-TRF-004. The direction is already on the row (E-16); this is the
+      // join against `transfers`, the header that links both halves (E-15),
+      // that the list screen needs to say "From X" / "To Y" instead of
+      // discovering only that money moved.
+      final rows = await source.list(
+        const TransactionFilter(type: TransactionType.transfer),
+      );
+
+      final out = rows.singleWhere(
+        (r) => r.transferDirection == TransferDirection.out,
+      );
+      final incoming = rows.singleWhere(
+        (r) => r.transferDirection == TransferDirection.incoming,
+      );
+
+      expect(out.accountId, card);
+      expect(out.counterpartyAccountId, cash);
+      expect(incoming.accountId, cash);
+      expect(incoming.counterpartyAccountId, card);
+    });
+
+    test('leaves counterpartyAccountId null for a non-transfer row', () async {
+      final rows = await source.list(
+        const TransactionFilter(type: TransactionType.expense),
+      );
+
+      expect(rows, isNotEmpty);
+      expect(rows.every((r) => r.counterpartyAccountId == null), isTrue);
+    });
+
     test('filters by category', () async {
       final rows = await source.list(
         const TransactionFilter(categoryId: transport),

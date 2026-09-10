@@ -90,6 +90,7 @@ class Transaction extends Equatable {
     this.id,
     this.categoryId,
     this.transferDirection,
+    this.counterpartyAccountId,
     this.time,
     this.note,
     this.splits = const [],
@@ -116,6 +117,16 @@ class Transaction extends Equatable {
 
   /// Which half of a transfer this is. Null unless [type] is a transfer.
   final TransferDirection? transferDirection;
+
+  /// The account on the other side of a transfer. Null unless [type] is a
+  /// transfer. FR-TRF-004.
+  ///
+  /// Not a stored column — `transactions.account_id` names only the side this
+  /// row belongs to (E-16); this comes from `transfers`, the header row that
+  /// links both halves (E-15). Populated when a row is read through the
+  /// transaction repository's `list`/`watch`, so a list screen can label a
+  /// row "From Cash" / "To Payment card" instead of the bare word "Transfer".
+  final int? counterpartyAccountId;
 
   /// ISO-8601 date, `YYYY-MM-DD`.
   final DateTime date;
@@ -181,6 +192,7 @@ class Transaction extends Equatable {
     int? amountCents,
     TransactionType? type,
     TransferDirection? transferDirection,
+    int? counterpartyAccountId,
     DateTime? date,
     String? time,
     String? note,
@@ -196,6 +208,7 @@ class Transaction extends Equatable {
     amountCents: amountCents ?? this.amountCents,
     type: type ?? this.type,
     transferDirection: transferDirection ?? this.transferDirection,
+    counterpartyAccountId: counterpartyAccountId ?? this.counterpartyAccountId,
     date: date ?? this.date,
     time: time ?? this.time,
     note: note ?? this.note,
@@ -214,6 +227,7 @@ class Transaction extends Equatable {
     amountCents,
     type,
     transferDirection,
+    counterpartyAccountId,
     date,
     time,
     note,

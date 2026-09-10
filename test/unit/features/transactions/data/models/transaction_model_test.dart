@@ -198,6 +198,44 @@ void main() {
     });
   });
 
+  group('counterpartyAccountId', () {
+    // FR-TRF-004. Never a column on `transactions` — it comes from a join the
+    // datasource has already done against `transfers` by the time it calls
+    // fromMap, so it is passed in rather than read out of the row.
+    test('is not among the columns toMap writes', () {
+      expect(
+        transferHalf(TransferDirection.out)
+            .toMap(now: now)
+            .containsKey('counterparty_account_id'),
+        isFalse,
+      );
+    });
+
+    test('fromMap threads the caller-supplied value onto the model', () {
+      final restored = TransactionModel.fromMap(
+        transferHalf(TransferDirection.out).toMap(now: now),
+        counterpartyAccountId: 2,
+      );
+
+      expect(restored.counterpartyAccountId, 2);
+    });
+
+    test('defaults to null when the caller has none to give', () {
+      final restored = TransactionModel.fromMap(expense().toMap(now: now));
+
+      expect(restored.counterpartyAccountId, isNull);
+    });
+
+    test('survives the crossing into a plain entity', () {
+      final model = TransactionModel.fromMap(
+        transferHalf(TransferDirection.out).toMap(now: now),
+        counterpartyAccountId: 2,
+      );
+
+      expect(model.toEntity().counterpartyAccountId, 2);
+    });
+  });
+
   group('date encoding', () {
     test('stores the local calendar date, whatever the instant', () {
       // Asserted against the instant's own local fields rather than a literal,

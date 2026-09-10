@@ -40,6 +40,7 @@ class TransactionModel extends Transaction {
     super.id,
     super.categoryId,
     super.transferDirection,
+    super.counterpartyAccountId,
     super.time,
     super.note,
     super.splits,
@@ -66,6 +67,7 @@ class TransactionModel extends Transaction {
     amountCents: transaction.amountCents,
     type: transaction.type,
     transferDirection: transaction.transferDirection,
+    counterpartyAccountId: transaction.counterpartyAccountId,
     date: transaction.date,
     time: transaction.time,
     note: transaction.note,
@@ -85,9 +87,14 @@ class TransactionModel extends Transaction {
   /// category and `is_split` (E-04), so a list view renders without the join.
   /// Passing none for a row whose `is_split` is 1 yields a **header** — a
   /// faithful read of what was asked for, not an error.
+  ///
+  /// [counterpartyAccountId] is likewise a join the caller has already done —
+  /// against `transfers`, not a column on `map` — and is null for anything
+  /// that is not a transfer. FR-TRF-004.
   factory TransactionModel.fromMap(
     Map<String, Object?> map, {
     List<Map<String, Object?>> splitRows = const [],
+    int? counterpartyAccountId,
   }) => TransactionModel(
     id: map['id'] as int?,
     accountId: map['account_id']! as int,
@@ -95,6 +102,7 @@ class TransactionModel extends Transaction {
     amountCents: map['amount_cents']! as int,
     type: _decodeType(map['type']! as String),
     transferDirection: _decodeDirection(map['transfer_direction'] as String?),
+    counterpartyAccountId: counterpartyAccountId,
     date: _decodeDate(map['date']! as String),
     time: map['time'] as String?,
     note: map['note'] as String?,
@@ -172,6 +180,7 @@ class TransactionModel extends Transaction {
     amountCents: amountCents,
     type: type,
     transferDirection: transferDirection,
+    counterpartyAccountId: counterpartyAccountId,
     date: date,
     time: time,
     note: note,
