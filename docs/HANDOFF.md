@@ -17,6 +17,7 @@ of date.
 | Tests | **557 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
+| Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **96.8%** — 306 of 316 lines, 26 files | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
 | Dart files | 77 in `lib/`, 39 in `test/` | `find lib -name '*.dart' \| wc -l` |
@@ -59,14 +60,18 @@ conversation: SRS v1.0, SDD v1.0, DBD v1.0 and an ERD. They are the approved
 baseline and are **left exactly as approved**.
 
 They also contradict each other and themselves. The first audit, before any
-schema was written, turned up **twenty defects**, four of which blocked Sprint 1
-outright. Later passes added more, and
-[`SPEC_ERRATA.md`](SPEC_ERRATA.md) now holds **28 entries: 26 resolved or
-clarified, 1 mitigated (E-19), 1 withdrawn (E-12)**, with six classed blocking
-across the whole register rather than only the first audit's four.
+schema was written, turned up twenty defects, four of which blocked Sprint 1
+outright. Later passes kept finding more — reading a baseline for the first
+time, auditing the code's own citations against one, and most recently
+transcribing all four baselines to Markdown so they could be grepped rather
+than opened as PDFs.
 
-That register is the single source of truth for its own counts, the way this
-file is for test and coverage counts.
+**[`SPEC_ERRATA.md`](SPEC_ERRATA.md) carries its own current count and status
+in its own summary table — not repeated here.** The previous version of this
+paragraph hardcoded "28 entries" two sentences after stating that the errata
+file is the source of truth for its own counts, which is the exact failure
+this convention exists to stop: a number that has to be remembered to be kept
+in sync goes stale the first time it isn't.
 
 **Where a baseline and the errata disagree, the errata wins.** The ones that
 shape the code most:
@@ -170,11 +175,11 @@ The three routes with no screen behind them are `moneyPlan`, `scanReceipt` and
 `copilot`, `transfer` and `accountForm`.
 
 Test and coverage figures are in **the table at the top of this file**, which
-is the only place they are written down. CI runs format, analyze, tests, the
-75% domain coverage floor, the architecture boundary check, an Android APK
-build and an iOS compile — all three jobs blocking. Note that the Android job
-builds a **debug** APK; the release build is currently broken, which is why
-that goes unnoticed. See the Environment section.
+is the only place they are written down. CI runs format, analyze, the
+citation check, tests, the 75% domain coverage floor, the architecture
+boundary check, an Android debug and release APK build, and an iOS compile —
+all three jobs blocking. See the Environment section below for the release
+build's own history.
 
 The ten uncovered domain lines sit at five sites, verified at `7c917a7`: the
 unreachable `default` arms in `transaction_repository.dart` and

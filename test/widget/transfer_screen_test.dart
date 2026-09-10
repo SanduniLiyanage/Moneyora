@@ -232,7 +232,7 @@ void main() {
     testWidgets('explains itself instead of showing two dead pickers', (
       tester,
     ) async {
-      // E-22, NFR-USA-001: what belongs here, why it is empty, and the one
+      // E-22: what belongs here, why it is empty, and the one
       // action that fills it.
       await open(tester, accounts: const [cash]);
 

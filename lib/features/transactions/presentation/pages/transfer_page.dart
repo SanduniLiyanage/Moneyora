@@ -294,7 +294,7 @@ class _AccountField extends StatelessWidget {
   }
 }
 
-/// Shown when there is nowhere to move money to. E-22, NFR-USA-001.
+/// Shown when there is nowhere to move money to. E-22.
 class _NeedsTwoAccounts extends StatelessWidget {
   const _NeedsTwoAccounts();
 

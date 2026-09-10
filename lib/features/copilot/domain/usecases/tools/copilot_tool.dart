@@ -23,7 +23,7 @@ import '../../entities/tool_result.dart';
 /// path, and keeps the loop free of the `try`/`catch` the repo forbids above
 /// `data/`. It is the same shape every use case in the app already has.
 ///
-/// Refs: FR-COP-006, FR-COP-007..022, NFR-MNT-006.
+/// Refs: FR-COP-006, FR-COP-007..015, FR-COP-020..022, NFR-MNT-006.
 abstract class CopilotTool {
   /// What the model is told about this tool.
   AgentTool get descriptor;

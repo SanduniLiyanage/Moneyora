@@ -44,6 +44,9 @@ follows the Resolution sections.
 | [E-26](#e-26) | Low | FR-ACC-006 names icons that are other companies' trademarks | Resolved |
 | [E-27](#e-27) | Medium | Category reads live in `core/database/`, outside a feature slice | Resolved |
 | [E-28](#e-28) | Medium | NFR-PER-006 cannot be verified on the development hardware | Mitigated |
+| [E-29](#e-29) | Medium | SRS benchmark-scale contradiction and uncitable §5.6 targets | Clarified |
+| [E-30](#e-30) | Low | SDD/DBD naming and count disagreements | Clarified |
+| [E-31](#e-31) | Medium | DBD schema gaps and a seed-colour check, for Sprints 4, 6 and 7 | Resolved |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -72,6 +75,25 @@ specification one: the SRS specifies all three correctly. It is fixed in
 [`ROADMAP.md`](ROADMAP.md) and deliberately not recorded here — this register is
 for the baselines being wrong, and an entry that stretches to cover scheduling
 mistakes makes every other entry mean less.
+
+**E-29 to E-31** were raised on 2026-09-10, transcribing all four PDF baselines
+to Markdown so they could be grepped rather than reopened for every question.
+Reading each document end to end, rather than jumping to the section a given
+requirement lives in, surfaces the kind of defect that only shows up in
+proximity: two sections of the same document naming the same column two
+different ways, an index list that exists twice with different names attached,
+a count stated in a document's own cover and contradicted four pages later.
+Two candidates from that pass turned out to already be on the register —
+the backup-extension contradiction is E-08, and the `STDDEV()` query is E-05
+— and are not repeated as new entries; finding a defect that is already
+recorded is itself a useful check that the register still means what it says.
+Grouped by kind rather than filed as one entry per defect: E-29 is the SRS
+disagreeing with itself, E-30 is the SDD and DBD disagreeing with each other
+over what to call the same thing, and E-31 is DBD schema gaps that will bite
+a specific sprint if not fixed first. A citation checker
+(`scripts/check_citations.sh`) was added the same day, and its first real run
+found three IDs cited in `lib/` that exist nowhere in any spec — recorded
+under [E-25](#e-25), the entry this new tool exists to make automatic.
 
 **E-21 to E-23** were raised on 2026-09-03 — see [Amendment B](#amendment-b).
 They are omissions of the same kind, found by asking a different question: not
@@ -1251,6 +1273,39 @@ All three are deletions when FR-ACC-005 lands, not migrations. Recorded in
 [`ROADMAP.md`](ROADMAP.md) so FR-ACC-005 keeps a place in traceability instead
 of disappearing between sprints.
 
+### Addendum, 2026-09-10 — the same defect, caught automatically this time
+
+`scripts/check_citations.sh` was added the same day this addendum was written,
+to check every FR-, NFR- or E- ID cited in a Dart comment against the
+documents that define IDs (`docs/specs/REQUIREMENTS_INDEX.md`, the Copilot's
+own draft specs, and this file). Its first run against the existing codebase —
+not code written for the occasion — found two defects of exactly this entry's
+kind, in two features this entry does not cover:
+
+1. **`NFR-USA-001`, cited three times** — `account_drawer.dart`, `transfer_page.dart`,
+   and `transfer_screen_test.dart` — each alongside a correct `E-22` citation for
+   an empty-state screen. No `NFR-USA` group exists in the parent SRS; the five
+   NFR groups are PER, SEC, REL, MNT and PRT. (The Copilot's own draft spec does
+   define `NFR-USA-005`, but these three sites are in the accounts and
+   transactions features, which that draft does not govern, and the number does
+   not even match.) Removed from all three comments — `E-22` alone was already
+   the correct and sufficient citation.
+2. **A range citation wider than the range it describes** —
+   `copilot_tool.dart` cited `FR-COP-007..022`, read as every ID from 007 to
+   022 inclusive. The Copilot's draft spec defines 007 through 015, then jumps
+   to 020; 016 through 019 were never assigned. Corrected to
+   `FR-COP-007..015, FR-COP-020..022`.
+
+Both are doc-comment-only fixes: no signature, no behaviour, no test changed.
+Landed alongside the checker that found them, in the same PR, because turning
+on a CI gate that starts red on the code it was written to check is not a
+gate anyone will trust the next time it turns red for a real reason.
+
+Three sites citing the same invented ID, across two features and a test, is
+this entry's own finding recurring at smaller scale: an ID that looks like a
+checked fact survives exactly as long as nobody checks it. The difference
+this time is that something now does, on every push.
+
 ---
 
 <a id="e-26"></a>
@@ -1431,6 +1486,215 @@ Accepted. Until the device session happens, no NFR-PER requirement is
 verified, and the repository must not claim otherwise. "Fast on the emulator"
 and "meets NFR-PER-006" are different assertions, and only the first is
 available.
+
+---
+
+<a id="e-29"></a>
+
+## E-29 — Two more places the SRS contradicts or undercuts itself
+
+**Severity:** Medium · **Affects:** NFR-PER-006, SRS §5.6, Appendix C (R4)
+
+Found transcribing the SRS to Markdown and reading it end to end rather than
+jumping to the section a given requirement lives in — the same pass that
+re-found the backup-extension contradiction already on the register as E-08.
+These two were not on it, because nothing prior had reason to read
+performance targets, scalability targets and the risk register side by side.
+
+**Three different scales are given for the same benchmark.** NFR-PER-006
+requires database queries to complete in under 100 ms *"at 10,000
+transactions."* Two pages later, §5.6's scalability table sets the
+transaction ceiling at *"up to 100,000 transactions without performance
+degradation."* Appendix C's risk register, R4, instructs benchmarking
+*"at 50,000 transactions early."* A tenfold and a fivefold disagreement, both
+inside one document, both about the number a developer is meant to seed and
+measure against.
+
+### Resolution — 10,000 for Sprint 4, and say why
+
+**Sprint 4's benchmark uses NFR-PER-006's 10,000**, because it is the only one
+of the three that is an actual requirement with a pass/fail threshold attached
+— 100,000 is a scale target with no latency bound of its own, and 50,000 is a
+risk-register instruction to start early, not a conformance figure. Meeting
+NFR-PER-006 at 10,000 does not by itself say anything about behaviour at
+100,000; if Sprint 9's hardening pass has time, benchmarking again at 100,000
+against the same indexes is worth doing, but it is not what Sprint 4 owes.
+
+This does not retroactively bind [E-28](#e-28)'s comparative emulator figures
+to a different number — E-28 is about what an emulator measurement can prove
+at all, independent of which row count is chosen.
+
+**§5.6 scalability targets carry no requirement IDs and are therefore
+uncitable as written.** Every other quantified claim in the SRS sits under an
+FR- or NFR- prefix; §5.6's table of six resource ceilings (transactions,
+categories, accounts, receipt image storage, budget plans, keyword entries)
+does not. `REQUIREMENTS_INDEX.md` already records this as a "requirement group
+with no IDs," which is a statement of fact; this entry is the decision about
+what to do with it.
+
+**Resolved as non-normative rather than amended with new IDs.** Assigning
+`NFR-SCL-001` through `006` by amendment was considered and rejected: these
+six figures were written as *scale the implementation should be tested to*,
+not as *behaviour the system shall exhibit* — SRS §1.5's own convention reserves
+SHALL for exactly the latter. Minting IDs for them would manufacture six
+citable requirements where the baseline author never intended one, and every
+existing citation of a §5.6 figure — E-10's "50 custom categories" being the
+one already in this file — would need to decide whether it now means the
+requirement or the table row. Left uncited. A future figure from this table
+that needs to be pinned down gets a proper FR-/NFR- ID minted for the specific
+behaviour at that time, the way E-25 minted FR-ACC-007 for a real gap rather
+than retrofitting IDs onto everything nearby.
+
+---
+
+<a id="e-30"></a>
+
+## E-30 — The SDD and DBD disagree with each other, and the DBD disagrees with itself
+
+**Severity:** Low · **Affects:** SDD §5.1, §5.3, §5.4; DBD §5.1, §3.12, §8.1;
+SRS §6.2, DBD §3.1
+
+Four unrelated disagreements, all the same shape: two documents — or, in one
+case, two sections of the same document — name the same thing differently, and
+nothing says which name is real. None of these ever blocked a sprint, because
+the codebase quietly picked its own answer for each one without recording that
+it had a choice to make. This entry is that choice, written down.
+
+**Indexes.** SDD §5.1 lists 7 indexes named `idx_transactions_*`. DBD §5.1
+lists 12 named `idx_tx_*`. Different counts and different naming conventions
+for indexes over the same tables.
+
+**The migration table.** SDD §5.3: *"A `schema_version` table tracks applied
+migrations."* DBD §3.12 and §7: `schema_migrations`.
+
+**The encryption key's storage name.** SDD §5.4 reads it back as
+`db_encryption_key`. DBD §8.1 uses `moneyora_db_key` for the identical purpose
+— the 32-byte key handed to SQLCipher as the database password.
+
+**The lookback column, including a DBD self-contradiction.** SRS §6.2 names it
+`plan_analysis_months`. DBD §3.1's table and its `CREATE TABLE` statement both
+say `plan_lookback_months` — but the DBD's *own* §2.1 ERD summary, two sections
+earlier in the same document, says `plan_analysis_months`. The DBD does not
+only disagree with the SRS here; it disagrees with itself, and does so before
+it ever gets to disagreeing with anything else.
+
+### Resolution — record what the code already chose
+
+No schema change. `v1_initial.dart` was already built choosing one name per
+pair, and the choice was never wrong — it just was not written down as a
+choice, which is what let the DBD note above go unnoticed for as long as it
+did.
+
+| Disagreement | SDD says | DBD says | Shipped |
+|---|---|---|---|
+| Migration table | `schema_version` | `schema_migrations` | **`schema_migrations`** — the DBD's name |
+| Encryption key storage name | `db_encryption_key` | `moneyora_db_key` | **`db_encryption_key`** — the SDD's name, in `EncryptionKeyStore.keyName` |
+| Lookback column | `plan_analysis_months` | `plan_lookback_months` (§3.1) / `plan_analysis_months` (§2.1, self-contradicting) | **`plan_analysis_months`** — the SRS's name, which is also what the DBD's own ERD block already said |
+
+Each was decided on its own merits when `v1_initial.dart` or
+`encryption_key_store.dart` was written — `schema_migrations` from the DBD,
+`db_encryption_key` from the SDD, `plan_analysis_months` from the SRS — and
+none of the three decisions was wrong. This entry exists so the next person
+reading a baseline document does not independently "fix" a shipped name to
+match whichever PDF they happen to have open.
+
+**The index count and naming resolve to neither document, checked against
+`v1_initial.dart` rather than assumed.** The shipped 11 indexes split three
+ways: `idx_tx_date`, `idx_tx_account_date`, `idx_tx_category` and
+`idx_tx_type_date` take the DBD's `idx_tx_*` convention exactly; three more —
+`idx_plan_allocations_plan`, `idx_receipt_items_scan`,
+`idx_keyword_dict_keyword` — take the SDD's fuller names exactly, not the
+DBD's shorter `idx_plan_alloc_plan` / `idx_receipt_items` /
+`idx_keyword_lookup`; and four have no baseline counterpart at all —
+`idx_tx_receipt_scan` (neither document's name for this index), plus
+`idx_splits_transaction`, `idx_splits_category` and `idx_recurring_next_due`
+for the errata-added tables neither baseline knew about. The two indexes the
+DBD proposed on `accounts` and `categories` (`idx_accounts_user`,
+`idx_cat_user_type`) were never built — nothing in the query patterns either
+document lists has needed them yet. Recorded as a fact about the schema, not a
+defect: an index list drawing its naming from whichever baseline named a given
+index better is a reasonable outcome, but it is not the outcome either
+document, read alone, would lead anyone to expect.
+
+---
+
+<a id="e-31"></a>
+
+## E-31 — Three DBD schema gaps that will bite a specific sprint
+
+**Severity:** Medium · **Affects:** DBD §3.1 (`passcode_hash`), §9.1 (seed
+colours), §3.9 (`receipt_scans`)
+
+Three defects in the DBD's schema, each inert today and each one a concrete
+problem the moment the sprint that depends on it starts. Grouped because none
+is a naming disagreement or a document contradicting itself — each is the DBD
+specifying something that will not work as written, discovered before the
+sprint that would have hit it rather than during.
+
+**1. `passcode_hash` is specified as a bare SHA-256 hash, for Sprint 7.**
+DBD §3.1: *"SHA-256 hash of PIN (null = no passcode)"* — no salt column, no
+KDF, no iteration count. A 4-digit PIN is a 10,000-value search space; SHA-256
+computes in nanoseconds, so a bare hash is reversible by brute force about as
+fast as it can be read off disk. There is also no column anywhere for the
+lockout state NFR-SEC-003's 5-attempt exponential backoff requires — nothing
+to persist an attempt count or a lockout-until timestamp against.
+
+*Severity is Low for confidentiality specifically*, not Medium: this hash
+never protects the data. The SQLCipher key that actually encrypts the database
+is generated independently by `EncryptionKeyStore` and held in the platform
+keychain — it is not derived from the PIN, so a broken passcode hash does not
+unlock the database. What it would fail to protect is the passcode gate
+itself: with no salt and no backoff storage, defeating the *lock screen* is
+fast, even though the *data behind it* is not exposed by that path.
+
+*Resolution:* the DBD's schema text is superseded, not merely annotated.
+`passcode_hash` becomes the output of a proper KDF (PBKDF2 or Argon2, matching
+whatever `local_auth`'s ecosystem already pulls in) over the PIN plus a
+per-install random salt, and two columns are added for lockout state: a
+failed-attempt counter and a lockout-expiry timestamp. This is schema work for
+Sprint 7 to build against, not a Sprint 3 migration — recorded now so Sprint 7
+does not implement the DBD literally and ship a security feature that does not
+secure anything.
+
+**2. The DBD's seed colours collide; the shipped seed's do not — for this
+pair.** DBD §9.1 assigns Bills and Health the identical `#E53935`. Checked
+against `default_seed.dart` before writing this entry rather than assumed: the
+shipped seed does not carry the DBD's colour table forward at all. It defines
+its own light/dark pair per category (`colorLight` / `colorDark`), and Bills
+is blue (`#2a78d6`) while Health is pink (`#e87ba4`) — no collision, for this
+pair, in the code that will actually render Sprint 4's chart.
+
+*Resolution: the DBD's §9.1 colour table is superseded by the shipped seed,
+not amended.* No Sprint 4 action follows from the DBD's Bills/Health pairing
+specifically.
+
+**That check surfaced a real collision the DBD's table gives no reason to
+expect, because it uses different colours than the DBD's table entirely.**
+`default_seed.dart` pairs each of its three income categories with an
+expense category sharing its exact `colorLight`/`colorDark`: Bills and
+Deposits (`#2a78d6`/`#3987e5`), Entertainment and Salary (`#eda100`/`#c98500`),
+Gifts and Savings (`#008300`/`#008300`). FR-RPT-001's donut chart shows
+*expense* distribution only, so under that one chart these pairs likely never
+render together — but "likely" is doing real work in that sentence, and
+FR-RPT-004's income-vs-expense bars are a second surface with no stated colour
+rule at all. **Flagged for whoever builds Sprint 4's charts to verify against
+the actual chart set being built, not resolved here** — this entry exists to
+record that the check was done and what it found, not to guess at every
+report screen's colour needs before a single chart exists.
+
+**3. `receipt_scans` has no column for the receipt ID or number, for Sprint 6.**
+FR-RCP-005 requires parsing *"receipt total, tax/VAT amount (if present), and
+receipt ID/number."* DBD §3.9's `receipt_scans` table stores `image_path`,
+`merchant_name`, `receipt_date`, `total_amount`, `tax_amount`,
+`confidence_score`, `status`, `item_count` and timestamps — nothing for the
+receipt's own printed identifier.
+
+*Resolution:* add `receipt_number TEXT NULLABLE` to `receipt_scans` when
+Sprint 6's migration is written. Nullable because not every receipt prints one
+legibly, and FR-RCP-011's low-confidence handling already has to cope with a
+field OCR could not read. No migration exists yet to amend — this is scoped as
+a note for whoever writes Sprint 6's schema change, not a v1 migration to ship
+now for a column nothing reads.
 
 ---
 

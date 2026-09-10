@@ -37,6 +37,7 @@ flutter analyze                       # must be clean
 flutter test                          # must pass
 dart format .
 bash scripts/check_architecture.sh    # layer boundaries
+bash scripts/check_citations.sh       # every cited FR-/NFR-/E- ID must exist
 dart run build_runner build --delete-conflicting-outputs
 ```
 
@@ -72,4 +73,8 @@ dart run build_runner build --delete-conflicting-outputs
 
 Requirement IDs (`FR-EXP-001`, `NFR-PER-006`, ...) are the shared vocabulary
 between the SRS, the code, and the commit log. When implementing a requirement,
-name it in the doc comment of the class that satisfies it.
+name it in the doc comment of the class that satisfies it. Check the ID
+against `docs/specs/REQUIREMENTS_INDEX.md` (or `docs/SPEC_ERRATA.md` for an
+`E-` ID) before citing it — E-25 exists because a wrong ID looked exactly like
+a checked fact, and `scripts/check_citations.sh` now catches one that doesn't
+exist in either document on every push.

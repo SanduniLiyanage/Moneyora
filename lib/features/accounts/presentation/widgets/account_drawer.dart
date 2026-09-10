@@ -232,7 +232,7 @@ class _AccountTile extends StatelessWidget {
   };
 }
 
-/// The two empty states this list can reach. E-22, NFR-USA-001.
+/// The two empty states this list can reach. E-22.
 ///
 /// E-22's rule is that "nothing yet" and "nothing matching the filter" are
 /// different sentences, and its own table then lists Accounts as a surface
