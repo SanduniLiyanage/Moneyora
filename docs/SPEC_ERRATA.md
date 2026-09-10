@@ -42,6 +42,8 @@ follows the Resolution sections.
 | [E-24](#e-24) | High | Copilot specifies five tools, three of which wrap nothing | Resolved |
 | [E-25](#e-25) | Medium | Accounts slice cites requirement IDs belonging to other requirements | Resolved |
 | [E-26](#e-26) | Low | FR-ACC-006 names icons that are other companies' trademarks | Resolved |
+| [E-27](#e-27) | Medium | Category reads live in `core/database/`, outside a feature slice | Resolved |
+| [E-28](#e-28) | Medium | NFR-PER-006 cannot be verified on the development hardware | Mitigated |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -56,6 +58,20 @@ FR-ACC list against the citations the accounts slice already carried. It is the
 first entry raised against **the code's traceability** rather than against a
 baseline: the requirement text is correct, and the code points at the wrong
 parts of it.
+
+**E-27 and E-28** were raised on 2026-09-10, auditing the repository's own
+status claims against what the code and the hardware actually do. Like E-25,
+neither is a defect in a baseline: E-27 records a departure from the
+vertical-slice build order that only a source file's doc comment described, and
+E-28 records a requirement the development machine cannot verify — E-19's shape,
+applied to performance instead of platform.
+
+Not every gap found that day became an entry. The ROADMAP had never scheduled
+FR-EXP-004, FR-EXP-005 or FR-EXP-011, which is a **plan** defect rather than a
+specification one: the SRS specifies all three correctly. It is fixed in
+[`ROADMAP.md`](ROADMAP.md) and deliberately not recorded here — this register is
+for the baselines being wrong, and an entry that stretches to cover scheduling
+mistakes makes every other entry mean less.
 
 **E-21 to E-23** were raised on 2026-09-03 — see [Amendment B](#amendment-b).
 They are omissions of the same kind, found by asking a different question: not
@@ -358,6 +374,75 @@ measure before asserting.
 It is now a 280 MB tripwire for "someone committed something enormous", and is
 explicitly not the SRS budget. The real 80 MB gate measures a **release** build,
 split per ABI, and lands in Sprint 10 alongside store preparation.
+
+### Addendum, 2026-09-10 — the first release measurement, and a broken build
+
+`google_mlkit_text_recognition` was queried as a candidate for deferral: it
+ships native binaries, it inflates the artefact today, and the receipt scanner
+that uses it does not start until Sprint 6. It is imported nowhere in `lib/` or
+`test/`. Measuring the delta turned up something larger than the delta.
+
+**`flutter build apk --release` fails, and ML Kit is the cause.**
+
+```
+ERROR: Missing classes detected while running R8.
+ERROR: R8: Missing class
+  com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions$Builder
+  (referenced from: com.google_mlkit_text_recognition.TextRecognizer.initialize)
+Execution failed for task ':app:minifyReleaseWithR8'.
+```
+
+The plugin references the script-specific recognisers — Chinese, Devanagari,
+Japanese, Korean — which are separate artefacts it does not depend on. R8 sees
+unresolvable references and stops. The fix is either the script dependencies or
+`-dontwarn` keep rules in `android/app/proguard-rules.pro`; neither is written.
+
+**Why nobody noticed: CI builds a debug APK.** Debug does not run R8, so the
+minifier has never executed on this project in CI. This is E-09's own failure
+mode a second time — the entry above records a ceiling that "CI passed while
+every local build failed", and here CI passes while the release build cannot be
+produced at all. A gate that measures a different artefact from the one being
+claimed is not a gate.
+
+**The measurement, such as it could be taken.** With ML Kit the build does not
+complete, so no delta exists to report. Without it:
+
+| Artefact | Size |
+|---|---|
+| Release APK, **universal** (all ABIs), no ML Kit | **67.1 MB** (70,401,693 bytes) |
+| Release APK with ML Kit | **could not be built** |
+
+**Read that 67.1 MB carefully — it is not 67.1 MB against the 80 MB budget.**
+`flutter build apk --release` produces one fat APK carrying every ABI. The
+80 MB figure binds a **per-ABI** artefact, which is roughly a third of the
+universal one. So the budget is not in danger today, and this addendum is not
+an alarm about it.
+
+What it does establish, for the first time with a number rather than an
+estimate, is a baseline to measure the scanner against when Sprint 6 adds it,
+and that the per-ABI split the gate depends on is not optional — it is the
+difference between comfortably inside the budget and arguing about it.
+
+**Decided 2026-09-10, and scheduled ahead of Sprint 3's remaining items:**
+
+1. **Fix R8 with keep rules, not with dependencies.**
+   `android/app/proguard-rules.pro` does not exist and minify is configured
+   nowhere; add the file with `-dontwarn` for the Chinese, Devanagari, Japanese
+   and Korean recognisers, and wire it into the release `buildType`. Adding the
+   four missing dependencies would also satisfy R8, and is rejected: it ships
+   four text-recognition models the app never calls into an artefact with an
+   80 MB budget. Latin is the only script the scanner needs.
+2. **CI must build a release artefact.** Debug-only is why this survived 38
+   pull requests. On every PR if that is affordable, on pushes to `main` if it
+   is not — but automated either way.
+3. **Re-measure with `--split-per-abi` once the build works**, and record that
+   figure here. Until then the table above stands with its caveat and is not
+   evidence about the budget.
+
+The ML Kit dependency is **not** being deferred out of `pubspec.yaml`. Once R8
+is fixed the plugin builds, and the question that prompted this measurement —
+whether to carry it before Sprint 6 — turns out to be smaller than the R8
+problem it uncovered.
 
 ---
 
@@ -668,6 +753,43 @@ Point 3 is the reconciliation the DBD lacks, and it doubles as the test oracle:
 a property test asserting *cached == recomputed* after a random sequence of
 writes catches every missed update path at once, which no amount of manual
 testing reliably does.
+
+### Addendum, 2026-09-10 — point 3 is built but unreachable
+
+Point 3 above is written in the present tense and, as of `7c917a7`, one third of
+it is not true. `RecomputeAccountBalance` exists, is tested, and is wired into
+`injection.dart` at `recomputeAccountBalanceProvider` — and **nothing in the
+application calls it.** Not on app start, not after a restore, not from a
+screen. Its only callers are the DI registration and the tests.
+
+`ROADMAP.md` stated that it "has no caller outside app start", which read as a
+narrower gap than the real one. There is no app-start caller either.
+
+**It stays manual-only, deliberately, and the reason is NFR-PER-001.**
+Reconciliation is `O(all transactions)` per account. Running it on every launch
+puts a full-history scan on the cold-start path at the exact moment that path is
+already blocking the first frame for roughly ten seconds — the app is being
+worked on to get *under* two seconds, not to add a scan to it. A repair routine
+belongs where repair is asked for.
+
+Two things follow, and both are honest statements of an open gap rather than a
+closed one:
+
+1. **Until the Settings action ships in Sprint 7, E-18's reconciliation is built
+   and unreachable.** The cache-correctness half of E-18 *is* satisfied — every
+   balance change happens inside the writing transaction, and
+   `_recomputeWithin` re-derives on edit — so the drift this entry was raised
+   about cannot currently accumulate through the app's own write paths. What is
+   unreachable is the repair for drift that arrives from outside them: a
+   restored backup, a crash mid-write, or a database edited by hand.
+2. **"Runs on app start after a restore" is deferred to the restore feature that
+   would trigger it**, in Sprint 8. There is no restore path today, so there is
+   nothing for an app-start reconciliation to follow. It belongs with the
+   restore, not ahead of it.
+
+Point 3 should be read as: re-derives from `initial_balance_cents` plus all
+transactions; reachable from a Settings action (Sprint 7) and from the restore
+path (Sprint 8); never on an unconditional launch.
 
 ---
 
@@ -1160,6 +1282,139 @@ answer than a wallet.
 **Not withdrawn.** If the app is ever distributed somewhere that makes brand
 assets worth licensing, the catalogue is a list to extend and the storage keys
 already accommodate it.
+
+---
+
+<a id="e-27"></a>
+
+## E-27 — Category reads live in `core/database/`, outside any feature slice
+
+**Severity:** Medium · **Affects:** `ARCHITECTURE.md` §2, §5,
+`lib/core/database/entry_catalog.dart`
+
+`ARCHITECTURE.md` §2 states the build order without exception: *"Every feature
+is built in this order"* — entity, repository contract, use case, model,
+datasource, repository impl, then presentation. `entry_catalog.dart` does not
+follow it. It is a read that holds its own SQL, returning the categories and
+accounts an entry screen offers, with no entity, no repository contract and no
+use case beneath it.
+
+The departure was deliberate and the reasoning is sound. It is recorded here
+because **it was written down in exactly one place: the file's own doc comment.**
+No document mentioned the file — not `ARCHITECTURE.md` §5, which exists to say
+where things go, not `HANDOFF.md`, whose `lib/` tree omitted it, and not this
+register. A convention with one undocumented exception is a convention a later
+session will either break or copy, and it cannot tell which it is doing by
+reading the guides.
+
+### Why the departure was made
+
+Categories are not owned by transactions. Analytics groups by them, the Money
+Plan allocates to them, and the receipt scanner classifies into them. Putting
+the read in a `features/categories/` slice and importing it from
+`features/transactions/` would violate rule 4 of `check_architecture.sh` — no
+feature imports another — the moment it was written. `lib/core/` is where
+`ARCHITECTURE.md` §5 already sends anything two features share, and
+`core/database/` is one of the two directories where SQL is permitted, so the
+file sits inside both existing rules while sitting outside the build order.
+
+The alternative — a full categories slice with entities, a contract and use
+cases — was not justified by reading a seeded list that nothing could yet edit.
+
+### Resolution — recorded, and given an end date
+
+1. **`ARCHITECTURE.md` §5 names it**, so the exception is discoverable from the
+   guide rather than only from the source.
+2. **It is retired, not merely revisited.** When the categories slice lands in
+   **Sprint 3.5**, `entry_catalog.dart` is deleted and its two reads move behind
+   that slice's repository. The entry screen's inline `+` (E-13) needs a write
+   path through the same rows, and a read that bypasses the slice its writes go
+   through is how two sources of truth start.
+3. **The deletion is a deliverable of Sprint 3.5**, listed in
+   [`ROADMAP.md`](ROADMAP.md), not an aspiration attached to it.
+
+The original doc comment called this "an interim home" with no end. That phrase
+is why this entry exists: an interim arrangement with no scheduled end is how a
+temporary decision becomes the architecture. Sprint 3.5 is the end.
+
+---
+
+<a id="e-28"></a>
+
+## E-28 — NFR-PER-006 cannot be verified on the development hardware
+
+**Severity:** Medium · **Affects:** NFR-PER-006, NFR-PER-001, NFR-PER-005,
+`ROADMAP.md` Sprint 4
+
+NFR-PER-006 requires *"under 100 ms per analytics query at 10,000
+transactions"*. `ROADMAP.md` Sprint 4 says to seed 10,000 rows and measure, and
+the risk register says to *"benchmark on a real device from Sprint 4"* — while
+the same register states that *"emulator timings do not reflect NFR-PER
+targets"*. The plan therefore instructed a measurement and, in the next table,
+explained why that measurement would not count.
+
+Development is on a Windows machine with an Android emulator. Physical Android
+access exists but is **occasional and by arrangement** — a borrowed device, not
+one available on the day a sprint needs it. A plan that blocks Sprint 4 on it
+blocks Sprint 4 on someone else's calendar.
+
+### Resolution — split the measurement from the conformance claim
+
+This is E-19's shape applied to performance rather than platform: run what the
+available hardware can genuinely establish, and state precisely what it does
+not.
+
+**Sprint 4 runs the benchmark on the emulator, and the numbers are labelled
+comparative, not conformant.** They are recorded as *"emulator, comparative"*
+wherever they appear.
+
+**What an emulator number proves:** that a query's cost scales as expected with
+row count; that an index is present and being used; and that a change made the
+query faster or slower, and by roughly what factor. A missing index is a
+multiple, not a margin — it survives translation to real hardware intact. This
+is the majority of what goes wrong in a query plan, and Sprint 4 is when fixing
+it is cheap.
+
+**What it does not prove:** that any NFR-PER threshold is met. The emulator runs
+on desktop CPU and desktop I/O. An absolute millisecond figure from it is not
+evidence about a phone, in either direction, and **no emulator measurement may
+be cited as satisfying NFR-PER-006.**
+
+**Benchmark query time, not frame time.** Query time is CPU- and I/O-bound and
+its relative behaviour transfers; frame timings depend on the emulator's
+rendering path and transfer to nothing.
+
+**Sprint 4 does not block on the device.** Conformance is confirmed in the
+device session, which is batched as a single ordered checklist in
+[`HANDOFF.md`](HANDOFF.md) precisely because access is occasional.
+
+### What the device session must record
+
+A timing without a machine attached to it proves nothing, and *"47 ms"* on its
+own is not a measurement. Every figure from the device session is recorded with:
+
+- **device model** and **Android version**
+- **RAM**, and whether the build was **debug or release**
+- the **row count** the query ran against
+- whether the device was **plugged in** — thermal and governor state move
+  timings more than most code changes do
+
+### One exception, and it is not on the device list
+
+**NFR-PER-001's cold start is measured on the emulator and fixed there.** The
+current ten-second stall with 608 skipped frames is a main-thread block —
+the database opens during the first frame. That is a structural fault in
+where the work happens, not a slow machine: it reproduces on any hardware and
+the fix, a splash screen and an off-main-thread open, is verifiable without the
+phone. It is promoted to a Sprint 4 deliverable ahead of the charts. Only the
+*confirmed sub-2-second figure* needs the device.
+
+### Residual risk
+
+Accepted. Until the device session happens, no NFR-PER requirement is
+verified, and the repository must not claim otherwise. "Fast on the emulator"
+and "meets NFR-PER-006" are different assertions, and only the first is
+available.
 
 ---
 

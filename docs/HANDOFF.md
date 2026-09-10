@@ -1,7 +1,28 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-09**, `main` at `8c97daf`, after 36
-merged pull requests.
+State of the project as of **2026-09-10**, `main` at `7c917a7`, after **37
+merged pull requests** (#2–#38; #1 was closed unmerged).
+
+### The numbers, measured — and the only place they live
+
+Every figure below was produced by running the command beside it at `7c917a7`
+with a clean tree. **This section is the single source of truth for counts.**
+`README.md` and `ARCHITECTURE.md` link here rather than restating them: a number
+kept in one place goes stale once, and a number kept in three places goes stale
+three times and then disagrees with itself, which is worse than being merely out
+of date.
+
+| Figure | Value | Command |
+|---|---|---|
+| Tests | **557 passing** | `flutter test` |
+| Analyzer | **0 issues** | `flutter analyze` |
+| Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
+| Domain line coverage | **96.8%** — 306 of 316 lines, 26 files | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
+| Dart files | 77 in `lib/`, 39 in `test/` | `find lib -name '*.dart' \| wc -l` |
+
+Tests by area, summing to 557: transactions 148 · core 112 · copilot 103 ·
+widget 86 · accounts 75 · analytics 29 · injection 4.
 
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
@@ -37,9 +58,15 @@ terminal commands that go with it, and no step is done until `flutter analyze`,
 conversation: SRS v1.0, SDD v1.0, DBD v1.0 and an ERD. They are the approved
 baseline and are **left exactly as approved**.
 
-They also contradict each other and themselves. Auditing them before writing
-any schema turned up **twenty defects**, recorded in
-[`SPEC_ERRATA.md`](SPEC_ERRATA.md). Four blocked Sprint 1 outright.
+They also contradict each other and themselves. The first audit, before any
+schema was written, turned up **twenty defects**, four of which blocked Sprint 1
+outright. Later passes added more, and
+[`SPEC_ERRATA.md`](SPEC_ERRATA.md) now holds **28 entries: 26 resolved or
+clarified, 1 mitigated (E-19), 1 withdrawn (E-12)**, with six classed blocking
+across the whole register rather than only the first audit's four.
+
+That register is the single source of truth for its own counts, the way this
+file is for test and coverage counts.
 
 **Where a baseline and the errata disagree, the errata wins.** The ones that
 shape the code most:
@@ -56,6 +83,8 @@ shape the code most:
 | E-19 | iOS is **compile-verified only**; it has never run on a device |
 | E-20 | iOS floor is 15.5, not 14 — ML Kit requires it |
 | E-25 | Four FR-ACC citations named the wrong requirements; **FR-ACC-007** raised for `DeleteAccount`, which had none. FR-ACC-005 deferred to Sprint 7 |
+| E-27 | `entry_catalog.dart` sits outside a feature slice on purpose — and is **deleted in Sprint 3.5**, which is what stops "interim" becoming permanent |
+| E-28 | NFR-PER-006 cannot be verified here. Emulator timings are **comparative, never conformant**; no sprint blocks on the borrowed device |
 
 When implementing anything, check the errata for its requirement ID first.
 E-25 is the reason to check rather than copy a neighbouring file's citation:
@@ -66,12 +95,27 @@ the wrong IDs in the accounts slice were all copied from each other.
 ## What is built
 
 **Sprints 1 and 2 are complete**, both verified running on an Android
-emulator. **Sprint 3 is nearly done**: PR #28 landed the accounts domain and
-data layers with E-18's reconciliation, and the screens followed — the side
-panel (FR-ACC-003), the create-and-edit form with its icon catalogue
-(FR-ACC-001, 002, 006), archiving, restoring and deleting (FR-ACC-004,
-FR-ACC-007), and the transfer screen (FR-TRF-001 to 003). What is left is the
-entry screen's account selector and FR-TRF-004's row labels.
+emulator. **Sprint 3 has two items left**: PR #28 landed the accounts domain and
+data layers, and the screens followed — the side panel (FR-ACC-003), the
+create-and-edit form with its icon catalogue (FR-ACC-001, 002, 006), archiving,
+restoring and deleting (FR-ACC-004, FR-ACC-007), and the transfer screen
+(FR-TRF-001 to 003). Outstanding: the entry screen's account selector
+(FR-EXP-001) and FR-TRF-004's row labels. Both verified still unbuilt at
+`7c917a7`.
+
+**Sprint 3.5 — categories — is new**, added 2026-09-10 and slotted between
+Sprints 3 and 4. FR-EXP-004, FR-EXP-005 and FR-EXP-011 had been scheduled in no
+sprint at all, while analytics, the Money Plan and the receipt scanner all
+depend on categories being something the user controls. That was a defect in the
+plan rather than in the SRS, so it is fixed in [`ROADMAP.md`](ROADMAP.md) and
+deliberately raised no errata entry. It also gives [E-27](SPEC_ERRATA.md) a
+sprint in which to retire `entry_catalog.dart`.
+
+**Sprint 4 — analytics — has domain and data only.** `GetSpendingByCategory`,
+its datasource and its repository are in and tested;
+`features/analytics/presentation/` is empty in all three of its
+subdirectories. There is no chart. `fl_chart` is declared in `pubspec.yaml` and
+imported nowhere.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -87,19 +131,27 @@ lib/
 │   │   ├── database_helper.dart         SQLCipher open + migration runner
 │   │   ├── database_summary.dart        row counts (SQL lives here, not in DI)
 │   │   ├── encryption_key_store.dart    AES-256 key -> platform keychain
+│   │   ├── entry_catalog.dart           the entry screen's categories+accounts
+│   │   │                                read. Outside a feature slice on
+│   │   │                                purpose — E-27. Deleted in Sprint 3.5.
 │   │   └── seed/
 │   │       ├── default_seed.dart        15 expense + 3 income categories
-│   │       └── dev_seed.dart            ~700 synthetic transactions, 24 months
+│   │       └── dev_seed.dart            >500 synthetic transactions, 24 months
 │   ├── errors/          Failure + Exception hierarchies
-│   ├── network/         NetworkInfo — the abstract connectivity check
+│   ├── network/         network_info.dart      — the abstract check
+│   │                    connectivity_network_info.dart — its implementation
 │   ├── ports/           contracts two features share (see ARCHITECTURE §5)
-│   ├── router/          go_router, 6 routes: 3 real screens, 3 stubs
+│   ├── router/          go_router, 8 routes: 5 real screens, 3 stubs
 │   ├── theme/           indigo/amber, contrast-verified light + dark
 │   ├── usecases/        UseCase<T, Params> base
-│   └── utils/           currency_utils, date_utils — the only formatters
+│   ├── utils/           currency_utils, date_utils, amount_expression
+│   └── widgets/         account_icons.dart — E-26's 25-icon catalogue
 ├── features/
 │   ├── accounts/        full slice: panel, form, icons, archive, delete
-│   ├── analytics/       spending-by-category: domain + data, no charts yet
+│   │                    + account_totals.dart, the entity carrying E-25's
+│   │                    "what the total left out" line
+│   ├── analytics/       spending-by-category: domain + data. presentation/ is
+│   │                    EMPTY — no charts. Sprint 4.
 │   ├── copilot/         all three layers. The only http in the application
 │   ├── home/            Sprint 1 proof screen, still the home route
 │   └── transactions/    full slice: keypad entry, list, filter, edit, undo
@@ -108,15 +160,26 @@ lib/
 └── main.dart         ProviderScope
 ```
 
-**557 tests pass; domain-layer line coverage is 96.8% against a 75% floor**
-(306 of 316 lines, across 26 files). CI runs format, analyze, tests, that
-coverage floor, the architecture boundary check, an Android APK build and an
-iOS compile — all three jobs blocking.
+**Not started — scaffold directories with zero `.dart` files:** `auth/`,
+`backup/`, `categories/`, `money_plan/`, `receipt_scanner/`, `settings/`, plus
+`core/constants/` and `core/extensions/`. An empty directory is *not started*;
+none of these is in progress.
 
-Ten lines are uncovered, at five sites: the unreachable `default` arms in
-`transaction_repository.dart` and `analytics_repository.dart`, `copyWith` on
-`category_total.dart` and `tool_exchange.dart`, and one guard in
-`run_copilot_query.dart`.
+The three routes with no screen behind them are `moneyPlan`, `scanReceipt` and
+`settings`, which are stubs. The five real ones are `home`, `transactions`,
+`copilot`, `transfer` and `accountForm`.
+
+Test and coverage figures are in **the table at the top of this file**, which
+is the only place they are written down. CI runs format, analyze, tests, the
+75% domain coverage floor, the architecture boundary check, an Android APK
+build and an iOS compile — all three jobs blocking. Note that the Android job
+builds a **debug** APK; the release build is currently broken, which is why
+that goes unnoticed. See the Environment section.
+
+The ten uncovered domain lines sit at five sites, verified at `7c917a7`: the
+unreachable `default` arms in `transaction_repository.dart` and
+`analytics_repository.dart`, `copyWith` on `category_total.dart` and
+`tool_exchange.dart`, and one guard in `run_copilot_query.dart`.
 
 `ArchiveParams`' const constructor comes and goes from that list between runs
 with no change to the file — a const constructor evaluated at compile time can
@@ -128,7 +191,10 @@ gate prints, not a differently-scoped one.
 
 ### The dev seed is a test oracle, not filler
 
-`dev_seed.dart` generates deliberately shaped data so Sprint 5 can assert the
+`dev_seed.dart` generates over 500 transactions across 24 months — the figure
+was carried as "~700" for a while, but `dev_seed_test.dart` only asserts
+`greaterThan(500)`, so 500 is what is actually guaranteed. It generates
+deliberately shaped data so Sprint 5 can assert the
 classifier reaches the right verdict rather than merely running: Bills is a
 fixed cost (CV < 0.15), Food is noisy, Gifts spikes each April and December,
 Car climbs 8% a month, Pets has three transactions total and must score LOW
@@ -139,7 +205,35 @@ run cannot be an oracle.
 
 ## What is next
 
-**The last two pieces of Sprint 3.** The accounts side is finished — panel,
+**First, before any feature work: make the release build work, and make CI
+run it.** Decided 2026-09-10, ahead of Sprint 3's remaining items.
+
+`flutter build apk --release` fails at R8 (details under Environment below).
+The fix is three pieces, and the third is the one that matters most:
+
+1. **`android/app/proguard-rules.pro`** — the file does not exist, and minify
+   is configured nowhere. Add `-dontwarn` rules for the script-specific ML Kit
+   recognisers this app does not use: Chinese, Devanagari, Japanese and Korean.
+   Latin is the only one the receipt scanner needs.
+
+   **Do not add the missing dependencies to satisfy R8.** That is the answer
+   most search results give, and it ships four text-recognition models the app
+   never calls — trading a build error for permanent bloat in an artefact that
+   has an 80 MB budget.
+
+2. **Wire it into the release `buildType`** in `android/app/build.gradle`.
+
+3. **Make CI build a release artefact.** Debug-only is what let this hide for
+   38 pull requests: debug does not run R8, so the minifier has never executed
+   on this project. If a release build on every PR is too slow, run it on
+   pushes to `main` instead — but it has to run somewhere automated, or the
+   next R8 regression hides exactly as long as this one did.
+
+Then **re-measure with `--split-per-abi`** and record it in
+[E-09](SPEC_ERRATA.md). The 67.1 MB universal figure is not comparable to the
+80 MB budget, which binds a per-ABI artefact.
+
+**Then the last two pieces of Sprint 3.** The accounts side is finished — panel,
 form, archiving, restoring, deleting — and so is the transfer screen.
 Outstanding: the entry screen's account selector, still pinned to the first
 account because a picker with one option is not a picker, and FR-TRF-004's
@@ -161,11 +255,35 @@ assembled, the way `injection.dart` is the only file allowed to name a
 concrete `data/` class. Any later screen needing another feature's widget goes
 the same way.
 
-Three things are built, tested, wired into DI, and idle for want of a screen
-that calls them: `MakeTransfer`, the datasource's `createTransfer`, and
-`RecomputeAccountBalance`. The last one's oracle already exists as a property
-test in `transaction_local_datasource_test.dart`: after a random sequence of
-writes, the cached balance must equal the balance recomputed from history.
+**One thing is built, tested, wired into DI and still called by nothing:
+`RecomputeAccountBalance`.** Not on app start, not after a restore, not from a
+screen — its only references are `injection.dart`'s
+`recomputeAccountBalanceProvider` and the tests.
+
+This paragraph used to name three such things, including `MakeTransfer` and the
+datasource's `createTransfer`. That stopped being true when the transfer screen
+landed in PR #38: `transfer_page.dart` and `transaction_providers.dart` both
+call `MakeTransfer` now. The claim survived the PR that falsified it, which is
+worth noticing — a "what is idle" list is exactly the kind of prose that goes
+stale silently, because nothing fails when it does.
+
+`RecomputeAccountBalance` stays manual-only on purpose, and the reasoning is in
+the [E-18 addendum](SPEC_ERRATA.md). Reconciliation is `O(all transactions)` per
+account; putting a full-history scan on the launch path is the opposite of what
+Sprint 4 does to NFR-PER-001. It gets its caller from the Settings action in
+Sprint 7 and from the restore path in Sprint 8.
+
+Be precise about what that leaves open. E-18's *cache correctness* is satisfied
+— every balance change happens inside the same transaction as the row that
+caused it, and `_recomputeWithin` re-derives on edit — so drift cannot
+accumulate through the app's own write paths. What has no reachable repair is
+drift arriving from outside them: a restored backup, a crash mid-write, a
+database edited by hand. Until Sprint 7, that repair is built and unreachable,
+which is not the same as done.
+
+Its oracle already exists as a property test in
+`transaction_local_datasource_test.dart`: after a random sequence of writes, the
+cached balance must equal the balance recomputed from history.
 
 Sprint 3 is planned as eight independently mergeable slices. Three things
 decided while planning it are worth knowing before touching the code:
@@ -186,32 +304,108 @@ decided while planning it are worth knowing before touching the code:
   otherwise silence the rest — and a datasource given none makes a private
   one, which is how every unit test constructs them.
 
+**Then Sprint 3.5 — categories.** New as of 2026-09-10; see
+[`ROADMAP.md`](ROADMAP.md). FR-EXP-004 (custom categories), FR-EXP-005 (the
+two-level hierarchy) and FR-EXP-011 (the category-grouped list) were in no
+sprint, E-13's inline `+` was deferred to a "categories work" that no sprint
+named, and [E-27](SPEC_ERRATA.md)'s `entry_catalog.dart` needed somewhere to be
+retired into. One sprint answers all four.
+
 **Then Sprint 4 — analytics.** Its first query is already in:
 `GetSpendingByCategory`, with the datasource, the repository and the DI wiring,
-tested against `dev_seed`'s 24 months for the E-02 and E-04 traps. What remains
-is the donut chart itself, period filters, and the rest of the reports.
+tested against `dev_seed`'s 24 months for the E-02 and E-04 traps.
 
-Two notes for that work:
+Four notes for that work:
 
-- The same query is what the Copilot's spending tool reads, through
+- **The cold start is fixed before the charts.** The database opens during the
+  first frame and stalls the UI for roughly ten seconds (`Skipped 608 frames` in
+  logcat). NFR-PER-001 requires a sub-2-second cold start, so the app misses it
+  by a factor of five on the first thing anyone sees. It needs a splash screen
+  and an off-main-thread open. This is a main-thread block, so it reproduces
+  anywhere and the fix is verifiable on the emulator — it does **not** wait for
+  the borrowed phone.
+- **The 10k-row benchmark is comparative, not conformant.** Seed 10,000 rows and
+  measure **query time, not frame time**. Per [E-28](SPEC_ERRATA.md), the
+  emulator can prove an index is present and being used and that a change made a
+  query faster — a missing index is a multiple, not a margin — but no emulator
+  number may be cited as satisfying NFR-PER-006. Label every figure *"emulator,
+  comparative"*.
+- **`get_income_for_period` and `compare_periods` are Sprint 4 deliverables**,
+  not Copilot work. [E-24](SPEC_ERRATA.md) requires each to be an analytics use
+  case first and a tool second, so no aggregate is written twice and reporting
+  logic stays out of the chat feature.
+- The category-total query is what the Copilot's spending tool reads, through
   `core/ports/spending_by_category_reader.dart`. Change what counts as
   spending in one place and both move together — that is the point.
-- The database opens during the first frame and stalls the UI for roughly ten
-  seconds (`Skipped 608 frames` in logcat). NFR-PER-001 requires a sub-2-second
-  cold start, so this needs a splash screen and an off-main-thread open.
 
 **The Copilot is a parallel workstream, not a sprint.** All three layers are
 built and reachable at `/copilot` from the home screen: the agent loop, the
 spending tool over the real database, the Gemini datasource, the egress guard,
 and the ask screen with its key entry.
 
-What remains is not code. It needs a free Google AI Studio key typed into the
-screen on a running device, and then one real question asked. Until that
-happens the feature is unproven against the live API — the wire format is
+What remains is not code, and **it does not need the borrowed phone.** It needs
+the Gemini API key typed into the screen and one real question asked — on the
+**emulator**, which has network access. This was carried as "on a running
+device" for a while, which parked the last unproven part of the feature behind
+hardware for no reason. Do it in the next emulator session.
+
+Until then the feature is unproven against the live API: the wire format is
 built to the documented shape and covered by tests, but no test can tell you
-Google accepts it. It does not jump ahead of Sprint 5 or Sprint 6 —
-two of its five specified tools wrap features those sprints build, which is
-recorded as [E-24](SPEC_ERRATA.md).
+Google accepts it. It does not jump ahead of Sprint 5 or Sprint 6 — two of its
+five specified tools wrap features those sprints build, which is recorded as
+[E-24](SPEC_ERRATA.md).
+
+## The device session — one batched checklist
+
+Physical Android access is **occasional and by arrangement**, not on demand. So
+everything that genuinely needs real hardware is collected here, in order, to be
+done in one sitting. **No sprint blocks on this list** ([E-28](SPEC_ERRATA.md)).
+
+The rule for what belongs here: **if it can be done on the emulator, it is not
+on this list.** Two things were on it and have been taken off — the Copilot's
+live-API question (the emulator has network) and the cold-start *fix* (a
+main-thread block reproduces anywhere). Only the confirmed cold-start *number*
+remains.
+
+Do these in order; each later step benefits from the seed loaded in step 2.
+
+**Before you go — prepare on the emulator, so the phone time is measurement
+only:**
+
+- [ ] Build and install a **release** APK, not debug. Debug builds carry every
+      ABI and unstripped symbols, and their timings are not the ones the NFRs
+      are about. **This does not currently work** — see the release-build note
+      under Environment below. Fix that first or the session is wasted.
+- [ ] Have the 10k-row seed ready to load, and know how you will time a query.
+- [ ] Charge the phone and keep it plugged in during timing.
+
+**On the device:**
+
+1. [ ] **Record the machine before recording any number.** Device model,
+       Android version, RAM, release-or-debug build, and whether it is plugged
+       in. An unattributed "47 ms" proves nothing; thermal and governor state
+       move timings more than most code changes do.
+2. [ ] **Load the 10k-row seed** and run the analytics query benchmark. These
+       are the figures that can be cited against **NFR-PER-006** (<100 ms per
+       query at 10,000 transactions). Record query time, not frame time.
+3. [ ] **Cold-start timing** for **NFR-PER-001** (<2 s). Kill the app fully
+       first — a warm start measures nothing. Do this *after* the Sprint 4
+       splash-screen fix, or you are only confirming the bug.
+4. [ ] **NFR-PER-005** — the category picker and donut chart at 50 categories,
+       per [E-10](SPEC_ERRATA.md)'s "tested to 50, never refuses the 51st".
+5. [ ] **The Copilot demo recording.** The live-API *proof* happens earlier on
+       the emulator; what needs the phone is a recording that looks like an app
+       rather than a desktop window.
+6. [ ] **General walkthrough** on real hardware: add an expense on a real
+       keyboard, a transfer, archive and delete an account, scroll a long list,
+       rotate the screen, and check the dark theme in real light.
+7. [ ] **Write every number straight into this file** before handing the phone
+       back, with its machine attributes attached. A figure remembered is a
+       figure lost.
+
+**Not on this list, and deliberately:** anything iOS. That needs a Mac as well
+as a device and is a separate, unscheduled problem — see
+[E-19](SPEC_ERRATA.md).
 
 ### Seeing the app with real data
 
@@ -243,6 +437,28 @@ decimal API level AGP 9.1.0 cannot resolve. `flutter_secure_storage` is pinned
 to 10.3.1 because version 11 demands 37. CI passed with 37 while every local
 build failed, since GitHub's runners carry an integer `android-37` — a green
 tick that held only on the CI image.
+
+**`flutter build apk --release` currently FAILS.** R8 cannot resolve ML Kit's
+script-specific recognisers, which `google_mlkit_text_recognition` references
+but does not depend on:
+
+```
+ERROR: R8: Missing class
+  com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions$Builder
+Execution failed for task ':app:minifyReleaseWithR8'.
+```
+
+**CI has never caught this because CI builds a *debug* APK, and debug does not
+run R8.** The minifier has never executed on this project in CI. Anything
+needing a release artefact — the device session's timings, the Sprint 10 size
+gate, any store build — is blocked until this is fixed, with either the script
+dependencies or `-dontwarn` rules in `android/app/proguard-rules.pro`.
+
+Measured 2026-09-10 while sizing the ML Kit dependency for
+[E-09](SPEC_ERRATA.md): with the plugin removed the release build succeeds at
+**67.1 MB** universal (all ABIs). That is not 67.1 against the 80 MB budget —
+the budget binds a per-ABI artefact, roughly a third the size — but it is the
+first real release number this project has had.
 
 **`kotlin.incremental=false`** in `android/gradle.properties`. It bought
 nothing here and repeatedly corrupted its own caches.

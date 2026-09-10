@@ -19,9 +19,9 @@ is it a distraction that risks the project?**
 | | |
 |---|---|
 | **It is the most technically substantial feature in the project** | A tool-using agent loop is real orchestration: deciding what to run, validating what comes back, and bounding how long it may go on. Most LLM integrations are a chat box in front of an API; this is not one. |
-| **The hard part is already built and tested** | The agent loop, its termination guarantee, and its handling of malformed model output exist with 24 tests. That is the part that is genuinely difficult and genuinely interesting to talk about. |
+| **The hard part is already built and tested** | The agent loop, its termination guarantee, and its handling of malformed model output are built and covered. That is the part that is genuinely difficult and genuinely interesting to talk about. |
 | **It costs almost no throwaway work** | Its first three tools wrap the aggregate queries Sprint 4 (Analytics) has to build anyway. Building them for the Copilot builds them for the donut chart. |
-| **The data it needs already exists** | `dev_seed.dart` holds ~700 deterministic transactions across 24 months, shaped by category. The agent has something real to reason about today. |
+| **The data it needs already exists** | `dev_seed.dart` holds over 500 deterministic transactions across 24 months, shaped by category. The agent has something real to reason about today. |
 | **The privacy design is a better story than the feature** | An AI feature inside an offline-first, encrypted app sounds like a contradiction. Resolving it — tools run locally, only aggregates leave, an automated test proves it — is a design conversation, not a demo. |
 
 ### What makes it risky, and what is done about each
@@ -178,12 +178,12 @@ Each step is one session, ends green on `flutter analyze`, `flutter test` and
 
 ### ✅ Step 1 — Domain entities and the first tool *(done)*
 `AgentTool`, `ToolCall`, `ToolResult`, `LlmStep`, `CopilotAnswer`, the
-`LlmRepository` contract, `CopilotTool`, and `GetSpendingByCategoryTool` with
-31 tests covering the aggregate, the failure passthrough, and ten kinds of
+`LlmRepository` contract, `CopilotTool`, and `GetSpendingByCategoryTool`,
+covering the aggregate, the failure passthrough, and ten kinds of
 malformed model output.
 
 ### ✅ Step 2 — The agent loop *(done)*
-`RunCopilotQuery` with 24 tests: the single-tool path, the result reaching the
+`RunCopilotQuery`, covering the single-tool path, the result reaching the
 model on the next turn, multi-tool turns, the offline gate, failure
 passthrough, invented tool names, rejected arguments, and termination at
 exactly *N* turns.
@@ -191,7 +191,7 @@ exactly *N* turns.
 ### ✅ Step 3 — The analytics query the app needs anyway *(done)*
 `GetSpendingByCategory` as a real Sprint 4 use case — `CategoryTotal`,
 `DateRange`, the repository contract, the aggregate query, the repository impl
-and the DI wiring — plus 33 tests.
+and the DI wiring, with its tests.
 
 Two traps the query had to get right, both errata: a transfer writes **two**
 rows, so a total that forgets E-02 counts the same movement twice in opposite
@@ -215,7 +215,7 @@ The single-tool path now works end to end, minus the model.
 `GeminiDtos` (the request builder and response parser),
 `GeminiRemoteDataSource` (the only `http` in the application),
 `SecureLlmApiKeyStore`, `LlmRepositoryImpl`, `ConnectivityNetworkInfo`, the DI
-wiring, and 44 tests including the egress guard.
+wiring, and the tests including the egress guard.
 
 Four decisions worth naming:
 
@@ -240,7 +240,12 @@ function call, safety block, 429, unparseable body — is handled in each case.
 
 ### ✅ Step 5 — The screen *(built; needs a real key to prove)*
 `CopilotNotifier`, the ask screen, the loading state, the answer with its tool
-trace, the offline fallback, the `/copilot` route, and 11 widget tests.
+trace, the offline fallback, the `/copilot` route, and its widget tests.
+
+> Test counts used to be written into this file at each step. They drifted —
+> the domain and screen figures were both stale by 2026-09-10 — so exact counts
+> now live only in [`HANDOFF.md`](HANDOFF.md), which records them per area
+> against the command that produces them.
 
 **The API key is entered on the Copilot screen itself, not in Settings.** It
 belongs to this feature alone: without one the Copilot cannot run, and with one
@@ -262,7 +267,12 @@ Three things the screen does deliberately:
 
 **Done when:** *"How much did I spend on food in August?"* is answered on the
 emulator against seeded data. **The code is finished; this is now a manual
-step — it needs a real API key and a running device.**
+step — it needs the Gemini API key typed into the screen, and nothing else.**
+
+It runs on the **emulator**, which has network access. This step was carried as
+needing "a running device" for a while, which parked the feature's last
+unproven claim behind borrowed hardware for no reason. It is not on the device
+checklist in [`HANDOFF.md`](HANDOFF.md); only the demo *recording* is.
 
 ### Step 6 — The second and third tools
 `get_income_for_period`, then `compare_periods`.

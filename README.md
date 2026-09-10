@@ -63,19 +63,25 @@ No image and no total ever leaves the phone.
 | Accounts — add and edit, with 25 built-in icons | **Built** |
 | Accounts — archive, restore and delete | **Built** |
 | Transfers — atomic, with the screen that records them | **Built** |
-| Analytics — the spending-by-category query | **Built** |
+| Analytics — the spending-by-category query | **Built** — domain and data only |
 | AI Copilot — agent loop, first tool, model integration | **Built** |
 | AI Copilot — the ask screen | **Built** — not yet proven against the live API |
-| Analytics — donut chart, trends, heatmap | Planned |
-| Money Plan Generator | Planned |
-| Receipt Scanner | Planned |
-| PIN and biometrics, backup and export | Planned |
+| Categories — custom, hierarchy, inline create | Not started — Sprint 3.5 |
+| Analytics — donut chart, trends, heatmap | Not started — Sprint 4 |
+| Money Plan Generator | Not started — Sprint 5 |
+| Receipt Scanner | Not started — Sprint 6 |
+| PIN and biometrics, backup and export | Not started — Sprints 7–8 |
 
-Sprints 1 and 2 of 10 are complete and verified on an Android emulator.
-Sprint 3's domain and data layers are in, along with the first of its screens.
-557 tests pass, and domain-layer line coverage is 96.8% against a 75% floor.
-For the detail — what exists, what is next, and the environment traps — see
-[`docs/HANDOFF.md`](docs/HANDOFF.md).
+Sprints 1 and 2 of 11 are complete and verified on an Android emulator.
+Sprint 3 is all but done — the accounts slice, the side panel, the account form,
+archiving, restoring, deleting and the transfer screen are all in, leaving the
+entry screen's account selector and the transfer rows' `From`/`To` labels.
+Sprint 3.5, categories, is next.
+
+For the current test count, coverage figure and everything else that carries a
+number, see [`docs/HANDOFF.md`](docs/HANDOFF.md) — it is the one place they are
+recorded, so that they cannot drift apart between documents. It also has what
+exists, what is next, and the environment traps.
 
 Everything above works offline. The AI Copilot, cloud backup and live exchange
 rates are the only networked features — each optional, each behind a
@@ -146,22 +152,30 @@ every push rather than trusting anyone to remember.
 
 The four specifications in [`docs/specs/`](docs/specs/) are the approved
 baselines and are left exactly as approved. Auditing them before writing the
-schema turned up **twenty defects**, six of them blocking — including a
-`transactions` table in which no transfer could be inserted, and a plan
-generator built on `STDDEV()`, which SQLite does not provide. A later pass
-asking what a person meets on first open added **three more**, and auditing the
-Copilot's own draft specification against the code added a fourth — three of
-its five tools wrapped features that do not exist. A twenty-fifth runs the
-other way: auditing the *code's* citations against the SRS found four
-requirement IDs naming the wrong requirements, and one use case shipped with no
-requirement behind it at all. A twenty-sixth found that eight of the ten
-account icons the SRS names are other companies' trademarks. Twenty-six
-findings in total.
+schema turned up twenty defects, four of which blocked the first sprint
+outright — including a `transactions` table in which no transfer could be
+inserted, and a plan generator built on `STDDEV()`, which SQLite does not
+provide.
+
+Later passes kept finding more, and the interesting ones were found by asking
+different questions. One asked what a person meets on first open, and found that
+nothing specified an empty state anywhere. One audited the Copilot's own draft
+specification against the code, and found three of its five tools wrapped
+features that do not exist. One ran the other way entirely — auditing the
+*code's* citations against the SRS — and found four requirement IDs naming the
+wrong requirements, plus a use case that had shipped with no requirement behind
+it at all. One found that eight of the ten account icons the SRS names are other
+companies' trademarks. The most recent found a requirement this hardware cannot
+verify, and a structural decision recorded nowhere but in one file's own
+comment.
 
 Rather than silently editing the specifications, every deviation is recorded in
-[`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning and folds into v1.1
-at milestone M2. Two findings were later withdrawn on evidence, which is also
-recorded. The baseline stays auditable; the corrections stay traceable.
+[`SPEC_ERRATA.md`](docs/SPEC_ERRATA.md) with its reasoning, and folds into v1.1
+at milestone M2. One finding was later withdrawn on evidence, which is recorded
+there too. **That file carries its own current count and status** — deliberately
+not repeated here, since a number restated in three documents goes stale in
+three places and then disagrees with itself. The baseline stays auditable; the
+corrections stay traceable.
 
 ## Platform status
 
