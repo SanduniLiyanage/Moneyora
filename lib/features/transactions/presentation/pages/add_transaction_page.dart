@@ -170,16 +170,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      if (data.accounts.isNotEmpty)
-                        Text(
-                          'Into ${data.accounts.first.name}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: 0.6,
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 8),
+                      _AccountPicker(
+                        accounts: data.accounts,
+                        selectedId: _accountId,
+                        onSelected: (id) => setState(() => _accountId = id),
+                      ),
                       const SizedBox(height: 16),
                     ],
                   ),
@@ -347,6 +343,48 @@ class _CategoryPicker extends StatelessWidget {
           // E-13 records an inline `+` here, creating a category without
           // leaving the entry flow. It arrives with FR-EXP-004, which is the
           // requirement that makes a category creatable at all.
+        ],
+      ),
+    );
+  }
+}
+
+/// The account row. FR-EXP-001.
+class _AccountPicker extends StatelessWidget {
+  const _AccountPicker({
+    required this.accounts,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final List<AccountOption> accounts;
+  final int? selectedId;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (accounts.isEmpty) {
+      // E-22: a surface with nothing in it says what belongs here.
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Text('No accounts yet.', style: theme.textTheme.bodyMedium),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final account in accounts)
+            ChoiceChip(
+              label: Text(account.name),
+              selected: account.id == selectedId,
+              onSelected: (_) => onSelected(account.id),
+            ),
         ],
       ),
     );

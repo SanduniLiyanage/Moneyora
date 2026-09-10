@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/database/entry_catalog.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -71,6 +72,15 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionsProvider(_filter));
     final pending = ref.watch(pendingDeletionsProvider);
+    // Only for naming a transfer's counterparty (FR-TRF-004); the list itself
+    // never waits on this, so a loading or failed catalog just falls back to
+    // the bare "Transfer" label below rather than blocking the screen.
+    final accountNames = <int, String>{
+      for (final account
+          in ref.watch(entryCatalogProvider).valueOrNull?.accounts ??
+              const <AccountOption>[])
+        account.id: account.name,
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -162,6 +172,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                 onDismissed: (_) => _delete(transaction),
                 child: _TransactionTile(
                   transaction: transaction,
+                  accountNames: accountNames,
                   onTap: () => _edit(transaction),
                 ),
               );
@@ -175,9 +186,17 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
 /// One row. Amount on the right, coloured by what it did to the balance.
 class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.transaction, this.onTap});
+  const _TransactionTile({
+    required this.transaction,
+    required this.accountNames,
+    this.onTap,
+  });
 
   final Transaction transaction;
+
+  /// Id-to-name, for naming a transfer's counterparty. FR-TRF-004.
+  final Map<int, String> accountNames;
+
   final VoidCallback? onTap;
 
   @override
@@ -214,7 +233,7 @@ class _TransactionTile extends StatelessWidget {
         transaction.note?.isNotEmpty ?? false
             ? transaction.note!
             : switch (transaction.type) {
-                TransactionType.transfer => 'Transfer',
+                TransactionType.transfer => _transferLabel(),
                 _ => 'Uncategorised',
               },
       ),
@@ -227,6 +246,18 @@ class _TransactionTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// "From X" or "To Y", per FR-TRF-004 — falling back to the bare word if
+  /// the counterparty is not known yet (the catalog is still loading) or no
+  /// longer in it (the account was since archived).
+  String _transferLabel() {
+    final name = accountNames[transaction.counterpartyAccountId];
+    if (name == null) return 'Transfer';
+
+    return transaction.transferDirection == TransferDirection.incoming
+        ? 'From $name'
+        : 'To $name';
   }
 
   static String _formatDate(DateTime date) {

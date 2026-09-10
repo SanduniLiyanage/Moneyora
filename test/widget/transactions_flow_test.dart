@@ -51,7 +51,10 @@ void main() {
         isExpense: false,
       ),
     ],
-    accounts: [AccountOption(id: 1, name: 'Cash', balanceCents: 0)],
+    accounts: [
+      AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+      AccountOption(id: 2, name: 'Bank', balanceCents: 0),
+    ],
   );
 
   setUp(() => repository = _FakeRepository());
@@ -232,6 +235,42 @@ void main() {
     });
   });
 
+  group('choosing an account', () {
+    testWidgets('offers every account, defaulting to the first', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+
+      // FR-EXP-001: account is a field of the entry, not a fixed default —
+      // both accounts must be reachable, not just the one preselected.
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.text('Bank'), findsOneWidget);
+
+      await keyIn(tester, '500');
+      await tapText(tester, 'Food');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved.single.accountId, 1);
+    });
+
+    testWidgets('saves the account the user picks, not the default', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+
+      await keyIn(tester, '500');
+      await tapText(tester, 'Food');
+      await tapText(tester, 'Bank');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved.single.accountId, 2);
+    });
+  });
+
   group('editing', () {
     testWidgets('opens the row already filled in', (tester) async {
       await pumpApp(tester);
@@ -351,6 +390,65 @@ void main() {
 
       await tapText(tester, 'Expenses');
       expect(find.text('−Rs500.00'), findsOneWidget);
+    });
+  });
+
+  group('transfer rows', () {
+    testWidgets('label each half by the other account. FR-TRF-004', (
+      tester,
+    ) async {
+      // Both halves of one transfer: Rs 5,000 moved from Bank into Cash.
+      // E-16's transfer_direction already picks the row's sign; this is the
+      // part that was missing — naming the account on the other end.
+      repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 2,
+          amountCents: 500000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.out,
+          counterpartyAccountId: 1,
+          date: DateTime(2026, 9, 1),
+        ),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          amountCents: 500000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.incoming,
+          counterpartyAccountId: 2,
+          date: DateTime(2026, 9, 1),
+        ),
+      ]);
+
+      await pumpApp(tester);
+
+      expect(find.text('To Cash'), findsOneWidget);
+      expect(find.text('From Bank'), findsOneWidget);
+      expect(find.text('Transfer'), findsNothing);
+    });
+
+    testWidgets('falls back to the bare word if the account is not known', (
+      tester,
+    ) async {
+      // The counterparty account was archived after the transfer, so the
+      // catalog no longer carries its name — the row must still render
+      // something rather than crash or show a blank title.
+      repository.saved.add(
+        Transaction(
+          id: 1,
+          accountId: 1,
+          amountCents: 500000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.incoming,
+          counterpartyAccountId: 999,
+          date: DateTime(2026, 9, 1),
+        ),
+      );
+
+      await pumpApp(tester);
+
+      expect(find.text('Transfer'), findsOneWidget);
     });
   });
 }

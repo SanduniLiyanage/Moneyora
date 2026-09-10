@@ -270,12 +270,14 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
       );
 
       final splitsById = await _readSplits(rows);
+      final counterpartyById = await _readTransferCounterparties(rows);
 
       return rows
           .map(
             (row) => TransactionModel.fromMap(
               row,
               splitRows: splitsById[row['id']] ?? const [],
+              counterpartyAccountId: counterpartyById[row['id']],
             ),
           )
           .toList();
@@ -397,6 +399,37 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
       (grouped[split['transaction_id']] ??= []).add(split);
     }
     return grouped;
+  }
+
+  /// The other account for each transfer row in [rows], keyed by transaction
+  /// id. FR-TRF-004.
+  ///
+  /// A transfer half's own `account_id` names only the side it belongs to
+  /// (E-16); the account it moved with lives in `transfers`, the header row
+  /// that links both halves (E-15). One extra query covering every transfer
+  /// in the page, not one per row, matching [_readSplits].
+  Future<Map<Object?, int>> _readTransferCounterparties(
+    List<Map<String, Object?>> rows,
+  ) async {
+    final transferTxIds = [
+      for (final row in rows)
+        if (row['type'] == 'transfer') row['id'],
+    ];
+    if (transferTxIds.isEmpty) return const {};
+
+    final placeholders = List.filled(transferTxIds.length, '?').join(', ');
+    final headers = await _db.query(
+      'transfers',
+      where: 'from_tx_id IN ($placeholders) OR to_tx_id IN ($placeholders)',
+      whereArgs: [...transferTxIds, ...transferTxIds],
+    );
+
+    final counterpartyById = <Object?, int>{};
+    for (final header in headers) {
+      counterpartyById[header['from_tx_id']] = header['to_account_id']! as int;
+      counterpartyById[header['to_tx_id']] = header['from_account_id']! as int;
+    }
+    return counterpartyById;
   }
 
   /// Builds the `WHERE` clause for [filter] and its bound arguments.

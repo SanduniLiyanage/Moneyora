@@ -14,16 +14,16 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **557 passing** | `flutter test` |
+| Tests | **567 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| Domain line coverage | **96.8%** — 306 of 316 lines, 26 files | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Domain line coverage | **96.9%** — 308 of 318 lines, 26 files | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
 | Dart files | 77 in `lib/`, 39 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area, summing to 557: transactions 148 · core 112 · copilot 103 ·
-widget 86 · accounts 75 · analytics 29 · injection 4.
+Tests by area, summing to 567: transactions 154 · core 112 · copilot 103 ·
+widget 90 · accounts 75 · analytics 29 · injection 4.
 
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
@@ -99,14 +99,21 @@ the wrong IDs in the accounts slice were all copied from each other.
 
 ## What is built
 
-**Sprints 1 and 2 are complete**, both verified running on an Android
-emulator. **Sprint 3 has two items left**: PR #28 landed the accounts domain and
-data layers, and the screens followed — the side panel (FR-ACC-003), the
-create-and-edit form with its icon catalogue (FR-ACC-001, 002, 006), archiving,
-restoring and deleting (FR-ACC-004, FR-ACC-007), and the transfer screen
-(FR-TRF-001 to 003). Outstanding: the entry screen's account selector
-(FR-EXP-001) and FR-TRF-004's row labels. Both verified still unbuilt at
-`7c917a7`.
+**Sprints 1 through 3 are complete**, Sprints 1 and 2 verified running on an
+Android emulator. PR #28 landed the accounts domain and data layers, and the
+screens followed — the side panel (FR-ACC-003), the create-and-edit form with
+its icon catalogue (FR-ACC-001, 002, 006), archiving, restoring and deleting
+(FR-ACC-004, FR-ACC-007), and the transfer screen (FR-TRF-001 to 003). The last
+two pieces — the entry screen's account selector (FR-EXP-001) and FR-TRF-004's
+`From`/`To` row labels — landed last: `add_transaction_page.dart` now offers a
+`_AccountPicker` matching the category chips beside it, and
+`transaction_list_page.dart` names a transfer row's counterparty instead of
+printing the literal word "Transfer". That label needed one data-layer
+addition alongside the presentation work: `transactions.account_id` only ever
+named the side a row belongs to (E-16), so the counterparty comes from
+`transfers` — the header row E-15 already writes to link both halves — read
+via a join in `TransactionLocalDataSourceImpl.list` and carried up through a
+new `Transaction.counterpartyAccountId` field.
 
 **Sprint 3.5 — categories — is new**, added 2026-09-10 and slotted between
 Sprints 3 and 4. FR-EXP-004, FR-EXP-005 and FR-EXP-011 had been scheduled in no
@@ -214,11 +221,8 @@ run cannot be an oracle.
 [E-09](SPEC_ERRATA.md)). One thing it leaves open: a release APK has been built
 but never installed or run, so put that on the next emulator session.
 
-**The last two pieces of Sprint 3.** The accounts side is finished — panel,
-form, archiving, restoring, deleting — and so is the transfer screen.
-Outstanding: the entry screen's account selector, still pinned to the first
-account because a picker with one option is not a picker, and FR-TRF-004's
-`From`/`To` labels on transfer rows.
+**Sprint 3 is now finished** — the accounts side, the transfer screen, the
+entry screen's account selector and the transfer row labels are all built.
 
 Every screen in this slice shows its use case's own refusal rather than
 inventing one, and the widget tests assert on those exact sentences — so a rule
