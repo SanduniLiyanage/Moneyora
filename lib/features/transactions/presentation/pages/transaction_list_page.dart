@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/transaction.dart';
@@ -78,7 +80,18 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
         // takes the 24-month dataset with it. Since that dataset is what the
         // analytics, plan and Copilot work are demonstrated on, it has to stay
         // reachable with rows on screen.
-        actions: kDebugMode ? const [_LoadSampleDataAction()] : null,
+        actions: [
+          // A transfer belongs here rather than beside the + button: it is
+          // not a third kind of entry, it is moving money that is already
+          // recorded, and putting it in the entry screen's type toggle would
+          // say otherwise.
+          IconButton(
+            onPressed: () => context.push(Routes.transfer),
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Transfer between accounts',
+          ),
+          if (kDebugMode) const _LoadSampleDataAction(),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
           child: _FilterBar(

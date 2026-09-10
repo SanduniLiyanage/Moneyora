@@ -102,10 +102,13 @@ built-in icons E-26 substituted for FR-ACC-006's trademarked list — and
 archiving, restoring and deleting (FR-ACC-004, FR-ACC-007), each showing its
 use case's own refusal rather than a message the screen invented.
 
-**The accounts half of this sprint is done.** Outstanding is the transfer
-half: the transfer screen on top of `MakeTransfer` (FR-TRF-001 to 003), the
-entry screen's account selector, and FR-TRF-004's `From`/`To` labels on
-transfer rows.
+And the transfer screen (FR-TRF-001 to 003), on top of the `MakeTransfer` and
+`createTransfer` that had been built and idle since PR #28 — including E-25's
+same-currency guard, which lives in `MakeTransfer.validate` beside the rules
+that were already there.
+
+Outstanding: the entry screen's account selector, and FR-TRF-004's `From`/`To`
+labels on transfer rows.
 
 ### FR-ACC-005 (multi-currency) is deferred out of this sprint
 
