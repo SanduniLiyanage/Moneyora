@@ -4,9 +4,14 @@ Implements SDD v1.0 §2–§3. This document is the rule book; `scripts/check_ar
 is the enforcement. If the two ever disagree, fix the script.
 
 Where this guide or the baselines conflict with [`SPEC_ERRATA.md`](SPEC_ERRATA.md),
-the errata wins — it records twenty-three defects across SRS, SDD and DBD v1.0,
-six of them blocking the Sprint 1 schema. Two were later withdrawn on evidence,
-which is recorded there too.
+the errata wins. It records every deviation from the approved baselines, with
+its reasoning; **see that file for the current entry count and status** rather
+than a figure restated here, which is how the previous version of this sentence
+came to claim twenty-three defects and two withdrawals when the register held
+twenty-six entries and one withdrawal (E-12).
+
+Exact counts live in one place per subject: [`SPEC_ERRATA.md`](SPEC_ERRATA.md)
+for errata, [`HANDOFF.md`](HANDOFF.md) for tests and coverage.
 
 Note that the DBD came to light after the first audit and **it, not SRS §6.2, is
 the authoritative schema** (Amendment A). Several entries are superseded further
@@ -117,6 +122,20 @@ Money is stored as **integer minor units** (cents), never `double`. See §6.
 - Reusable widget with no business logic → `lib/core/widgets/`
 - Widget that knows about one entity → that feature's `presentation/widgets/`
 - SQL → `data/datasources/` or `core/database/`. Nowhere else. Enforced.
+- **A read whose feature slice does not exist yet** → `core/database/`, as
+  `entry_catalog.dart` does for the entry screen's category and account lists.
+  This is the one place the build order in §2 is not followed, it was done
+  deliberately, and it is recorded as [E-27](SPEC_ERRATA.md).
+
+  Categories are shared by analytics, the Money Plan and the receipt scanner, so
+  a `features/categories/` slice imported by `features/transactions/` would
+  break rule 4 the moment it was written — and a full slice was not justified by
+  reading a seeded list nothing could yet edit.
+
+  **This exception has an end date.** `entry_catalog.dart` is deleted in Sprint
+  3.5, when the categories slice lands and its reads move behind that slice's
+  repository. Do not treat it as a pattern to copy: if you are tempted, the
+  answer is almost always that the feature slice should exist.
 
 ## 6. Two deviations from SDD v1.0, both now settled
 
