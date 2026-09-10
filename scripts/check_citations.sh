@@ -59,6 +59,10 @@ trap 'rm -f "$VALID"' EXIT
   [ -f "$COP_SRS" ] && grep -ohE '\b(FR|NFR)-[A-Z]+-[0-9]+\b' "$COP_SRS"
   [ -f "$COP_SDD" ] && grep -ohE '\b(FR|NFR)-[A-Z]+-[0-9]+\b' "$COP_SDD"
   grep -ohE '\bE-[0-9]+\b' "$ERRATA"
+  # IDs the errata raises (e.g. E-11's FR-EXP-011) are as citable as an ID
+  # already in the index — the errata is the authority that created them, and
+  # the error message below already claims to check it for exactly this.
+  grep -ohE '\b(FR|NFR)-[A-Z]+-[0-9]+\b' "$ERRATA"
 } | sort -u > "$VALID"
 
 is_valid() {
