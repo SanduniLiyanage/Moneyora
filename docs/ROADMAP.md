@@ -58,151 +58,33 @@ Seasonal.
 
 ---
 
-## Sprint 1 — Foundation (Weeks 1–2) — **complete**
+## Sprint 1 — Foundation (Weeks 1–2) — done
 
-Goal: *it compiles, the schema exists, navigation works.* No features yet.
+Schema, theme, router stubs, error hierarchy, DI, CI. PRs #6–#15. Current
+test/coverage figures live in [`HANDOFF.md`](HANDOFF.md), not here.
 
-- [x] Install Flutter + Android SDK, pin JDK 21 (`docs/SETUP.md`)
-- [x] Run `scripts/bootstrap.ps1`
-- [x] Retire branch `sanduni`; `main` is trunk (see docs/WORKFLOW.md)
-- [x] Enable branch protection on `main` (require PR + Analyze & Test)
-- [x] `core/theme/` — colour tokens, light + dark `ThemeData`
-      (indigo brand + amber accent per E-01; green = income, red = expense,
-      teal = transfers, per SRS 4.1. Verify 4.5:1 contrast, do not assume it.)
-- [x] `core/errors/` — `Failure` hierarchy + `Exception` hierarchy
-- [x] `core/usecases/usecase.dart` — the `UseCase<Type, Params>` base
-- [x] `core/database/database_helper.dart` — SQLCipher open + key from
-      `flutter_secure_storage`
-- [x] `core/database/migrations/v1_initial.dart` — 13 tables + 11 indexes.
-      More than the 9 and 7 of SDD 5.1: the errata added `transfers`,
-      `transaction_splits` and `recurring_rules` with their indexes
-      (**`amount_cents INTEGER`** throughout — see ARCHITECTURE.md 6.1)
-- [x] `core/database/seed/dev_seed.dart` — the fixture generator above
-- [x] `core/router/app_router.dart` — go_router, 5 top-level routes as stubs
-      (the 20-screen inventory arrives feature by feature, not up front)
-- [x] `injection.dart` — provider wiring
-- [x] CI green on the first PR
+## Sprint 2 — Transactions (Weeks 3–4) — done
 
-**Done when:** app launches to an empty home screen, you can navigate to every
-stub screen, and `sqlite3` shows the seeded rows in the encrypted DB.
-*Met, and verified running on an Android emulator.*
+Full vertical slice: entity, repository, five use cases, keypad entry
+(FR-EXP-002), date-grouped list, E-22's empty states, E-23's undo. PRs #16,
+#20, #22–#26.
 
-## Sprint 2 — Transactions (Weeks 3–4) — **complete**
+Deferred out of this sprint on purpose: the account selector, to Sprint 3
+(there was only one account to choose between); E-13's inline category `+`,
+to Sprint 3.5, alongside FR-EXP-004 which it depends on.
 
-Full vertical slice, domain-first. Custom keypad with arithmetic (FR-EXP-002),
-category picker, account selector, date-grouped list with daily totals.
-Write the use case tests as you go — do not defer them to Sprint 9.
+## Sprint 3 — Accounts & transfers (Week 5) — done
 
-Delivered: the full vertical slice — entity, repository contract, five use
-cases, model, datasource, repository, providers and both screens. The keypad's
-arithmetic lives in `core/utils/amount_expression.dart` as pure Dart.
-E-22's two empty states and E-23's undo window are implemented.
+Account CRUD, archiving, the balance side panel, atomic transfers
+(FR-TRF-002 — debit and credit in one sqflite transaction). PRs #28, #33–#38,
+#42. FR-ACC-007 (`DeleteAccount`'s missing requirement) and the accounts
+slice's citation fixes are [E-25](SPEC_ERRATA.md).
 
-Deferred deliberately: the account selector (Sprint 3, when there is more than
-one account to choose between) and E-13's inline `+` for creating a category
-mid-entry, which belongs with FR-EXP-004 in the categories work — **Sprint 3.5**
-below. Until 2026-09-10 "the categories work" named no sprint in this file,
-which is what that new sprint exists to fix.
-
-## Immediate — fix the release build — **done 2026-09-10**
-
-Not a sprint item, but it blocked several of them, so it went first.
-`flutter build apk --release` failed at R8 because
-`google_mlkit_text_recognition` references script-specific recognisers it does
-not depend on — and **CI never caught it, because CI built a debug APK, which
-does not run R8.** It had been broken for 38 pull requests.
-
-Delivered: `-dontwarn` keep rules in a new `android/app/proguard-rules.pro`
-(not the four missing dependencies — those ship models the app never calls),
-wired into the release `buildType`, and **a release build in CI** so the next
-regression cannot hide the same way. Measured with `--split-per-abi` for
-[E-09](SPEC_ERRATA.md): arm64-v8a is **35.9 MB against the 80 MB budget**, with
-ML Kit included.
-
-Left open: a release APK has been built but never run. R8 can break
-reflection-based code that compiles cleanly, so installing one on the emulator
-is on the next emulator session.
-
-## Sprint 3 — Accounts & transfers (Week 5) — **complete**
-
-Account CRUD, archiving, multi-currency, atomic transfers (FR-TRF-002 —
-do the debit and credit **in one sqflite transaction**, or a crash mid-write
-loses money).
-
-Delivered in PR #28: the entity, the repository contract, six use cases, the
-datasource and the repository impl, including `RecomputeAccountBalance` for
-E-18.
-
-Delivered since: `DatabaseChangeBus`, without which any balance on screen goes
-stale the moment a transaction is written (E-18), and **FR-ACC-003's side
-panel** — the accounts, their balances, a total, and a line naming what the
-total left out where that applies.
-
-Also delivered: the account form — create and edit, with the twenty-five
-built-in icons E-26 substituted for FR-ACC-006's trademarked list — and
-archiving, restoring and deleting (FR-ACC-004, FR-ACC-007), each showing its
-use case's own refusal rather than a message the screen invented.
-
-And the transfer screen (FR-TRF-001 to 003), on top of the `MakeTransfer` and
-`createTransfer` that had been built and idle since PR #28 — including E-25's
-same-currency guard, which lives in `MakeTransfer.validate` beside the rules
-that were already there.
-
-The last two pieces, both presentation on top of use cases that already had
-passing tests:
-
-1. **The entry screen's account selector (FR-EXP-001).**
-   `add_transaction_page.dart` no longer pins the account to
-   `data.accounts.first`; an `_AccountPicker` offers every account as a
-   `ChoiceChip`, matching the category picker beside it, and still defaults to
-   the first account so a fresh install with one account needs no extra tap.
-2. **FR-TRF-004's `From`/`To` labels on transfer rows.**
-   `transaction_list_page.dart` no longer renders the literal string
-   `Transfer`. E-16's `transfer_direction` already picked the row's `+` or `−`
-   sign; naming the other account turned out not to be presentation-only,
-   because nothing above `data/` had ever read `transfers` — the header row
-   E-15 writes to link both halves of a transfer, and the only place
-   `from_account_id`/`to_account_id` lived. `TransactionLocalDataSourceImpl`
-   now joins it for transfer rows, one extra query per page of results rather
-   than one per row (matching `_readSplits`'s shape), and a new
-   `Transaction.counterpartyAccountId` field carries the result up to the
-   list screen.
-
-### FR-ACC-005 (multi-currency) is deferred out of this sprint
-
-"Multi-currency" in the line above reads as one word and is a feature.
-FR-ACC-005 requires *user-configurable exchange rates for balance conversion* —
-a rates table, therefore a **v2 migration**, plus a conversion policy and a
-change to every total in the app. That should not ride along with the account
-screens, and a migration written to meet a deadline is the one you regret.
-
-**Sprint 3 ships per-account currency display only.** Accounts already carry a
-`currency` column and `currency_utils.dart` already formats any ISO code, so
-displaying it costs nothing.
-
-The deferral leaves two behaviours undefined, because FR-TRF-001 permits a
-transfer between *any* two active accounts and this sprint builds transfers.
-The interim rules, recorded in [E-25](SPEC_ERRATA.md) and removable in one
-commit when FR-ACC-005 lands:
-
-1. Base currency is **LKR** — the `Account.currency` default and what the seed
-   creates.
-2. **Cross-currency transfers are refused**, in `MakeTransfer.validate`, with a
-   sentence rather than a wrong number.
-3. **The Total Balance sums base-currency accounts only**, and says on screen
-   which accounts it left out and why. Not the same thing as FR-ACC-002's
-   Include-in-Total toggle: that is the user's choice, this is the app's limit.
-
-FR-ACC-005 keeps its ID and is scheduled below rather than dropped, so it stays
-in the traceability matrix instead of disappearing between two sprints.
-
-### FR-ACC-007 is new — see E-25
-
-Auditing the FR-ACC citations while planning this sprint found that no FR-ACC
-authorised deleting an account, though `DeleteAccount` had shipped in PR #28.
-[E-25](SPEC_ERRATA.md) raises **FR-ACC-007** for it, scoped to what the code
-already enforces: permanent deletion only for an account with no transactions,
-archiving (FR-ACC-004) for everything else.
+**FR-ACC-005 (multi-currency conversion) is deferred to Sprint 7**, below.
+Sprint 3 ships per-account currency *display* only; the three interim rules
+this leaves in place (base currency, cross-currency transfer refusal, what
+the Total Balance excludes) are recorded in [E-25](SPEC_ERRATA.md), not
+repeated here.
 
 ## Sprint 3.5 — Categories (Week 6) — **new, and next after Sprint 3**
 
@@ -358,6 +240,19 @@ Beta, bug fixes, store assets, user manual, final docs.
 
 ---
 
+## Non-goals
+
+- **No in-app purchases, paid tier, or purchase-ID handling.** FR-SET-011 was
+  withdrawn as copied from the reference app's paywall — see
+  [E-12](SPEC_ERRATA.md). If monetisation is ever added, this is specified
+  then, against whichever billing SDK is chosen.
+
+This list is short because it reflects decisions actually made, not
+everything the app doesn't currently do. Add to it when a feature is
+deliberately ruled out, not merely unscheduled.
+
+---
+
 ## The Copilot — a workstream, not a sprint
 
 The AI Copilot (an on-device tool-using agent — see [`COPILOT.md`](COPILOT.md))
@@ -368,17 +263,18 @@ way, and an unfinished app is never the price of a finished agent ([E-24](SPEC_E
 
 | Stage | Depends on | Status |
 |---|---|---|
-| Domain: entities, contracts, agent loop, first tool | nothing | **Done** — 59 tests |
+| Domain: entities, contracts, agent loop, first tool | nothing | **Done** |
 | The category-total analytics use case | Sprint 4 | **Done** — runs against the real database |
-| Gemini datasource, egress guard | the above | **Done** — 44 tests |
-| The ask screen, with key entry | the above | **Done** — 13 widget tests |
+| Gemini datasource, egress guard | the above | **Done** |
+| The ask screen, with key entry | the above | **Done** |
 | One real question against the live API | a Gemini API key | **Next — emulator, not device** |
 | `get_income_for_period`, `compare_periods` | Sprint 4 | Planned — **Sprint 4 deliverables**, see above |
 | `get_budget_plan` | **Sprint 5** | Deferred |
 | `get_savings_goal_progress`, affordability query | **Sprint 5+** | Deferred |
 
-Counts verified against `flutter test` at `7c917a7`; they had drifted from 55
-and 11, which is what PR #31's fixes added.
+Test counts for each stage are in [`HANDOFF.md`](HANDOFF.md), not restated
+here — that table already went stale once (PR #31) from being kept in two
+places.
 
 **The live-API proof needs no hardware.** It had been carried as "on a device",
 which put the last unproven part of the Copilot behind the borrowed phone for no

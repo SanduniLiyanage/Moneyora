@@ -14,39 +14,39 @@ follows the Resolution sections.
 
 ## Summary
 
-| ID | Severity | Area | Status |
+| ID | Title | Status | Requirement ID |
 |---|---|---|---|
-| [E-01](#e-01) | High | Brand palette contradicts stakeholder instruction | Resolved |
-| [E-02](#e-02) | **Blocking** | Transfers unrepresentable in schema | Resolved |
-| [E-03](#e-03) | **Blocking** | `recurring_rules` table undefined | Resolved |
-| [E-04](#e-04) | **Blocking** | Split expenses have no schema | Resolved |
-| [E-05](#e-05) | **Blocking** | `STDDEV()` is not a SQLite function | Resolved |
-| [E-06](#e-06) | High | Money stored as `REAL` | Resolved (pre-existing) |
-| [E-07](#e-07) | Medium | Seasonal detection over-claims on short history | Resolved |
-| [E-08](#e-08) | Low | Backup file extension contradiction | Resolved |
-| [E-09](#e-09) | Low | App-size figures contradict | Clarified |
-| [E-10](#e-10) | Low | Category limit contradiction | Clarified |
-| [E-11](#e-11) | Medium | Category-grouped list view unspecified | Resolved |
-| [E-12](#e-12) | Medium | FR-SET-011 copied from the reference app's paywall | Withdrawn |
-| [E-13](#e-13) | Low | Two entry-screen affordances missing from SDD §4.1 | Resolved |
-| [E-14](#e-14) | Low | SDD §10.1 pins a deprecated API and an unmaintained package | Resolved |
-| [E-15](#e-15) | Medium | Transfer writes 3 rows with circular FKs, no wrapper | Resolved |
-| [E-16](#e-16) | **Blocking** | Transfer debit and credit rows are indistinguishable | Resolved |
-| [E-17](#e-17) | **Blocking** | `category_id NOT NULL` conflicts with transfers | Resolved |
-| [E-18](#e-18) | Medium | `current_balance` stored, mutated in place, never reconciled | Resolved |
-| [E-19](#e-19) | Medium | iOS claimed but unbuildable on the dev machine | Mitigated |
-| [E-20](#e-20) | Medium | iOS 14 target impossible with ML Kit (needs 15.5) | Resolved |
-| [E-21](#e-21) | High | Money Plan cannot run for a user with no history | Resolved |
-| [E-22](#e-22) | Medium | No empty state specified for any surface | Resolved |
-| [E-23](#e-23) | Medium | Deleting a transaction is irreversible | Resolved |
-| [E-24](#e-24) | High | Copilot specifies five tools, three of which wrap nothing | Resolved |
-| [E-25](#e-25) | Medium | Accounts slice cites requirement IDs belonging to other requirements | Resolved |
-| [E-26](#e-26) | Low | FR-ACC-006 names icons that are other companies' trademarks | Resolved |
-| [E-27](#e-27) | Medium | Category reads live in `core/database/`, outside a feature slice | Resolved |
-| [E-28](#e-28) | Medium | NFR-PER-006 cannot be verified on the development hardware | Mitigated |
-| [E-29](#e-29) | Medium | SRS benchmark-scale contradiction and uncitable §5.6 targets | Clarified |
-| [E-30](#e-30) | Low | SDD/DBD naming and count disagreements | Clarified |
-| [E-31](#e-31) | Medium | DBD schema gaps and a seed-colour check, for Sprints 4, 6 and 7 | Resolved |
+| [E-01](#e-01) | Brand palette contradicts the stakeholder instruction | Resolved | — |
+| [E-02](#e-02) | Transfers cannot be represented in the schema | Resolved | FR-TRF-002 |
+| [E-03](#e-03) | `recurring_rules` table is never defined | Resolved | FR-EXP-008, FR-INC-004 |
+| [E-04](#e-04) | Split expenses have no schema | Resolved | FR-EXP-010 |
+| [E-05](#e-05) | `STDDEV()` is not a SQLite function | Resolved | — (SDD §5.2, Money Plan) |
+| [E-06](#e-06) | Money stored as `REAL` | Resolved (pre-existing) | — |
+| [E-07](#e-07) | Seasonal detection over-claims on short history | Resolved | FR-PLN-003 |
+| [E-08](#e-08) | Backup file extension contradiction | Resolved | FR-BAK-001, NFR-PRT-004 |
+| [E-09](#e-09) | App-size figures contradict | Clarified | — |
+| [E-10](#e-10) | Category limit contradiction | Clarified | FR-EXP-004 |
+| [E-11](#e-11) | The category-grouped list view is unspecified | Resolved | FR-EXP-006 → raises FR-EXP-011 |
+| [E-12](#e-12) | FR-SET-011 was copied from the reference app's paywall | Withdrawn | FR-SET-011 |
+| [E-13](#e-13) | Two entry-screen affordances missing from the screen inventory | Resolved | FR-EXP-004, FR-EXP-008, FR-INC-003, FR-INC-004 |
+| [E-14](#e-14) | SDD §10.1 pins a deprecated API and a thinly-maintained package | Resolved | — |
+| [E-15](#e-15) | A transfer writes three rows across two tables with circular references | Resolved | FR-TRF-002 |
+| [E-16](#e-16) | The two halves of a transfer are indistinguishable | Resolved | FR-TRF-002 |
+| [E-17](#e-17) | `category_id` is NOT NULL, but transfers have no category | Resolved | FR-TRF-002 |
+| [E-18](#e-18) | `current_balance` is stored and incrementally mutated | Resolved | — |
+| [E-19](#e-19) | iOS is claimed but cannot be tested on the development machine | Mitigated | NFR-PRT-001 |
+| [E-20](#e-20) | The iOS 14 target is unachievable with the mandated OCR library | Resolved | FR-RCP-004 |
+| [E-21](#e-21) | The Money Plan cannot run for a user with no history | Resolved | FR-PLN-001, FR-PLN-008 → raises FR-PLN-011 |
+| [E-22](#e-22) | No empty state is specified for any surface | Resolved | FR-RPT-001, FR-EXP-006, FR-PLN-001 → raises NFR-USA-001 |
+| [E-23](#e-23) | Deleting a transaction is irreversible | Resolved | FR-EXP-006 → raises FR-EXP-012 |
+| [E-24](#e-24) | Three of the Copilot's five tools wrap features that do not exist | Resolved | FR-COP-007, FR-COP-008, FR-COP-009, FR-COP-020, FR-COP-021, FR-COP-032 |
+| [E-25](#e-25) | The accounts slice cites requirement IDs that describe other requirements | Resolved | FR-ACC (SRS §3.3) → raises FR-ACC-007 |
+| [E-26](#e-26) | FR-ACC-006 names icons that belong to other companies | Resolved | FR-ACC-006 |
+| [E-27](#e-27) | Category reads live in `core/database/`, outside any feature slice | Resolved | — |
+| [E-28](#e-28) | NFR-PER-006 cannot be verified on the development hardware | Mitigated | NFR-PER-001, NFR-PER-005, NFR-PER-006 |
+| [E-29](#e-29) | Two more places the SRS contradicts or undercuts itself | Clarified | NFR-PER-006 |
+| [E-30](#e-30) | The SDD and DBD disagree with each other, and the DBD disagrees with itself | Clarified | — |
+| [E-31](#e-31) | Three DBD schema gaps that will bite a specific sprint | Resolved | — |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
