@@ -82,7 +82,7 @@ Deferred deliberately: the account selector (Sprint 3, when there is more than
 one account to choose between) and E-13's inline `+` for creating a category
 mid-entry, which belongs with FR-EXP-004 in the categories work.
 
-## Sprint 3 — Accounts & transfers (Week 5) — **domain done, screens next**
+## Sprint 3 — Accounts & transfers (Week 5) — **accounts done, transfers next**
 
 Account CRUD, archiving, multi-currency, atomic transfers (FR-TRF-002 —
 do the debit and credit **in one sqflite transaction**, or a crash mid-write
@@ -98,11 +98,14 @@ panel** — the accounts, their balances, a total, and a line naming what the
 total left out where that applies.
 
 Also delivered: the account form — create and edit, with the twenty-five
-built-in icons E-26 substituted for FR-ACC-006's trademarked list.
+built-in icons E-26 substituted for FR-ACC-006's trademarked list — and
+archiving, restoring and deleting (FR-ACC-004, FR-ACC-007), each showing its
+use case's own refusal rather than a message the screen invented.
 
-Outstanding: archiving and deleting (FR-ACC-004, FR-ACC-007), the transfer
-screen on top of `MakeTransfer` (FR-TRF-001 to 003), the entry screen's
-account selector, and FR-TRF-004's `From`/`To` labels on transfer rows.
+**The accounts half of this sprint is done.** Outstanding is the transfer
+half: the transfer screen on top of `MakeTransfer` (FR-TRF-001 to 003), the
+entry screen's account selector, and FR-TRF-004's `From`/`To` labels on
+transfer rows.
 
 ### FR-ACC-005 (multi-currency) is deferred out of this sprint
 

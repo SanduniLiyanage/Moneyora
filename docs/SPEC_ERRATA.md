@@ -871,11 +871,24 @@ first expense"* because they picked a quiet date range.
 | Donut chart (FR-RPT-001) | "Your spending breakdown appears here once you have added an expense." | "No spending in this period." |
 | Money Plan | "Answer one question and Moneyora will draft you a starter plan." (E-21) | — |
 | Search (FR-RPT-008) | — | "No transactions match 'xyz'." |
-| Accounts | Cannot occur — `default_seed.dart` seeds one Cash account, per FR-ACC-001 | — |
+| Accounts | Cannot occur — `default_seed.dart` seeds one Cash account, per FR-ACC-001 | "Nothing archived. Every account you have is in the list above." |
 
 Each empty state carries three things: what belongs here, why it is empty, and
 the single action that fills it. No apology, and no illustration standing in for
 an explanation.
+
+**Amended 2026-09-09, building the archived-accounts filter.** The Accounts row
+originally had a dash in the second column, on the reasoning that the list can
+never be empty — `default_seed.dart` creates a Cash account and
+`ArchiveAccount` refuses to archive the last usable one. That reasoning is
+sound and it only covers the *default* list. FR-ACC-004's "show archived"
+filter is a second list over the same data, and it is empty for every user who
+has never archived anything — which is most of them, most of the time.
+
+The miss is instructive, because it is the same shape as the bug this entry
+exists to prevent: a surface was judged on the query it usually runs rather
+than on every query it can run. "Cannot occur" is a claim about today's code,
+and a filter added later is exactly what falsifies one.
 
 **New requirement NFR-USA-001** — recorded as a non-functional requirement
 rather than under one feature, because it binds every surface in the app.
