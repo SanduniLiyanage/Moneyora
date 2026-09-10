@@ -1,11 +1,13 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-10**, `main` at `7c917a7`, after **37
-merged pull requests** (#2–#38; #1 was closed unmerged).
+State of the project as of **2026-09-11**, `main` at `8e5085d`, after **41
+merged pull requests** (#2–#42; #1 was closed unmerged). Two more, opened this
+session, are **not yet merged** — see "This session" below before trusting the
+"what is built" section at face value.
 
 ### The numbers, measured — and the only place they live
 
-Every figure below was produced by running the command beside it at `7c917a7`
+Every figure below was produced by running the command beside it at `8e5085d`
 with a clean tree. **This section is the single source of truth for counts.**
 `README.md` and `ARCHITECTURE.md` link here rather than restating them: a number
 kept in one place goes stale once, and a number kept in three places goes stale
@@ -28,6 +30,39 @@ widget 90 · accounts 75 · analytics 29 · injection 4.
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
+
+## This session — two PRs open, neither merged yet
+
+Both are CI-clean against `8e5085d` but **waiting on a human to merge them** —
+merging to protected `main` is outside what this session runs on its own.
+Nothing above the numbers table or in "what is built" reflects their content
+until they land.
+
+- **[PR #43](https://github.com/SanduniLiyanage/Moneyora/pull/43)** —
+  docs only. Trimmed ROADMAP.md's closed-sprint sections and the Copilot
+  workstream table down to what they still need to say, pointing test/PR
+  counts at this file instead of restating them a second place to go stale;
+  swapped SPEC_ERRATA.md's summary table Severity/Area columns (duplicated on
+  every entry's own **Affects:** line) for Title/Requirement ID, which the
+  table carried nowhere else.
+- **[PR #44](https://github.com/SanduniLiyanage/Moneyora/pull/44)** —
+  **Sprint 3.5's first slice: the categories domain layer.** `Category` /
+  `CategoryType`, `CategoryRepository`, and four use cases
+  (`AddCategory`, `UpdateCategory`, `DeleteCategory`, `WatchCategories`),
+  28 new tests, all passing. FR-EXP-005's two-level hierarchy cap is enforced
+  here since the schema has no way to express it. Also fixes a real gap in
+  `scripts/check_citations.sh` it ran into: the script checked the errata for
+  E-* IDs but never for the FR-/NFR- IDs several entries raise, despite its
+  own error message claiming otherwise — caught by legitimately citing
+  FR-EXP-011 (raised by E-11) and having it rejected.
+
+  **Not in #44**: `data/`, `presentation/`, `entry_catalog.dart`'s deletion
+  (E-27), the entry screen's inline `+` (E-13). Sprint 3.5 continues from
+  there once this merges — see ROADMAP.md's Sprint 3.5 section for the rest
+  of the slice.
+
+Once merged, re-run the commands in the numbers table above before trusting
+this file's figures again — `git pull` first.
 
 ---
 
@@ -216,6 +251,13 @@ run cannot be an oracle.
 ---
 
 ## What is next
+
+**Merge PR #43 and #44 first** (see "This session" above) — both are
+CI-clean and waiting on a human, not on more work. Once #44 lands, Sprint 3.5
+continues with `data/models`, `data/datasources` and `data/repositories` for
+categories, following `AccountRepositoryImpl`'s shape (see
+`lib/features/accounts/data/`), then the presentation layer, the entry
+screen's inline `+`, and `entry_catalog.dart`'s deletion (E-27).
 
 **The release build is fixed** (see Environment below and
 [E-09](SPEC_ERRATA.md)). One thing it leaves open: a release APK has been built
