@@ -187,6 +187,51 @@ jobs:
             exit 1
           }
 
+      # The step that would have caught this build being broken for 38 pull
+      # requests, and did not exist.
+      #
+      # Debug does not run R8. So `flutter build apk --release` failed on ML
+      # Kit's unresolvable script references from the day the dependency was
+      # added, while every check above stayed green - CI was measuring a
+      # different artefact from the one the project ships. A gate on an
+      # artefact nobody releases protects nothing. See E-09.
+      #
+      # It builds in the same job as the debug APK deliberately: checkout, the
+      # JDK, the Flutter SDK and `pub get` are most of this job's runtime, and
+      # a second job would pay all of it again to save nothing. Split it out
+      # only if it starts dominating the wall clock.
+      #
+      # --split-per-abi because that is the artefact SRS 2.4's 80 MB binds. A
+      # universal APK carries every ABI at once and is roughly triple, so
+      # measuring it against 80 MB compares two different things.
+      - name: Build release APK (runs R8)
+        run: |
+          delays=(15 60 180)
+          for attempt in 1 2 3 4; do
+            if flutter build apk --release --split-per-abi; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 4 ]; then break; fi
+            delay=${delays[$((attempt - 1))]}
+            echo "::warning::Release APK build attempt $attempt failed, retrying in ${delay}s"
+            sleep "$delay"
+          done
+          echo "::error::Release APK build failed four times over four minutes - not a transient fault"
+          exit 1
+
+      # Reported, not gated. The 80 MB gate lands in Sprint 10 with store
+      # preparation (E-09); printing the number every run means it arrives to a
+      # known trend rather than to a surprise, and that a jump gets noticed on
+      # the PR that causes it.
+      - name: Report release APK sizes
+        run: |
+          echo "SRS 2.4 budget: 80 MB per shipped ABI. Not gated until Sprint 10."
+          for f in build/app/outputs/flutter-apk/app-*-release.apk; do
+            BYTES=$(stat -c%s "$f")
+            awk -v n="$(basename "$f")" -v b="$BYTES" \
+              'BEGIN { printf "  %-32s %6.1f MB\n", n, b/1048576 }'
+          done
+
   build-ios:
     name: Build iOS (compile only)
     runs-on: macos-latest
