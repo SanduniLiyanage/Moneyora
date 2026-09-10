@@ -14,7 +14,16 @@ class TransferParams extends Equatable {
     required this.amountCents,
     required this.date,
     this.note,
+    this.fromCurrency = defaultCurrency,
+    this.toCurrency = defaultCurrency,
   });
+
+  /// What both sides are assumed to hold unless the caller says otherwise.
+  ///
+  /// LKR, matching `Account.currency`'s default and what `default_seed.dart`
+  /// creates. Defaulted rather than required so every existing caller and test
+  /// keeps meaning what it meant: a transfer between two rupee accounts.
+  static const String defaultCurrency = 'LKR';
 
   /// Where the money leaves.
   final int fromAccountId;
@@ -32,6 +41,12 @@ class TransferParams extends Equatable {
   /// Free text shown on both halves.
   final String? note;
 
+  /// The currency the source account holds.
+  final String fromCurrency;
+
+  /// The currency the destination account holds.
+  final String toCurrency;
+
   @override
   List<Object?> get props => [
     fromAccountId,
@@ -39,6 +54,8 @@ class TransferParams extends Equatable {
     amountCents,
     date,
     note,
+    fromCurrency,
+    toCurrency,
   ];
 }
 
@@ -94,6 +111,26 @@ class MakeTransfer implements UseCase<int, TransferParams> {
       return const ValidationFailure(
         'Choose two different accounts — money cannot move to where it '
         'already is.',
+        field: 'toAccount',
+      );
+    }
+
+    if (params.fromCurrency.trim().toUpperCase() !=
+        params.toCurrency.trim().toUpperCase()) {
+      // E-25's interim rule. FR-TRF-001 permits a transfer between any two
+      // active accounts, and FR-ACC-005 — the conversion that would make a
+      // cross-currency one meaningful — is deferred to Sprint 7. Until it
+      // lands there is no rate to convert at, and moving 100 from a USD
+      // account to an LKR one would credit 100 rupees: a number that is
+      // wrong by a factor of three hundred and looks entirely plausible.
+      //
+      // Refusing with a sentence is the honest answer. Delete this rule in
+      // the same commit that adds conversion, or the app will keep refusing
+      // transfers it has become capable of making.
+      return ValidationFailure(
+        'Moneyora cannot convert between currencies yet, so a transfer has '
+        'to be between two ${params.fromCurrency.trim().toUpperCase()} '
+        'accounts.',
         field: 'toAccount',
       );
     }

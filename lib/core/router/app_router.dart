@@ -7,6 +7,7 @@ import '../../features/accounts/presentation/widgets/account_drawer.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
+import '../../features/transactions/presentation/pages/transfer_page.dart';
 
 /// Route paths, as constants rather than string literals scattered about.
 ///
@@ -31,6 +32,9 @@ abstract final class Routes {
   /// The AI Copilot. Not in the SDD's screen inventory — it is a later
   /// addition, specified in `SRS_Copilot.md` §5.1.
   static const String copilot = '/copilot';
+
+  /// Moving money between two accounts. FR-TRF-001 to FR-TRF-003.
+  static const String transfer = '/transfer';
 
   /// Creating or editing one account. FR-ACC-001, FR-ACC-002.
   ///
@@ -89,6 +93,11 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.copilot,
       name: 'copilot',
       builder: (context, state) => const CopilotPage(),
+    ),
+    GoRoute(
+      path: Routes.transfer,
+      name: 'transfer',
+      builder: (context, state) => const TransferPage(),
     ),
     GoRoute(
       path: Routes.accountForm,

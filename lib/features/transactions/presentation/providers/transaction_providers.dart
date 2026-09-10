@@ -19,6 +19,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
+import '../../domain/usecases/make_transfer.dart';
 
 /// The categories and accounts the entry screen offers.
 final entryCatalogProvider = FutureProvider<EntryCatalog>((ref) async {
@@ -105,6 +106,52 @@ class SaveTransactionController extends AutoDisposeAsyncNotifier<void> {
 final saveTransactionControllerProvider =
     AutoDisposeAsyncNotifierProvider<SaveTransactionController, void>(
       SaveTransactionController.new,
+    );
+
+/// Records a transfer, exposing the attempt as an [AsyncValue].
+///
+/// Separate from [SaveTransactionController] because a transfer is not a
+/// transaction with a different type on it: it writes three rows across two
+/// tables in one database transaction (E-15), carries no category (E-17), and
+/// has its own validation. One controller taking either would be a controller
+/// with two unrelated halves.
+class SaveTransferController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Validates and records [params].
+  ///
+  /// Returns true when it was written, so the caller can pop. The failure is
+  /// left in [state] for the screen to show — including the validation ones,
+  /// which are `MakeTransfer`'s own rather than restated here.
+  Future<bool> save(TransferParams params) async {
+    state = const AsyncValue<void>.loading();
+
+    final makeTransfer = await ref.read(makeTransferProvider.future);
+    final result = await makeTransfer(params);
+
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        // The transfer moved two balances and wrote two rows the entry
+        // screen's catalog still has the old figures for. The transactions
+        // list re-queries on its own — the datasource change signal covers
+        // that — but the catalog is a one-shot read.
+        ref.invalidate(entryCatalogProvider);
+        return true;
+      },
+    );
+  }
+}
+
+/// Controller for the transfer screen's save button. FR-TRF-002.
+final saveTransferControllerProvider =
+    AutoDisposeAsyncNotifierProvider<SaveTransferController, void>(
+      SaveTransferController.new,
     );
 
 /// A human-readable reason a save failed, or null while nothing has gone wrong.

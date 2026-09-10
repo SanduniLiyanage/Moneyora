@@ -22,12 +22,16 @@ void main() {
     int amountCents = 800000,
     DateTime? on,
     String? note,
+    String fromCurrency = 'LKR',
+    String toCurrency = 'LKR',
   }) => TransferParams(
     fromAccountId: from,
     toAccountId: to,
     amountCents: amountCents,
     date: on ?? date,
     note: note,
+    fromCurrency: fromCurrency,
+    toCurrency: toCurrency,
   );
 
   setUp(() {
@@ -98,6 +102,43 @@ void main() {
       );
 
       expect(result.isRight(), isTrue);
+    });
+
+    test('two accounts holding different currencies', () async {
+      // E-25's interim rule. FR-ACC-005 — the conversion that would make this
+      // meaningful — is deferred to Sprint 7, so there is no rate to convert
+      // at. Moving 100 from a USD account to an LKR one would credit 100
+      // rupees: wrong by a factor of three hundred, and entirely plausible
+      // on screen.
+      final result = await makeTransfer(
+        params(fromCurrency: 'USD', toCurrency: 'LKR'),
+      );
+
+      expect(result.isLeft(), isTrue);
+      expect(repository.received, isNull);
+    });
+
+    test('and says which currency it would have to be, not just "no"', () {
+      final failure = MakeTransfer.validate(
+        params(fromCurrency: 'USD', toCurrency: 'LKR'),
+      );
+
+      expect(failure?.message, contains('two USD accounts'));
+      // The destination is the control the user can usefully change; the
+      // source is the account they started from.
+      expect(failure?.field, 'toAccount');
+    });
+
+    test('but not two accounts whose codes differ only in case', () async {
+      // `accounts.currency` is free text with a three-letter check, and
+      // nothing forces upper case on the way in. Refusing LKR-to-lkr would be
+      // refusing a transfer between two rupee accounts.
+      final result = await makeTransfer(
+        params(fromCurrency: 'lkr', toCurrency: ' LKR '),
+      );
+
+      expect(result.isRight(), isTrue);
+      expect(repository.received, isNotNull);
     });
   });
 

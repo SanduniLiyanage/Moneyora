@@ -66,12 +66,12 @@ the wrong IDs in the accounts slice were all copied from each other.
 ## What is built
 
 **Sprints 1 and 2 are complete**, both verified running on an Android
-emulator. **Sprint 3 has its accounts half done**: PR #28 landed the domain and
+emulator. **Sprint 3 is nearly done**: PR #28 landed the accounts domain and
 data layers with E-18's reconciliation, and the screens followed — the side
 panel (FR-ACC-003), the create-and-edit form with its icon catalogue
-(FR-ACC-001, 002, 006), and archiving, restoring and deleting (FR-ACC-004,
-FR-ACC-007). What is missing is the transfer half: no screen calls
-`MakeTransfer` yet.
+(FR-ACC-001, 002, 006), archiving, restoring and deleting (FR-ACC-004,
+FR-ACC-007), and the transfer screen (FR-TRF-001 to 003). What is left is the
+entry screen's account selector and FR-TRF-004's row labels.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -108,20 +108,21 @@ lib/
 └── main.dart         ProviderScope
 ```
 
-**543 tests pass; domain-layer line coverage is 96.4% against a 75% floor**
-(299 of 310 lines, across 26 files). CI runs format, analyze, tests, that
+**557 tests pass; domain-layer line coverage is 96.8% against a 75% floor**
+(306 of 316 lines, across 26 files). CI runs format, analyze, tests, that
 coverage floor, the architecture boundary check, an Android APK build and an
 iOS compile — all three jobs blocking.
 
-Eleven lines are uncovered, at six sites: the unreachable `default` arms in
+Ten lines are uncovered, at five sites: the unreachable `default` arms in
 `transaction_repository.dart` and `analytics_repository.dart`, `copyWith` on
-`category_total.dart` and `tool_exchange.dart`, one guard in
-`run_copilot_query.dart`, and `ArchiveParams`' const constructor — which has
-reported both covered and uncovered across runs with no change to the file,
-as a const constructor evaluated at compile time can.
+`category_total.dart` and `tool_exchange.dart`, and one guard in
+`run_copilot_query.dart`.
 
-An earlier version of this paragraph said "five", counting sites and calling
-them lines. Coverage is measured the way CI measures it —
+`ArchiveParams`' const constructor comes and goes from that list between runs
+with no change to the file — a const constructor evaluated at compile time can
+report either way — so do not read a one-line move in this figure as a
+regression. An earlier version of this paragraph also said "five" when it meant
+five *sites* and ten *lines*. Coverage is measured the way CI measures it —
 `lcov --extract coverage/lcov.info '*/domain/*'` — so this is the number the
 gate prints, not a differently-scoped one.
 
@@ -138,18 +139,19 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 3's transfer half.** The accounts side is finished — the panel, the
-form, archiving, restoring and deleting. Outstanding: the transfer screen on
-top of `MakeTransfer`, the entry screen's account selector (still pinned to the
-first account, because a picker with one option is not a picker), and
-FR-TRF-004's `From`/`To` labels on transfer rows.
+**The last two pieces of Sprint 3.** The accounts side is finished — panel,
+form, archiving, restoring, deleting — and so is the transfer screen.
+Outstanding: the entry screen's account selector, still pinned to the first
+account because a picker with one option is not a picker, and FR-TRF-004's
+`From`/`To` labels on transfer rows.
 
-Two refusals are worth knowing about before touching that work, because both
-are already written and both matter: `ArchiveAccount` will not archive the last
-usable account, and `DeleteAccount` will not delete one with transactions. The
-screens show those sentences rather than inventing their own — that is what the
-widget tests assert, so a rule cannot drift between the form and the use case
-that enforces it.
+Every screen in this slice shows its use case's own refusal rather than
+inventing one, and the widget tests assert on those exact sentences — so a rule
+cannot drift between a screen and the thing that enforces it. Four are live:
+`ArchiveAccount` will not archive the last usable account, `DeleteAccount` will
+not delete one with transactions, and `MakeTransfer` refuses both a transfer to
+the account it came from and one between two currencies (E-25, until
+FR-ACC-005 lands in Sprint 7).
 
 The panel is composed in `core/router/app_router.dart` and passed to
 `HomePage` as a widget, rather than imported by the home screen. A feature

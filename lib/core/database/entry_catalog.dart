@@ -58,6 +58,8 @@ class AccountOption {
     required this.id,
     required this.name,
     required this.balanceCents,
+    this.icon = 'wallet',
+    this.currency = 'LKR',
   });
 
   /// Row id, used as `transactions.account_id`.
@@ -68,6 +70,16 @@ class AccountOption {
 
   /// The cached balance (E-18), for display only.
   final int balanceCents;
+
+  /// Icon key from `accounts.icon`. FR-ACC-006.
+  final String icon;
+
+  /// ISO 4217 code from `accounts.currency`.
+  ///
+  /// Carried so a picker can render the balance in the right currency, and so
+  /// the transfer screen can refuse to move money between two accounts that do
+  /// not share one — E-25's interim rule, until FR-ACC-005 brings conversion.
+  final String currency;
 }
 
 /// Everything an entry screen needs to render its pickers.
@@ -122,6 +134,8 @@ Future<EntryCatalog> readEntryCatalog(Database db) async {
           id: row['id']! as int,
           name: row['name']! as String,
           balanceCents: row['current_balance_cents']! as int,
+          icon: row['icon'] as String? ?? 'wallet',
+          currency: row['currency'] as String? ?? 'LKR',
         ),
     ],
   );

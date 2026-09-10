@@ -62,7 +62,7 @@ No image and no total ever leaves the phone.
 | Accounts — the side panel of balances | **Built** |
 | Accounts — add and edit, with 25 built-in icons | **Built** |
 | Accounts — archive, restore and delete | **Built** |
-| Transfers — the screen | Not started |
+| Transfers — atomic, with the screen that records them | **Built** |
 | Analytics — the spending-by-category query | **Built** |
 | AI Copilot — agent loop, first tool, model integration | **Built** |
 | AI Copilot — the ask screen | **Built** — not yet proven against the live API |
@@ -73,7 +73,7 @@ No image and no total ever leaves the phone.
 
 Sprints 1 and 2 of 10 are complete and verified on an Android emulator.
 Sprint 3's domain and data layers are in, along with the first of its screens.
-543 tests pass, and domain-layer line coverage is 96.4% against a 75% floor.
+557 tests pass, and domain-layer line coverage is 96.8% against a 75% floor.
 For the detail — what exists, what is next, and the environment traps — see
 [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
