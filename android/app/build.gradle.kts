@@ -51,6 +51,19 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // R8 already ran on release builds - the Flutter Gradle plugin turns
+            // minification on - but no project rules file was ever wired in, so
+            // it had nothing to consult and the build failed on ML Kit's
+            // unresolvable script references. Stated explicitly here rather than
+            // left inherited, because "the minifier runs" is exactly the fact
+            // that was not obvious when the release build was broken and every
+            // CI check was green. See E-09 in docs/SPEC_ERRATA.md.
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

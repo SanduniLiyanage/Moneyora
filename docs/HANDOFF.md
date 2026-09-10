@@ -205,35 +205,11 @@ run cannot be an oracle.
 
 ## What is next
 
-**First, before any feature work: make the release build work, and make CI
-run it.** Decided 2026-09-10, ahead of Sprint 3's remaining items.
+**The release build is fixed** (see Environment below and
+[E-09](SPEC_ERRATA.md)). One thing it leaves open: a release APK has been built
+but never installed or run, so put that on the next emulator session.
 
-`flutter build apk --release` fails at R8 (details under Environment below).
-The fix is three pieces, and the third is the one that matters most:
-
-1. **`android/app/proguard-rules.pro`** — the file does not exist, and minify
-   is configured nowhere. Add `-dontwarn` rules for the script-specific ML Kit
-   recognisers this app does not use: Chinese, Devanagari, Japanese and Korean.
-   Latin is the only one the receipt scanner needs.
-
-   **Do not add the missing dependencies to satisfy R8.** That is the answer
-   most search results give, and it ships four text-recognition models the app
-   never calls — trading a build error for permanent bloat in an artefact that
-   has an 80 MB budget.
-
-2. **Wire it into the release `buildType`** in `android/app/build.gradle`.
-
-3. **Make CI build a release artefact.** Debug-only is what let this hide for
-   38 pull requests: debug does not run R8, so the minifier has never executed
-   on this project. If a release build on every PR is too slow, run it on
-   pushes to `main` instead — but it has to run somewhere automated, or the
-   next R8 regression hides exactly as long as this one did.
-
-Then **re-measure with `--split-per-abi`** and record it in
-[E-09](SPEC_ERRATA.md). The 67.1 MB universal figure is not comparable to the
-80 MB budget, which binds a per-ABI artefact.
-
-**Then the last two pieces of Sprint 3.** The accounts side is finished — panel,
+**The last two pieces of Sprint 3.** The accounts side is finished — panel,
 form, archiving, restoring, deleting — and so is the transfer screen.
 Outstanding: the entry screen's account selector, still pinned to the first
 account because a picker with one option is not a picker, and FR-TRF-004's
@@ -438,27 +414,24 @@ to 10.3.1 because version 11 demands 37. CI passed with 37 while every local
 build failed, since GitHub's runners carry an integer `android-37` — a green
 tick that held only on the CI image.
 
-**`flutter build apk --release` currently FAILS.** R8 cannot resolve ML Kit's
-script-specific recognisers, which `google_mlkit_text_recognition` references
-but does not depend on:
+**The release build was broken for 38 pull requests, and CI could not see it.**
+Fixed 2026-09-10; the history is worth keeping because the shape of it will
+recur. `flutter build apk --release` failed at R8 — ML Kit references
+script-specific recognisers it does not depend on — while every CI check stayed
+green, because **CI built a debug APK and debug does not run R8.** The minifier
+had never executed on this project.
 
-```
-ERROR: R8: Missing class
-  com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions$Builder
-Execution failed for task ':app:minifyReleaseWithR8'.
-```
+`android/app/proguard-rules.pro` now carries `-dontwarn` for the four unused
+script packages, and CI builds a release APK. Sizes, per
+[E-09](SPEC_ERRATA.md): **arm64-v8a 35.9 MB against an 80 MB budget**, with ML
+Kit included.
 
-**CI has never caught this because CI builds a *debug* APK, and debug does not
-run R8.** The minifier has never executed on this project in CI. Anything
-needing a release artefact — the device session's timings, the Sprint 10 size
-gate, any store build — is blocked until this is fixed, with either the script
-dependencies or `-dontwarn` rules in `android/app/proguard-rules.pro`.
-
-Measured 2026-09-10 while sizing the ML Kit dependency for
-[E-09](SPEC_ERRATA.md): with the plugin removed the release build succeeds at
-**67.1 MB** universal (all ABIs). That is not 67.1 against the 80 MB budget —
-the budget binds a per-ABI artefact, roughly a third the size — but it is the
-first real release number this project has had.
+**A release APK has been built but never run.** R8 with
+`proguard-android-optimize.txt` can break reflection-based code that compiles
+cleanly, and this app leans on several JNI-backed plugins. Installing a release
+build on the emulator is on the next emulator session's list. Until then,
+"compiles in release" is the only claim available — E-19's distinction, applied
+to a build type.
 
 **`kotlin.incremental=false`** in `android/gradle.properties`. It bought
 nothing here and repeatedly corrupted its own caches.

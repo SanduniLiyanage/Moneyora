@@ -404,45 +404,61 @@ every local build failed", and here CI passes while the release build cannot be
 produced at all. A gate that measures a different artefact from the one being
 claimed is not a gate.
 
-**The measurement, such as it could be taken.** With ML Kit the build does not
-complete, so no delta exists to report. Without it:
+**Fixed, and measured.** `android/app/proguard-rules.pro` now carries
+`-dontwarn` for the four unused script packages, wired into the release
+`buildType`. The release build completes.
 
 | Artefact | Size |
 |---|---|
-| Release APK, **universal** (all ABIs), no ML Kit | **67.1 MB** (70,401,693 bytes) |
-| Release APK with ML Kit | **could not be built** |
+| `app-armeabi-v7a-release.apk` | **27.8 MB** (29,140,656 bytes) |
+| `app-arm64-v8a-release.apk` | **35.9 MB** (37,602,894 bytes) |
+| `app-x86_64-release.apk` | 38.4 MB (40,258,511 bytes) — emulator ABI |
+| Universal APK, all ABIs, for comparison only | 96.9 MB (101,568,207 bytes) |
+| Universal APK **without** ML Kit, measured before the fix | 67.1 MB (70,401,693 bytes) |
 
-**Read that 67.1 MB carefully — it is not 67.1 MB against the 80 MB budget.**
-`flutter build apk --release` produces one fat APK carrying every ABI. The
-80 MB figure binds a **per-ABI** artefact, which is roughly a third of the
-universal one. So the budget is not in danger today, and this addendum is not
-an alarm about it.
+**The budget is met with room to spare.** The largest ABI shipped to phones is
+arm64-v8a at **35.9 MB against 80 MB** — 44 MB of headroom, with the receipt
+scanner's models already included, since ML Kit is in the build. The x86_64
+artefact is larger but goes to emulators, not the Play Store.
 
-What it does establish, for the first time with a number rather than an
-estimate, is a baseline to measure the scanner against when Sprint 6 adds it,
-and that the per-ABI split the gate depends on is not optional — it is the
-difference between comfortably inside the budget and arguing about it.
+Note what the universal figure would have suggested: 96.9 MB reads as *over*
+the 80 MB budget, and is meaningless, because no user ever downloads it.
+Comparing it to the budget compares two different things. That is why the CI
+step added with this fix builds `--split-per-abi`.
 
-**Decided 2026-09-10, and scheduled ahead of Sprint 3's remaining items:**
+ML Kit costs roughly 29.8 MB in the universal APK (96.9 against 67.1). It is
+kept: it is the receipt scanner's whole basis, the budget is met with it, and
+deferring the dependency would have meant re-solving the R8 problem in Sprint 6
+instead of now.
 
-1. **Fix R8 with keep rules, not with dependencies.**
-   `android/app/proguard-rules.pro` does not exist and minify is configured
-   nowhere; add the file with `-dontwarn` for the Chinese, Devanagari, Japanese
-   and Korean recognisers, and wire it into the release `buildType`. Adding the
-   four missing dependencies would also satisfy R8, and is rejected: it ships
-   four text-recognition models the app never calls into an artefact with an
-   80 MB budget. Latin is the only script the scanner needs.
-2. **CI must build a release artefact.** Debug-only is why this survived 38
-   pull requests. On every PR if that is affordable, on pushes to `main` if it
-   is not — but automated either way.
-3. **Re-measure with `--split-per-abi` once the build works**, and record that
-   figure here. Until then the table above stands with its caveat and is not
-   evidence about the budget.
+**A release APK has been built. It has not been run.** R8 with
+`proguard-android-optimize.txt` can break reflection-based code in ways that
+compile cleanly and fail at runtime, and this project uses several plugins that
+reach across JNI. The distinction is E-19's, applied to a build type rather than
+a platform: "the release build compiles" and "the release build works" are
+different claims, and only the first is being made. Installing a release APK on
+the emulator is on the next emulator session's list.
 
-The ML Kit dependency is **not** being deferred out of `pubspec.yaml`. Once R8
-is fixed the plugin builds, and the question that prompted this measurement —
-whether to carry it before Sprint 6 — turns out to be smaller than the R8
-problem it uncovered.
+**Resolved 2026-09-10, ahead of Sprint 3's remaining items:**
+
+1. **R8 fixed with keep rules, not dependencies.** `-dontwarn` for the Chinese,
+   Devanagari, Japanese and Korean packages, wired into the release
+   `buildType`. Adding the four missing dependencies would also have satisfied
+   R8 and was rejected: it ships four text-recognition models the app never
+   calls. Latin is the only script the scanner needs, and it is in the base
+   artefact.
+2. **CI builds a release APK**, in the existing `Build Android APK` job — the
+   step that would have caught this and did not exist. It runs
+   `--split-per-abi` and prints each size. Kept in that job rather than a new
+   one because checkout, the JDK, the Flutter SDK and `pub get` are most of its
+   runtime, and a second job would pay all of it again.
+3. **The 80 MB gate stays in Sprint 10**, unchanged. Sizes are *reported* every
+   run so the gate arrives to a known trend instead of a surprise.
+
+The ML Kit dependency is **not** deferred out of `pubspec.yaml`. The question
+that prompted the measurement — whether to carry it before Sprint 6 — turned
+out to be much smaller than the R8 problem it uncovered, and the budget is met
+with it in.
 
 ---
 

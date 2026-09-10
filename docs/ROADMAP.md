@@ -104,23 +104,24 @@ mid-entry, which belongs with FR-EXP-004 in the categories work — **Sprint 3.5
 below. Until 2026-09-10 "the categories work" named no sprint in this file,
 which is what that new sprint exists to fix.
 
-## Immediate — fix the release build, before Sprint 3's remaining items
+## Immediate — fix the release build — **done 2026-09-10**
 
-Not a sprint item; it blocks several of them. `flutter build apk --release`
-fails at R8 because `google_mlkit_text_recognition` references script-specific
-recognisers it does not depend on, and **CI has never caught it because CI
-builds a debug APK, which does not run R8.**
+Not a sprint item, but it blocked several of them, so it went first.
+`flutter build apk --release` failed at R8 because
+`google_mlkit_text_recognition` references script-specific recognisers it does
+not depend on — and **CI never caught it, because CI built a debug APK, which
+does not run R8.** It had been broken for 38 pull requests.
 
-Three pieces: `-dontwarn` keep rules in a new
-`android/app/proguard-rules.pro` (not the four missing dependencies — those
-ship models the app never calls), wiring them into the release `buildType`,
-and **making CI build a release artefact** so the next regression does not hide
-for another 38 pull requests. Then re-measure with `--split-per-abi` for
-[E-09](SPEC_ERRATA.md).
+Delivered: `-dontwarn` keep rules in a new `android/app/proguard-rules.pro`
+(not the four missing dependencies — those ship models the app never calls),
+wired into the release `buildType`, and **a release build in CI** so the next
+regression cannot hide the same way. Measured with `--split-per-abi` for
+[E-09](SPEC_ERRATA.md): arm64-v8a is **35.9 MB against the 80 MB budget**, with
+ML Kit included.
 
-It comes first because the device session needs a release APK, the Sprint 10
-size gate needs one, and every day it stays broken is a day the R8 configuration
-drifts further from anything that has ever been executed.
+Left open: a release APK has been built but never run. R8 can break
+reflection-based code that compiles cleanly, so installing one on the emulator
+is on the next emulator session.
 
 ## Sprint 3 — Accounts & transfers (Week 5) — **two items outstanding**
 
