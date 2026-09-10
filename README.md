@@ -146,7 +146,8 @@ every push rather than trusting anyone to remember.
 | [ROADMAP.md](docs/ROADMAP.md) | Deciding what to build next |
 | [COPILOT.md](docs/COPILOT.md) | Working on the AI Copilot — its scope, privacy design and build order |
 | [CLAUDE.md](CLAUDE.md) | Working with Claude Code in this repo |
-| [specs/](docs/specs/) | The approved SRS, SDD, DBD and ERD — unmodified |
+| [specs/](docs/specs/) | The approved SRS, SDD, DBD and ERD PDFs — unmodified — plus derived, non-authoritative Markdown transcripts for grepping |
+| [REQUIREMENTS_INDEX.md](docs/specs/REQUIREMENTS_INDEX.md) | **Before citing an FR-/NFR- ID anywhere.** Every requirement, flat and greppable, with known citation traps |
 
 ### On the errata
 

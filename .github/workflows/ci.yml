@@ -79,6 +79,11 @@ jobs:
       - name: Clean Architecture boundaries
         run: bash scripts/check_architecture.sh
 
+      # E-25 was a wrong ID that survived review because it looked like a
+      # checked fact. This is that check, run on every push.
+      - name: Requirement citations exist
+        run: bash scripts/check_citations.sh
+
       - name: Unit & widget tests with coverage
         if: steps.probe.outputs.ready == 'true'
         run: flutter test --coverage
