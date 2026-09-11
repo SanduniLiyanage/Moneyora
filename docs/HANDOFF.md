@@ -1,17 +1,16 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `aee7d51`, after **48
-merged pull requests** (#2–#49; #1 was closed unmerged) — [PR #49](https://github.com/SanduniLiyanage/Moneyora/pull/49),
-the categories management screen, merged during this window. **Plus this
-session's inline category-creation slice, on branch
-`feat/entry-screen-quick-add-category` as
-[PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50), open and
+State of the project as of **2026-09-12**, `main` at `87df4da`, after **49
+merged pull requests** (#2–#50; #1 was closed unmerged) — [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50),
+the entry screen's inline category creation, merged during this window.
+**Plus this session's E-27 retirement, on branch `feat/retire-entry-catalog`
+as [PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), open and
 awaiting CI/review — not yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on
-`feat/entry-screen-quick-add-category` (PR #50), before it merges.
+`feat/retire-entry-catalog` (PR #51), before it merges.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -20,20 +19,23 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **655 passing** | `flutter test` |
+| Tests | **656 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 93 in `lib/`, 46 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 94 in `lib/`, 45 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: the 648 at `aee7d51` (PR #49, merged) plus 7 new from this
-session — `quick_add_category_test.dart`'s four cases, one added to
-`injection_test.dart` proving the new port writes through the same
-repository `WatchCategories` reads, and two widget tests in
-`transactions_flow_test.dart` for the entry screen's inline `+` — none yet
-broken out further by sub-area.
+Tests by area: the 655 at `87df4da` (PR #50, merged) plus 1 net new from this
+session — `entry_catalog_test.dart`'s 6 cases deleted with the file they
+tested, and 7 added: one each in `category_repository_impl_test.dart` and
+`account_repository_impl_test.dart` proving the mapping to the narrower
+option type, two more proving each `watchAll()` is the same live read as
+`watch()`, one in `account_repository_impl_test.dart` proving archived
+accounts stay excluded, and two in `injection_test.dart` proving
+`categoryReaderProvider`/`accountReaderProvider` read the same repository
+their writes go through — none yet broken out further by sub-area.
 
 `bash scripts/check_citations.sh` took **under 5 seconds on CI** historically
 but **nearly 5 minutes on this Windows machine** in an earlier session —
@@ -45,78 +47,80 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — the entry screen's inline category `+` ([PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50), open)
+## This session — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), open)
 
-E-13's inline `+`, next in sequence after [PR #49](https://github.com/SanduniLiyanage/Moneyora/pull/49)
-gave the categories slice its screens. `add_transaction_page.dart`'s category
-row had carried a comment marking exactly where this belonged since before
-the categories slice existed at all.
+E-27's resolution, next after [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50)
+gave the inline `+` its write path. The read the created row landed in was
+still `core/database/entry_catalog.dart` — a raw-SQL future that predated the
+categories and accounts slices — refreshed by hand rather than replaced.
 
-- **`core/ports/category_writer.dart`** — a new port, the same role
-  `SpendingByCategoryReader` plays between analytics and the Copilot:
-  `features/transactions/` may not import `features/categories/`
-  (`check_architecture.sh` rule 4), so this is the seam between them. Takes
-  only a name and an expense/income flag — never the `Category` entity —
-  so the consumer outside the categories feature never needs that feature's
-  domain types.
-- **`features/categories/domain/usecases/quick_add_category.dart`** —
-  `QuickAddCategory` fulfils the port as a thin adapter over `AddCategory`,
-  not a second write path: the row it produces is `AddCategory`'s own, so a
-  category created inline and one created through `CategoryFormPage` can
-  never drift on what counts as valid. Its default icon/colour are literal
-  copies of `defaultCategoryIconKey`/`defaultCategoryColorHex` rather than
-  imports of them — both of those live in files that import Flutter, which
-  `domain/` may not (rule 1) — and `quick_add_category_test.dart` asserts the
-  literals still match, so a change to either catalogue's default cannot
-  drift from this silently.
-- **`injection.dart`**: `categoryWriterProvider`, wiring `QuickAddCategory`
-  over the real `AddCategory`.
-- **`features/transactions/presentation/providers/transaction_providers.dart`**:
-  `QuickAddCategoryController`, the same shape `SaveTransferController`
-  already gives its own write — including the same
-  `ref.invalidate(entryCatalogProvider)` after a successful save, since the
-  catalog is a one-shot read that would not otherwise show the row just
-  created.
-- **`add_transaction_page.dart`**: a "New" `ActionChip` at the end of the
-  category row opens `_QuickAddCategorySheet` — a bottom sheet with just a
-  name field, deliberately smaller than `CategoryFormPage`: a name is all
-  the moment of discovering a category is missing needs. Icon, colour and
-  parent stay the categories screen's job, which keeps its own `+` for
-  deliberate management (SPEC_ERRATA.md's E-13 resolution is explicit about
-  that split). The screen awaits the invalidated `entryCatalogProvider`
-  before selecting the new id — skipping that wait let the "category no
-  longer exists" guard (meant for a deleted category) briefly clear the
-  selection of a category that had only not loaded yet.
-- **Tests**: `quick_add_category_test.dart` (4 cases, including the
-  literal-defaults guard above) and two new cases in
-  `transactions_flow_test.dart` covering the inline flow end to end,
-  plus one in `injection_test.dart` proving the port writes through the same
-  repository `WatchCategories` reads, against a real database. One existing
-  widget-test helper, `tapText`, needed `ensureVisible` added — the new
-  "New" chip pushed the account picker below the fixed test viewport's fold
-  in one pre-existing test.
+- **`core/ports/category_reader.dart`, `core/ports/account_reader.dart`** —
+  two new ports, the same "contract two features share" role
+  `SpendingByCategoryReader` plays for analytics/the Copilot: `features/
+  transactions/` may not import `features/categories/` or `features/
+  accounts/` (`check_architecture.sh` rule 4), so these are the seam. Each
+  carries its own narrow DTO — `CategoryOption`/`AccountOption`, moved here
+  from the deleted file — rather than the feature's own entity, the same
+  restraint `CategoryWriter` already applies to writes.
+- **`CategoryRepositoryImpl`/`AccountRepositoryImpl`** now fulfil
+  `CategoryReader`/`AccountReader` directly (`watchAll()`, mapping the entity
+  down to the option), the exact shape `AnalyticsRepositoryImpl` already uses
+  for `SpendingByCategoryReader` — one object behind the read, not a second
+  path to the same rows. `injection.dart` wires each through a private,
+  concretely-typed `_...RepositoryImplProvider`, mirroring the analytics
+  provider's own comment about why that indirection exists.
+- **`transaction_providers.dart`**: `entryCatalogProvider` is gone, replaced
+  by `entryCategoriesProvider`/`entryAccountsProvider` — live `StreamProvider`s
+  over the new ports, the same shape `categoriesProvider`/`accountsProvider`
+  already have in their own features. Live means no more manual refresh: the
+  three `ref.invalidate(entryCatalogProvider)` calls (after a transfer, after
+  the inline `+`, after loading the dev seed) are all deleted, since each
+  underlying repository already publishes to the change signal these streams
+  watch.
+- **`add_transaction_page.dart`, `transfer_page.dart`,
+  `transaction_list_page.dart`** — all three read sites switched from the
+  one-shot catalog to the two live providers. The entry screen's inline `+`
+  still has to wait for its new category to actually arrive before selecting
+  it (the stream update is asynchronous, not instantaneous) — that wait is
+  now a manual `ref.listenManual` rather than `ref.read(future)`, since a
+  `StreamProvider`'s cached value can already be stale by the time a write
+  completes.
+- **`core/database/entry_catalog.dart` is deleted**, along with its test
+  file. Two dangling doc-comment references to it (in
+  `category_local_datasource.dart` and `category.dart`) were updated rather
+  than left pointing at a file that no longer exists.
+- **Tests**: `watchAll()` gets its own cases in
+  `category_repository_impl_test.dart` and `account_repository_impl_test.dart`
+  (mapping to the option type, excluding archived accounts, and proving it is
+  the same live read `watch()` is), plus one identity test per port in
+  `injection_test.dart` proving a write through the use case comes back out
+  of the port — the same shape PR #50's inline-`+` identity test used.
+  `transactions_flow_test.dart` and `transfer_screen_test.dart` swap their
+  `entryCatalogProvider` overrides for the two new providers; the inline-`+`
+  group's mutable-catalog fixture becomes a `StreamController` so a created
+  category can still be pushed through after the fact.
 
-**Committed and pushed as one commit** on
-`feat/entry-screen-quick-add-category`, opened as
-[PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50).
-`flutter analyze` (0 issues), `flutter test` (655 passing, up from 648),
+`flutter analyze` (0 issues), `flutter test` (656 passing, up from 655),
 `check_architecture.sh` and `check_citations.sh` are all clean.
 **Not yet merged — do not merge without asking first.**
 
-**Still not done**: retiring `entry_catalog.dart` (E-27) — the entry screen's
-category chips, the account picker, and the transfer screen's account picker
-all still read `EntryCatalog`, a one-shot future over raw SQL, rather than
-`categoriesProvider`/an accounts equivalent. This session's write goes
-through the categories repository (via the new port), but the *read* the
-category row is created into is still the old one, refreshed by
-invalidation rather than replaced. E-27's full retirement — switching every
-`entryCatalogProvider` read to the proper feature providers, then deleting
-the file — is unchanged from before this session and is next. FR-EXP-011's
-category-grouped *transaction* list toggle remains a separate requirement
-against `transaction_list_page.dart`, not this slice (E-11 raises it against
-FR-EXP-006 and SDD SCR-005).
+**Sprint 3.5 is now fully complete.** FR-EXP-011's category-grouped
+*transaction* list toggle remains a separate requirement against
+`transaction_list_page.dart`, not part of this slice (E-11 raises it against
+FR-EXP-006 and SDD SCR-005) — see "What is next" below.
 
-### Previous session — the categories management screen (PR #49, merged)
+### Previous session — the entry screen's inline category `+` (PR #50, merged)
+
+E-13's inline `+`: a "New" chip on the entry screen's category row opens a
+small bottom sheet, writes through the new `CategoryWriter` port and
+`QuickAddCategory` (a thin adapter over `AddCategory`, so a category created
+inline can never drift from one created through `CategoryFormPage` on what
+counts as valid), and selects the result without leaving the entry screen.
+Full detail is in that PR's own description and in `git log` rather than
+repeated here — this summary exists only because this session's work builds
+directly on it. Merged as `87df4da`.
+
+### Session before that — the categories management screen (PR #49, merged)
 
 Picked up where PR #47 left off: `domain/`, `data/` and
 `presentation/providers` were done, and `presentation/pages` were empty.
@@ -124,9 +128,7 @@ That session built `category_form_page.dart` (create/edit, one screen for
 both), `category_list_page.dart` (the Expense/Income tabbed management
 screen), the `core/widgets/category_icons.dart`/`core/theme/category_palette.dart`
 catalogues the icon and colour pickers draw from, and the `categories`/
-`categoryForm` routes. Full detail is in that PR's own description and in
-`git log` rather than repeated here — this summary exists only because this
-session's work builds directly on it. Merged as `aee7d51`.
+`categoryForm` routes. Merged as `aee7d51`.
 
 ---
 
@@ -187,7 +189,7 @@ shape the code most:
 | E-19 | iOS is **compile-verified only**; it has never run on a device |
 | E-20 | iOS floor is 15.5, not 14 — ML Kit requires it |
 | E-25 | Four FR-ACC citations named the wrong requirements; **FR-ACC-007** raised for `DeleteAccount`, which had none. FR-ACC-005 deferred to Sprint 7 |
-| E-27 | `entry_catalog.dart` sits outside a feature slice on purpose — and is **deleted in Sprint 3.5**, which is what stops "interim" becoming permanent |
+| E-27 | `entry_catalog.dart` sat outside a feature slice on purpose — **deleted this session**, its reads moved behind `CategoryReader`/`AccountReader`, which is what stopped "interim" becoming permanent |
 | E-28 | NFR-PER-006 cannot be verified here. Emulator timings are **comparative, never conformant**; no sprint blocks on the borrowed device |
 
 When implementing anything, check the errata for its requirement ID first.
@@ -214,12 +216,12 @@ named the side a row belongs to (E-16), so the counterparty comes from
 via a join in `TransactionLocalDataSourceImpl.list` and carried up through a
 new `Transaction.counterpartyAccountId` field.
 
-**Sprint 3.5 — categories — is in progress.** Added 2026-09-10 and slotted
-between Sprints 3 and 4: FR-EXP-004, FR-EXP-005 and FR-EXP-011 had been
-scheduled in no sprint at all, while analytics, the Money Plan and the
-receipt scanner all depend on categories being something the user controls.
-That was a defect in the plan rather than in the SRS, so it is fixed in
-[`ROADMAP.md`](ROADMAP.md) and deliberately raised no errata entry.
+**Sprint 3.5 — categories — is complete**, bar FR-EXP-011. Added 2026-09-10
+and slotted between Sprints 3 and 4: FR-EXP-004, FR-EXP-005 and FR-EXP-011
+had been scheduled in no sprint at all, while analytics, the Money Plan and
+the receipt scanner all depend on categories being something the user
+controls. That was a defect in the plan rather than in the SRS, so it is
+fixed in [`ROADMAP.md`](ROADMAP.md) and deliberately raised no errata entry.
 
 **`domain/`, `data/`, `presentation/providers` and `presentation/pages`
 are done and wired** (PRs #44, #46, #47, #49) — `Category`, `CategoryRepository`,
@@ -228,15 +230,13 @@ the four use cases, `CategoryLocalDataSourceImpl`, `CategoryRepositoryImpl`,
 reachable in `injection_test.dart` the same way the transactions slice is),
 and `CategoryListPage`/`CategoryFormPage`, reachable from the home screen's
 "Coming next" list. A user can create, rename, re-icon, re-colour, re-parent
-and delete a category through the app. **This session's PR #50 adds a fifth
-write path in**: the entry screen's inline `+`, through the new
-`CategoryWriter` port and `QuickAddCategory`.
-[E-27](SPEC_ERRATA.md)'s retirement of `entry_catalog.dart` **still hasn't
-happened** — every read of it (the entry screen's category chips, both
-screens' account pickers) still goes through `EntryCatalog`, not
-`categoriesProvider`/an accounts equivalent, so deleting the file would break
-all three. That swap is its own piece of work, not a side effect of either
-the management screen or the inline `+`.
+and delete a category through the app. PR #50 added a fifth write path in:
+the entry screen's inline `+`, through the `CategoryWriter` port and
+`QuickAddCategory`. **This session's PR #51 finished the slice**:
+[E-27](SPEC_ERRATA.md)'s retirement of `entry_catalog.dart` is done — the
+entry screen's category chips and both screens' account pickers all read
+`CategoryReader`/`AccountReader` now, the same ports the inline `+`'s write
+uses on the other side.
 
 **Sprint 4 — analytics — has domain and data only.** `GetSpendingByCategory`,
 its datasource and its repository are in and tested;
@@ -258,9 +258,6 @@ lib/
 │   │   ├── database_helper.dart         SQLCipher open + migration runner
 │   │   ├── database_summary.dart        row counts (SQL lives here, not in DI)
 │   │   ├── encryption_key_store.dart    AES-256 key -> platform keychain
-│   │   ├── entry_catalog.dart           the entry screen's categories+accounts
-│   │   │                                read. Outside a feature slice on
-│   │   │                                purpose — E-27. Deleted in Sprint 3.5.
 │   │   └── seed/
 │   │       ├── default_seed.dart        15 expense + 3 income categories
 │   │       └── dev_seed.dart            >500 synthetic transactions, 24 months
@@ -338,41 +335,43 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50).**
+**First: watch and merge [PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51).**
 Opened this session, not yet merged — deliberately left for a human decision
 rather than merged automatically. Once reviewed and CI is green:
 
 ```powershell
-gh pr checks 50 --watch
-gh pr merge 50 --squash --delete-branch
+gh pr checks 51 --watch
+gh pr merge 51 --squash --delete-branch
 git pull
 ```
 
-Once that lands, Sprint 3.5's one remaining piece is **retiring
-`entry_catalog.dart` (E-27)**. It needs every `entryCatalogProvider` read
-switched to the feature that actually owns the rows first — the entry
-screen's category chips and both screens' account pickers
-(`add_transaction_page.dart`, `transfer_page.dart`, `transaction_list_page.dart`)
-all still read it — then the file deleted. This session's inline `+`
-deliberately did not do this switch itself: it added a **write** path
-through the categories repository via the `CategoryWriter` port, and refreshes
-the still-`EntryCatalog` read by invalidating it, exactly as
-`SaveTransferController` already does after a transfer. Retiring the file is
-a read-side migration across three call sites, not a side effect of either
-write path. FR-EXP-011's category-grouped list toggle is **not** part of
-this feature — it belongs to `transaction_list_page.dart` (E-11 raises it
-against FR-EXP-006 and SDD SCR-005), and is easy to mistake for
-categories-screen work because of the name.
+Once that lands, **Sprint 3.5 is fully complete** — every FR-EXP-004,
+FR-EXP-005 and E-13 piece is built, and E-27's `entry_catalog.dart` is gone.
+The next work is **Sprint 4 — analytics** (see below), with two smaller
+things worth picking up alongside or before it:
+
+- **FR-EXP-011's category-grouped list toggle** is the one Sprint-3.5-shaped
+  requirement still open — it belongs to `transaction_list_page.dart` (E-11
+  raises it against FR-EXP-006 and SDD SCR-005), not this session's slice,
+  and is easy to mistake for categories-screen work because of the name.
+- **The account-picker widgets across `add_transaction_page.dart` and
+  `transfer_page.dart` are near-duplicates** now that both read the same
+  `AccountOption` shape from `entryAccountsProvider` — `_AccountPicker` in
+  one and `_AccountField` in the other render the same list two different
+  ways (chips vs. a dropdown) for different reasons (the entry screen picks
+  one account, the transfer screen needs two with balances and currencies
+  visible for E-25's refusal), so this is a "notice it, don't merge it
+  reflexively" item rather than a scheduled deliverable.
 
 One thing worth deciding rather than assuming: whether a category the entry
 screen's inline `+` creates should default `sortOrder` to sit after the
 existing set, and whether re-ordering categories (drag-to-reorder on the list
 screen) is in scope for FR-EXP-004 or a later polish pass — neither use case
 nor screen makes a claim about it today, and the list currently renders in
-whatever order `WatchCategories` returns them. This session's `QuickAddCategory`
-left `sortOrder` at its default (0), matching what `CategoryFormPage` already
-does for every new category — not a new answer to the open question, just
-the existing one applied consistently.
+whatever order `WatchCategories` returns them. `QuickAddCategory` leaves
+`sortOrder` at its default (0), matching what `CategoryFormPage` already does
+for every new category — not a new answer to the open question, just the
+existing one applied consistently.
 
 **The release build is fixed** (see Environment below and
 [E-09](SPEC_ERRATA.md)). One thing it leaves open: a release APK has been built
@@ -446,14 +445,16 @@ decided while planning it are worth knowing before touching the code:
   otherwise silence the rest — and a datasource given none makes a private
   one, which is how every unit test constructs them.
 
-**Sprint 3.5 — categories — the full slice is built** (PRs #44, #46, #47,
-#49, plus this session's PR #50); see [`ROADMAP.md`](ROADMAP.md). FR-EXP-004
-(custom categories) and FR-EXP-005 (the two-level hierarchy) have a screen,
-not just use cases and a repository, and E-13's inline `+` now has a write
-path too. What remains: [E-27](SPEC_ERRATA.md)'s `entry_catalog.dart`
-retirement. FR-EXP-011 (the category-grouped *transaction* list) is a
-separate requirement against `transaction_list_page.dart`, not this slice —
-see "What is next" above for why that is worth stating plainly.
+**Sprint 3.5 — categories — is complete** (PRs #44, #46, #47, #49, #50, plus
+this session's PR #51); see [`ROADMAP.md`](ROADMAP.md). FR-EXP-004 (custom
+categories) and FR-EXP-005 (the two-level hierarchy) have a screen, not just
+use cases and a repository; E-13's inline `+` has both a write path
+(`CategoryWriter`) and, as of this session, a matching read
+(`CategoryReader`/`AccountReader`); and [E-27](SPEC_ERRATA.md)'s
+`entry_catalog.dart` retirement is done. FR-EXP-011 (the category-grouped
+*transaction* list) is a separate requirement against
+`transaction_list_page.dart`, not this slice — see "What is next" above for
+why that is worth stating plainly.
 
 **Then Sprint 4 — analytics.** Its first query is already in:
 `GetSpendingByCategory`, with the datasource, the repository and the DI wiring,
