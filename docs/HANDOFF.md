@@ -1,19 +1,20 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-11**, `main` at `cc96ced`, after **47
+State of the project as of **2026-09-12**, `main` at `cc96ced`, after **47
 merged pull requests** (#2–#48; #1 was closed unmerged), **plus this session's
-categories-presentation slice, implemented and tested but not yet committed**
-— see "This session" below before trusting the PR count above it.
+categories-presentation slice, on branch `feat/categories-presentation` as
+[PR #49](https://github.com/SanduniLiyanage/Moneyora/pull/49), open and
+awaiting CI/review — not yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
-Every figure below was produced by running the command beside it against the
-working tree as this session leaves it (categories presentation slice
-included, uncommitted). **This section is the single source of truth for
-counts.** `README.md` and `ARCHITECTURE.md` link here rather than restating
-them: a number kept in one place goes stale once, and a number kept in three
-places goes stale three times and then disagrees with itself, which is worse
-than being merely out of date.
+Every figure below was produced by running the command beside it on
+`feat/categories-presentation` at `b55939a` (PR #49), before it merges.
+**This section is the single source of truth for counts.** `README.md` and
+`ARCHITECTURE.md` link here rather than restating them: a number kept in one
+place goes stale once, and a number kept in three places goes stale three
+times and then disagrees with itself, which is worse than being merely out
+of date.
 
 | Figure | Value | Command |
 |---|---|---|
@@ -40,7 +41,7 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — the categories management screen (uncommitted)
+## This session — the categories management screen ([PR #49](https://github.com/SanduniLiyanage/Moneyora/pull/49), open)
 
 Picking up exactly where PR #47 left off: `domain/`, `data/` and
 `presentation/providers` were done, and `presentation/pages` /
@@ -96,10 +97,13 @@ dangling reference) among the loaded options, and rekeying the field so a
 correct value seeds it once the list arrives. Covered by
 `'preselects the current parent when editing a sub-category'`.
 
-**Not committed.** `flutter analyze` (0 issues), `flutter test` (648 passing,
-up from 623), `check_architecture.sh` and `check_citations.sh` are all clean
-against the working tree, but nothing here has been staged, committed or
-pushed — see "What is next" for the exact commands to do that.
+**Committed and pushed as one commit, `b55939a`** on `feat/categories-presentation`,
+opened as [PR #49](https://github.com/SanduniLiyanage/Moneyora/pull/49).
+`flutter analyze` (0 issues), `flutter test` (648 passing, up from 623),
+`check_architecture.sh` and `check_citations.sh` are all clean.
+**Not yet merged — do not merge without asking first.** Once CI is green:
+`gh pr checks --watch` then `gh pr merge --squash --delete-branch` and
+`git pull` on `main`, per the workflow section below.
 
 **Still not done**: `entry_catalog.dart`'s deletion (E-27) — the entry screen
 still reads categories from the catalog, not `categoriesProvider`, so deleting
@@ -318,22 +322,13 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: commit and PR this session's category screens.** Nothing is staged
-yet. The commands, following the workflow section below:
+**First: watch and merge [PR #49](https://github.com/SanduniLiyanage/Moneyora/pull/49).**
+Opened this session, not yet merged — deliberately left for a human decision
+rather than merged automatically. Once reviewed and CI is green:
 
 ```powershell
-git switch -c feat/categories-presentation
-git add lib/core/theme/category_palette.dart lib/core/widgets/category_icons.dart `
-  lib/features/categories/presentation/pages/category_form_page.dart `
-  lib/features/categories/presentation/pages/category_list_page.dart `
-  lib/core/router/app_router.dart lib/features/home/presentation/pages/home_page.dart `
-  test/widget/category_form_test.dart test/widget/category_list_test.dart `
-  test/widget/app_shell_test.dart docs/HANDOFF.md
-git commit -m "feat(categories): add the list and form screens"
-git push -u origin HEAD
-gh pr create --fill
-gh pr checks --watch
-gh pr merge --squash --delete-branch
+gh pr checks 49 --watch
+gh pr merge 49 --squash --delete-branch
 git pull
 ```
 
