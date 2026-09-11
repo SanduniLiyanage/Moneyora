@@ -83,8 +83,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Database ready'), findsOneWidget);
-      // 15 expense + 3 income, per FR-EXP-003 and FR-INC-002.
-      expect(find.text('Categories'), findsOneWidget);
+      // 15 expense + 3 income, per FR-EXP-003 and FR-INC-002. Scoped to the
+      // summary card: the "Coming next" list below it links to the
+      // categories screen under the same word.
+      expect(
+        find.descendant(
+          of: find.byType(Card),
+          matching: find.text('Categories'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('18'), findsOneWidget);
       expect(find.text('Schema version'), findsOneWidget);
     });

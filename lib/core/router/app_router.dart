@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/account_drawer.dart';
+import '../../features/categories/domain/entities/category.dart';
+import '../../features/categories/presentation/pages/category_form_page.dart';
+import '../../features/categories/presentation/pages/category_list_page.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
@@ -44,6 +47,13 @@ abstract final class Routes {
   /// app could not honour. Reached with no `extra`, it creates a new account,
   /// which is the right answer for a deep link.
   static const String accountForm = '/accounts/form';
+
+  /// Managing categories. FR-EXP-004, FR-EXP-005.
+  static const String categories = '/categories';
+
+  /// Creating or editing one category, the same shape as [accountForm]: one
+  /// path for both, with the category to edit passed as `extra`.
+  static const String categoryForm = '/categories/form';
 }
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
@@ -108,6 +118,24 @@ GoRouter buildRouter() => GoRouter(
       builder: (context, state) => AccountFormPage(
         initial: state.extra is Account ? state.extra! as Account : null,
       ),
+    ),
+    GoRoute(
+      path: Routes.categories,
+      name: 'categories',
+      builder: (context, state) => const CategoryListPage(),
+    ),
+    GoRoute(
+      path: Routes.categoryForm,
+      name: 'categoryForm',
+      // `extra` carries either the `Category` being edited, or the
+      // `CategoryType` a new one should start as — the list page's two tabs
+      // hand back whichever the user was looking at. Anything else,
+      // including the null a deep link brings, opens a new expense category.
+      builder: (context, state) => switch (state.extra) {
+        final Category category => CategoryFormPage(initial: category),
+        final CategoryType type => CategoryFormPage(initialType: type),
+        _ => const CategoryFormPage(),
+      },
     ),
   ],
   errorBuilder: (context, state) => _RouteNotFound(location: state.uri.path),
