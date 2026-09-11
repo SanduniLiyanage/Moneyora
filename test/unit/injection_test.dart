@@ -4,6 +4,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/encryption_key_store.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/categories/domain/entities/category.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
@@ -162,6 +163,53 @@ void main() {
     );
   });
 
+  test(
+    'the entry screen account port reads the same repository. E-27',
+    () async {
+      // Proves accountReaderProvider is not a second read path — a balance
+      // moved by a transaction write comes back out of the port the entry
+      // and transfer screens actually watch.
+      final reader = await container.read(accountReaderProvider.future);
+      final addTransaction = await container.read(
+        addTransactionProvider.future,
+      );
+
+      final emissions = <List<AccountOption>>[];
+      final subscription = reader
+          .watchAll()
+          .map((result) => result.getOrElse((_) => <AccountOption>[]))
+          .listen(emissions.add);
+      addTearDown(subscription.cancel);
+
+      await pumpUntil(() => emissions.isNotEmpty, 'the initial account read');
+      final opening = emissions.first
+          .singleWhere((account) => account.id == 1)
+          .balanceCents;
+
+      final saved = await addTransaction(
+        Transaction(
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 75000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 2),
+        ),
+      );
+      expect(saved.isRight(), isTrue, reason: 'add failed: $saved');
+
+      await pumpUntil(
+        () => emissions.length > 1,
+        'a second emission after the transaction write',
+      );
+
+      expect(
+        emissions.last.singleWhere((account) => account.id == 1).balanceCents,
+        opening - 75000,
+        reason: 'the account port did not follow the write',
+      );
+    },
+  );
+
   test('every categories provider resolves', () async {
     await expectLater(
       Future.wait([
@@ -172,10 +220,37 @@ void main() {
         container.read(deleteCategoryProvider.future),
         container.read(watchCategoriesProvider.future),
         container.read(categoryWriterProvider.future),
+        container.read(categoryReaderProvider.future),
       ]),
       completes,
     );
   });
+
+  test(
+    'the entry screen category port reads the same repository. E-27',
+    () async {
+      // Proves categoryReaderProvider is not a second read path — a category
+      // added through the use case comes back out of the port the entry
+      // screen actually watches.
+      final addCategory = await container.read(addCategoryProvider.future);
+      final reader = await container.read(categoryReaderProvider.future);
+
+      final saved = await addCategory(
+        const Category(
+          name: 'Stationery',
+          icon: 'pencil',
+          colorHex: '#795548',
+          type: CategoryType.expense,
+        ),
+      );
+      expect(saved.isRight(), isTrue, reason: 'add failed: $saved');
+
+      final rows = await reader.watchAll().first;
+      final categories = rows.getOrElse((_) => []);
+
+      expect(categories.any((c) => c.name == 'Stationery'), isTrue);
+    },
+  );
 
   test(
     'the entry screen inline + writes through the same repository',

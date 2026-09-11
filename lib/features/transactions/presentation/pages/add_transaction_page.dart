@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/database/entry_catalog.dart';
+import '../../../../core/ports/account_reader.dart';
+import '../../../../core/ports/category_reader.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_expression.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -92,14 +95,35 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
     if (id == null || !mounted) return;
 
-    // The sheet already invalidated entryCatalogProvider, but that refetch is
-    // async. Waiting for it here means the id below never briefly outruns
-    // the catalog it needs to appear in — otherwise the build below's own
-    // "category no longer exists" guard, meant for a deleted category, would
-    // clear a category that only hasn't loaded yet.
-    await ref.read(entryCatalogProvider.future);
+    // entryCategoriesProvider is a live stream (E-27) that already carries
+    // the new row through the same write CategoryListPage would see, but the
+    // signal is asynchronous. Waiting for it here means the id below never
+    // briefly outruns the list it needs to appear in — otherwise the build
+    // below's own "category no longer exists" guard, meant for a deleted
+    // category, would clear a category that only hasn't arrived yet.
+    await _awaitCategory(id);
     if (!mounted) return;
     setState(() => _categoryId = id);
+  }
+
+  /// Completes once [entryCategoriesProvider] carries a category with [id].
+  Future<void> _awaitCategory(int id) {
+    bool hasArrived(List<CategoryOption> categories) =>
+        categories.any((c) => c.id == id);
+
+    if (hasArrived(ref.read(entryCategoriesProvider).valueOrNull ?? [])) {
+      return Future.value();
+    }
+
+    final completer = Completer<void>();
+    late final ProviderSubscription<AsyncValue<List<CategoryOption>>> sub;
+    sub = ref.listenManual(entryCategoriesProvider, (previous, next) {
+      if (hasArrived(next.valueOrNull ?? [])) {
+        sub.close();
+        completer.complete();
+      }
+    });
+    return completer.future;
   }
 
   Future<void> _save() async {
@@ -126,7 +150,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>()!;
-    final catalog = ref.watch(entryCatalogProvider);
+    final categoriesAsync = ref.watch(entryCategoriesProvider);
+    final accountsAsync = ref.watch(entryAccountsProvider);
     final saving = ref.watch(saveTransactionControllerProvider).isLoading;
 
     return Scaffold(
@@ -138,104 +163,111 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           (false, _) => 'New expense',
         }),
       ),
-      body: catalog.when(
+      body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _CatalogError(message: failureMessage(error)),
-        data: (data) {
-          // Default to the first account rather than making the user choose
-          // on a fresh install where there is only one. Sprint 3 adds the
-          // selector, when there is something to select between.
-          _accountId ??= data.accounts.isEmpty ? null : data.accounts.first.id;
+        data: (allCategories) => accountsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _CatalogError(message: failureMessage(error)),
+          data: (accounts) {
+            // Default to the first account rather than making the user choose
+            // on a fresh install where there is only one. Sprint 3 adds the
+            // selector, when there is something to select between.
+            _accountId ??= accounts.isEmpty ? null : accounts.first.id;
 
-          // An edit of a transaction whose category was since deleted would
-          // otherwise show nothing selected and silently save a null.
-          if (_categoryId != null &&
-              !data.categories.any((c) => c.id == _categoryId)) {
-            _categoryId = null;
-          }
+            // An edit of a transaction whose category was since deleted would
+            // otherwise show nothing selected and silently save a null.
+            if (_categoryId != null &&
+                !allCategories.any((c) => c.id == _categoryId)) {
+              _categoryId = null;
+            }
 
-          final categories = _type == TransactionType.expense
-              ? data.expenseCategories
-              : data.incomeCategories;
+            final categories = allCategories
+                .where((c) => c.isExpense == (_type == TransactionType.expense))
+                .toList();
 
-          return SafeArea(
-            child: Column(
-              children: [
-                _AmountDisplay(expression: _amount, type: _type),
-                _TypeToggle(
-                  type: _type,
-                  onChanged: (next) => setState(() {
-                    _type = next;
-                    // The chosen category belongs to the other list now, and
-                    // an expense filed under Salary is not worth allowing.
-                    _categoryId = null;
-                  }),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      _CategoryPicker(
-                        categories: categories,
-                        selectedId: _categoryId,
-                        onSelected: (id) => setState(() => _categoryId = id),
-                        onAddNew: () => _addCategory(context),
-                      ),
-                      const SizedBox(height: 8),
-                      _DateField(
-                        date: _date,
-                        onChanged: (next) => setState(() => _date = next),
-                      ),
-                      TextField(
-                        controller: _note,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
-                          labelText: 'Note (optional)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _AccountPicker(
-                        accounts: data.accounts,
-                        selectedId: _accountId,
-                        onSelected: (id) => setState(() => _accountId = id),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+            return SafeArea(
+              child: Column(
+                children: [
+                  _AmountDisplay(expression: _amount, type: _type),
+                  _TypeToggle(
+                    type: _type,
+                    onChanged: (next) => setState(() {
+                      _type = next;
+                      // The chosen category belongs to the other list now,
+                      // and an expense filed under Salary is not worth
+                      // allowing.
+                      _categoryId = null;
+                    }),
                   ),
-                ),
-                AmountKeypad(
-                  expression: _amount,
-                  onChanged: (next) => setState(() => _amount = next),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      // Disabled rather than hidden: a button that vanishes
-                      // leaves the user hunting for it, while a greyed one
-                      // says "there is something still to do".
-                      onPressed: _canSave && !saving ? _save : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _type == TransactionType.expense
-                            ? colors.expense
-                            : colors.income,
-                        minimumSize: const Size.fromHeight(52),
-                      ),
-                      child: saving
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save'),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        _CategoryPicker(
+                          categories: categories,
+                          selectedId: _categoryId,
+                          onSelected: (id) => setState(() => _categoryId = id),
+                          onAddNew: () => _addCategory(context),
+                        ),
+                        const SizedBox(height: 8),
+                        _DateField(
+                          date: _date,
+                          onChanged: (next) => setState(() => _date = next),
+                        ),
+                        TextField(
+                          controller: _note,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            labelText: 'Note (optional)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _AccountPicker(
+                          accounts: accounts,
+                          selectedId: _accountId,
+                          onSelected: (id) => setState(() => _accountId = id),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                  AmountKeypad(
+                    expression: _amount,
+                    onChanged: (next) => setState(() => _amount = next),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        // Disabled rather than hidden: a button that vanishes
+                        // leaves the user hunting for it, while a greyed one
+                        // says "there is something still to do".
+                        onPressed: _canSave && !saving ? _save : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _type == TransactionType.expense
+                              ? colors.expense
+                              : colors.income,
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        child: saving
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Save'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

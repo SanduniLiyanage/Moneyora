@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
-import 'package:moneyora/core/database/entry_catalog.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
+import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/category_writer.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
@@ -28,42 +29,45 @@ import 'package:moneyora/injection.dart';
 void main() {
   late _FakeRepository repository;
 
-  const catalog = EntryCatalog(
-    categories: [
-      CategoryOption(
-        id: 1,
-        name: 'Food',
-        icon: 'basket',
-        colorHex: '#C62828',
-        isExpense: true,
-      ),
-      CategoryOption(
-        id: 2,
-        name: 'Transport',
-        icon: 'bus',
-        colorHex: '#3F51B5',
-        isExpense: true,
-      ),
-      CategoryOption(
-        id: 3,
-        name: 'Salary',
-        icon: 'wallet',
-        colorHex: '#2E7D32',
-        isExpense: false,
-      ),
-    ],
-    accounts: [
-      AccountOption(id: 1, name: 'Cash', balanceCents: 0),
-      AccountOption(id: 2, name: 'Bank', balanceCents: 0),
-    ],
-  );
+  const categories = [
+    CategoryOption(
+      id: 1,
+      name: 'Food',
+      icon: 'basket',
+      colorHex: '#C62828',
+      isExpense: true,
+    ),
+    CategoryOption(
+      id: 2,
+      name: 'Transport',
+      icon: 'bus',
+      colorHex: '#3F51B5',
+      isExpense: true,
+    ),
+    CategoryOption(
+      id: 3,
+      name: 'Salary',
+      icon: 'wallet',
+      colorHex: '#2E7D32',
+      isExpense: false,
+    ),
+  ];
+  const accounts = [
+    AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+    AccountOption(id: 2, name: 'Bank', balanceCents: 0),
+  ];
 
   setUp(() => repository = _FakeRepository());
   tearDown(() => repository.dispose());
 
   Widget boot() => ProviderScope(
     overrides: [
-      entryCatalogProvider.overrideWith((ref) => catalog),
+      entryCategoriesProvider.overrideWith(
+        (ref) => Stream<List<CategoryOption>>.value(categories),
+      ),
+      entryAccountsProvider.overrideWith(
+        (ref) => Stream<List<AccountOption>>.value(accounts),
+      ),
       transactionRepositoryProvider.overrideWith((ref) => repository),
     ],
     child: MaterialApp(
@@ -461,8 +465,10 @@ void main() {
   group('the inline category +. E-13', () {
     /// Boots the app with its own mutable catalog and a fake [CategoryWriter],
     /// rather than reusing [boot] — the point of this group is that a category
-    /// created through the writer shows up in a catalog read afterwards, which
-    /// needs the two to share state the outer group's fixed `catalog` does not.
+    /// created through the writer shows up in a catalog read afterwards, the
+    /// same live-stream shape [entryCategoriesProvider] actually has, which
+    /// needs the two to share state the outer group's fixed `categories` does
+    /// not.
     ({Widget app, List<CategoryOption> categories, List<String> created})
     bootWithWriter() {
       final categories = [
@@ -477,15 +483,19 @@ void main() {
       final created = <String>[];
       var nextId = 2;
 
+      final categoriesController = StreamController<List<CategoryOption>>()
+        ..add(List.of(categories));
+      addTearDown(categoriesController.close);
+
       final app = ProviderScope(
         overrides: [
-          entryCatalogProvider.overrideWith(
-            (ref) async => EntryCatalog(
-              categories: List.of(categories),
-              accounts: const [
-                AccountOption(id: 1, name: 'Cash', balanceCents: 0),
-              ],
-            ),
+          entryCategoriesProvider.overrideWith(
+            (ref) => categoriesController.stream,
+          ),
+          entryAccountsProvider.overrideWith(
+            (ref) => Stream<List<AccountOption>>.value(const [
+              AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+            ]),
           ),
           categoryWriterProvider.overrideWith(
             (ref) async =>
@@ -501,6 +511,7 @@ void main() {
                       isExpense: isExpense,
                     ),
                   );
+                  categoriesController.add(List.of(categories));
                   return id;
                 }),
           ),

@@ -1396,17 +1396,22 @@ cases — was not justified by reading a seeded list that nothing could yet edit
 
 1. **`ARCHITECTURE.md` §5 names it**, so the exception is discoverable from the
    guide rather than only from the source.
-2. **It is retired, not merely revisited.** When the categories slice lands in
-   **Sprint 3.5**, `entry_catalog.dart` is deleted and its two reads move behind
-   that slice's repository. The entry screen's inline `+` (E-13) needs a write
-   path through the same rows, and a read that bypasses the slice its writes go
-   through is how two sources of truth start.
-3. **The deletion is a deliverable of Sprint 3.5**, listed in
-   [`ROADMAP.md`](ROADMAP.md), not an aspiration attached to it.
+2. **It is retired, not merely revisited.** `entry_catalog.dart` is deleted.
+   Its two reads — every category, and every non-archived account — now go
+   through `core/ports/category_reader.dart` and `core/ports/account_reader.dart`,
+   implemented by `CategoryRepositoryImpl` and `AccountRepositoryImpl`
+   themselves (the same shape `AnalyticsRepositoryImpl` uses for
+   `SpendingByCategoryReader`), and consumed as live streams by
+   `features/transactions/`'s entry and transfer screens. The entry screen's
+   inline `+` (E-13) already had a write path through the same rows via
+   `CategoryWriter`; a read that bypassed the slice its writes went through was
+   how two sources of truth would have started.
+3. **The deletion landed in Sprint 3.5**, as planned in
+   [`ROADMAP.md`](ROADMAP.md), not left as an aspiration attached to it.
 
 The original doc comment called this "an interim home" with no end. That phrase
 is why this entry exists: an interim arrangement with no scheduled end is how a
-temporary decision becomes the architecture. Sprint 3.5 is the end.
+temporary decision becomes the architecture. Sprint 3.5 was the end, and held.
 
 ---
 

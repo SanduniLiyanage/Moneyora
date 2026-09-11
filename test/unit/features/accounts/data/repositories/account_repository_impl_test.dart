@@ -199,6 +199,52 @@ void main() {
       await subscription.cancel();
     });
   });
+
+  group('watchAll (AccountReader, E-27)', () {
+    test('maps entities down to the narrower option', () async {
+      local.rows = [
+        AccountModel.fromEntity(
+          account(id: 2, name: 'Bank').copyWith(
+            icon: 'bank',
+            currentBalanceCents: -125000,
+            currency: 'USD',
+          ),
+        ),
+      ];
+
+      final rows = (await repository.watchAll().first).getOrElse((_) => []);
+
+      expect(rows.single.id, 2);
+      expect(rows.single.name, 'Bank');
+      expect(rows.single.icon, 'bank');
+      expect(rows.single.balanceCents, -125000);
+      expect(rows.single.currency, 'USD');
+    });
+
+    test('excludes archived accounts, same as watch', () async {
+      await repository.watchAll().first;
+      expect(local.lastIncludeArchived, isFalse);
+    });
+
+    test(
+      'is the same live read as watch — a write shows up unprompted',
+      () async {
+        final seen = <int>[];
+        final subscription = repository.watchAll().listen(
+          (either) => seen.add(either.getOrElse((_) => []).length),
+        );
+
+        await settle();
+        local
+          ..rows = [AccountModel.fromEntity(account())]
+          ..emitChange();
+        await settle();
+
+        expect(seen, [0, 1]);
+        await subscription.cancel();
+      },
+    );
+  });
 }
 
 class _FakeLocalDataSource implements AccountLocalDataSource {

@@ -9,6 +9,8 @@ import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
 import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
+import 'core/ports/account_reader.dart';
+import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
 import 'core/ports/spending_by_category_reader.dart';
 import 'features/accounts/data/datasources/account_local_datasource.dart';
@@ -218,11 +220,29 @@ final accountLocalDataSourceProvider = FutureProvider<AccountLocalDataSource>((
   return source;
 });
 
-/// Turns account data-layer exceptions into failures.
-final accountRepositoryProvider = FutureProvider<AccountRepository>(
+/// The concrete repository, named by its class rather than its interface.
+///
+/// Private, and typed concretely, because it satisfies two contracts —
+/// [AccountRepository] for this feature and [AccountReader] for anything
+/// outside it — and both views must be the same object, the same reasoning
+/// `_analyticsRepositoryImplProvider` follows for
+/// [AnalyticsRepository]/`SpendingByCategoryReader`.
+final _accountRepositoryImplProvider = FutureProvider<AccountRepositoryImpl>(
   (ref) async => AccountRepositoryImpl(
     await ref.watch(accountLocalDataSourceProvider.future),
   ),
+);
+
+/// Turns account data-layer exceptions into failures. The layer boundary.
+final accountRepositoryProvider = FutureProvider<AccountRepository>(
+  (ref) async => ref.watch(_accountRepositoryImplProvider.future),
+);
+
+/// The entry and transfer screens' account picker, through the port in
+/// `core/ports/` — `features/transactions/` may not import
+/// `features/accounts/` (rule 4), so this is the seam between them. E-27.
+final accountReaderProvider = FutureProvider<AccountReader>(
+  (ref) async => ref.watch(_accountRepositoryImplProvider.future),
 );
 
 /// Creates an account. FR-ACC-001.
@@ -281,17 +301,35 @@ final categoryLocalDataSourceProvider = FutureProvider<CategoryLocalDataSource>(
   },
 );
 
-/// Turns category data-layer exceptions into failures.
-final categoryRepositoryProvider = FutureProvider<CategoryRepository>(
+/// The concrete repository, named by its class rather than its interface.
+///
+/// Private, and typed concretely, because it satisfies two contracts —
+/// [CategoryRepository] for this feature and [CategoryReader] for anything
+/// outside it — and both views must be the same object, the same reasoning
+/// `_analyticsRepositoryImplProvider` follows for
+/// [AnalyticsRepository]/`SpendingByCategoryReader`.
+final _categoryRepositoryImplProvider = FutureProvider<CategoryRepositoryImpl>(
   (ref) async => CategoryRepositoryImpl(
     await ref.watch(categoryLocalDataSourceProvider.future),
   ),
+);
+
+/// Turns category data-layer exceptions into failures. The layer boundary.
+final categoryRepositoryProvider = FutureProvider<CategoryRepository>(
+  (ref) async => ref.watch(_categoryRepositoryImplProvider.future),
 );
 
 /// Creates a category. FR-EXP-004.
 final addCategoryProvider = FutureProvider<AddCategory>(
   (ref) async =>
       AddCategory(await ref.watch(categoryRepositoryProvider.future)),
+);
+
+/// The entry screen's category chips, through the port in `core/ports/` —
+/// `features/transactions/` may not import `features/categories/` (rule 4),
+/// so this is the seam between them. E-27.
+final categoryReaderProvider = FutureProvider<CategoryReader>(
+  (ref) async => ref.watch(_categoryRepositoryImplProvider.future),
 );
 
 /// The entry screen's inline `+`, through the port in `core/ports/` —
