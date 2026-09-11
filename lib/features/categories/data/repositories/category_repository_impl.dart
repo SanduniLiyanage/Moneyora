@@ -8,13 +8,19 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/category_reader.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/repositories/category_repository.dart';
 import '../datasources/category_local_datasource.dart';
 import '../models/category_model.dart';
 
 /// Fulfils [CategoryRepository] against the local encrypted database.
-class CategoryRepositoryImpl implements CategoryRepository {
+///
+/// Also fulfils [CategoryReader], the narrow contract in `core/` that lets
+/// `features/transactions/` read the category list without importing this
+/// feature (E-27) — the same shape `AnalyticsRepositoryImpl` uses for
+/// [CategoryRepository]/`SpendingByCategoryReader`.
+class CategoryRepositoryImpl implements CategoryRepository, CategoryReader {
   /// Creates a repository over [local].
   const CategoryRepositoryImpl(this._local);
 
@@ -88,6 +94,22 @@ class CategoryRepositoryImpl implements CategoryRepository {
 
     return controller.stream;
   }
+
+  @override
+  Stream<Either<Failure, List<CategoryOption>>> watchAll() => watch().map(
+    (either) => either.map(
+      (categories) => [
+        for (final category in categories)
+          CategoryOption(
+            id: category.id!,
+            name: category.name,
+            icon: category.icon,
+            colorHex: category.colorHex,
+            isExpense: category.type == CategoryType.expense,
+          ),
+      ],
+    ),
+  );
 
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {

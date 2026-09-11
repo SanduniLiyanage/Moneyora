@@ -44,8 +44,8 @@ class Category extends Equatable {
   final String colorHex;
 
   /// Expense or income. A picker shows one set or the other, never both -
-  /// the same reasoning as `CategoryOption.isExpense` in the catalog this
-  /// slice replaces.
+  /// the same reasoning as `CategoryOption.isExpense` in
+  /// `core/ports/category_reader.dart`.
   final CategoryType type;
 
   /// The category this is a child of, or null for a top-level category.

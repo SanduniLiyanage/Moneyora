@@ -115,27 +115,27 @@ Money is stored as **integer minor units** (cents), never `double`. See §6.
   which would be the wrong shape anyway.
 - A contract two features share, so neither imports the other →
   `lib/core/ports/`. The owning feature implements it; the other depends on the
-  contract. `SpendingByCategoryReader` is the worked example: analytics owns
-  the query, the Copilot reads through the port, and rule 4 stays intact.
+  contract. `SpendingByCategoryReader` is the worked example for a read,
+  `CategoryWriter` for a write: analytics/categories own the query or the
+  table, the Copilot/entry screen read or write through the port, and rule 4
+  stays intact. `CategoryReader` and `AccountReader` follow the read shape —
+  `features/transactions/`'s entry and transfer screens read every category
+  and non-archived account through them rather than importing
+  `features/categories/`/`features/accounts/` directly.
 - Used by one feature, more than one layer → that feature's `domain/`
 - Formats or parses a value → `lib/core/utils/`
 - Reusable widget with no business logic → `lib/core/widgets/`
 - Widget that knows about one entity → that feature's `presentation/widgets/`
 - SQL → `data/datasources/` or `core/database/`. Nowhere else. Enforced.
-- **A read whose feature slice does not exist yet** → `core/database/`, as
-  `entry_catalog.dart` does for the entry screen's category and account lists.
-  This is the one place the build order in §2 is not followed, it was done
-  deliberately, and it is recorded as [E-27](SPEC_ERRATA.md).
-
-  Categories are shared by analytics, the Money Plan and the receipt scanner, so
-  a `features/categories/` slice imported by `features/transactions/` would
-  break rule 4 the moment it was written — and a full slice was not justified by
-  reading a seeded list nothing could yet edit.
-
-  **This exception has an end date.** `entry_catalog.dart` is deleted in Sprint
-  3.5, when the categories slice lands and its reads move behind that slice's
-  repository. Do not treat it as a pattern to copy: if you are tempted, the
-  answer is almost always that the feature slice should exist.
+- **A read whose feature slice does not exist yet** → `core/database/`, for as
+  long as that is true. `core/database/entry_catalog.dart` did this for the
+  entry screen's category and account lists — the one place the build order in
+  §2 was not followed, deliberately, and recorded as [E-27](SPEC_ERRATA.md).
+  The exception closed on schedule: once the categories and accounts slices
+  existed, the file was deleted and its two reads moved behind
+  `CategoryReader`/`AccountReader` above. Do not treat the interim shape as a
+  pattern to copy — if you are tempted, the answer is almost always that the
+  feature slice should exist, or that a port already does.
 
 ## 6. Two deviations from SDD v1.0, both now settled
 

@@ -162,9 +162,9 @@ SELECT
           'categories',
           where: type == null ? null : 'type = ?',
           whereArgs: type == null ? null : [type.storageValue],
-          // Seed order, then name, matching entry_catalog.dart's ordering -
-          // the list a user sees should not reshuffle itself between
-          // launches for no reason they can perceive.
+          // Seed order, then name - the list a user sees should not
+          // reshuffle itself between launches for no reason they can
+          // perceive.
           orderBy: 'sort_order ASC, name ASC',
         );
         return rows.map(CategoryModel.fromMap).toList();

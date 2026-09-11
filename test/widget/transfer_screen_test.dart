@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
-import 'package:moneyora/core/database/entry_catalog.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
@@ -93,12 +93,11 @@ void main() {
     currency: 'USD',
   );
 
-  EntryCatalog catalogOf(List<AccountOption> accounts) =>
-      EntryCatalog(categories: const [], accounts: accounts);
-
   Widget boot(List<AccountOption> accounts) => ProviderScope(
     overrides: [
-      entryCatalogProvider.overrideWith((ref) => catalogOf(accounts)),
+      entryAccountsProvider.overrideWith(
+        (ref) => Stream<List<AccountOption>>.value(accounts),
+      ),
       transactionRepositoryProvider.overrideWith((ref) async => repository),
     ],
     child: MaterialApp(theme: AppTheme.light, home: const TransferPage()),

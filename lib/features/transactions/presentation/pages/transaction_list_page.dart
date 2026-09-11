@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/database/entry_catalog.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -77,7 +77,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     // the bare "Transfer" label below rather than blocking the screen.
     final accountNames = <int, String>{
       for (final account
-          in ref.watch(entryCatalogProvider).valueOrNull?.accounts ??
+          in ref.watch(entryAccountsProvider).valueOrNull ??
               const <AccountOption>[])
         account.id: account.name,
     };

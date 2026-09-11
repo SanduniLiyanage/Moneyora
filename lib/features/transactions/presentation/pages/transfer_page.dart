@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/database/entry_catalog.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
@@ -18,8 +18,8 @@ import '../providers/transaction_providers.dart';
 /// would import the other, and rule 4 of `check_architecture.sh` forbids that.
 ///
 /// So it sits with the use case, and reads accounts through
-/// `core/database/entry_catalog.dart` — the core-owned reader the entry screen
-/// already uses for the same reason. Neither feature imports the other.
+/// `core/ports/account_reader.dart` — the same seam the entry screen's account
+/// picker uses (E-27). Neither feature imports the other.
 ///
 /// ## What it deliberately does not have
 ///
@@ -121,16 +121,15 @@ class _TransferPageState extends ConsumerState<TransferPage> {
 
   @override
   Widget build(BuildContext context) {
-    final catalog = ref.watch(entryCatalogProvider);
+    final accountsAsync = ref.watch(entryAccountsProvider);
     final saving = ref.watch(saveTransferControllerProvider).isLoading;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transfer')),
-      body: catalog.when(
+      body: accountsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _Problem(error: error),
-        data: (data) {
-          final accounts = data.accounts;
+        data: (accounts) {
           // Fewer than two accounts means there is nowhere to move money to.
           // E-22's rule: say what belongs here and the one action that fills
           // it, rather than showing two pickers that cannot be satisfied.

@@ -13,18 +13,54 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/database/entry_catalog.dart';
 import '../../../../core/database/seed/dev_seed.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
+import '../../../../core/ports/category_reader.dart';
 import '../../../../core/ports/category_writer.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../../domain/usecases/make_transfer.dart';
 
-/// The categories and accounts the entry screen offers.
-final entryCatalogProvider = FutureProvider<EntryCatalog>((ref) async {
-  return readEntryCatalog(await ref.watch(databaseProvider.future));
+/// The categories the entry screen offers, both kinds, kept live.
+///
+/// Reads through [CategoryReader] rather than `features/categories/`'s own
+/// `categoriesProvider` — `features/transactions/` may not import that
+/// feature (rule 4) — but the shape is the same live stream, so a category
+/// created or edited anywhere shows up here with no invalidation call. E-27
+/// retired `core/database/entry_catalog.dart`, the one-shot future this
+/// replaced, which is why callers used to invalidate it by hand.
+final entryCategoriesProvider = StreamProvider<List<CategoryOption>>((ref) {
+  return Stream.fromFuture(ref.watch(categoryReaderProvider.future))
+      .asyncExpand((reader) => reader.watchAll())
+      .transform(
+        StreamTransformer<
+          Either<Failure, List<CategoryOption>>,
+          List<CategoryOption>
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
+
+/// The non-archived accounts the entry and transfer screens offer, kept live.
+///
+/// Reads through [AccountReader] for the same reason [entryCategoriesProvider]
+/// reads through [CategoryReader]: `features/transactions/` may not import
+/// `features/accounts/` (rule 4), and the live stream means a transfer's
+/// balance change is already visible with no invalidation call. E-27.
+final entryAccountsProvider = StreamProvider<List<AccountOption>>((ref) {
+  return Stream.fromFuture(ref.watch(accountReaderProvider.future))
+      .asyncExpand((reader) => reader.watchAll())
+      .transform(
+        StreamTransformer<
+          Either<Failure, List<AccountOption>>,
+          List<AccountOption>
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
 });
 
 /// The transactions matching [filter], kept live.
@@ -138,11 +174,10 @@ class SaveTransferController extends AutoDisposeAsyncNotifier<void> {
       },
       (_) {
         state = const AsyncValue<void>.data(null);
-        // The transfer moved two balances and wrote two rows the entry
-        // screen's catalog still has the old figures for. The transactions
-        // list re-queries on its own — the datasource change signal covers
-        // that — but the catalog is a one-shot read.
-        ref.invalidate(entryCatalogProvider);
+        // No invalidation needed: entryAccountsProvider is a live stream over
+        // the same DatabaseChangeBus the transfer's balance write publishes
+        // to (see AccountRepositoryImpl.watch), so the two moved balances are
+        // already on their way to the picker.
         return true;
       },
     );
@@ -183,9 +218,11 @@ class QuickAddCategoryController extends AutoDisposeAsyncNotifier<void> {
       },
       (id) {
         state = const AsyncValue<void>.data(null);
-        // The catalog is a one-shot read (see SaveTransferController above)
-        // and would otherwise not show the row just created.
-        ref.invalidate(entryCatalogProvider);
+        // No invalidation needed (see SaveTransferController above):
+        // entryCategoriesProvider is the same live stream CategoryListPage
+        // reads, and the write already went through its repository. The
+        // caller still has to wait for the new row's own arrival, though —
+        // the stream update is asynchronous, not instantaneous.
         return id;
       },
     );
@@ -328,11 +365,11 @@ class DevSeedLoader extends AutoDisposeAsyncNotifier<int?> {
       final db = await ref.read(databaseProvider.future);
       final written = await DevSeed.populate(db);
 
-      // The rows went in underneath the datasource, so its change stream never
-      // fired. Invalidating is what tells every watcher to ask again.
-      ref
-        ..invalidate(transactionsProvider)
-        ..invalidate(entryCatalogProvider);
+      // The rows went in underneath the datasource, so its change stream
+      // never fired. Invalidating is what tells the transaction list to ask
+      // again — categories and accounts are untouched by the seed, so
+      // entryCategoriesProvider/entryAccountsProvider need no such nudge.
+      ref.invalidate(transactionsProvider);
 
       return written;
     });

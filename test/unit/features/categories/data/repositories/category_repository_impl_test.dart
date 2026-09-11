@@ -145,6 +145,47 @@ void main() {
       expect(reads, atCancel, reason: 'no reads after cancelling');
     });
   });
+
+  group('watchAll (CategoryReader, E-27)', () {
+    test('maps entities down to the narrower option', () async {
+      local.rows = [
+        CategoryModel.fromEntity(
+          category(id: 5, name: 'Gifts').copyWith(
+            icon: 'gift',
+            colorHex: '#E91E63',
+            type: CategoryType.income,
+          ),
+        ),
+      ];
+
+      final rows = (await repository.watchAll().first).getOrElse((_) => []);
+
+      expect(rows.single.id, 5);
+      expect(rows.single.name, 'Gifts');
+      expect(rows.single.icon, 'gift');
+      expect(rows.single.colorHex, '#E91E63');
+      expect(rows.single.isExpense, isFalse);
+    });
+
+    test(
+      'is the same live read as watch — a write shows up unprompted',
+      () async {
+        final seen = <int>[];
+        final subscription = repository.watchAll().listen(
+          (either) => seen.add(either.getOrElse((_) => []).length),
+        );
+
+        await settle();
+        local
+          ..rows = [CategoryModel.fromEntity(category())]
+          ..emitChange();
+        await settle();
+
+        expect(seen, [0, 1]);
+        await subscription.cancel();
+      },
+    );
+  });
 }
 
 class _FakeLocalDataSource implements CategoryLocalDataSource {

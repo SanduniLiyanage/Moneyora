@@ -8,13 +8,19 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/repositories/account_repository.dart';
 import '../datasources/account_local_datasource.dart';
 import '../models/account_model.dart';
 
 /// Fulfils [AccountRepository] against the local encrypted database.
-class AccountRepositoryImpl implements AccountRepository {
+///
+/// Also fulfils [AccountReader], the narrow contract in `core/` that lets
+/// `features/transactions/` read the account list without importing this
+/// feature (E-27) — the same shape `AnalyticsRepositoryImpl` uses for
+/// [AccountRepository]/`SpendingByCategoryReader`.
+class AccountRepositoryImpl implements AccountRepository, AccountReader {
   /// Creates a repository over [local].
   const AccountRepositoryImpl(this._local);
 
@@ -99,6 +105,22 @@ class AccountRepositoryImpl implements AccountRepository {
 
     return controller.stream;
   }
+
+  @override
+  Stream<Either<Failure, List<AccountOption>>> watchAll() => watch().map(
+    (either) => either.map(
+      (accounts) => [
+        for (final account in accounts)
+          AccountOption(
+            id: account.id!,
+            name: account.name,
+            balanceCents: account.currentBalanceCents,
+            icon: account.icon,
+            currency: account.currency,
+          ),
+      ],
+    ),
+  );
 
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {
