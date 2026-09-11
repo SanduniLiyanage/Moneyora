@@ -9,6 +9,7 @@ import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
 import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
+import 'core/ports/category_writer.dart';
 import 'core/ports/spending_by_category_reader.dart';
 import 'features/accounts/data/datasources/account_local_datasource.dart';
 import 'features/accounts/data/repositories/account_repository_impl.dart';
@@ -28,6 +29,7 @@ import 'features/categories/data/repositories/category_repository_impl.dart';
 import 'features/categories/domain/repositories/category_repository.dart';
 import 'features/categories/domain/usecases/add_category.dart';
 import 'features/categories/domain/usecases/delete_category.dart';
+import 'features/categories/domain/usecases/quick_add_category.dart';
 import 'features/categories/domain/usecases/update_category.dart';
 import 'features/categories/domain/usecases/watch_categories.dart';
 import 'features/copilot/data/datasources/gemini_remote_datasource.dart';
@@ -290,6 +292,13 @@ final categoryRepositoryProvider = FutureProvider<CategoryRepository>(
 final addCategoryProvider = FutureProvider<AddCategory>(
   (ref) async =>
       AddCategory(await ref.watch(categoryRepositoryProvider.future)),
+);
+
+/// The entry screen's inline `+`, through the port in `core/ports/` —
+/// `features/transactions/` may not import `features/categories/` (rule 4),
+/// so this is the seam between them. E-13.
+final categoryWriterProvider = FutureProvider<CategoryWriter>(
+  (ref) async => QuickAddCategory(await ref.watch(addCategoryProvider.future)),
 );
 
 /// Renames, recolours, re-icons or re-parents a category. FR-EXP-004,

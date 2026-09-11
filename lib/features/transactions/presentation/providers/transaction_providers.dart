@@ -16,6 +16,7 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/database/entry_catalog.dart';
 import '../../../../core/database/seed/dev_seed.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/category_writer.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
@@ -152,6 +153,49 @@ class SaveTransferController extends AutoDisposeAsyncNotifier<void> {
 final saveTransferControllerProvider =
     AutoDisposeAsyncNotifierProvider<SaveTransferController, void>(
       SaveTransferController.new,
+    );
+
+/// The entry screen's inline `+`. E-13, FR-EXP-004.
+///
+/// Wraps [CategoryWriter] — the port in `core/ports/`, since this feature may
+/// not import `features/categories/` (rule 4) — the same shape
+/// [SaveTransferController] gives its own write.
+class QuickAddCategoryController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Creates a category named [name], on the expense or income side per
+  /// [isExpense], and returns its row id.
+  ///
+  /// Returns null on failure, with the reason left in [state] for the sheet
+  /// to show — [CategoryWriter]'s own message, since it runs the same
+  /// validation `AddCategory` does.
+  Future<int?> call({required String name, required bool isExpense}) async {
+    state = const AsyncValue<void>.loading();
+
+    final writer = await ref.read(categoryWriterProvider.future);
+    final result = await writer(name: name, isExpense: isExpense);
+
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return null;
+      },
+      (id) {
+        state = const AsyncValue<void>.data(null);
+        // The catalog is a one-shot read (see SaveTransferController above)
+        // and would otherwise not show the row just created.
+        ref.invalidate(entryCatalogProvider);
+        return id;
+      },
+    );
+  }
+}
+
+/// Controller for the entry screen's inline category form.
+final quickAddCategoryControllerProvider =
+    AutoDisposeAsyncNotifierProvider<QuickAddCategoryController, void>(
+      QuickAddCategoryController.new,
     );
 
 /// A human-readable reason a save failed, or null while nothing has gone wrong.
