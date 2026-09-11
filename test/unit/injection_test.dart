@@ -171,10 +171,32 @@ void main() {
         container.read(updateCategoryProvider.future),
         container.read(deleteCategoryProvider.future),
         container.read(watchCategoriesProvider.future),
+        container.read(categoryWriterProvider.future),
       ]),
       completes,
     );
   });
+
+  test(
+    'the entry screen inline + writes through the same repository',
+    () async {
+      // E-13: proves categoryWriterProvider is not a second path to the table —
+      // a category it creates comes back out of the same WatchCategories the
+      // categories screen reads.
+      final writer = await container.read(categoryWriterProvider.future);
+      final watchCategories = await container.read(
+        watchCategoriesProvider.future,
+      );
+
+      final saved = await writer(name: 'Subscriptions', isExpense: true);
+      expect(saved.isRight(), isTrue, reason: 'quick add failed: $saved');
+
+      final rows = await watchCategories(null).first;
+      final categories = rows.getOrElse((_) => []);
+
+      expect(categories.any((c) => c.name == 'Subscriptions'), isTrue);
+    },
+  );
 
   test('a category added through the use case comes back out', () async {
     final addCategory = await container.read(addCategoryProvider.future);

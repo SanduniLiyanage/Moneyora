@@ -79,6 +79,29 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     note: _note.text.trim().isEmpty ? null : _note.text.trim(),
   );
 
+  /// Opens the inline category form. E-13.
+  ///
+  /// A category created here is selected immediately, so the flow the user
+  /// started — adding this entry — never leaves the screen it was on.
+  Future<void> _addCategory(BuildContext context) async {
+    final id = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) =>
+          _QuickAddCategorySheet(isExpense: _type == TransactionType.expense),
+    );
+    if (id == null || !mounted) return;
+
+    // The sheet already invalidated entryCatalogProvider, but that refetch is
+    // async. Waiting for it here means the id below never briefly outruns
+    // the catalog it needs to appear in — otherwise the build below's own
+    // "category no longer exists" guard, meant for a deleted category, would
+    // clear a category that only hasn't loaded yet.
+    await ref.read(entryCatalogProvider.future);
+    if (!mounted) return;
+    setState(() => _categoryId = id);
+  }
+
   Future<void> _save() async {
     final saved = await ref
         .read(saveTransactionControllerProvider.notifier)
@@ -156,6 +179,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                         categories: categories,
                         selectedId: _categoryId,
                         onSelected: (id) => setState(() => _categoryId = id),
+                        onAddNew: () => _addCategory(context),
                       ),
                       const SizedBox(height: 8),
                       _DateField(
@@ -310,39 +334,149 @@ class _CategoryPicker extends StatelessWidget {
     required this.categories,
     required this.selectedId,
     required this.onSelected,
+    required this.onAddNew,
   });
 
   final List<CategoryOption> categories;
   final int? selectedId;
   final ValueChanged<int> onSelected;
 
+  /// E-13 — opens the inline form, without leaving the entry flow.
+  final VoidCallback onAddNew;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (categories.isEmpty) {
-      // E-22: a surface with nothing in it says what belongs here.
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text('No categories yet.', style: theme.textTheme.bodyMedium),
-      );
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final category in categories)
-            ChoiceChip(
-              label: Text(category.name),
-              selected: category.id == selectedId,
-              onSelected: (_) => onSelected(category.id),
+          if (categories.isEmpty)
+            // E-22: a surface with nothing in it says what belongs here.
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'No categories yet.',
+                style: theme.textTheme.bodyMedium,
+              ),
             ),
-          // E-13 records an inline `+` here, creating a category without
-          // leaving the entry flow. It arrives with FR-EXP-004, which is the
-          // requirement that makes a category creatable at all.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final category in categories)
+                ChoiceChip(
+                  label: Text(category.name),
+                  selected: category.id == selectedId,
+                  onSelected: (_) => onSelected(category.id),
+                ),
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 18),
+                label: const Text('New'),
+                onPressed: onAddNew,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The inline category form. E-13, FR-EXP-004.
+///
+/// Deliberately smaller than `CategoryFormPage`: a name is all the moment of
+/// discovering a category is missing needs. Icon, colour and parent are the
+/// categories screen's job — SPEC_ERRATA.md's E-13 resolution keeps that
+/// screen's own `+` for deliberate management, separate from this one.
+class _QuickAddCategorySheet extends ConsumerStatefulWidget {
+  const _QuickAddCategorySheet({required this.isExpense});
+
+  final bool isExpense;
+
+  @override
+  ConsumerState<_QuickAddCategorySheet> createState() =>
+      _QuickAddCategorySheetState();
+}
+
+class _QuickAddCategorySheetState
+    extends ConsumerState<_QuickAddCategorySheet> {
+  late final TextEditingController _name;
+
+  /// Set once the user has tried to save, so the field does not complain
+  /// about being empty before they have typed anything.
+  bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    setState(() => _submitted = true);
+
+    final id = await ref
+        .read(quickAddCategoryControllerProvider.notifier)
+        .call(name: _name.text.trim(), isExpense: widget.isExpense);
+
+    if (!mounted) return;
+    if (id != null) Navigator.of(context).pop(id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final saving = ref.watch(quickAddCategoryControllerProvider).isLoading;
+    final error = ref.watch(quickAddCategoryControllerProvider).error;
+    final message = _submitted ? failureMessage(error) : null;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            widget.isExpense ? 'New expense category' : 'New income category',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _name,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: 'Name',
+              hintText: 'Groceries, Streaming',
+              border: const OutlineInputBorder(),
+              errorText: message,
+            ),
+            onSubmitted: (_) => saving ? null : _create(),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: saving ? null : _create,
+            child: saving
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Add category'),
+          ),
         ],
       ),
     );

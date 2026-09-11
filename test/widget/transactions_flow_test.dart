@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/database/entry_catalog.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/category_writer.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
@@ -88,6 +89,11 @@ void main() {
   }
 
   Future<void> tapText(WidgetTester tester, String label) async {
+    // The entry screen's category row now carries an extra "New" chip
+    // (E-13), which can push a later field below the fold on the fixed test
+    // viewport — a no-op when the target is already visible or has no
+    // scrollable ancestor.
+    await tester.ensureVisible(find.text(label));
     await tester.tap(find.text(label));
     await tester.pumpAndSettle();
   }
@@ -451,6 +457,142 @@ void main() {
       expect(find.text('Transfer'), findsOneWidget);
     });
   });
+
+  group('the inline category +. E-13', () {
+    /// Boots the app with its own mutable catalog and a fake [CategoryWriter],
+    /// rather than reusing [boot] — the point of this group is that a category
+    /// created through the writer shows up in a catalog read afterwards, which
+    /// needs the two to share state the outer group's fixed `catalog` does not.
+    ({Widget app, List<CategoryOption> categories, List<String> created})
+    bootWithWriter() {
+      final categories = [
+        const CategoryOption(
+          id: 1,
+          name: 'Food',
+          icon: 'basket',
+          colorHex: '#C62828',
+          isExpense: true,
+        ),
+      ];
+      final created = <String>[];
+      var nextId = 2;
+
+      final app = ProviderScope(
+        overrides: [
+          entryCatalogProvider.overrideWith(
+            (ref) async => EntryCatalog(
+              categories: List.of(categories),
+              accounts: const [
+                AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+              ],
+            ),
+          ),
+          categoryWriterProvider.overrideWith(
+            (ref) async =>
+                _FakeCategoryWriter(({required name, required isExpense}) {
+                  created.add(name);
+                  final id = nextId++;
+                  categories.add(
+                    CategoryOption(
+                      id: id,
+                      name: name,
+                      icon: 'other',
+                      colorHex: '#2a78d6',
+                      isExpense: isExpense,
+                    ),
+                  );
+                  return id;
+                }),
+          ),
+          transactionRepositoryProvider.overrideWith((ref) => repository),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const TransactionListPage(),
+        ),
+      );
+
+      return (app: app, categories: categories, created: created);
+    }
+
+    testWidgets(
+      'creates a category and selects it, without leaving the screen',
+      (tester) async {
+        final booted = bootWithWriter();
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(booted.app);
+        await tester.pumpAndSettle();
+
+        await tapText(tester, 'Add');
+        await tapText(tester, 'New');
+        expect(find.text('New expense category'), findsOneWidget);
+
+        // The entry screen's own note field is still in the tree behind the
+        // sheet, so the field is found within it rather than by type alone.
+        final sheetNameField = find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(sheetNameField, 'Streaming');
+        await tapText(tester, 'Add category');
+
+        // Back on the entry screen — the sheet closed on its own — with the
+        // new category already chosen, not merely present in the list.
+        expect(booted.created, ['Streaming']);
+        expect(find.text('New expense'), findsOneWidget);
+        final chip = tester.widget<ChoiceChip>(
+          find.widgetWithText(ChoiceChip, 'Streaming'),
+        );
+        expect(chip.selected, isTrue);
+      },
+    );
+
+    testWidgets('shows the refusal for a blank name and creates nothing', (
+      tester,
+    ) async {
+      final booted = bootWithWriter();
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(booted.app);
+      await tester.pumpAndSettle();
+
+      await tapText(tester, 'Add');
+      await tapText(tester, 'New');
+      await tapText(tester, 'Add category');
+
+      // AddCategory.validate's own sentence, not a second one invented here.
+      expect(find.text('Give the category a name.'), findsOneWidget);
+      expect(booted.created, isEmpty);
+    });
+  });
+}
+
+/// Records what it is asked to create and hands back an incrementing id,
+/// the same shape [QuickAddCategory] gives on success — without a database.
+class _FakeCategoryWriter implements CategoryWriter {
+  _FakeCategoryWriter(this._onCreate);
+
+  final int Function({required String name, required bool isExpense}) _onCreate;
+
+  @override
+  Future<Either<Failure, int>> call({
+    required String name,
+    required bool isExpense,
+  }) async {
+    if (name.trim().isEmpty) {
+      return const Left(
+        ValidationFailure('Give the category a name.', field: 'name'),
+      );
+    }
+    return Right(_onCreate(name: name, isExpense: isExpense));
+  }
 }
 
 /// An in-memory repository that behaves like the real one for the parts the
