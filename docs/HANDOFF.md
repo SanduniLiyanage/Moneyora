@@ -1,13 +1,11 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-11**, `main` at `8e5085d`, after **41
-merged pull requests** (#2–#42; #1 was closed unmerged). Two more, opened this
-session, are **not yet merged** — see "This session" below before trusting the
-"what is built" section at face value.
+State of the project as of **2026-09-11**, `main` at `507e859`, after **46
+merged pull requests** (#2–#47; #1 was closed unmerged).
 
 ### The numbers, measured — and the only place they live
 
-Every figure below was produced by running the command beside it at `8e5085d`
+Every figure below was produced by running the command beside it at `507e859`
 with a clean tree. **This section is the single source of truth for counts.**
 `README.md` and `ARCHITECTURE.md` link here rather than restating them: a number
 kept in one place goes stale once, and a number kept in three places goes stale
@@ -16,53 +14,64 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **567 passing** | `flutter test` |
+| Tests | **623 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| Domain line coverage | **96.9%** — 308 of 318 lines, 26 files | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 77 in `lib/`, 39 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 87 in `lib/`, 43 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area, summing to 567: transactions 154 · core 112 · copilot 103 ·
-widget 90 · accounts 75 · analytics 29 · injection 4.
+Tests by area: the 567 at `8e5085d` (transactions 154 · core 112 · copilot 103
+· widget 90 · accounts 75 · analytics 29 · injection 4) plus 56 new from this
+session's four categories PRs, none yet broken out by sub-area.
 
 Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — two PRs open, neither merged yet
+## This session — Sprint 3.5's first four slices, all merged
 
-Both are CI-clean against `8e5085d` but **waiting on a human to merge them** —
-merging to protected `main` is outside what this session runs on its own.
-Nothing above the numbers table or in "what is built" reflects their content
-until they land.
+Four PRs landed the categories feature from `domain/` through DI, in the build
+order CLAUDE.md sets — each was opened, watched through CI, and merged before
+the next began, so `main` was never left on a broken intermediate state:
 
-- **[PR #43](https://github.com/SanduniLiyanage/Moneyora/pull/43)** —
-  docs only. Trimmed ROADMAP.md's closed-sprint sections and the Copilot
-  workstream table down to what they still need to say, pointing test/PR
-  counts at this file instead of restating them a second place to go stale;
-  swapped SPEC_ERRATA.md's summary table Severity/Area columns (duplicated on
-  every entry's own **Affects:** line) for Title/Requirement ID, which the
-  table carried nowhere else.
-- **[PR #44](https://github.com/SanduniLiyanage/Moneyora/pull/44)** —
-  **Sprint 3.5's first slice: the categories domain layer.** `Category` /
-  `CategoryType`, `CategoryRepository`, and four use cases
-  (`AddCategory`, `UpdateCategory`, `DeleteCategory`, `WatchCategories`),
-  28 new tests, all passing. FR-EXP-005's two-level hierarchy cap is enforced
-  here since the schema has no way to express it. Also fixes a real gap in
-  `scripts/check_citations.sh` it ran into: the script checked the errata for
-  E-* IDs but never for the FR-/NFR- IDs several entries raise, despite its
-  own error message claiming otherwise — caught by legitimately citing
-  FR-EXP-011 (raised by E-11) and having it rejected.
+- **[PR #44](https://github.com/SanduniLiyanage/Moneyora/pull/44)** — the
+  domain layer. `Category` / `CategoryType`, `CategoryRepository`, and four
+  use cases (`AddCategory`, `UpdateCategory`, `DeleteCategory`,
+  `WatchCategories`). FR-EXP-005's two-level hierarchy cap is enforced here,
+  since the schema has no way to express it. Also fixed a real gap in
+  `scripts/check_citations.sh`: it checked the errata for E-* IDs but never
+  for the FR-/NFR- IDs several entries raise, despite its own error message
+  claiming otherwise — found by legitimately citing FR-EXP-011 (raised by
+  E-11) and having it rejected.
+- **[PR #46](https://github.com/SanduniLiyanage/Moneyora/pull/46)** — the data
+  layer. `CategoryModel`, `CategoryLocalDataSource(+Impl)`,
+  `CategoryRepositoryImpl`, following `AccountRepositoryImpl`'s shape.
+  `usageCount` sums `transactions.category_id` and
+  `transaction_splits.category_id` in one query; `delete()` checks it and
+  `childCount` defensively before the row delete, the same reasoning
+  `AccountLocalDataSourceImpl.delete` already uses.
+- **[PR #47](https://github.com/SanduniLiyanage/Moneyora/pull/47)** —
+  `injection.dart` wiring and `category_providers.dart`
+  (`categoriesProvider`, `SaveCategoryController`,
+  `DeleteCategoryController`), plus two new cases in `injection_test.dart` —
+  "every provider resolves" and one real round-trip through the DI graph —
+  the same proof-of-reachability `RecomputeAccountBalance`'s multi-sprint
+  idle period showed is worth having before a screen exists to prove it
+  incidentally.
+- **[PR #43](https://github.com/SanduniLiyanage/Moneyora/pull/43)** — unrelated
+  docs cleanup found already in progress at session start: trimmed
+  ROADMAP.md's closed-sprint sections and the Copilot workstream table down
+  to what they still need to say, and swapped SPEC_ERRATA.md's summary table
+  Severity/Area columns (duplicated on every entry's own **Affects:** line)
+  for Title/Requirement ID.
 
-  **Not in #44**: `data/`, `presentation/`, `entry_catalog.dart`'s deletion
-  (E-27), the entry screen's inline `+` (E-13). Sprint 3.5 continues from
-  there once this merges — see ROADMAP.md's Sprint 3.5 section for the rest
-  of the slice.
-
-Once merged, re-run the commands in the numbers table above before trusting
-this file's figures again — `git pull` first.
+**Not done**: `presentation/pages`, `presentation/widgets`,
+`entry_catalog.dart`'s deletion (E-27), the entry screen's inline `+` (E-13).
+That is real UI work — an icon picker, a colour picker, the hierarchy in a
+form, FR-EXP-011's category-grouped list toggle — sized for its own session
+rather than folded into this one. See ROADMAP.md's Sprint 3.5 section.
 
 ---
 
@@ -150,13 +159,23 @@ named the side a row belongs to (E-16), so the counterparty comes from
 via a join in `TransactionLocalDataSourceImpl.list` and carried up through a
 new `Transaction.counterpartyAccountId` field.
 
-**Sprint 3.5 — categories — is new**, added 2026-09-10 and slotted between
-Sprints 3 and 4. FR-EXP-004, FR-EXP-005 and FR-EXP-011 had been scheduled in no
-sprint at all, while analytics, the Money Plan and the receipt scanner all
-depend on categories being something the user controls. That was a defect in the
-plan rather than in the SRS, so it is fixed in [`ROADMAP.md`](ROADMAP.md) and
-deliberately raised no errata entry. It also gives [E-27](SPEC_ERRATA.md) a
-sprint in which to retire `entry_catalog.dart`.
+**Sprint 3.5 — categories — is in progress.** Added 2026-09-10 and slotted
+between Sprints 3 and 4: FR-EXP-004, FR-EXP-005 and FR-EXP-011 had been
+scheduled in no sprint at all, while analytics, the Money Plan and the
+receipt scanner all depend on categories being something the user controls.
+That was a defect in the plan rather than in the SRS, so it is fixed in
+[`ROADMAP.md`](ROADMAP.md) and deliberately raised no errata entry.
+
+**`domain/`, `data/` and `presentation/providers` are done and wired** (PRs
+#44, #46, #47) — `Category`, `CategoryRepository`, the four use cases,
+`CategoryLocalDataSourceImpl`, `CategoryRepositoryImpl`,
+`category_providers.dart`, and `injection.dart` entries for all of it,
+proven reachable in `injection_test.dart` the same way the transactions
+slice is. **`presentation/pages` and `presentation/widgets` are still
+empty** — no category screen exists yet, so a user cannot create, rename or
+delete a category through the app. That is also why
+[E-27](SPEC_ERRATA.md)'s retirement of `entry_catalog.dart` hasn't happened:
+the entry screen still has nothing else to read categories from.
 
 **Sprint 4 — analytics — has domain and data only.** `GetSpendingByCategory`,
 its datasource and its repository are in and tested;
@@ -199,6 +218,8 @@ lib/
 │   │                    "what the total left out" line
 │   ├── analytics/       spending-by-category: domain + data. presentation/ is
 │   │                    EMPTY — no charts. Sprint 4.
+│   ├── categories/      domain + data + presentation/providers. presentation/
+│   │                    pages and /widgets are EMPTY — no screen yet.
 │   ├── copilot/         all three layers. The only http in the application
 │   ├── home/            Sprint 1 proof screen, still the home route
 │   └── transactions/    full slice: keypad entry, list, filter, edit, undo
@@ -208,9 +229,11 @@ lib/
 ```
 
 **Not started — scaffold directories with zero `.dart` files:** `auth/`,
-`backup/`, `categories/`, `money_plan/`, `receipt_scanner/`, `settings/`, plus
+`backup/`, `money_plan/`, `receipt_scanner/`, `settings/`, plus
 `core/constants/` and `core/extensions/`. An empty directory is *not started*;
-none of these is in progress.
+none of these is in progress. `categories/` is no longer in this list — its
+`domain/`, `data/` and `presentation/providers` exist; only
+`presentation/pages` and `/widgets` are still empty.
 
 The three routes with no screen behind them are `moneyPlan`, `scanReceipt` and
 `settings`, which are stubs. The five real ones are `home`, `transactions`,
@@ -252,12 +275,14 @@ run cannot be an oracle.
 
 ## What is next
 
-**Merge PR #43 and #44 first** (see "This session" above) — both are
-CI-clean and waiting on a human, not on more work. Once #44 lands, Sprint 3.5
-continues with `data/models`, `data/datasources` and `data/repositories` for
-categories, following `AccountRepositoryImpl`'s shape (see
-`lib/features/accounts/data/`), then the presentation layer, the entry
-screen's inline `+`, and `entry_catalog.dart`'s deletion (E-27).
+**Sprint 3.5's presentation layer** (see "This session" above): a category
+list/management screen, the create-and-edit form (icon picker, colour picker,
+the parent dropdown — top-level categories only, per `AddCategory
+.validateParent`), FR-EXP-011's category-grouped list toggle, E-13's inline
+`+` on the entry screen, and finally deleting `entry_catalog.dart` (E-27)
+once the entry screen reads categories through `categoriesProvider` instead.
+`account_form_page.dart` and `account_drawer.dart` are the closest precedent
+for shape and icon/colour-picker conventions.
 
 **The release build is fixed** (see Environment below and
 [E-09](SPEC_ERRATA.md)). One thing it leaves open: a release APK has been built
@@ -331,12 +356,12 @@ decided while planning it are worth knowing before touching the code:
   otherwise silence the rest — and a datasource given none makes a private
   one, which is how every unit test constructs them.
 
-**Then Sprint 3.5 — categories.** New as of 2026-09-10; see
-[`ROADMAP.md`](ROADMAP.md). FR-EXP-004 (custom categories), FR-EXP-005 (the
-two-level hierarchy) and FR-EXP-011 (the category-grouped list) were in no
-sprint, E-13's inline `+` was deferred to a "categories work" that no sprint
-named, and [E-27](SPEC_ERRATA.md)'s `entry_catalog.dart` needed somewhere to be
-retired into. One sprint answers all four.
+**Sprint 3.5 — categories — `domain/`, `data/` and `presentation/providers`
+are done** (PRs #44, #46, #47); see [`ROADMAP.md`](ROADMAP.md). What remains
+is `presentation/pages` and `/widgets`: FR-EXP-004 (custom categories) and
+FR-EXP-005 (the two-level hierarchy) have use cases and a repository but no
+screen yet; FR-EXP-011 (the category-grouped list), E-13's inline `+`, and
+[E-27](SPEC_ERRATA.md)'s `entry_catalog.dart` retirement are all still ahead.
 
 **Then Sprint 4 — analytics.** Its first query is already in:
 `GetSpendingByCategory`, with the datasource, the repository and the DI wiring,
