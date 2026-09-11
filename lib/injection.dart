@@ -23,6 +23,13 @@ import 'features/analytics/data/datasources/analytics_local_datasource.dart';
 import 'features/analytics/data/repositories/analytics_repository_impl.dart';
 import 'features/analytics/domain/repositories/analytics_repository.dart';
 import 'features/analytics/domain/usecases/get_spending_by_category.dart';
+import 'features/categories/data/datasources/category_local_datasource.dart';
+import 'features/categories/data/repositories/category_repository_impl.dart';
+import 'features/categories/domain/repositories/category_repository.dart';
+import 'features/categories/domain/usecases/add_category.dart';
+import 'features/categories/domain/usecases/delete_category.dart';
+import 'features/categories/domain/usecases/update_category.dart';
+import 'features/categories/domain/usecases/watch_categories.dart';
 import 'features/copilot/data/datasources/gemini_remote_datasource.dart';
 import 'features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'features/copilot/data/repositories/llm_repository_impl.dart';
@@ -250,6 +257,58 @@ final recomputeAccountBalanceProvider = FutureProvider<RecomputeAccountBalance>(
   (ref) async => RecomputeAccountBalance(
     await ref.watch(accountRepositoryProvider.future),
   ),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Categories
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reads and writes category rows.
+///
+/// No shared `DatabaseChangeBus` here, unlike [accountLocalDataSourceProvider]
+/// — a category list changes only when a category itself is written, never as
+/// a side effect of a transaction the way a balance cache does (E-18), so a
+/// private bus is all this needs.
+final categoryLocalDataSourceProvider = FutureProvider<CategoryLocalDataSource>(
+  (ref) async {
+    final source = CategoryLocalDataSourceImpl(
+      await ref.watch(databaseProvider.future),
+    );
+    ref.onDispose(source.dispose);
+    return source;
+  },
+);
+
+/// Turns category data-layer exceptions into failures.
+final categoryRepositoryProvider = FutureProvider<CategoryRepository>(
+  (ref) async => CategoryRepositoryImpl(
+    await ref.watch(categoryLocalDataSourceProvider.future),
+  ),
+);
+
+/// Creates a category. FR-EXP-004.
+final addCategoryProvider = FutureProvider<AddCategory>(
+  (ref) async =>
+      AddCategory(await ref.watch(categoryRepositoryProvider.future)),
+);
+
+/// Renames, recolours, re-icons or re-parents a category. FR-EXP-004,
+/// FR-EXP-005.
+final updateCategoryProvider = FutureProvider<UpdateCategory>(
+  (ref) async =>
+      UpdateCategory(await ref.watch(categoryRepositoryProvider.future)),
+);
+
+/// Removes a category nothing depends on. FR-EXP-004.
+final deleteCategoryProvider = FutureProvider<DeleteCategory>(
+  (ref) async =>
+      DeleteCategory(await ref.watch(categoryRepositoryProvider.future)),
+);
+
+/// Watches the category list. FR-EXP-004, FR-EXP-011.
+final watchCategoriesProvider = FutureProvider<WatchCategories>(
+  (ref) async =>
+      WatchCategories(await ref.watch(categoryRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

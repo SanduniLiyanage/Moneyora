@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/encryption_key_store.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
+import 'package:moneyora/features/categories/domain/entities/category.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
 import 'package:moneyora/injection.dart';
@@ -159,6 +160,46 @@ void main() {
       opening - 125000,
       reason: 'the watched balance did not follow the write',
     );
+  });
+
+  test('every categories provider resolves', () async {
+    await expectLater(
+      Future.wait([
+        container.read(categoryLocalDataSourceProvider.future),
+        container.read(categoryRepositoryProvider.future),
+        container.read(addCategoryProvider.future),
+        container.read(updateCategoryProvider.future),
+        container.read(deleteCategoryProvider.future),
+        container.read(watchCategoriesProvider.future),
+      ]),
+      completes,
+    );
+  });
+
+  test('a category added through the use case comes back out', () async {
+    final addCategory = await container.read(addCategoryProvider.future);
+    final watchCategories = await container.read(
+      watchCategoriesProvider.future,
+    );
+
+    final saved = await addCategory(
+      const Category(
+        name: 'Hobbies',
+        icon: 'star',
+        colorHex: '#673AB7',
+        type: CategoryType.expense,
+      ),
+    );
+
+    expect(saved.isRight(), isTrue, reason: 'add failed: $saved');
+
+    final rows = await watchCategories(null).first;
+    final categories = rows.getOrElse((_) => []);
+
+    final hobbies = categories.firstWhere((c) => c.name == 'Hobbies');
+    // The repository converts at the boundary; a model here would compare
+    // unequal to an identical entity everywhere above.
+    expect(hobbies.runtimeType, Category);
   });
 
   test('validation runs before anything is written', () async {
