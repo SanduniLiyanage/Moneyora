@@ -1,16 +1,16 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `9510a93`, after **53
-merged pull requests** (#2–#54; #1 was closed unmerged) — [PR #54](https://github.com/SanduniLiyanage/Moneyora/pull/54),
-`get_income_for_period`/`compare_periods`, merged during this window.
-**Plus this session's spending-by-category donut chart, on branch
-`feat/analytics-donut-chart` as PR #55, open and awaiting CI/review — not
+State of the project as of **2026-09-12**, `main` at `05c5e9d`, after **54
+merged pull requests** (#2–#55; #1 was closed unmerged) — [PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55),
+the spending-by-category donut chart, merged during this window.
+**Plus this session's FR-RPT-002 period filters, on branch
+`feat/analytics-period-filters` as PR #56, open and awaiting CI/review — not
 yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on
-`perf/analytics-10k-query-benchmark` (PR #53), before it merges.
+`feat/analytics-period-filters` (PR #56), before it merges.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -19,22 +19,23 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **686 passing** | `flutter test` |
+| Tests | **728 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 99 in `lib/`, 49 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 101 in `lib/`, 51 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 680 at `9510a93` (PR #54, merged) plus 6 net new from this
-session — `test/widget/spending_donut_chart_test.dart` (loading, data
-rendering with the "Other" fold, both of E-22's empty states, and the
-failure path), all presentation-layer. `test/widget/app_shell_test.dart`'s
-existing tests were updated, not added to: the donut chart pushes "Coming
-next" below the fold on the 800×600 test surface, so its taps now scroll
-first, and the two new providers needed the same kind of override
-`databaseSummaryProvider` already had, for the same reason.
+Tests by area: 686 at `05c5e9d` (PR #55, merged) plus 42 net new from this
+session — 22 in `test/unit/features/analytics/domain/entities/period_selection_test.dart`
+(the four `DateRange` factories, the range each of the six periods asks for,
+and the inverted-interval cases) and 20 in `test/widget/period_selector_test.dart`
+(each chip's effect on the range the query is actually asked for, both
+pickers including their cancel paths, and the chart's loading/empty/error
+states across a period change). No existing test was changed: the selector
+sits inside the donut's card, and `spending_donut_chart_test.dart`'s six
+cases and `app_shell_test.dart`'s scrolling taps all still pass unmodified.
 `main.dart` is composition-root wiring (a real `ProviderContainer` against
 real platform channels), not something `flutter test`'s VM can exercise the
 way the rest of the app is; it was verified on the emulator instead, the same
@@ -50,7 +51,78 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — the spending-by-category donut chart (PR #55, open)
+## This session — period filters (FR-RPT-002, PR #56, open)
+
+With [PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55) merged as
+`05c5e9d`, the donut chart is on the home screen and its only period is the
+current calendar month. `ROADMAP.md`'s Sprint 4 order puts the period filters
+next, and `currentMonthRangeProvider`'s own doc comment names the swap: a
+`StateProvider` in place of the hard-coded month.
+
+**FR-RPT-002 names seven filters — Day, Week, Month, Year, All, Custom
+Interval, Choose Date — which are not seven modes.** Six of them choose a
+*shape* of period; "Choose Date" chooses which date that shape wraps around.
+So the state is one `AnalyticsPeriod` plus one anchor, plus the interval
+behind Custom: `PeriodSelection` in
+`features/analytics/domain/entities/period_selection.dart`, whose `range`
+getter is a pure function of those three fields. Modelling "Choose Date" as a
+seventh shape would have meant a mode that answers "which week?" with nothing,
+and modelling it as a seventh chip would have meant a chip that cannot be
+*selected*, only pressed.
+
+**No query, repository method or use case changed.** A period filter is a
+different argument to the same question, so `GetSpendingByCategory` and the
+`spendingByCategory` SQL are untouched; what is new is four factories beside
+the `DateRange.month` that already existed — `day`, `week`, `year`,
+`allTime`. `DateRange.week` takes a `firstWeekday` defaulting to Monday
+because FR-SET-004 makes the first day of the week user-configurable
+(Sunday/Monday) in Sprint 7; the parameter is where that setting lands, and
+until then there is one caller passing the default. `allTime` is a closed
+range (2000 to 2100) rather than a nullable one, so "All" costs no branch in
+the query, the repository or the use case and still runs on the `date` index.
+
+**Providers.** `currentMonthRangeProvider` is gone, replaced by
+`analyticsPeriodProvider` (a `StateProvider<PeriodSelection>`, the picker's
+only writer) and `analyticsRangeProvider` (derived, so every surface watching
+the same period keys the `family` on one identical `DateRange` rather than
+two that mean the same thing). `spendingByCategoryTotalsProvider` did not
+change.
+
+**An inverted custom interval is passed through, not corrected.**
+`GetSpendingByCategory.validate` already refuses one — its doc comment says
+it is public and static precisely so "a screen's period picker" can use it —
+and the chart renders that `ValidationFailure`'s own sentence. Swapping the
+ends silently would turn a mistake into a plausible-looking answer, which is
+the same reasoning that put the check in the use case in the first place. In
+practice `showDateRangePicker` cannot produce one; the path exists because
+the state can hold one and the failure should be legible if it ever does.
+
+**The picker is a chip row inside the donut's own card** (`PeriodSelector`,
+`features/analytics/presentation/widgets/period_selector.dart`), horizontally
+scrolling for the same reason `transaction_list_page.dart`'s type filter is —
+six chips overflow a 360dp phone. "Choose Date" is the calendar `IconButton`
+beside them, disabled for All and Custom because neither is anchored to a
+date and offering to move an anchor they ignore would do nothing visible.
+Tapping **Custom** always opens `showDateRangePicker`, even when Custom is
+already selected — it is the only way to change an interval once set — and
+cancelling either picker leaves the selection exactly as it was rather than
+switching to a Custom period with no interval behind it. Both pickers use the
+`DateTime(2000)`-to-today bounds the entry and account screens already use.
+
+No separate report screen: SDD SCR-001 puts the chart on the home screen, and
+a filter one scroll away from what it filters is a filter nobody touches.
+`features/home/` still does not import `features/analytics/` — the selector
+rides inside `SpendingDonutChart`, which `app_router.dart` already composes.
+
+`dart format`, `flutter analyze` (0 issues), `flutter test` (728 passing, up
+from 686), `check_architecture.sh` and `check_citations.sh` are all clean.
+
+**Not in this slice, deliberately:** the account filter (FR-RPT-003) and the
+remaining three charts. The period state is shared infrastructure the bars,
+trend lines and heatmap will each watch, which is why it is a provider pair
+rather than something the donut owns.
+
+### Previous session — the spending-by-category donut chart ([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55), merged as `05c5e9d`)
 
 With [PR #54](https://github.com/SanduniLiyanage/Moneyora/pull/54) merged, all
 three analytics use cases and the cold-start/benchmark items are closed out.
@@ -113,11 +185,11 @@ database never resolves inside a widget test's fake-async zone.
 `dart format`, `flutter analyze` (0 issues), `flutter test` (686 passing, up
 from 680 — `spending_donut_chart_test.dart`'s loading/data/"Other"-fold/both-
 empty-states/failure cases), `check_architecture.sh` and `check_citations.sh`
-are all clean. **Not yet merged — do not merge without asking first.**
+were all clean, and it merged as `05c5e9d`.
 
-**Not in this slice, deliberately:** a period picker (FR-RPT-002), the
-account filter (FR-RPT-003), and the other four charts. `ROADMAP.md`'s Sprint
-4 section has the order the remaining ones follow.
+**Not in that slice, deliberately:** a period picker (FR-RPT-002, done this
+session, below), the account filter (FR-RPT-003), and the other four charts.
+`ROADMAP.md`'s Sprint 4 section has the order the remaining ones follow.
 
 ### Previous session — `get_income_for_period` and `compare_periods` ([PR #54](https://github.com/SanduniLiyanage/Moneyora/pull/54), merged as `9510a93`)
 
@@ -550,27 +622,28 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge PR #55** (the spending-by-category donut chart).
-Opened this session, not yet merged — deliberately left for a human decision
-rather than merged automatically. Once reviewed and CI is green:
+**First: watch and merge PR #56** (FR-RPT-002's period filters). Opened this
+session, not yet merged. Once reviewed and CI is green:
 
 ```powershell
-gh pr checks 55 --watch
-gh pr merge 55 --squash --delete-branch
+gh pr checks 56 --watch
+gh pr merge 56 --squash --delete-branch
 git pull
 ```
 
 Once that lands, Sprint 4's cold-start item (PR #52), its query benchmark
-(PR #53), all three aggregates (PR #54) and the donut chart (PR #55) are
-closed. The rest of **Sprint 4 — analytics** is, in the order `ROADMAP.md`
-sets:
+(PR #53), all three aggregates (PR #54), the donut chart (PR #55) and the
+period filters (PR #56) are closed. The rest of **Sprint 4 — analytics** is,
+in the order `ROADMAP.md` sets:
 
-- **Period filters (FR-RPT-002)** — Day, Week, Month, Year, All, Custom
-  Interval, Choose Date — replacing `currentMonthRangeProvider`'s hard-coded
-  current month with something a `StateProvider` can hold, per that
-  provider's own doc comment in `analytics_providers.dart`. **This is the
-  next unfinished Sprint 4 item.**
-- Then the account filter (FR-RPT-003), and the remaining three charts —
+- **The account filter (FR-RPT-003)** — All Accounts, or one specific
+  account, narrowing the same aggregate the period filters now narrow by
+  date. **This is the next unfinished Sprint 4 item.** It is the second
+  argument to a query that currently takes one, so it changes
+  `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl` where FR-RPT-002 did
+  not; `analyticsPeriodProvider` is the shape its own filter state should
+  follow.
+- Then the remaining three charts —
   income-vs-expense bars, trend lines, heatmap — over `GetIncomeForPeriod`
   and `ComparePeriods`, which are wired into `injection.dart`
   (`getIncomeForPeriodProvider`, `comparePeriodsProvider`) but called by

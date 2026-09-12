@@ -10,7 +10,6 @@ library;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/category_reader.dart';
@@ -20,6 +19,7 @@ import '../../../../core/widgets/category_icons.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/category_total.dart';
 import '../providers/analytics_providers.dart';
+import 'period_selector.dart';
 
 /// A fixed height for every state (loading, empty, error, drawn), so the
 /// card does not jump as data resolves — the "skeleton flash" anti-pattern
@@ -38,7 +38,7 @@ const double _chartHeight = 180;
 /// categories exist.
 const int _maxSlices = 6;
 
-/// Spending by category, for the current calendar month. FR-RPT-001.
+/// Spending by category, over the selected period. FR-RPT-001, FR-RPT-002.
 class SpendingDonutChart extends ConsumerWidget {
   /// Creates the chart.
   const SpendingDonutChart({super.key});
@@ -46,7 +46,8 @@ class SpendingDonutChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final range = ref.watch(currentMonthRangeProvider);
+    final selection = ref.watch(analyticsPeriodProvider);
+    final range = ref.watch(analyticsRangeProvider);
     final totals = ref.watch(spendingByCategoryTotalsProvider(range));
     final categories = ref.watch(categoryOptionsProvider);
 
@@ -59,12 +60,14 @@ class SpendingDonutChart extends ConsumerWidget {
             Text('Spending by category', style: theme.textTheme.titleMedium),
             const SizedBox(height: 2),
             Text(
-              DateFormat.yMMMM().format(range.from),
+              periodLabel(selection),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            const PeriodSelector(),
+            const SizedBox(height: 8),
             switch ((totals, categories)) {
               (AsyncError(:final error), _) => _Problem(error: error),
               (_, AsyncError(:final error)) => _Problem(error: error),
@@ -243,12 +246,12 @@ class _Legend extends StatelessWidget {
 /// range."
 ///
 /// Which one applies is read off `databaseSummaryProvider`'s existing
-/// transaction count rather than a second analytics query: no expense
-/// *this month* is ambiguous by itself, but no transaction *ever* is not.
-/// This slice has no period picker yet (FR-RPT-002 is the next one), so the
-/// only way "nothing this month" and "nothing yet" can differ in practice is
-/// a user whose only history is income or transfers — an edge case, not
-/// reason to add a second spending-specific count query here.
+/// transaction count rather than a second analytics query: no expense *in
+/// this period* is ambiguous by itself, but no transaction *ever* is not.
+/// Now that FR-RPT-002's picker exists, a quiet Day or a custom interval over
+/// a gap is the ordinary way the two diverge — which is what E-22 wrote the
+/// second sentence for, and the count still tells them apart without a
+/// second spending-specific query.
 class _NoSpending extends ConsumerWidget {
   const _NoSpending();
 

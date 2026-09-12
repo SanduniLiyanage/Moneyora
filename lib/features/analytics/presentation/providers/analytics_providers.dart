@@ -14,19 +14,33 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/category_total.dart';
+import '../../domain/entities/period_selection.dart';
 import '../../domain/repositories/analytics_repository.dart';
 
-/// The current calendar month, as a [DateRange].
+/// The period every analytics surface reports over. FR-RPT-002.
 ///
-/// The donut chart's only period for this slice — FR-RPT-002's Day/Week/
-/// Month/Year/Custom filters are the next Sprint 4 item, not this one. A
-/// plain [Provider] rather than a [StateProvider] because nothing can change
-/// it yet; swapping it for a `StateProvider<DateRange>` is exactly the change
-/// the filter work will make, with no other provider needing to know.
-final currentMonthRangeProvider = Provider<DateRange>((ref) {
-  final now = DateTime.now();
-  return DateRange.month(now.year, now.month);
-});
+/// A [StateProvider] because the period picker writes to it — this replaces
+/// the hard-coded `currentMonthRangeProvider` the donut chart shipped with
+/// (FR-RPT-001), which is exactly the swap that provider's own doc comment
+/// said the filter work would make. It holds a [PeriodSelection] rather than
+/// a bare [DateRange] so the picker can render which filter is selected
+/// without inferring it back out of two dates.
+///
+/// `DateTime.now()` is read once, here, at the composition root of this
+/// state; everything downstream is a pure function of the selection, which
+/// is what lets a test state the date instead of working around it.
+final analyticsPeriodProvider = StateProvider<PeriodSelection>(
+  (ref) => PeriodSelection.monthOf(DateTime.now()),
+);
+
+/// The selected period as the [DateRange] the use cases take. FR-RPT-002.
+///
+/// A derived [Provider] rather than something each widget computes: it keeps
+/// the query key identical across every surface watching the same period, so
+/// the `family` below is not asked for two ranges that mean one thing.
+final analyticsRangeProvider = Provider<DateRange>(
+  (ref) => ref.watch(analyticsPeriodProvider).range,
+);
 
 /// What was spent per category over [range]. FR-RPT-001.
 ///
