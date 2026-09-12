@@ -2,8 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../entities/analytics_query.dart';
 import '../entities/category_total.dart';
-import '../entities/spending_query.dart';
 
 /// A closed period to report over, both ends **inclusive** whole days.
 ///
@@ -83,12 +83,13 @@ abstract class AnalyticsRepository {
   /// Transfers are excluded (E-02) and split parts are counted against their
   /// own categories rather than the parent's (E-04).
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    SpendingQuery query,
+    AnalyticsQuery query,
   );
 
-  /// Totals income over [range]. FR-COP-008.
+  /// Totals income over [query]'s period, for one account or all of them.
+  /// FR-COP-008, FR-RPT-003, FR-RPT-004.
   ///
   /// Income is never split (E-04's split table exists for FR-EXP-010's
   /// expenses only), so this is a plain sum with no union to write.
-  Future<Either<Failure, int>> incomeForPeriod(DateRange range);
+  Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query);
 }

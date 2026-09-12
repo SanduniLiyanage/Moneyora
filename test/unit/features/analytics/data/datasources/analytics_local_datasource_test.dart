@@ -392,6 +392,137 @@ void main() {
     });
   });
 
+  group('the account filter on income (FR-RPT-003, FR-RPT-004)', () {
+    test('counts only the account asked for', () async {
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8000000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 1500000,
+        date: '2026-08-02',
+        accountId: card,
+        type: 'income',
+      );
+
+      final onCash = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: cash,
+      );
+
+      expect(onCash, 8000000);
+    });
+
+    test('a null account id counts every account — All Accounts', () async {
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8000000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 1500000,
+        date: '2026-08-02',
+        accountId: card,
+        type: 'income',
+      );
+
+      final all = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(all, 9500000);
+    });
+
+    test('an account with no income is zero, not null', () async {
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8000000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+
+      final onCard = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: card,
+      );
+
+      expect(onCard, 0);
+    });
+
+    test('narrows income and spending by the same account, so FR-RPT-004 '
+        'compares two halves of one thing', () async {
+      // A chart whose expense bar is filtered and whose income bar is not
+      // subtracts one account's spending from every account's income and
+      // calls the difference savings.
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8000000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 1500000,
+        date: '2026-08-02',
+        accountId: card,
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: food,
+        amountCents: 120000,
+        date: '2026-08-03',
+      );
+      await insertExpense(
+        categoryId: transport,
+        amountCents: 500000,
+        date: '2026-08-04',
+        accountId: card,
+      );
+
+      final income = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: card,
+      );
+      final spending = await analytics.spendingByCategory(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: card,
+      );
+
+      expect(income, 1500000);
+      expect(spending.fold(0, (sum, t) => sum + t.amountCents), 500000);
+    });
+
+    test('a transfer is not income, filtered or not (E-02)', () async {
+      await db.insert('transactions', {
+        'account_id': cash,
+        'amount_cents': 2500000,
+        'type': 'transfer',
+        'transfer_direction': 'in',
+        'date': '2026-08-10',
+        'created_at': '2026-08-10T00:00:00Z',
+        'updated_at': '2026-08-10T00:00:00Z',
+      });
+
+      final onCash = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: cash,
+      );
+
+      expect(onCash, 0);
+    });
+  });
+
   group('what must not be counted', () {
     test('income is not spending', () async {
       await insertExpense(

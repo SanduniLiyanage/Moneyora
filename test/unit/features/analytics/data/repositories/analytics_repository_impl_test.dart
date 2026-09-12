@@ -5,7 +5,7 @@ import 'package:moneyora/core/ports/spending_by_category_reader.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
 import 'package:moneyora/features/analytics/data/models/category_total_model.dart';
 import 'package:moneyora/features/analytics/data/repositories/analytics_repository_impl.dart';
-import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
+import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 
 /// Returns canned totals, or throws whatever it is handed.
@@ -50,6 +50,7 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
   Future<int> incomeForPeriod({
     required DateTime from,
     required DateTime to,
+    int? accountId,
   }) async {
     this.from = from;
     this.to = to;
@@ -68,7 +69,7 @@ void main() {
       final repository = AnalyticsRepositoryImpl(_FakeDataSource());
 
       final result = await repository.spendingByCategory(
-        SpendingQuery(range: august),
+        AnalyticsQuery(range: august),
       );
 
       result.fold((f) => fail('unexpected failure: $f'), (totals) {
@@ -85,7 +86,7 @@ void main() {
       );
 
       final result = await repository.spendingByCategory(
-        SpendingQuery(range: august),
+        AnalyticsQuery(range: august),
       );
 
       result.fold((failure) {
@@ -99,7 +100,9 @@ void main() {
     test('returns what the datasource read', () async {
       final repository = AnalyticsRepositoryImpl(_FakeDataSource());
 
-      final result = await repository.incomeForPeriod(august);
+      final result = await repository.incomeForPeriod(
+        AnalyticsQuery(range: august),
+      );
 
       result.fold(
         (f) => fail('unexpected failure: $f'),
@@ -112,7 +115,9 @@ void main() {
         _FakeDataSource(throws: const CacheException('disk is full')),
       );
 
-      final result = await repository.incomeForPeriod(august);
+      final result = await repository.incomeForPeriod(
+        AnalyticsQuery(range: august),
+      );
 
       result.fold((failure) {
         expect(failure, isA<CacheFailure>());

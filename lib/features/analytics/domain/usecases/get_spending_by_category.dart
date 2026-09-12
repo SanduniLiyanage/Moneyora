@@ -2,8 +2,8 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
+import '../entities/analytics_query.dart';
 import '../entities/category_total.dart';
-import '../entities/spending_query.dart';
 import '../repositories/analytics_repository.dart';
 
 /// What was spent per category over a period, for one account or all of
@@ -14,7 +14,7 @@ import '../repositories/analytics_repository.dart';
 /// computing "spending by category" separately is two chances to disagree
 /// about whether a transfer counts.
 class GetSpendingByCategory
-    implements UseCase<List<CategoryTotal>, SpendingQuery> {
+    implements UseCase<List<CategoryTotal>, AnalyticsQuery> {
   /// Creates the use case.
   const GetSpendingByCategory(this._repository);
 
@@ -22,7 +22,7 @@ class GetSpendingByCategory
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> call(
-    SpendingQuery params,
+    AnalyticsQuery params,
   ) async {
     final failure = validate(params.range);
     if (failure != null) return Left(failure);
@@ -31,7 +31,7 @@ class GetSpendingByCategory
 
   /// Returns the reason [range] cannot be reported on, or null if it is fine.
   ///
-  /// Still takes the range rather than the whole [SpendingQuery]: the period
+  /// Still takes the range rather than the whole [AnalyticsQuery]: the period
   /// is the only part of a query that can be wrong. An account id either
   /// names a row or selects nothing, which is an empty chart and a true one —
   /// and FR-RPT-003's picker can only offer accounts that exist.

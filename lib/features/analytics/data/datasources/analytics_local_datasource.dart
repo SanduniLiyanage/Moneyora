@@ -31,8 +31,13 @@ abstract interface class AnalyticsLocalDataSource {
     int? accountId,
   });
 
-  /// Totals income between [from] and [to] inclusive.
-  Future<int> incomeForPeriod({required DateTime from, required DateTime to});
+  /// Totals income between [from] and [to] inclusive, for [accountId] or —
+  /// when it is null — every account. FR-RPT-003.
+  Future<int> incomeForPeriod({
+    required DateTime from,
+    required DateTime to,
+    int? accountId,
+  });
 }
 
 /// sqflite implementation of [AnalyticsLocalDataSource].
@@ -116,23 +121,36 @@ SELECT c.id AS category_id, c.name AS name, c.color AS color,
   /// expenses only), so this is a plain sum. `COALESCE` turns SQLite's `NULL`
   /// for "no matching rows" into 0, since there is no `GROUP BY` here to make
   /// an empty period simply vanish the way `spendingByCategory` does.
+  ///
+  /// The `{account}` hole is FR-RPT-003's filter, the same substitution
+  /// `_spendingByCategory` uses above — the two aggregates are filtered by the
+  /// same rule because FR-RPT-004 puts their results side by side, and a
+  /// filter applied to one bar and not the other compares two different things
+  /// and calls the difference savings. The alias is spelled out here so the
+  /// clause is identical in both statements.
   static const String _incomeForPeriod = '''
-SELECT COALESCE(SUM(amount_cents), 0) AS total_cents
-  FROM transactions
- WHERE type = 'income'
-   AND date >= ? AND date <= ?
+SELECT COALESCE(SUM(t.amount_cents), 0) AS total_cents
+  FROM transactions t
+ WHERE t.type = 'income'
+   AND t.date >= ? AND t.date <= ?
+   {account}
 ''';
 
   @override
   Future<int> incomeForPeriod({
     required DateTime from,
     required DateTime to,
+    int? accountId,
   }) async {
     return _guard('total income for period', () async {
-      final rows = await _db.rawQuery(_incomeForPeriod, [
-        encodeIsoDay(from),
-        encodeIsoDay(to),
-      ]);
+      final sql = _incomeForPeriod.replaceAll(
+        '{account}',
+        accountId == null ? '' : _accountClause,
+      );
+      final args = <Object?>[encodeIsoDay(from), encodeIsoDay(to)];
+      if (accountId != null) args.add(accountId);
+
+      final rows = await _db.rawQuery(sql, args);
       return (rows.single['total_cents']! as num).toInt();
     });
   }

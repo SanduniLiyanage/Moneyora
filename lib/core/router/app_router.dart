@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/account_drawer.dart';
+import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
 import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
 import '../../features/categories/domain/entities/category.dart';
 import '../../features/categories/presentation/pages/category_form_page.dart';
@@ -69,13 +70,15 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.home,
       name: 'home',
-      // The accounts panel (FR-ACC-003) and the donut chart (FR-RPT-001) are
-      // composed in here rather than imported by the home screen, which
-      // would be one feature importing another. This file already names
-      // every feature's pages, so it is where the app is assembled.
+      // The accounts panel (FR-ACC-003), the donut chart (FR-RPT-001) and the
+      // income-vs-expense bars (FR-RPT-004) are composed in here rather than
+      // imported by the home screen, which would be one feature importing
+      // another. This file already names every feature's pages, so it is
+      // where the app is assembled.
       builder: (context, state) => const HomePage(
         drawer: AccountDrawer(),
         spendingChart: SpendingDonutChart(),
+        incomeExpenseChart: IncomeExpenseBars(),
       ),
     ),
     GoRoute(

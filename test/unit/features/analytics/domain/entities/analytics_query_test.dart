@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
-import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 
 void main() {
@@ -9,14 +9,14 @@ void main() {
 
   group('All Accounts', () {
     test('is a null account id, not a sentinel', () {
-      final query = SpendingQuery(range: august);
+      final query = AnalyticsQuery(range: august);
 
       expect(query.accountId, isNull);
       expect(query.isAllAccounts, isTrue);
     });
 
     test('a specific account is not all accounts', () {
-      final query = SpendingQuery(range: august, accountId: 3);
+      final query = AnalyticsQuery(range: august, accountId: 3);
 
       expect(query.isAllAccounts, isFalse);
       expect(query.accountId, 3);
@@ -25,14 +25,14 @@ void main() {
 
   group('narrowing and widening', () {
     test('picking an account keeps the period', () {
-      final query = SpendingQuery(range: august).withAccount(7);
+      final query = AnalyticsQuery(range: august).withAccount(7);
 
       expect(query.accountId, 7);
       expect(query.range, august);
     });
 
     test('going back to All Accounts keeps the period', () {
-      final query = SpendingQuery(
+      final query = AnalyticsQuery(
         range: august,
         accountId: 7,
       ).withAccount(null);
@@ -42,7 +42,7 @@ void main() {
     });
 
     test('changing the period keeps the account', () {
-      final query = SpendingQuery(
+      final query = AnalyticsQuery(
         range: august,
         accountId: 7,
       ).withRange(september);
@@ -57,26 +57,26 @@ void main() {
       // The family is keyed on this. Two equal-but-separate keys would run the
       // query twice and cache the answer twice.
       expect(
-        SpendingQuery(range: DateRange.month(2026, 8), accountId: 2),
-        SpendingQuery(range: august, accountId: 2),
+        AnalyticsQuery(range: DateRange.month(2026, 8), accountId: 2),
+        AnalyticsQuery(range: august, accountId: 2),
       );
     });
 
     test('the account is part of identity, not incidental', () {
       expect(
-        SpendingQuery(range: august, accountId: 2),
-        isNot(SpendingQuery(range: august, accountId: 3)),
+        AnalyticsQuery(range: august, accountId: 2),
+        isNot(AnalyticsQuery(range: august, accountId: 3)),
       );
       expect(
-        SpendingQuery(range: august, accountId: 2),
-        isNot(SpendingQuery(range: august)),
+        AnalyticsQuery(range: august, accountId: 2),
+        isNot(AnalyticsQuery(range: august)),
       );
     });
 
     test('so is the period', () {
       expect(
-        SpendingQuery(range: august, accountId: 2),
-        isNot(SpendingQuery(range: september, accountId: 2)),
+        AnalyticsQuery(range: august, accountId: 2),
+        isNot(AnalyticsQuery(range: september, accountId: 2)),
       );
     });
   });
@@ -87,7 +87,7 @@ void main() {
 
       for (final period in AnalyticsPeriod.values) {
         final range = selection.withPeriod(period).range;
-        final query = SpendingQuery(range: range, accountId: 4);
+        final query = AnalyticsQuery(range: range, accountId: 4);
 
         expect(query.range, range);
         expect(query.accountId, 4);

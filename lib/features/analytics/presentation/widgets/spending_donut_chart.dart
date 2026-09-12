@@ -49,7 +49,7 @@ class SpendingDonutChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final selection = ref.watch(analyticsPeriodProvider);
-    final query = ref.watch(spendingQueryProvider);
+    final query = ref.watch(analyticsQueryProvider);
     final totals = ref.watch(spendingByCategoryTotalsProvider(query));
     final categories = ref.watch(categoryOptionsProvider);
 

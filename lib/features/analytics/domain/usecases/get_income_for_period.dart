@@ -2,23 +2,25 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
+import '../entities/analytics_query.dart';
 import '../repositories/analytics_repository.dart';
 
-/// Total income over a period, in integer minor units. FR-COP-008.
+/// Total income over a period, for one account or all of them, in integer
+/// minor units. FR-COP-008, FR-RPT-004.
 ///
 /// Written once and consumed twice, the same way [AnalyticsRepository]'s
 /// spending query is: it is what the Copilot's income tool wraps, and it is
-/// available to any income-vs-expense screen the reports feature builds
-/// (FR-RPT-004) without a second query.
-class GetIncomeForPeriod implements UseCase<int, DateRange> {
+/// what FR-RPT-004's income-vs-expense bars read for their income bar,
+/// without a second query.
+class GetIncomeForPeriod implements UseCase<int, AnalyticsQuery> {
   /// Creates the use case.
   const GetIncomeForPeriod(this._repository);
 
   final AnalyticsRepository _repository;
 
   @override
-  Future<Either<Failure, int>> call(DateRange params) async {
-    final failure = validate(params);
+  Future<Either<Failure, int>> call(AnalyticsQuery params) async {
+    final failure = validate(params.range);
     if (failure != null) return Left(failure);
     return _repository.incomeForPeriod(params);
   }
