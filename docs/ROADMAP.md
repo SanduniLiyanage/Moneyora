@@ -213,7 +213,7 @@ way `AccountDrawer` is.
 It shipped with no period picker — its only period was the current calendar
 month — which is what the item below replaced.
 
-### Period filters (FR-RPT-002) — done
+### Period filters (FR-RPT-002) — done ([PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56), merged as `cdc1ae3`)
 
 Day, Week, Month, Year, All, Custom Interval and Choose Date, all seven,
 replacing `currentMonthRangeProvider`'s hard-coded month with

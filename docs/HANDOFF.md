@@ -1,16 +1,15 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `05c5e9d`, after **54
-merged pull requests** (#2–#55; #1 was closed unmerged) — [PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55),
-the spending-by-category donut chart, merged during this window.
-**Plus this session's FR-RPT-002 period filters, on branch
-`feat/analytics-period-filters` as PR #56, open and awaiting CI/review — not
-yet merged.** See "This session" below.
+State of the project as of **2026-09-12**, `main` at `cdc1ae3`, after **55
+merged pull requests** (#2–#56; #1 was closed unmerged) — [PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55),
+the spending-by-category donut chart, and [PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56),
+FR-RPT-002's period filters, both merged during this window. See "This
+session" below.
 
 ### The numbers, measured — and the only place they live
 
-Every figure below was produced by running the command beside it on
-`feat/analytics-period-filters` (PR #56), before it merges.
+Every figure below was produced by running the command beside it on `main`
+at `cdc1ae3`, with PR #56 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -51,7 +50,7 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — period filters (FR-RPT-002, PR #56, open)
+## This session — period filters ([PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56), merged as `cdc1ae3`)
 
 With [PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55) merged as
 `05c5e9d`, the donut chart is on the home screen and its only period is the
@@ -115,7 +114,9 @@ a filter one scroll away from what it filters is a filter nobody touches.
 rides inside `SpendingDonutChart`, which `app_router.dart` already composes.
 
 `dart format`, `flutter analyze` (0 issues), `flutter test` (728 passing, up
-from 686), `check_architecture.sh` and `check_citations.sh` are all clean.
+from 686), `check_architecture.sh` and `check_citations.sh` were all clean,
+CI was green on all three jobs (Analyze & Test, Build Android APK, Build iOS),
+and it merged as `cdc1ae3`.
 
 **Not in this slice, deliberately:** the account filter (FR-RPT-003) and the
 remaining three charts. The period state is shared infrastructure the bars,
@@ -622,19 +623,10 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge PR #56** (FR-RPT-002's period filters). Opened this
-session, not yet merged. Once reviewed and CI is green:
-
-```powershell
-gh pr checks 56 --watch
-gh pr merge 56 --squash --delete-branch
-git pull
-```
-
-Once that lands, Sprint 4's cold-start item (PR #52), its query benchmark
-(PR #53), all three aggregates (PR #54), the donut chart (PR #55) and the
-period filters (PR #56) are closed. The rest of **Sprint 4 — analytics** is,
-in the order `ROADMAP.md` sets:
+Sprint 4's cold-start item (PR #52), its query benchmark (PR #53), all three
+aggregates (PR #54), the donut chart (PR #55) and the period filters (PR #56)
+are closed, and `main` is clean at `cdc1ae3`. The rest of **Sprint 4 —
+analytics** is, in the order `ROADMAP.md` sets:
 
 - **The account filter (FR-RPT-003)** — All Accounts, or one specific
   account, narrowing the same aggregate the period filters now narrow by
