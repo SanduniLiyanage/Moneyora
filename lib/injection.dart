@@ -28,6 +28,7 @@ import 'features/analytics/domain/repositories/analytics_repository.dart';
 import 'features/analytics/domain/usecases/compare_periods.dart';
 import 'features/analytics/domain/usecases/get_income_for_period.dart';
 import 'features/analytics/domain/usecases/get_spending_by_category.dart';
+import 'features/analytics/domain/usecases/get_spending_trend.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
 import 'features/categories/domain/repositories/category_repository.dart';
@@ -413,6 +414,12 @@ final getIncomeForPeriodProvider = FutureProvider<GetIncomeForPeriod>(
 final comparePeriodsProvider = FutureProvider<ComparePeriods>(
   (ref) async =>
       ComparePeriods(await ref.watch(analyticsRepositoryProvider.future)),
+);
+
+/// Per-category spending over time, for the trend lines. FR-RPT-005.
+final getSpendingTrendProvider = FutureProvider<GetSpendingTrend>(
+  (ref) async =>
+      GetSpendingTrend(await ref.watch(analyticsRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

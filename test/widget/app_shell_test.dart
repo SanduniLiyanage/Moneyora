@@ -17,22 +17,25 @@ import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_income_for_period.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
+import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/injection.dart';
 
-/// An empty answer for the home screen's two charts, for every shell test
-/// below that does not care about either of them.
+/// An empty answer for the home screen's three charts, for every shell test
+/// below that does not care about any of them.
 ///
-/// Without this, `getSpendingByCategoryProvider`, `getIncomeForPeriodProvider`
-/// and `categoryReaderProvider` fall through to `injection.dart`'s real ones,
-/// which open a real database — exactly what `databaseSummaryProvider` is
-/// already overridden to avoid, for the reason this file's own doc comment
-/// gives. `IncomeExpenseBars` (FR-RPT-004) is the second chart the router
-/// composes, so it needs the income half answered too or the card spins for
-/// ever and `pumpAndSettle` never returns.
+/// Without this, `getSpendingByCategoryProvider`, `getIncomeForPeriodProvider`,
+/// `getSpendingTrendProvider` and `categoryReaderProvider` fall through to
+/// `injection.dart`'s real ones, which open a real database — exactly what
+/// `databaseSummaryProvider` is already overridden to avoid, for the reason
+/// this file's own doc comment gives. `IncomeExpenseBars` (FR-RPT-004) and
+/// `SpendingTrendLines` (FR-RPT-005) are the second and third charts the
+/// router composes, so each needs its aggregate answered too or its card
+/// spins for ever and `pumpAndSettle` never returns.
 class _NoSpendingRepository implements AnalyticsRepository {
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
@@ -42,6 +45,11 @@ class _NoSpendingRepository implements AnalyticsRepository {
   @override
   Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query) async =>
       const Right(0);
+  @override
+  Future<Either<Failure, List<TrendPoint>>> spendingTrend(
+    AnalyticsQuery query,
+    TrendGranularity granularity,
+  ) async => const Right([]);
 }
 
 class _NoCategoryReader implements CategoryReader {
@@ -63,6 +71,9 @@ final List<Override> _noChartDataOverrides = [
   ),
   getIncomeForPeriodProvider.overrideWith(
     (ref) async => GetIncomeForPeriod(_NoSpendingRepository()),
+  ),
+  getSpendingTrendProvider.overrideWith(
+    (ref) async => GetSpendingTrend(_NoSpendingRepository()),
   ),
   categoryReaderProvider.overrideWith((ref) async => _NoCategoryReader()),
   accountReaderProvider.overrideWith((ref) async => _NoAccountReader()),
@@ -138,10 +149,16 @@ void main() {
         bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
       );
       await tester.pumpAndSettle();
-      // Two charts sit above the summary card now (FR-RPT-001's donut and
-      // FR-RPT-004's bars), so it is below the 800×600 fold and `find.text`'s
-      // default `skipOffstage: true` cannot see it until the list scrolls.
-      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      // Three charts sit above the summary card now (FR-RPT-001's donut,
+      // FR-RPT-004's bars and FR-RPT-005's trend lines), so it is well below
+      // the 800×600 fold and `find.text`'s default `skipOffstage: true`
+      // cannot see it until the list scrolls. `scrollUntilVisible` rather
+      // than a fixed drag, so the next chart does not move it again.
+      await tester.scrollUntilVisible(
+        find.text('Database ready'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Database ready'), findsOneWidget);

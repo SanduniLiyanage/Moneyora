@@ -4,8 +4,10 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/spending_by_category_reader.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
 import 'package:moneyora/features/analytics/data/models/category_total_model.dart';
+import 'package:moneyora/features/analytics/data/models/trend_point_model.dart';
 import 'package:moneyora/features/analytics/data/repositories/analytics_repository_impl.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
+import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 
 /// Returns canned totals, or throws whatever it is handed.
@@ -32,6 +34,16 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
     ),
   ];
   int income = 9000000;
+  TrendGranularity? granularity;
+  List<TrendPointModel> points = [
+    TrendPointModel(
+      bucket: DateTime(2026, 8, 3),
+      categoryId: 1,
+      name: 'Food',
+      color: '#FF7043',
+      amountCents: 120000,
+    ),
+  ];
 
   @override
   Future<List<CategoryTotalModel>> spendingByCategory({
@@ -56,6 +68,21 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
     this.to = to;
     if (throws case final failure?) throw failure;
     return income;
+  }
+
+  @override
+  Future<List<TrendPointModel>> spendingTrend({
+    required DateTime from,
+    required DateTime to,
+    required TrendGranularity granularity,
+    int? accountId,
+  }) async {
+    this.from = from;
+    this.to = to;
+    this.accountId = accountId;
+    this.granularity = granularity;
+    if (throws case final failure?) throw failure;
+    return points;
   }
 }
 
@@ -123,6 +150,55 @@ void main() {
         expect(failure, isA<CacheFailure>());
         expect(failure.message, 'disk is full');
       }, (_) => fail('should not have returned an amount'));
+    });
+  });
+
+  group('spending over time (FR-RPT-005)', () {
+    test('returns the points with their buckets, ids and colours', () async {
+      final repository = AnalyticsRepositoryImpl(_FakeDataSource());
+
+      final result = await repository.spendingTrend(
+        AnalyticsQuery(range: august),
+        TrendGranularity.day,
+      );
+
+      result.fold((f) => fail('unexpected failure: $f'), (points) {
+        expect(points.single.bucket, DateTime(2026, 8, 3));
+        expect(points.single.categoryId, 1);
+        expect(points.single.color, '#FF7043');
+        expect(points.single.amountCents, 120000);
+      });
+    });
+
+    test('passes the period, account and granularity through', () async {
+      final datasource = _FakeDataSource();
+      final repository = AnalyticsRepositoryImpl(datasource);
+
+      await repository.spendingTrend(
+        AnalyticsQuery(range: august, accountId: 2),
+        TrendGranularity.month,
+      );
+
+      expect(datasource.from, august.from);
+      expect(datasource.to, august.to);
+      expect(datasource.accountId, 2);
+      expect(datasource.granularity, TrendGranularity.month);
+    });
+
+    test('turns a cache exception into a failure at this boundary', () async {
+      final repository = AnalyticsRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final result = await repository.spendingTrend(
+        AnalyticsQuery(range: august),
+        TrendGranularity.day,
+      );
+
+      result.fold((failure) {
+        expect(failure, isA<CacheFailure>());
+        expect(failure.message, 'disk is full');
+      }, (_) => fail('should not have returned points'));
     });
   });
 

@@ -6,6 +6,7 @@ import 'package:moneyora/core/database/migrations/v1_initial.dart';
 import 'package:moneyora/core/database/seed/default_seed.dart';
 import 'package:moneyora/core/database/seed/dev_seed.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
+import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Against a real in-memory SQLite, because every claim here is about what the
@@ -660,6 +661,226 @@ void main() {
     });
   });
 
+  group('spending over time (FR-RPT-005)', () {
+    test('cuts a month into daily points, earliest first', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 120000,
+        date: '2026-08-14',
+      );
+      await insertExpense(
+        categoryId: food,
+        amountCents: 80000,
+        date: '2026-08-03',
+      );
+      await insertExpense(
+        categoryId: food,
+        amountCents: 50000,
+        date: '2026-08-03',
+      );
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+
+      expect(points.map((p) => p.bucket), [
+        DateTime(2026, 8, 3),
+        DateTime(2026, 8, 14),
+      ]);
+      expect(points.first.amountCents, 130000);
+      expect(points.last.amountCents, 120000);
+    });
+
+    test('cuts a year into monthly points on the first of each', () async {
+      await insertExpense(categoryId: food, amountCents: 1, date: '2026-03-31');
+      await insertExpense(categoryId: food, amountCents: 2, date: '2026-03-01');
+      await insertExpense(categoryId: food, amountCents: 4, date: '2026-11-15');
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026),
+        to: DateTime(2026, 12, 31),
+        granularity: TrendGranularity.month,
+      );
+
+      expect(
+        {for (final p in points) p.bucket: p.amountCents},
+        {DateTime(2026, 3): 3, DateTime(2026, 11): 4},
+      );
+    });
+
+    test('is sparse: a bucket with nothing spent has no row', () async {
+      await insertExpense(categoryId: food, amountCents: 1, date: '2026-08-03');
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+
+      expect(points.length, 1);
+    });
+
+    test('keeps categories apart within one bucket, largest first', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 100,
+        date: '2026-08-03',
+      );
+      await insertExpense(
+        categoryId: transport,
+        amountCents: 900,
+        date: '2026-08-03',
+      );
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+
+      expect(points.map((p) => p.name), ['Transport', 'Food']);
+      expect(points.map((p) => p.categoryId), [transport, food]);
+      expect(points.every((p) => p.color.isNotEmpty), isTrue);
+    });
+
+    test("a split lands on its parts, in the parent's bucket (E-04)", () async {
+      final parent = await insertExpense(
+        categoryId: food,
+        amountCents: 300000,
+        date: '2026-08-05',
+        isSplit: true,
+      );
+      await db.insert('transaction_splits', {
+        'transaction_id': parent,
+        'category_id': food,
+        'amount_cents': 200000,
+      });
+      await db.insert('transaction_splits', {
+        'transaction_id': parent,
+        'category_id': transport,
+        'amount_cents': 100000,
+      });
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+
+      expect(
+        {for (final p in points) p.name: p.amountCents},
+        {'Food': 200000, 'Transport': 100000},
+      );
+      expect(points.every((p) => p.bucket == DateTime(2026, 8, 5)), isTrue);
+    });
+
+    test('a transfer and an income contribute nothing (E-02)', () async {
+      for (final (account, direction) in [(cash, 'out'), (card, 'in')]) {
+        await db.insert('transactions', {
+          'account_id': account,
+          'amount_cents': 2500000,
+          'type': 'transfer',
+          'transfer_direction': direction,
+          'date': '2026-08-10',
+          'created_at': '2026-08-10T00:00:00Z',
+          'updated_at': '2026-08-10T00:00:00Z',
+        });
+      }
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8000000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+
+      expect(points, isEmpty);
+    });
+
+    test('counts only the account asked for (FR-RPT-003)', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 100,
+        date: '2026-08-03',
+        accountId: cash,
+      );
+      await insertExpense(
+        categoryId: food,
+        amountCents: 900,
+        date: '2026-08-04',
+        accountId: card,
+      );
+
+      final onCard = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+        accountId: card,
+      );
+      final everywhere = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+
+      expect(onCard.single.bucket, DateTime(2026, 8, 4));
+      expect(onCard.single.amountCents, 900);
+      expect(everywhere.length, 2);
+    });
+
+    test(
+      'adds up to what spendingByCategory says for the same query',
+      () async {
+        // The two statements are assembled from one fragment; this is the
+        // check that they still count the same rows after either is touched.
+        final parent = await insertExpense(
+          categoryId: food,
+          amountCents: 300000,
+          date: '2026-08-05',
+          isSplit: true,
+        );
+        await db.insert('transaction_splits', {
+          'transaction_id': parent,
+          'category_id': transport,
+          'amount_cents': 300000,
+        });
+        await insertExpense(
+          categoryId: food,
+          amountCents: 50000,
+          date: '2026-08-06',
+        );
+        await insertExpense(
+          categoryId: food,
+          amountCents: 70000,
+          date: '2026-08-30',
+        );
+
+        final totals = await analytics.spendingByCategory(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+        );
+        final points = await analytics.spendingTrend(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+          granularity: TrendGranularity.day,
+        );
+
+        final summed = <String, int>{};
+        for (final p in points) {
+          summed[p.name] = (summed[p.name] ?? 0) + p.amountCents;
+        }
+        expect(summed, {for (final t in totals) t.name: t.amountCents});
+      },
+    );
+  });
+
   group('against the seeded 24 months', () {
     // `dev_seed` generates deliberately shaped categories. Because it is
     // deterministic, the aggregate can be checked against what the fixture is
@@ -716,6 +937,24 @@ void main() {
           .fold(0, (sum, t) => sum + t.amountCents);
 
       expect(spike, greaterThan(quiet));
+    });
+
+    test('the monthly trend of Bills is flat, as the seed shapes it', () async {
+      final points = await analytics.spendingTrend(
+        from: DateTime(2025, 9),
+        to: end,
+        granularity: TrendGranularity.month,
+      );
+
+      final bills = points.where((p) => p.name == 'Bills').toList();
+      expect(bills.length, 12);
+      final smallest = bills
+          .map((p) => p.amountCents)
+          .reduce((a, b) => a < b ? a : b);
+      final largest = bills
+          .map((p) => p.amountCents)
+          .reduce((a, b) => a > b ? a : b);
+      expect((largest - smallest) / largest, lessThan(0.15));
     });
 
     test('the total is the sum of its categories, in one period', () async {

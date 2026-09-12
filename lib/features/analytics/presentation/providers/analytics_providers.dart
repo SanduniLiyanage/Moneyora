@@ -17,6 +17,7 @@ import '../../../../injection.dart';
 import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
 import '../../domain/entities/period_selection.dart';
+import '../../domain/entities/spending_trend.dart';
 import '../../domain/repositories/analytics_repository.dart';
 
 /// The period every analytics surface reports over. FR-RPT-002.
@@ -110,6 +111,29 @@ final incomeTotalProvider = FutureProvider.autoDispose
       );
       final result = await getIncomeForPeriod(query);
       return result.match(Future<int>.error, Future<int>.value);
+    });
+
+/// Per-category spending over time, over the same period and account.
+/// FR-RPT-005.
+///
+/// Thin wrapper over [GetSpendingTrend]. Keyed on the same [AnalyticsQuery]
+/// as the two providers above, so the trend lines move with the donut and
+/// the bars on every filter change — the use case picks how finely to cut
+/// the period, so the widget has nothing to decide. Its own provider rather
+/// than a derivation of [spendingByCategoryTotalsProvider]: a trend is a
+/// different question to the database (one row per bucket per category),
+/// not the totals re-arranged.
+///
+/// A `Left` completes the future with the [Failure] as its error, the same
+/// convention the other two follow.
+final spendingTrendProvider = FutureProvider.autoDispose
+    .family<SpendingTrend, AnalyticsQuery>((ref, query) async {
+      final getSpendingTrend = await ref.watch(getSpendingTrendProvider.future);
+      final result = await getSpendingTrend(query);
+      return result.match(
+        Future<SpendingTrend>.error,
+        Future<SpendingTrend>.value,
+      );
     });
 
 /// Every category, both kinds, kept live — read through [CategoryReader]

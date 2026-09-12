@@ -25,6 +25,7 @@ class HomePage extends ConsumerWidget {
     this.drawer,
     this.spendingChart,
     this.incomeExpenseChart,
+    this.spendingTrendChart,
   });
 
   /// The side panel opened from the app bar, if one was supplied.
@@ -54,6 +55,11 @@ class HomePage extends ConsumerWidget {
   /// on the donut's card, so it is placed directly below it.
   final Widget? incomeExpenseChart;
 
+  /// FR-RPT-005's trend lines, composed in the same way and placed below the
+  /// bars: third of the three charts that read the one filter row on the
+  /// donut's card.
+  final Widget? spendingTrendChart;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(databaseSummaryProvider);
@@ -76,6 +82,7 @@ class HomePage extends ConsumerWidget {
           summary: value,
           spendingChart: spendingChart,
           incomeExpenseChart: incomeExpenseChart,
+          spendingTrendChart: spendingTrendChart,
         ),
         AsyncError(:final error) => _Failed(error: error),
         _ => const Center(child: CircularProgressIndicator()),
@@ -89,11 +96,13 @@ class _Ready extends StatelessWidget {
     required this.summary,
     required this.spendingChart,
     required this.incomeExpenseChart,
+    required this.spendingTrendChart,
   });
 
   final DatabaseSummary summary;
   final Widget? spendingChart;
   final Widget? incomeExpenseChart;
+  final Widget? spendingTrendChart;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +118,10 @@ class _Ready extends StatelessWidget {
         ],
         if (incomeExpenseChart != null) ...[
           incomeExpenseChart!,
+          const SizedBox(height: 16),
+        ],
+        if (spendingTrendChart != null) ...[
+          spendingTrendChart!,
           const SizedBox(height: 16),
         ],
         Card(

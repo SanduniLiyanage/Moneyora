@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 
@@ -31,6 +32,11 @@ class _FakeRepository implements AnalyticsRepository {
   @override
   Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query) =>
       throw UnimplementedError();
+  @override
+  Future<Either<Failure, List<TrendPoint>>> spendingTrend(
+    AnalyticsQuery query,
+    TrendGranularity granularity,
+  ) => throw UnimplementedError();
 }
 
 /// Every case here is about the period, so each range is wrapped in the
