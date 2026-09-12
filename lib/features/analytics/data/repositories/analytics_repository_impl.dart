@@ -34,6 +34,10 @@ class AnalyticsRepositoryImpl
       _attempt(() => _local.spendingByCategory(from: range.from, to: range.to));
 
   @override
+  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
+      _attempt(() => _local.incomeForPeriod(from: range.from, to: range.to));
+
+  @override
   Future<Either<Failure, Map<String, int>>> totalsByCategory({
     required DateTime from,
     required DateTime to,

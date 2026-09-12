@@ -29,6 +29,7 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
       amountCents: 900000,
     ),
   ];
+  int income = 9000000;
 
   @override
   Future<List<CategoryTotalModel>> spendingByCategory({
@@ -39,6 +40,17 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
     this.to = to;
     if (throws case final failure?) throw failure;
     return totals;
+  }
+
+  @override
+  Future<int> incomeForPeriod({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    this.from = from;
+    this.to = to;
+    if (throws case final failure?) throw failure;
+    return income;
   }
 }
 
@@ -72,6 +84,32 @@ void main() {
         expect(failure, isA<CacheFailure>());
         expect(failure.message, 'disk is full');
       }, (_) => fail('should not have returned totals'));
+    });
+  });
+
+  group('income for a period', () {
+    test('returns what the datasource read', () async {
+      final repository = AnalyticsRepositoryImpl(_FakeDataSource());
+
+      final result = await repository.incomeForPeriod(august);
+
+      result.fold(
+        (f) => fail('unexpected failure: $f'),
+        (income) => expect(income, 9000000),
+      );
+    });
+
+    test('turns a cache exception into a failure at this boundary', () async {
+      final repository = AnalyticsRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final result = await repository.incomeForPeriod(august);
+
+      result.fold((failure) {
+        expect(failure, isA<CacheFailure>());
+        expect(failure.message, 'disk is full');
+      }, (_) => fail('should not have returned an amount'));
     });
   });
 

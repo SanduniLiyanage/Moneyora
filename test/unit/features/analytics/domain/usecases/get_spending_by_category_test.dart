@@ -26,6 +26,10 @@ class _FakeRepository implements AnalyticsRepository {
     if (failWith case final failure?) return Left(failure);
     return Right(totals);
   }
+
+  @override
+  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
+      throw UnimplementedError();
 }
 
 void main() {

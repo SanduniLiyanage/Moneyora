@@ -147,6 +147,107 @@ void main() {
     });
   });
 
+  group('income for a period', () {
+    test('totals income between the dates, inclusive', () async {
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 900000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 100000,
+        date: '2026-08-31',
+        type: 'income',
+      );
+
+      final income = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(income, 1000000);
+    });
+
+    test('is zero, not null, for a period with no income', () async {
+      // A plain SUM with no matching rows is NULL in SQLite — unlike the
+      // grouped spendingByCategory query, there is no GROUP BY here to make
+      // the row disappear instead.
+      final income = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(income, 0);
+    });
+
+    test('excludes expenses and transfers', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 50000,
+        date: '2026-08-03',
+      );
+      await db.insert('transactions', {
+        'account_id': cash,
+        'amount_cents': 2500000,
+        'type': 'transfer',
+        'transfer_direction': 'in',
+        'date': '2026-08-10',
+        'created_at': '2026-08-10T00:00:00Z',
+        'updated_at': '2026-08-10T00:00:00Z',
+      });
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 900000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+
+      final income = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(income, 900000);
+    });
+
+    test('excludes income outside the range, at either edge', () async {
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 100,
+        date: '2026-07-31',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 200,
+        date: '2026-09-01',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 4,
+        date: '2026-08-01',
+        type: 'income',
+      );
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8,
+        date: '2026-08-31',
+        type: 'income',
+      );
+
+      final income = await analytics.incomeForPeriod(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      // Both ends inclusive: 4 + 8, and neither neighbour.
+      expect(income, 12);
+    });
+  });
+
   group('what must not be counted', () {
     test('income is not spending', () async {
       await insertExpense(
