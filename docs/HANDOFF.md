@@ -1,17 +1,19 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `40c61cd`, after **57
-merged pull requests** (#2–#58; #1 was closed unmerged) — the donut chart
+State of the project as of **2026-09-13**, `main` at `0d2277a`, after **59
+merged pull requests** (#2–#60; #1 was closed unmerged) — the donut chart
 ([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55)), FR-RPT-002's
-period filters ([PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56))
-and FR-RPT-003's account filter
-([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58)) all merged
+period filters ([PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56)),
+FR-RPT-003's account filter
+([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58)) and
+FR-RPT-004's income-vs-expense bars
+([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60)) all merged
 during this window. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `40c61cd`, with PR #58 merged.
+at `0d2277a`, with PR #60 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -20,26 +22,27 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **752 passing** | `flutter test` |
+| Tests | **774 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 103 in `lib/`, 53 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 104 in `lib/`, 54 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 728 at `cdc1ae3` (PR #56, merged) plus 24 net new from
-FR-RPT-003 — 10 in `test/unit/features/analytics/domain/entities/spending_query_test.dart`
-(All Accounts against one account, narrowing and widening, and the value
-identity the provider family is keyed on), 5 added to
-`analytics_local_datasource_test.dart` against real in-memory SQLite (the
-filter itself, All Accounts, an account with nothing in the period, the
-split-follows-its-parent rule, and transfers staying out from both sides), and
-10 in `test/widget/account_filter_test.dart` (which query is actually asked
-for after each change, the period and account surviving each other, and the
-three awkward account lists). Existing tests were updated for the new
-parameter type only — fake signatures and call sites — with **no assertion
-changed or removed**.
+Tests by area: 752 at `40c61cd` (PR #58, merged) plus 22 net new from
+FR-RPT-004 — 17 in `test/widget/income_expense_bars_test.dart` (both bars, the
+one question both aggregates are asked, the surplus/deficit/break-even wording
+and colour, a period or account change moving both sides at once, and the
+loading, empty, income-only, expense-only and two failure states) and 5 added
+to `analytics_local_datasource_test.dart` for the income account filter
+against real in-memory SQLite, including that a transfer is still not income.
+
+`app_shell_test.dart` was changed rather than added to: it needed
+`getIncomeForPeriodProvider` and `accountReaderProvider` overridden — without
+them the second chart card spins on a real database and `pumpAndSettle` never
+returns — and its scroll offsets grew, because two chart cards now sit above
+the summary card on the 800x600 test surface. Its assertions are unchanged.
 `main.dart` is composition-root wiring (a real `ProviderContainer` against
 real platform channels), not something `flutter test`'s VM can exercise the
 way the rest of the app is; it was verified on the emulator instead, the same
@@ -55,7 +58,60 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — the account filter ([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58), merged as `40c61cd`)
+## This session — the income-vs-expense bars ([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60), merged as `0d2277a`)
+
+**FR-RPT-004**, the third of Sprint 4's five charts, and the first caller
+`GetIncomeForPeriod` has had since PR #54 built and wired it.
+
+**It answered both questions this file left open for it.**
+
+*Does the account filter apply to income?* It has to. A chart whose expense
+bar is narrowed to one account and whose income bar is not subtracts one
+account's spending from every account's income and calls the difference
+savings. So `incomeForPeriod` takes the same filter, through the same
+`{account}` substitution `_spendingByCategory` already uses, and
+`SpendingQuery` is now **`AnalyticsQuery`** — a mechanical rename, with no
+behaviour moved, because the object is no longer only spending's question. The
+datasource test asserts both aggregates narrowing to the same account, which
+is the specific failure worth guarding.
+
+*The colour-collision check* is now **resolved in `SPEC_ERRATA.md`** rather
+than still flagged. The entry asked whoever built Sprint 4's charts to verify
+against the actual chart set: the bars draw two *totals*, not a category
+breakdown, so no category colour renders on them at all (they use
+`AppColors.income`/`AppColors.expense`, whose contrast `app_colors_test.dart`
+measures on every run), and the donut draws expense categories only. Neither
+surface can put Bills/Deposits, Entertainment/Salary or Gifts/Savings
+together. The entry now also names what would reopen it: FR-RPT-005's trend
+lines, if a line per category ever plots both kinds at once.
+
+**No third aggregate.** The expense side is the spending rows added up, not a
+new query — `spendingByCategoryTotalsProvider` is keyed on the identical
+`AnalyticsQuery` the donut uses, so the bars read a cached answer. The filters
+render once, on the donut's card above; both charts watch the same providers,
+so one change moves both and neither can be left showing the period the user
+navigated away from. A second copy of the controls would be two widgets for
+one piece of state.
+
+**Net savings is stated in words.** FR-RPT-004 asks for it "highlighted", and
+the gap between two bars is not a figure anyone reads off a chart. A deficit
+says "Overspent" with a positive amount rather than a negative saving, which
+is a decoding exercise; breaking even is savings of nothing, not overspending.
+
+**Composed into `HomePage` from `app_router.dart`**, the same way the donut
+and `AccountDrawer` are, via a second nullable parameter —
+`features/home/` still does not import `features/analytics/`
+(`check_architecture.sh` rule 4).
+
+`dart format`, `flutter analyze` (0 issues), `flutter test` (774 passing, up
+from 752), `check_architecture.sh` and `check_citations.sh` were all clean, CI
+was green on all three jobs, and it merged as `0d2277a`.
+
+**Not in this slice, deliberately:** trend lines and the heatmap. FR-RPT-006's
+summary figures (average daily spend, largest category, month-over-month) are
+not Sprint 4 chart work either, despite overlapping these two aggregates.
+
+### Previous session — the account filter ([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58), merged as `40c61cd`)
 
 With FR-RPT-002 merged as `cdc1ae3`, `ROADMAP.md`'s Sprint 4 order puts the
 account filter next: **FR-RPT-003, "All Accounts, or any specific single
@@ -699,25 +755,25 @@ run cannot be an oracle.
 ## What is next
 
 Sprint 4's cold-start item (PR #52), its query benchmark (PR #53), all three
-aggregates (PR #54), the donut chart (PR #55), the period filters (PR #56) and
-the account filter (PR #58) are closed, and `main` is clean at `40c61cd`. Both
-of Sprint 4's filters are done; what remains is the other three charts, in the
-order `ROADMAP.md` sets:
+aggregates (PR #54), the donut chart (PR #55), the period filters (PR #56),
+the account filter (PR #58) and the income-vs-expense bars (PR #60) are
+closed, and `main` is clean at `0d2277a`. Both filters and three of the five
+charts are done. What remains of **Sprint 4** is two charts, in the order
+`ROADMAP.md` sets:
 
-- **Income-vs-expense bars (FR-RPT-004)**, with net savings highlighted.
-  **This is the next unfinished Sprint 4 item.** `GetIncomeForPeriod` is built
-  and wired (`getIncomeForPeriodProvider`) and called by nothing yet; it takes
-  the same `DateRange` `analyticsRangeProvider` already holds, so the period
-  filter needs no change to serve it. Two things it does need deciding:
-  whether the account filter applies (income is not in `SpendingQuery`, and
-  `incomeForPeriod` takes no account id), and
-  [SPEC_ERRATA.md](SPEC_ERRATA.md)'s colour-collision check, which the donut
-  chart could skip because it shows expenses only — a chart with both on it is
-  the second surface that entry names, and the Bills/Deposits,
-  Entertainment/Salary and Gifts/Savings pairs can render together there.
-- Then trend lines (FR-RPT-005) over `ComparePeriods` — also built, wired as
-  `comparePeriodsProvider`, and called by nothing — and the calendar heatmap
-  (FR-RPT-009).
+- **Trend lines (FR-RPT-005)** — per-category spending over time. **This is
+  the next unfinished Sprint 4 item.** `ComparePeriods` is built and wired
+  (`comparePeriodsProvider`) and is the last of the three aggregates still
+  called by nothing. It takes two `DateRange`s and returns one `CategoryDelta`
+  per category, which is a *two-point* comparison — a trend line over more
+  than two points needs either repeated calls or a use case that does not
+  exist yet, and which of those it should be is the decision this slice opens
+  with. Note also that it does **not** take an `AnalyticsQuery`, so
+  FR-RPT-003's filter does not reach it: whether that matters is the second
+  decision. This is also the surface that would reopen `SPEC_ERRATA.md`'s
+  colour-collision check, if a line per category ever plots income and expense
+  categories at once.
+- Then the **calendar heatmap (FR-RPT-009)**, and Sprint 4 is closed.
 
 **FR-EXP-011's category-grouped list toggle is not Sprint 4 work**, despite
 the name inviting the mix-up. `ROADMAP.md`'s own Sprint 3.5 section lists it
