@@ -1,11 +1,11 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `221020f`, after **52
-merged pull requests** (#2–#53; #1 was closed unmerged) — [PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53),
-the 10k-row analytics query benchmark, merged during this window.
-**Plus this session's `get_income_for_period`/`compare_periods` work, on branch
-`feat/analytics-income-and-compare-periods` as PR #54, open and awaiting
-CI/review — not yet merged.** See "This session" below.
+State of the project as of **2026-09-12**, `main` at `9510a93`, after **53
+merged pull requests** (#2–#54; #1 was closed unmerged) — [PR #54](https://github.com/SanduniLiyanage/Moneyora/pull/54),
+`get_income_for_period`/`compare_periods`, merged during this window.
+**Plus this session's spending-by-category donut chart, on branch
+`feat/analytics-donut-chart` as PR #55, open and awaiting CI/review — not
+yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
@@ -19,19 +19,22 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **657 passing** | `flutter test` |
+| Tests | **686 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 94 in `lib/`, 46 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 99 in `lib/`, 49 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 656 at `008633e` (PR #51, merged) plus 1 net new from this
-session — `test/perf/analytics_query_benchmark_test.dart`, a single test that
-seeds 10,000 transactions and times `spendingByCategory` against them. It is
-data-layer, not domain, so it moves the top-line test count without touching
-the domain coverage floor.
+Tests by area: 680 at `9510a93` (PR #54, merged) plus 6 net new from this
+session — `test/widget/spending_donut_chart_test.dart` (loading, data
+rendering with the "Other" fold, both of E-22's empty states, and the
+failure path), all presentation-layer. `test/widget/app_shell_test.dart`'s
+existing tests were updated, not added to: the donut chart pushes "Coming
+next" below the fold on the 800×600 test surface, so its taps now scroll
+first, and the two new providers needed the same kind of override
+`databaseSummaryProvider` already had, for the same reason.
 `main.dart` is composition-root wiring (a real `ProviderContainer` against
 real platform channels), not something `flutter test`'s VM can exercise the
 way the rest of the app is; it was verified on the emulator instead, the same
@@ -47,7 +50,76 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — `get_income_for_period` and `compare_periods` (PR #54, open)
+## This session — the spending-by-category donut chart (PR #55, open)
+
+With [PR #54](https://github.com/SanduniLiyanage/Moneyora/pull/54) merged, all
+three analytics use cases and the cold-start/benchmark items are closed out.
+`ROADMAP.md`'s Sprint 4 section places the charts next, in the order **donut,
+period filters, income-vs-expense bars, trend lines, heatmap** — and names the
+donut specifically as the one SDD SCR-001 draws on the home screen itself,
+not a separate report screen. This session built that one chart and nothing
+past it, per this session's own instruction not to build all five at once.
+
+**`SpendingDonutChart`** (`lib/features/analytics/presentation/`) is the first
+caller of `GetSpendingByCategory` — built, wired and tested since PR #52-54,
+called by nothing until now. `presentation/providers/analytics_providers.dart`
+adds three providers: `currentMonthRangeProvider` (the chart's only period for
+this slice — a plain `Provider<DateRange>`, since nothing can change it yet;
+FR-RPT-002's filters are next), `spendingByCategoryTotalsProvider` (wraps the
+use case, `FutureProvider.autoDispose.family<List<CategoryTotal>, DateRange>`),
+and `categoryOptionsProvider` (wraps `CategoryReader.watchAll()` — the same
+port `entryCategoriesProvider` already reads, chosen because `CategoryTotal`
+carries a colour but no icon, and FR-RPT-001 asks for icons on the chart; this
+avoids adding a column to a query the Copilot's tool also reads, per E-24's
+reasoning applied to a reader instead of a use case).
+
+A `Left` completes the future with the `Failure` as its error rather than
+being `throw`n — `Failure` is a value, not an exception (`ARCHITECTURE.md`
+§3), the same convention `accountsProvider`'s `sink.addError` already follows
+for a stream, and what keeps `only_throw_errors` clean here.
+
+Past six categories the tail folds into one "Other" slice — a part-to-whole
+chart stops being legible well before it, and this is also the
+presentation-side answer to [E-10](SPEC_ERRATA.md)/NFR-PER-005's "tested to
+50, never refuses the 51st": the chart itself never draws more than six real
+wedges no matter how many categories exist, so that stress case does not wait
+for the device session to be safe. [SPEC_ERRATA.md's flagged colour-collision
+check](SPEC_ERRATA.md) (Bills/Deposits, Entertainment/Salary, Gifts/Savings
+sharing colours) was verified against this actual chart: FR-RPT-001 shows
+*expense* distribution only, and the three collisions are all
+expense/income pairs, so none can render together here. The income-vs-expense
+bars chart still needs its own check when that slice is built.
+
+**Empty state follows [E-22](SPEC_ERRATA.md)'s two sentences**, not one: a
+user with zero transactions ever sees "Your spending breakdown appears here
+once you have added an expense," while a user with history but a quiet month
+sees "No spending in this period." instead. Which applies is read off the
+existing `databaseSummaryProvider` transaction count rather than a second
+spending query — a known simplification (that count includes income and
+transfer rows, not expenses specifically) accepted rather than adding a
+second aggregate query just to disambiguate a wording choice.
+
+The chart is composed into `HomePage` from `core/router/app_router.dart`, the
+same way `AccountDrawer` already is, via a new nullable `spendingChart`
+parameter — `features/home/` still does not import `features/analytics/`
+(`check_architecture.sh` rule 4). That pushed real page content below the
+fold on the 800×600 widget-test surface for the first time: `app_shell_test.dart`'s
+"Coming next" taps now scroll the list first (`find.text`'s default
+`skipOffstage: true` cannot see a tile that needs scrolling to reach), and its
+`ProviderScope`s needed overrides for the two new providers, the same kind
+`databaseSummaryProvider` already had and for the same reason — a real
+database never resolves inside a widget test's fake-async zone.
+
+`dart format`, `flutter analyze` (0 issues), `flutter test` (686 passing, up
+from 680 — `spending_donut_chart_test.dart`'s loading/data/"Other"-fold/both-
+empty-states/failure cases), `check_architecture.sh` and `check_citations.sh`
+are all clean. **Not yet merged — do not merge without asking first.**
+
+**Not in this slice, deliberately:** a period picker (FR-RPT-002), the
+account filter (FR-RPT-003), and the other four charts. `ROADMAP.md`'s Sprint
+4 section has the order the remaining ones follow.
+
+### Previous session — `get_income_for_period` and `compare_periods` ([PR #54](https://github.com/SanduniLiyanage/Moneyora/pull/54), merged as `9510a93`)
 
 With [PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53) merged, the
 10k-row query benchmark is closed out. `ROADMAP.md`'s Sprint 4 section places
@@ -88,9 +160,9 @@ presentation/` is still empty in all three subdirectories.
 from 657 — 23 new: the two use cases' own test files, plus cases added to the
 existing datasource and repository tests for `incomeForPeriod`),
 `check_architecture.sh` and `check_citations.sh` are all clean.
-**Not yet merged — do not merge without asking first.**
+Merged as `9510a93`.
 
-### Previous session — the 10k-row query benchmark ([PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), merged as `221020f`)
+### Session before that — the 10k-row query benchmark ([PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), merged as `221020f`)
 
 With [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52) merged,
 NFR-PER-001's cold start is closed out. `ROADMAP.md`'s Sprint 4 section places
@@ -374,17 +446,18 @@ entry screen's category chips and both screens' account pickers all read
 `CategoryReader`/`AccountReader` now, the same ports the inline `+`'s write
 uses on the other side.
 
-**Sprint 4 — analytics — has domain and data only, plus the cold-start splash
-(PR #52), the query benchmark (PR #53) and this session's two remaining
-aggregates.** `GetSpendingByCategory`, `GetIncomeForPeriod` and
-`ComparePeriods` — with `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl`
-underneath all three — are in and tested; a benchmark proves the
-category-total query stays fast at 10,000 rows on this host's VM (see
-"Previous session" above). `features/analytics/presentation/` is still empty
-in all three of its subdirectories. There is no chart. `fl_chart` is declared
-in `pubspec.yaml` and imported nowhere. NFR-PER-001's item is done — it lived
-in `main.dart`, not the feature, so it did not need the feature's own layers
-to exist first.
+**Sprint 4 — analytics — has domain, data and the first chart.** The
+cold-start splash (PR #52), the query benchmark (PR #53) and all three
+aggregates (PR #54) — `GetSpendingByCategory`, `GetIncomeForPeriod`,
+`ComparePeriods`, with `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl`
+underneath — are in and tested; a benchmark proves the category-total query
+stays fast at 10,000 rows on this host's VM (see "Session before that"
+above). This session's `SpendingDonutChart` (PR #55, open) is the first
+thing in `features/analytics/presentation/`, and `fl_chart` has its first
+import. Four charts remain — period filters, income-vs-expense bars, trend
+lines, heatmap, per `ROADMAP.md`'s order. NFR-PER-001's item is done — it
+lived in `main.dart`, not the feature, so it did not need the feature's own
+layers to exist first.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -416,8 +489,8 @@ lib/
 │   ├── accounts/        full slice: panel, form, icons, archive, delete
 │   │                    + account_totals.dart, the entity carrying E-25's
 │   │                    "what the total left out" line
-│   ├── analytics/       spending-by-category: domain + data. presentation/ is
-│   │                    EMPTY — no charts. Sprint 4.
+│   ├── analytics/       domain + data for all 3 aggregates; presentation/
+│   │                    has the donut chart, its first caller. Sprint 4.
 │   ├── categories/      full slice: list/management screen, create-and-edit
 │   │                    form with icon + colour pickers and parent dropdown
 │   ├── copilot/         all three layers. The only http in the application
@@ -477,27 +550,32 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge PR #54** (`get_income_for_period`/`compare_periods`).
+**First: watch and merge PR #55** (the spending-by-category donut chart).
 Opened this session, not yet merged — deliberately left for a human decision
 rather than merged automatically. Once reviewed and CI is green:
 
 ```powershell
-gh pr checks 54 --watch
-gh pr merge 54 --squash --delete-branch
+gh pr checks 55 --watch
+gh pr merge 55 --squash --delete-branch
 git pull
 ```
 
 Once that lands, Sprint 4's cold-start item (PR #52), its query benchmark
-(PR #53) and both remaining aggregates (PR #54) are closed. The rest of
-**Sprint 4 — analytics** is, in the order `ROADMAP.md` sets:
+(PR #53), all three aggregates (PR #54) and the donut chart (PR #55) are
+closed. The rest of **Sprint 4 — analytics** is, in the order `ROADMAP.md`
+sets:
 
-- **The charts** — donut, income-vs-expense bars, trend lines, heatmap — now
-  that all three aggregates exist to draw from. `GetSpendingByCategory`,
-  `GetIncomeForPeriod` and `ComparePeriods` are wired into `injection.dart`
-  (`getSpendingByCategoryProvider`, `getIncomeForPeriodProvider`,
-  `comparePeriodsProvider`) but called by nothing yet — the same "built,
-  wired, unreached" state `RecomputeAccountBalance` is in below, until a
-  screen exists to call them. **This is the next unfinished Sprint 4 item.**
+- **Period filters (FR-RPT-002)** — Day, Week, Month, Year, All, Custom
+  Interval, Choose Date — replacing `currentMonthRangeProvider`'s hard-coded
+  current month with something a `StateProvider` can hold, per that
+  provider's own doc comment in `analytics_providers.dart`. **This is the
+  next unfinished Sprint 4 item.**
+- Then the account filter (FR-RPT-003), and the remaining three charts —
+  income-vs-expense bars, trend lines, heatmap — over `GetIncomeForPeriod`
+  and `ComparePeriods`, which are wired into `injection.dart`
+  (`getIncomeForPeriodProvider`, `comparePeriodsProvider`) but called by
+  nothing yet, the same "built, wired, unreached" state
+  `RecomputeAccountBalance` is in below, until a screen exists to call them.
 
 **FR-EXP-011's category-grouped list toggle is not Sprint 4 work**, despite
 the name inviting the mix-up. `ROADMAP.md`'s own Sprint 3.5 section lists it

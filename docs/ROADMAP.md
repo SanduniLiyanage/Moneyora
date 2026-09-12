@@ -194,6 +194,40 @@ the Copilot table below.
 
 Then the charts themselves.
 
+### The donut chart — done ([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55), open)
+
+First of the five, per the order at the top of this section, and the one
+SDD SCR-001 draws on the home screen itself rather than a separate report
+screen. `SpendingDonutChart` (`lib/features/analytics/presentation/`) is the
+first caller of `GetSpendingByCategory`, unchanged from how PR #52–54 left
+it. Icons come from `CategoryReader` — the same port
+`entryCategoriesProvider` already reads — rather than adding a column to a
+query two features share; past six categories the tail folds into "Other",
+which is both a legibility limit and the presentation-side answer to
+[E-10](SPEC_ERRATA.md)/NFR-PER-005's "tested to 50, never refuses the
+51st". Empty state follows [E-22](SPEC_ERRATA.md)'s two sentences,
+disambiguated off the existing `databaseSummaryProvider` count rather than
+a second query. Composed into `HomePage` from `app_router.dart`, the same
+way `AccountDrawer` is.
+
+**No period picker yet.** The chart's only period is the current calendar
+month — FR-RPT-002's Day/Week/Month/Year/Custom filters are the next item
+below, not part of this slice.
+
+`dart format`, `flutter analyze` (0 issues), `flutter test` (686 passing,
+up from 680 — `spending_donut_chart_test.dart`'s loading/data/"Other"-fold/
+both-empty-states/failure cases), `check_architecture.sh` and
+`check_citations.sh` are all clean. **Not yet merged — do not merge without
+asking first.**
+
+### Next — period filters (FR-RPT-002)
+
+Day, Week, Month, Year, All, Custom Interval, Choose Date — replacing
+`currentMonthRangeProvider`'s hard-coded current month with something a
+`StateProvider` can hold, per that provider's own doc comment. Then the
+account filter (FR-RPT-003), then income-vs-expense bars, trend lines and
+the heatmap, in that order.
+
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
 
 Order: statistics -> classification -> allocation -> confidence -> wizard UI ->
