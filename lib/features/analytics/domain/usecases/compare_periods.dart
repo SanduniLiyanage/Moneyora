@@ -5,6 +5,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../entities/category_delta.dart';
 import '../entities/category_total.dart';
+import '../entities/spending_query.dart';
 import '../repositories/analytics_repository.dart';
 
 /// The two periods to compare. Input to [ComparePeriods].
@@ -42,10 +43,17 @@ class ComparePeriods
     final failure = validate(params);
     if (failure != null) return Left(failure);
 
-    final periodA = await _repository.spendingByCategory(params.periodA);
+    // Every account, both sides: FR-COP-021 compares two periods, and
+    // narrowing one side by account would make the delta answer a question
+    // nobody asked. FR-RPT-003's filter belongs to the screens, not here.
+    final periodA = await _repository.spendingByCategory(
+      SpendingQuery(range: params.periodA),
+    );
 
     return periodA.match(Left.new, (totalsA) async {
-      final periodB = await _repository.spendingByCategory(params.periodB);
+      final periodB = await _repository.spendingByCategory(
+        SpendingQuery(range: params.periodB),
+      );
       return periodB.match(
         Left.new,
         (totalsB) => Right(_diff(totalsA, totalsB)),

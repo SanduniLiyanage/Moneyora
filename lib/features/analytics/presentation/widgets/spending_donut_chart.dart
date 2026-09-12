@@ -19,6 +19,7 @@ import '../../../../core/widgets/category_icons.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/category_total.dart';
 import '../providers/analytics_providers.dart';
+import 'account_filter.dart';
 import 'period_selector.dart';
 
 /// A fixed height for every state (loading, empty, error, drawn), so the
@@ -38,7 +39,8 @@ const double _chartHeight = 180;
 /// categories exist.
 const int _maxSlices = 6;
 
-/// Spending by category, over the selected period. FR-RPT-001, FR-RPT-002.
+/// Spending by category, over the selected period and account.
+/// FR-RPT-001, FR-RPT-002, FR-RPT-003.
 class SpendingDonutChart extends ConsumerWidget {
   /// Creates the chart.
   const SpendingDonutChart({super.key});
@@ -47,8 +49,8 @@ class SpendingDonutChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final selection = ref.watch(analyticsPeriodProvider);
-    final range = ref.watch(analyticsRangeProvider);
-    final totals = ref.watch(spendingByCategoryTotalsProvider(range));
+    final query = ref.watch(spendingQueryProvider);
+    final totals = ref.watch(spendingByCategoryTotalsProvider(query));
     final categories = ref.watch(categoryOptionsProvider);
 
     return Card(
@@ -67,6 +69,7 @@ class SpendingDonutChart extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             const PeriodSelector(),
+            const AccountFilter(),
             const SizedBox(height: 8),
             switch ((totals, categories)) {
               (AsyncError(:final error), _) => _Problem(error: error),

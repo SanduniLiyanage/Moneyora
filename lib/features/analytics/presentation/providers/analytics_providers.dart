@@ -11,10 +11,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/category_total.dart';
 import '../../domain/entities/period_selection.dart';
+import '../../domain/entities/spending_query.dart';
 import '../../domain/repositories/analytics_repository.dart';
 
 /// The period every analytics surface reports over. FR-RPT-002.
@@ -42,7 +44,32 @@ final analyticsRangeProvider = Provider<DateRange>(
   (ref) => ref.watch(analyticsPeriodProvider).range,
 );
 
-/// What was spent per category over [range]. FR-RPT-001.
+/// Which account the analytics surfaces count, or null for **All Accounts**.
+/// FR-RPT-003.
+///
+/// Null rather than a sentinel id, for the same reason [SpendingQuery] holds
+/// an `int?`: the requirement offers "All Accounts, or any specific single
+/// account", and null is that with no fourth state to handle. It opens on
+/// All, because the chart it filters is a home-screen summary and a summary
+/// that silently omits an account is a wrong total that looks right.
+final analyticsAccountFilterProvider = StateProvider<int?>((ref) => null);
+
+/// The two filters as the one question the use case takes.
+/// FR-RPT-002, FR-RPT-003.
+///
+/// Derived rather than assembled at each call site, so every surface watching
+/// the same filters keys the `family` below on one identical [SpendingQuery]
+/// — two equal-but-separate keys would run the query twice and cache it
+/// twice.
+final spendingQueryProvider = Provider<SpendingQuery>(
+  (ref) => SpendingQuery(
+    range: ref.watch(analyticsRangeProvider),
+    accountId: ref.watch(analyticsAccountFilterProvider),
+  ),
+);
+
+/// What was spent per category over [query]'s period and account.
+/// FR-RPT-001, FR-RPT-002, FR-RPT-003.
 ///
 /// Thin wrapper over [GetSpendingByCategory] — the query already exists and
 /// is tested against the E-02/E-04 traps; this provider only exposes it as
@@ -53,14 +80,14 @@ final analyticsRangeProvider = Provider<DateRange>(
 /// exception (`ARCHITECTURE.md` §3; also what keeps `only_throw_errors`
 /// clean here).
 ///
-/// `autoDispose` because it is keyed by [DateRange] and read from one chart;
-/// nothing needs the result once that chart leaves the tree.
+/// `autoDispose` because it is keyed by [SpendingQuery] and read from one
+/// chart; nothing needs the result once that chart leaves the tree.
 final spendingByCategoryTotalsProvider = FutureProvider.autoDispose
-    .family<List<CategoryTotal>, DateRange>((ref, range) async {
+    .family<List<CategoryTotal>, SpendingQuery>((ref, query) async {
       final getSpendingByCategory = await ref.watch(
         getSpendingByCategoryProvider.future,
       );
-      final result = await getSpendingByCategory(range);
+      final result = await getSpendingByCategory(query);
       return result.match(
         Future<List<CategoryTotal>>.error,
         Future<List<CategoryTotal>>.value,
@@ -92,3 +119,25 @@ final categoryOptionsProvider =
             ),
           );
     });
+
+/// Every non-archived account, for FR-RPT-003's picker — read through
+/// [AccountReader] rather than `features/accounts/`'s own providers, which
+/// `features/analytics/` may not import (`check_architecture.sh` rule 4).
+///
+/// The same port `entryAccountsProvider` already reads for the entry screen,
+/// for the same reason `categoryOptionsProvider` above reads [CategoryReader]:
+/// a picker needs names, and the aggregate query has never selected one.
+final accountOptionsProvider = StreamProvider.autoDispose<List<AccountOption>>((
+  ref,
+) {
+  return Stream.fromFuture(ref.watch(accountReaderProvider.future))
+      .asyncExpand((reader) => reader.watchAll())
+      .transform(
+        StreamTransformer<
+          Either<Failure, List<AccountOption>>,
+          List<AccountOption>
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});

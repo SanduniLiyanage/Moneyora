@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../entities/category_total.dart';
+import '../entities/spending_query.dart';
 
 /// A closed period to report over, both ends **inclusive** whole days.
 ///
@@ -76,12 +77,13 @@ class DateRange extends Equatable {
 
 /// Reads over transaction history. No writes: analytics never changes a row.
 abstract class AnalyticsRepository {
-  /// Totals expense spending per category over [range], largest first.
+  /// Totals expense spending per category over [query]'s period, largest
+  /// first, for one account or for all of them (FR-RPT-003).
   ///
   /// Transfers are excluded (E-02) and split parts are counted against their
   /// own categories rather than the parent's (E-04).
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    DateRange range,
+    SpendingQuery query,
   );
 
   /// Totals income over [range]. FR-COP-008.

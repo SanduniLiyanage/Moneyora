@@ -147,6 +147,150 @@ void main() {
     });
   });
 
+  group('the account filter (FR-RPT-003)', () {
+    test('counts only the account asked for', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 120000,
+        date: '2026-08-03',
+      );
+      await insertExpense(
+        categoryId: transport,
+        amountCents: 500000,
+        date: '2026-08-04',
+        accountId: card,
+      );
+
+      final onCash = await analytics.spendingByCategory(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: cash,
+      );
+
+      expect(onCash.map((t) => t.name), ['Food']);
+      expect(onCash.single.amountCents, 120000);
+    });
+
+    test('a null account id counts every account — All Accounts', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 120000,
+        date: '2026-08-03',
+      );
+      await insertExpense(
+        categoryId: transport,
+        amountCents: 500000,
+        date: '2026-08-04',
+        accountId: card,
+      );
+
+      final all = await analytics.spendingByCategory(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(all.map((t) => t.name), ['Transport', 'Food']);
+      expect(all.fold(0, (sum, t) => sum + t.amountCents), 620000);
+    });
+
+    test(
+      'an account with no spending in the period is empty, not zeroes',
+      () async {
+        await insertExpense(
+          categoryId: food,
+          amountCents: 120000,
+          date: '2026-08-03',
+        );
+
+        final onCard = await analytics.spendingByCategory(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+          accountId: card,
+        );
+
+        expect(onCard, isEmpty);
+      },
+    );
+
+    test('a split lands on its parent account, keeping E-04 intact', () async {
+      // The parts carry no account of their own; the parent row is what says
+      // where the money left from, so filtering by account must follow it.
+      final parent = await insertExpense(
+        categoryId: food,
+        amountCents: 300000,
+        date: '2026-08-09',
+        accountId: card,
+        isSplit: true,
+      );
+      await db.insert('transaction_splits', {
+        'transaction_id': parent,
+        'category_id': food,
+        'amount_cents': 100000,
+      });
+      await db.insert('transaction_splits', {
+        'transaction_id': parent,
+        'category_id': transport,
+        'amount_cents': 200000,
+      });
+
+      final onCard = await analytics.spendingByCategory(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: card,
+      );
+      final onCash = await analytics.spendingByCategory(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: cash,
+      );
+
+      expect(onCard.map((t) => t.name), ['Transport', 'Food']);
+      expect(onCard.fold(0, (sum, t) => sum + t.amountCents), 300000);
+      expect(onCash, isEmpty);
+    });
+
+    test(
+      'a transfer still contributes nothing, filtered or not (E-02)',
+      () async {
+        // The account filter narrows by `account_id`, which is exactly the
+        // column both halves of a transfer carry — so this is the one place
+        // the filter could plausibly have resurrected them.
+        await db.insert('transactions', {
+          'account_id': cash,
+          'amount_cents': 2500000,
+          'type': 'transfer',
+          'transfer_direction': 'out',
+          'date': '2026-08-10',
+          'created_at': '2026-08-10T00:00:00Z',
+          'updated_at': '2026-08-10T00:00:00Z',
+        });
+        await db.insert('transactions', {
+          'account_id': card,
+          'amount_cents': 2500000,
+          'type': 'transfer',
+          'transfer_direction': 'in',
+          'date': '2026-08-10',
+          'created_at': '2026-08-10T00:00:00Z',
+          'updated_at': '2026-08-10T00:00:00Z',
+        });
+
+        final onCash = await analytics.spendingByCategory(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+          accountId: cash,
+        );
+        final onCard = await analytics.spendingByCategory(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+          accountId: card,
+        );
+
+        expect(onCash, isEmpty);
+        expect(onCard, isEmpty);
+      },
+    );
+  });
+
   group('income for a period', () {
     test('totals income between the dates, inclusive', () async {
       await insertExpense(
