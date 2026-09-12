@@ -150,17 +150,19 @@ rather than broken. **Not done, because it was never true:** moving the
 database off the main thread. Only the *confirmed sub-2-second figure* still
 waits for the device session ([E-28](SPEC_ERRATA.md)).
 
-### Then the query benchmark — comparative, not conformant
+### Then the query benchmark — done on the VM, comparative, not conformant
 
 NFR-PER-006 says under 100 ms per query at 10,000 transactions. Seed 10,000
 rows and measure **query time, not frame time**. Fixing indexes here is cheap;
 in Sprint 9 it is not.
 
-Label every number *"emulator, comparative"*. Per [E-28](SPEC_ERRATA.md), an
-emulator establishes that an index is present and being used and that a change
+Label every number *"emulator, comparative"* — or, as built,
+*"host machine VM, comparative"*: `test/perf/analytics_query_benchmark_test.dart`
+runs the benchmark on the `flutter test` VM rather than an emulator, which
+still establishes that an index is present and being used and that a change
 made a query faster or slower — a missing index is a multiple, not a margin —
-but **no emulator figure may be cited as satisfying NFR-PER-006.** Absolute
-confirmation is in the device session checklist in
+but **no VM, emulator or CI figure may be cited as satisfying NFR-PER-006.**
+Absolute confirmation is in the device session checklist in
 [`HANDOFF.md`](HANDOFF.md). **Sprint 4 does not block on the device.**
 
 ### The queries

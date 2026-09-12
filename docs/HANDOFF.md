@@ -1,18 +1,18 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `008633e`, after **50
-merged pull requests** (#2–#51; #1 was closed unmerged) — [PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51),
-E-27's retirement of `entry_catalog.dart`, merged during this window and
-closing out Sprint 3.5.
-**Plus this session's NFR-PER-001 work, on branch
-`feat/analytics-cold-start-splash` as
-[PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), open and
+State of the project as of **2026-09-12**, `main` at `e0ebf15`, after **51
+merged pull requests** (#2–#52; #1 was closed unmerged) — [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52),
+NFR-PER-001's cold-start splash screen and corrected diagnosis, merged during
+this window and closing out that item of Sprint 4.
+**Plus this session's 10k-row query-benchmark work, on branch
+`perf/analytics-10k-query-benchmark` as
+[PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), open and
 awaiting CI/review — not yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on
-`feat/analytics-cold-start-splash` (PR #52), before it merges.
+`perf/analytics-10k-query-benchmark` (PR #53), before it merges.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -21,28 +21,23 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **656 passing** | `flutter test` |
+| Tests | **657 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 94 in `lib/`, 45 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 94 in `lib/`, 46 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: the 655 at `87df4da` (PR #50, merged) plus 1 net new from this
-session — `entry_catalog_test.dart`'s 6 cases deleted with the file they
-tested, and 7 added: one each in `category_repository_impl_test.dart` and
-`account_repository_impl_test.dart` proving the mapping to the narrower
-option type, two more proving each `watchAll()` is the same live read as
-`watch()`, one in `account_repository_impl_test.dart` proving archived
-accounts stay excluded, and two in `injection_test.dart` proving
-`categoryReaderProvider`/`accountReaderProvider` read the same repository
-their writes go through — none yet broken out further by sub-area.
-**Still 656 after this session** — `main.dart` is composition-root wiring
-(a real `ProviderContainer` against real platform channels), not something
-`flutter test`'s VM can exercise the way the rest of the app is; it was
-verified on the emulator instead, the same way `HomePage`'s own doc comment
-says Sprint 1's proof always has been.
+Tests by area: 656 at `008633e` (PR #51, merged) plus 1 net new from this
+session — `test/perf/analytics_query_benchmark_test.dart`, a single test that
+seeds 10,000 transactions and times `spendingByCategory` against them. It is
+data-layer, not domain, so it moves the top-line test count without touching
+the domain coverage floor.
+`main.dart` is composition-root wiring (a real `ProviderContainer` against
+real platform channels), not something `flutter test`'s VM can exercise the
+way the rest of the app is; it was verified on the emulator instead, the same
+way `HomePage`'s own doc comment says Sprint 1's proof always has been.
 
 `bash scripts/check_citations.sh` took **under 5 seconds on CI** historically
 but **nearly 5 minutes on this Windows machine** in an earlier session —
@@ -54,7 +49,39 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — NFR-PER-001's cold start, re-measured ([PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), open)
+## This session — the 10k-row query benchmark ([PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), open)
+
+With [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52) merged,
+NFR-PER-001's cold start is closed out. `ROADMAP.md`'s Sprint 4 section places
+the 10k-row query benchmark next, ahead of the two remaining aggregates
+(`get_income_for_period`, `compare_periods`) and the charts — "fixing indexes
+here is cheap; in Sprint 9 it is not."
+
+`test/perf/analytics_query_benchmark_test.dart` seeds an in-memory database
+(real v1 schema, real indexes) with 10,000 transactions — 9,500 plain expenses
+plus 500 split parents with two parts each, so both branches of
+`spendingByCategory`'s `UNION` run against real volume rather than the
+handful of rows the correctness tests in
+`analytics_local_datasource_test.dart` use — then times the query with a
+`Stopwatch` over five runs after one untimed warm-up.
+
+**Result on this host machine's `flutter test` VM: ~16ms min/avg at 10,000
+transactions.** Printed, not asserted, and labelled "host machine VM,
+comparative — not NFR-PER-006 evidence" in the test's own output — per
+[E-28](SPEC_ERRATA.md), no VM or emulator number may be cited as satisfying
+the 100ms/10,000-row target; that confirmation stays device-only, on the
+batched checklist below. The one real assertion is a generous sanity ceiling
+(<1s) aimed at the actual risk the roadmap names: a dropped or missing index
+turning this query into a table scan, which shows up as a multiple, not a
+margin, even on host timing — so this is the cheap-to-catch failure it exists
+to catch, not a step toward the NFR figure itself.
+
+No production code changed — this is a test-only addition. `flutter analyze`
+(0 issues), `flutter test` (657 passing, up from 656), `check_architecture.sh`
+and `check_citations.sh` are all clean.
+**Not yet merged — do not merge without asking first.**
+
+### Previous session — NFR-PER-001's cold start, re-measured ([PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), merged as `e0ebf15`)
 
 Sprint 4 — analytics — opened with the roadmap's own first item: NFR-PER-001's
 cold start, "fixed before the charts, not after," diagnosed in
@@ -113,10 +140,10 @@ it.
 the emulator instead), `check_architecture.sh` and `check_citations.sh` are
 all clean. Built and ran a release APK on the emulator — also closing out the
 "release APK never installed" gap this file has carried since the R8 fix —
-confirmed no crash and the home screen renders correctly.
-**Not yet merged — do not merge without asking first.**
+confirmed no crash and the home screen renders correctly. Merged as
+`e0ebf15`.
 
-### Previous session — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), merged as `008633e`)
+### Session before that — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), merged as `008633e`)
 
 E-27's resolution, next after [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50)
 gave the inline `+` its write path. The read the created row landed in was
@@ -301,19 +328,20 @@ and `CategoryListPage`/`CategoryFormPage`, reachable from the home screen's
 "Coming next" list. A user can create, rename, re-icon, re-colour, re-parent
 and delete a category through the app. PR #50 added a fifth write path in:
 the entry screen's inline `+`, through the `CategoryWriter` port and
-`QuickAddCategory`. **This session's PR #51 finished the slice**:
+`QuickAddCategory`. **PR #51 finished the slice**:
 [E-27](SPEC_ERRATA.md)'s retirement of `entry_catalog.dart` is done — the
 entry screen's category chips and both screens' account pickers all read
 `CategoryReader`/`AccountReader` now, the same ports the inline `+`'s write
 uses on the other side.
 
-**Sprint 4 — analytics — has domain and data only, plus this session's
-cold-start work.** `GetSpendingByCategory`, its datasource and its repository
-are in and tested; `features/analytics/presentation/` is empty in all three
-of its subdirectories. There is no chart. `fl_chart` is declared in
-`pubspec.yaml` and imported nowhere. NFR-PER-001's item is done (see "This
-session" above) — it lived in `main.dart`, not the feature, so it did not
-need the feature's own layers to exist first.
+**Sprint 4 — analytics — has domain and data only, plus the cold-start splash
+(PR #52) and this session's query benchmark.** `GetSpendingByCategory`, its
+datasource and its repository are in and tested; a benchmark now proves that
+query stays fast at 10,000 rows on this host's VM (see "This session" above);
+`features/analytics/presentation/` is still empty in all three of its
+subdirectories. There is no chart. `fl_chart` is declared in `pubspec.yaml`
+and imported nowhere. NFR-PER-001's item is done — it lived in `main.dart`,
+not the feature, so it did not need the feature's own layers to exist first.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -406,27 +434,24 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52).**
+**First: watch and merge [PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53).**
 Opened this session, not yet merged — deliberately left for a human decision
 rather than merged automatically. Once reviewed and CI is green:
 
 ```powershell
-gh pr checks 52 --watch
-gh pr merge 52 --squash --delete-branch
+gh pr checks 53 --watch
+gh pr merge 53 --squash --delete-branch
 git pull
 ```
 
-Once that lands, Sprint 4's cold-start item is closed — see "This session"
-above for why it turned out to be a splash screen and a corrected diagnosis
-rather than the off-main-thread rewrite it was scheduled as. The rest of
-**Sprint 4 — analytics** is, in the order `ROADMAP.md` sets:
+Once that lands, Sprint 4's cold-start item (PR #52) and its query benchmark
+(PR #53) are both closed. The rest of **Sprint 4 — analytics** is, in the
+order `ROADMAP.md` sets:
 
-- **The 10k-row query benchmark**, comparative only, per
-  [E-28](SPEC_ERRATA.md) — seed 10,000 rows and measure query time, not frame
-  time.
 - **`get_income_for_period` and `compare_periods`** (FR-COP-008, FR-COP-021),
   as analytics use cases first and Copilot tools second, per
   [E-24](SPEC_ERRATA.md) — the same shape `GetSpendingByCategory` already has.
+  **This is the next unfinished Sprint 4 item.**
 - **The charts** — donut, income-vs-expense bars, trend lines, heatmap — once
   the aggregates above exist to draw from.
 
