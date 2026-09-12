@@ -1,19 +1,21 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-13**, `main` at `0d2277a`, after **59
-merged pull requests** (#2–#60; #1 was closed unmerged) — the donut chart
+State of the project as of **2026-09-13**, `main` at `c72abc5`, after **61
+merged pull requests** (#2–#62; #1 was closed unmerged) — the donut chart
 ([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55)), FR-RPT-002's
 period filters ([PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56)),
 FR-RPT-003's account filter
-([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58)) and
+([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58)),
 FR-RPT-004's income-vs-expense bars
-([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60)) all merged
+([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60)) and
+FR-RPT-005's trend lines
+([PR #62](https://github.com/SanduniLiyanage/Moneyora/pull/62)) all merged
 during this window. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `0d2277a`, with PR #60 merged.
+at `c72abc5`, with PR #62 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -22,43 +24,132 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **774 passing** | `flutter test` |
+| Tests | **839 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 104 in `lib/`, 54 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 109 in `lib/`, 58 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 752 at `40c61cd` (PR #58, merged) plus 22 net new from
-FR-RPT-004 — 17 in `test/widget/income_expense_bars_test.dart` (both bars, the
-one question both aggregates are asked, the surplus/deficit/break-even wording
-and colour, a period or account change moving both sides at once, and the
-loading, empty, income-only, expense-only and two failure states) and 5 added
-to `analytics_local_datasource_test.dart` for the income account filter
-against real in-memory SQLite, including that a transfer is still not income.
+Tests by area: 774 at `0d2277a` (PR #60, merged) plus 65 net new from
+FR-RPT-005 — 20 in `test/widget/spending_trend_lines_test.dart` (one line per
+category, the legend's totals, dense zeros, the category colour, the "Other"
+fold and its colour, axis labels by day, by month and across a year boundary,
+compact money on the axis, the shared filters including the account
+narrowing, and the loading, quiet-period, first-use, single-day, failure and
+inverted-range states); 13 in `get_spending_trend_test.dart` (the granularity
+rule at its edges, the account passing through, dense series, ordering and
+tie-breaking, the empty and out-of-range cases, validation); 8 in
+`trend_point_test.dart` for the bucket arithmetic; 9 added to
+`analytics_local_datasource_test.dart` against real in-memory SQLite (daily
+and monthly cuts, sparsity, E-02, E-04 landing in the parent's bucket, the
+account filter, that the trend adds up to `spendingByCategory` for the same
+query, and Bills flat across the seed's twelve months); 3 in the repository
+test; 5 each for `decodeIsoDay` and `formatCentsCompact`; and 1 benchmark.
 
-`app_shell_test.dart` was changed rather than added to: it needed
-`getIncomeForPeriodProvider` and `accountReaderProvider` overridden — without
-them the second chart card spins on a real database and `pumpAndSettle` never
-returns — and its scroll offsets grew, because two chart cards now sit above
-the summary card on the 800x600 test surface. Its assertions are unchanged.
-`main.dart` is composition-root wiring (a real `ProviderContainer` against
-real platform channels), not something `flutter test`'s VM can exercise the
-way the rest of the app is; it was verified on the emulator instead, the same
-way `HomePage`'s own doc comment says Sprint 1's proof always has been.
+`app_shell_test.dart` was changed rather than added to, again: it needed
+`getSpendingTrendProvider` overridden — a third chart card that spins on a
+real database is a third way for `pumpAndSettle` never to return — and its
+fixed scroll offset became `scrollUntilVisible`, so the next chart card does
+not move the summary card out of reach a third time. Its assertions are
+unchanged. Every other existing fake gained a `spendingTrend` that throws
+`UnimplementedError`, the same way they already treat the aggregate they do
+not script; **no assertion changed or was removed**.
 
-`bash scripts/check_citations.sh` took **under 5 seconds on CI** historically
-but **nearly 5 minutes on this Windows machine** in an earlier session —
-`find`/`grep` over `lib/` and `test/` through Git Bash on Windows is slow by
-nature of the platform, not a regression in the script. Give it a long
-timeout rather than assuming it hung.
+## This session — the trend lines ([PR #62](https://github.com/SanduniLiyanage/Moneyora/pull/62), merged as `c72abc5`)
 
-Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
-[`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
-needs.
+**FR-RPT-005**, the fourth of Sprint 4's five charts: per-category spending
+over time, one line per category, under the same filter row as the donut and
+the bars.
 
-## This session — the income-vs-expense bars ([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60), merged as `0d2277a`)
+**It answered both questions this file left open for it — and one of them
+not with either of the options as framed.**
+
+*`ComparePeriods` repeatedly, or a use case that does not exist yet?* A new
+use case, but not for the reason the framing suggests. `ComparePeriods`
+returns *deltas*, and a line plots *levels*, so it is the wrong shape before
+cost enters into it — and per point it is two `spendingByCategory` queries
+(46 for a two-year monthly line). The cheaper-looking middle option,
+`spendingByCategory` once per bucket, was **measured, not assumed**, on the
+10,000-row benchmark fixture: within a few milliseconds of one bucketed
+statement on the host VM (about 21ms against about 16ms for 24 months). The
+VM is the flattering venue for the loop, though — it pays no platform-channel
+round trip per call, and a device pays one *per point* (24 monthly, up to 92
+daily) against one for the statement. A chart whose query cost grows with the
+number of points it draws is the shape NFR-PER-006 exists to refuse. So:
+`AnalyticsLocalDataSource.spendingTrend`, one `GROUP BY bucket, category`
+statement, **assembled from the same expense fragment as
+`spendingByCategory`** (`_spendingParts`; both statements are `{parts}` holes
+filled from it) so the E-02/E-04 invariants still live in exactly one place.
+Grouped on the id first and joined to `categories` after, which measured
+about 30% cheaper than grouping on the joined name. The benchmark times both
+paths on every CI run, so the reasoning stays a number.
+
+Two things surfaced while measuring, both fixed in the same slice.
+`DateTime.parse` on the 360 rows a two-year line returns cost 7ms on the VM
+against 11ms for the SQL itself — it is a general ISO-8601 parser built on a
+regular expression — so `decodeIsoDay` now sits beside `encodeIsoDay` in
+`date_utils.dart` and slices the fixed-width string instead. And the first
+spike's figures (9.5ms against 15.4ms) came from a fixture with no splits;
+they are not the ones in the code's comments. The committed numbers are the
+benchmark's own.
+
+*Does the account filter reach it?* Yes. `GetSpendingTrend` takes
+`AnalyticsQuery` like the other two; `ComparePeriods` is untouched, stays
+FR-COP-021's (all-accounts by design), and is **still called by nothing** —
+the "what is idle" list below has been wrong once before for going stale
+silently, so: after PR #62 it is the one remaining aggregate without a caller,
+and its caller is the Copilot tool, not a chart.
+
+**Granularity is the use case's decision**, from the span: day up to
+`maxDailySpanDays` (92, about a quarter), month beyond. A Week or a Month from
+the picker plots a point per day; a Year or All plots one per month; a custom
+interval falls whichever side its length puts it. **No week bucket, on
+purpose**: FR-SET-004 makes the first weekday user-configurable in Sprint 7,
+and a week cut in SQL (`strftime('%W')` is Monday-first, always) would ignore
+that setting silently. The series is *dense* — a month with no Food spending
+is a point at zero, not a break in the line — the same "missing is zero" rule
+`ComparePeriods` applies to a category absent from one period.
+
+**The colour-collision check was redone for this surface and stays closed.**
+`SPEC_ERRATA.md` named this as the one place that could reopen it. It does
+not: the chart draws per-category *spending*, the statement is assembled from
+the `type = 'expense'` fragment the donut uses, so an income category is never
+selected and its colour never rendered. Past five categories the tail folds
+into an "Other" line in `colorScheme.outline` at reduced alpha — not a
+category colour. The entry records this and notes the heatmap draws daily
+totals on a sequential ramp, so it cannot reopen it either.
+
+**The chart itself.** 2px lines in the category's own colour via
+`categoryColorFor` (light/dark aware); dots with a surface-colour ring only up
+to twelve points, so a year shows where its months are and a month is not a
+bead chain. A legend is always present — a line key, the name, the period's
+total — with text in text colours, never the series colour. The y-axis is in
+a compact money form (`formatCentsCompact`, in `currency_utils.dart` because
+that is the only file allowed to turn cents into a string); x-axis labels are
+fitted inside the axis so the first and last are not cut in half. A touch
+tooltip names the category and amount. E-22's two empty states are told apart
+off `databaseSummaryProvider`'s count as the donut does, but in different
+words — the same sentence twice on one screen reads as a stuck template — and
+a single Day period is refused as a trend in a sentence ("A single day has no
+trend. Pick a week or longer to see one.") rather than drawn as one dot. It was
+rendered to PNG in light and dark, week, month and year, through a throwaway
+`RepaintBoundary.toImage` test before it went up; that test is not in the
+tree.
+
+**Composed into `HomePage` from `app_router.dart`** below the bars, via a
+third nullable parameter — `features/home/` still imports no feature.
+
+`dart format`, `flutter analyze --fatal-infos --fatal-warnings` (0 issues),
+`flutter test` (839 passing, up from 774), `check_architecture.sh` and
+`check_citations.sh` were all clean, CI was green on all three jobs, and it
+merged as `c72abc5`.
+
+**Not in this slice, deliberately:** the heatmap, a week granularity (above),
+and FR-RPT-006's summary figures.
+
+### Previous session — the income-vs-expense bars ([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60), merged as `0d2277a`)
 
 **FR-RPT-004**, the third of Sprint 4's five charts, and the first caller
 `GetIncomeForPeriod` has had since PR #54 built and wired it.
@@ -650,18 +741,19 @@ entry screen's category chips and both screens' account pickers all read
 `CategoryReader`/`AccountReader` now, the same ports the inline `+`'s write
 uses on the other side.
 
-**Sprint 4 — analytics — has domain, data and the first chart.** The
-cold-start splash (PR #52), the query benchmark (PR #53) and all three
-aggregates (PR #54) — `GetSpendingByCategory`, `GetIncomeForPeriod`,
-`ComparePeriods`, with `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl`
-underneath — are in and tested; a benchmark proves the category-total query
-stays fast at 10,000 rows on this host's VM (see "Session before that"
-above). This session's `SpendingDonutChart` (PR #55, open) is the first
-thing in `features/analytics/presentation/`, and `fl_chart` has its first
-import. Four charts remain — period filters, income-vs-expense bars, trend
-lines, heatmap, per `ROADMAP.md`'s order. NFR-PER-001's item is done — it
-lived in `main.dart`, not the feature, so it did not need the feature's own
-layers to exist first.
+**Sprint 4 — analytics — has domain, data, both filters and four of its
+five charts.** The cold-start splash (PR #52), the query benchmark (PR #53)
+and the aggregates — `GetSpendingByCategory`, `GetIncomeForPeriod`,
+`ComparePeriods` (PR #54) and `GetSpendingTrend` (PR #62), with
+`AnalyticsRepository`/`AnalyticsLocalDataSourceImpl` underneath — are in and
+tested; the benchmark proves the category-total and the bucketed trend
+queries both stay fast at 10,000 rows on this host's VM (see the sessions
+above). `features/analytics/presentation/` holds the donut (PR #55), the
+period and account filters (PR #56, #58), the income-vs-expense bars (PR #60)
+and the trend lines (PR #62), all composed into `HomePage` from
+`app_router.dart`. One chart remains — the calendar heatmap, per
+`ROADMAP.md`'s order. NFR-PER-001's item is done — it lived in `main.dart`,
+not the feature, so it did not need the feature's own layers to exist first.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -756,24 +848,42 @@ run cannot be an oracle.
 
 Sprint 4's cold-start item (PR #52), its query benchmark (PR #53), all three
 aggregates (PR #54), the donut chart (PR #55), the period filters (PR #56),
-the account filter (PR #58) and the income-vs-expense bars (PR #60) are
-closed, and `main` is clean at `0d2277a`. Both filters and three of the five
-charts are done. What remains of **Sprint 4** is two charts, in the order
-`ROADMAP.md` sets:
+the account filter (PR #58), the income-vs-expense bars (PR #60) and the
+trend lines (PR #62) are closed, and `main` is clean at `c72abc5`. Both
+filters and four of the five charts are done. What remains of **Sprint 4** is
+one chart:
 
-- **Trend lines (FR-RPT-005)** — per-category spending over time. **This is
-  the next unfinished Sprint 4 item.** `ComparePeriods` is built and wired
-  (`comparePeriodsProvider`) and is the last of the three aggregates still
-  called by nothing. It takes two `DateRange`s and returns one `CategoryDelta`
-  per category, which is a *two-point* comparison — a trend line over more
-  than two points needs either repeated calls or a use case that does not
-  exist yet, and which of those it should be is the decision this slice opens
-  with. Note also that it does **not** take an `AnalyticsQuery`, so
-  FR-RPT-003's filter does not reach it: whether that matters is the second
-  decision. This is also the surface that would reopen `SPEC_ERRATA.md`'s
-  colour-collision check, if a line per category ever plots income and expense
-  categories at once.
-- Then the **calendar heatmap (FR-RPT-009)**, and Sprint 4 is closed.
+- **The calendar heatmap (FR-RPT-009)** — "a calendar heatmap view
+  highlighting daily spending intensity". **This is the next unfinished
+  Sprint 4 item, and the last.** Three things it opens with, none of which
+  should be picked by default:
+  1. *What it shows for a period that is not a month.* The donut, the bars
+     and the lines all take the selected period as their window; a heatmap is
+     a grid of days, and a Year or All under it is a different picture (a
+     year-long GitHub-style strip, or twelve small months) rather than a
+     longer version of the same one. Week and Day are stranger still — a
+     seven-cell strip, or one cell. Whether the heatmap follows the period
+     row the other three share, or always draws the calendar month around the
+     picker's anchor with the period chips controlling nothing on this card,
+     is the decision; either answer has to be stated on the card so a reader
+     knows which one they are looking at.
+  2. *Which aggregate.* `spendingTrend` at day granularity already answers
+     "how much per day, per category" with the account filter applied, and
+     summing it per day in the domain layer is a fold over rows the query
+     already returns. A narrower daily-total statement (no `categories` join,
+     one row per day) would be cheaper per query and a fourth statement over
+     the same `_spendingParts` fragment. Measure both on the benchmark
+     fixture before choosing, the way FR-RPT-005 did — and note that
+     `GetSpendingTrend.granularityFor` picks *month* past 92 days, so a
+     year-long heatmap could not reuse the trend's own granularity rule
+     unchanged.
+  3. *Where the intensity scale's ceiling comes from.* Relative to the
+     largest day in view (every month has a darkest cell, even a quiet one)
+     or to something stable across months (a quiet month reads quiet). A
+     sequential ramp — one hue, light to dark, in a handful of steps — on
+     `AppColors.expense`, which keeps the colour-collision check closed, since
+     no category colour renders. The account filter should reach it, for the
+     reason it reached the bars and the lines.
 
 **FR-EXP-011's category-grouped list toggle is not Sprint 4 work**, despite
 the name inviting the mix-up. `ROADMAP.md`'s own Sprint 3.5 section lists it
