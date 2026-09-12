@@ -240,9 +240,46 @@ The picker is a chip row inside the donut's own card (the pattern
 of its own — SDD SCR-001 puts the chart on the home screen, and a filter one
 scroll away from what it filters is a filter nobody touches.
 
-### Next — the account filter (FR-RPT-003)
+### The account filter (FR-RPT-003) — done ([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58), merged as `40c61cd`)
 
-Then income-vs-expense bars, trend lines and the heatmap, in that order.
+"All Accounts, or any specific single account", which is an `int?` and not a
+sentinel id or an `allAccounts` flag beside one — a flag would allow a fourth
+state, all accounts *and* an id, that means nothing.
+
+A wider change than FR-RPT-002 was. The period was the only filter, so
+`DateRange` could be the use case's whole parameter; two filters that travel
+together are one question, so `GetSpendingByCategory` now takes a
+`SpendingQuery` — and unlike the dates, the account has to reach the SQL.
+`_spendingByCategory` keeps one body with an `{account}` hole in it rather
+than growing a second whole statement: the E-02 and E-04 invariants are the
+hard part of that query, and a second copy of them is a second place for them
+to drift apart. The substituted text is a constant and the id stays a bound
+parameter.
+
+Two traps, both tested against real in-memory SQLite. A **split's parts carry
+no account of their own**, so the filter follows the parent row, which is what
+says where the money left from. **Transfers stay excluded either way** —
+`account_id` is the column both halves carry, so that is the one place this
+filter could plausibly have resurrected them.
+
+`SpendingByCategoryReader` (the Copilot's port) and `ComparePeriods` both ask
+for every account: the port answers questions about spending, not about where
+money sat, and narrowing one side of a two-period delta would answer a
+question nobody asked.
+
+`AccountFilter` is a dropdown under the period chips — a closed set of six
+chips is read at a glance, while accounts are user data of unknown length, and
+`transfer_page.dart` already renders them this way. Accounts come from the
+existing `AccountReader` port, so `features/analytics/` still does not import
+`features/accounts/`. It opens on All accounts, because the chart is a
+home-screen summary and one that silently omits an account is a wrong total
+that looks right.
+
+### Next — income-vs-expense bars (FR-RPT-004)
+
+Then trend lines and the heatmap, in that order. `GetIncomeForPeriod` and
+`ComparePeriods` are built and wired for the first two; neither has a caller
+yet.
 
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
 
