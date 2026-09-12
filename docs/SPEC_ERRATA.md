@@ -1485,6 +1485,44 @@ the fix, a splash screen and an off-main-thread open, is verifiable without the
 phone. It is promoted to a Sprint 4 deliverable ahead of the charts. Only the
 *confirmed sub-2-second figure* needs the device.
 
+### Addendum, 2026-09-12 — re-measured for Sprint 4, and half the diagnosis no longer held
+
+Before writing the fix, this entry's own claim was re-checked against the code
+as it exists now, on this session's emulator, with `adb logcat` bracketing the
+launch. Twice, in `--release` (the build type this paragraph is about, not
+debug): `SQLiteConnection: Database keying operation returned:0` — the
+database actually opening — appears **after** `ActivityTaskManager: Displayed`,
+not before. `sqflite_sqlcipher`'s Android implementation already runs every
+database operation on its own `HandlerThread`
+(`SqfliteSqlCipherPlugin.java`), and `injection.dart`'s `databaseProvider` is a
+`FutureProvider` that `HomePage` watches through an `AsyncValue`, rendering a
+spinner while it resolves. The database does not open "during the first
+frame" in this codebase, and untangling exactly when that stopped being true —
+this file's own comment predates the current `HomePage`, which has carried
+this shape since Sprint 1 — is less useful than just re-measuring, which is
+what this addendum is for.
+
+What the trace shows instead: a `Skipped N frames` warning from the app's own
+process (32–123 frames across three runs) in the few hundred milliseconds
+before `Displayed`, while the Flutter engine attaches and draws its first
+frame. That is engine start-up and native-plugin registration cost — this app
+registers eight native plugins — not application code with a thread to move it
+off of. `Displayed` measured 7.9s, 9.9s and 19s (`--profile`, which JIT-compiles
+and is not the comparison to trust) across these runs: all **comparative
+only**, all a long way from both the original 608-skipped-frames figure and
+the <2s target, and all on this session's nested-virtualised emulator, which
+is its own confound distinct from the one E-28 already names.
+
+**The corrected Sprint 4 deliverable is the splash screen alone.** It is still
+worth building regardless of where the remaining time goes: the native launch
+background was being dropped the instant Flutter drew anything — the spinner
+counts — leaving a bare `AppBar` over a blank body for the rest of the wait.
+`flutter_native_splash` now holds it, via `FlutterNativeSplash.preserve`/
+`.remove` in `main.dart`, keyed to `databaseProvider` resolving either way.
+**The off-main-thread open is retired as already true**, not fixed by this
+session — there was no main-thread database block in the current architecture
+to remove, and building one to then remove it would have been theatre.
+
 ### Residual risk
 
 Accepted. Until the device session happens, no NFR-PER requirement is

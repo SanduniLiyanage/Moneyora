@@ -127,22 +127,28 @@ gone, and the whole slice's use cases have passing tests.
 
 Donut chart, period filters, income-vs-expense bars, trend lines, heatmap.
 
-### First, before any chart: NFR-PER-001's cold start
+### First, before any chart: NFR-PER-001's cold start — done, see the errata
 
-The database opens during the first frame and blocks it for roughly ten
-seconds — `Skipped 608 frames` in logcat. NFR-PER-001 requires a cold start
-under two seconds, so the app currently misses it by a factor of five on the
-very first thing a user sees.
+This was believed to be a main-thread block — the database opening during the
+first frame — and was scheduled here ahead of the charts on that basis.
+Re-measured at the start of this sprint, with `adb logcat` bracketing a
+release-build launch: the database opens **after** the first frame, not
+during it, in the code as it now stands ([E-28](SPEC_ERRATA.md)'s 2026-09-12
+addendum has the trace). `sqflite_sqlcipher` already runs the open on its own
+background thread, and `injection.dart`'s `databaseProvider` is watched
+through an `AsyncValue` that renders a spinner while it resolves — there was
+no block left to move off the main thread.
 
-**This is fixed before the charts, not after.** It is a main-thread block —
-a structural fault in *where* the work happens — so it reproduces on any
-hardware and does not need the borrowed device to diagnose or to verify the
-fix. Leaving it until Sprint 9 means five more sprints of demos, screenshots
-and screen recordings that all open with a ten-second stall.
-
-- Splash screen, and open the database off the main thread.
-- Measure before and after on the emulator. Only the *confirmed sub-2-second
-  figure* waits for the device session ([E-28](SPEC_ERRATA.md)).
+What the addendum leaves as real: cold start is still slow
+(7–10s, emulator, comparative) because of generic Flutter-engine and
+native-plugin start-up cost, not application code, and the native launch
+background was being dropped at the first frame regardless — leaving a bare
+`AppBar` over blank space for the rest of the wait. **Done:** a splash screen
+(`flutter_native_splash`, held via `FlutterNativeSplash.preserve`/`.remove` in
+`main.dart` until `databaseProvider` resolves) so that wait reads as branded
+rather than broken. **Not done, because it was never true:** moving the
+database off the main thread. Only the *confirmed sub-2-second figure* still
+waits for the device session ([E-28](SPEC_ERRATA.md)).
 
 ### Then the query benchmark — comparative, not conformant
 

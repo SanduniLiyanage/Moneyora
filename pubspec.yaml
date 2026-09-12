@@ -37,6 +37,7 @@ dependencies:
   flutter_local_notifications: ^22.3.0
   flutter_localizations:
     sdk: flutter
+  flutter_native_splash: ^2.4.8
   flutter_riverpod: ^2.6.1
   # Pinned below 11 deliberately. flutter_secure_storage 11 declares an AAR
   # metadata minimum of compileSdk 37, and API 37 ships as "37.0" - a decimal

@@ -1,0 +1,24 @@
+# Native splash config, run via `dart run flutter_native_splash:create`.
+#
+# NFR-PER-001, Sprint 4: the launch screen has to hold through the async
+# window between process start and the home screen's first real frame — the
+# `LaunchTheme` background alone is dropped the instant Flutter draws
+# anything, spinner included. `FlutterNativeSplash.preserve`/`.remove` in
+# `main.dart` is what keeps this showing instead of a flash of blank/white.
+#
+# No logo image: `ic_launcher.png` is still Flutter's default icon (nothing in
+# this repo has drawn a Moneyora mark yet), and a solid brand fill says
+# nothing false. Swap in an `image:` line here once one exists.
+#
+# Colours are `AppColors.light.brand` / `AppColors.dark.brand` — see E-01 on
+# why indigo, not the SRS's green.
+flutter_native_splash:
+  color: "#3F51B5"
+  color_dark: "#7986CB"
+
+  android_12:
+    color: "#3F51B5"
+    color_dark: "#7986CB"
+
+  android: true
+  ios: true
