@@ -275,11 +275,40 @@ existing `AccountReader` port, so `features/analytics/` still does not import
 home-screen summary and one that silently omits an account is a wrong total
 that looks right.
 
-### Next — income-vs-expense bars (FR-RPT-004)
+### Income-vs-expense bars (FR-RPT-004) — done ([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60), merged as `0d2277a`)
 
-Then trend lines and the heatmap, in that order. `GetIncomeForPeriod` and
-`ComparePeriods` are built and wired for the first two; neither has a caller
-yet.
+Two bars over the same period and account the donut uses, with net savings
+highlighted. `GetIncomeForPeriod`, built and wired in PR #54, finally has a
+caller.
+
+**This is the chart that forced FR-RPT-003's open question.** A chart whose
+expense bar is narrowed to one account and whose income bar is not subtracts
+one account's spending from every account's income and calls the difference
+savings, so `incomeForPeriod` takes the account filter too — through the same
+`{account}` substitution `_spendingByCategory` already uses. `SpendingQuery`
+became `AnalyticsQuery` in the same change, because it is no longer only
+spending's question.
+
+**No third aggregate.** The expense side is the spending rows added up;
+`spendingByCategoryTotalsProvider` is keyed on the identical `AnalyticsQuery`,
+so the bars read the answer the donut already asked for. The filters render
+once, on the donut's card, and both charts watch the same providers.
+
+Net savings is stated as a labelled figure rather than left as the gap between
+two bars, and a deficit says "Overspent" with a positive amount.
+
+**[SPEC_ERRATA.md](SPEC_ERRATA.md)'s colour-collision check is resolved** in
+that entry, against the chart set as built rather than as guessed at: the bars
+draw two totals and no category colour renders on them, the donut draws expense
+categories only, so Bills/Deposits, Entertainment/Salary and Gifts/Savings
+cannot appear together on either. The entry names what would reopen it —
+trend lines, if a line per category ever plots both kinds at once.
+
+### Next — trend lines (FR-RPT-005)
+
+Per-category spending over time, over `ComparePeriods` — built, wired as
+`comparePeriodsProvider`, and still called by nothing. Then the calendar
+heatmap (FR-RPT-009), and Sprint 4 is closed.
 
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
 
