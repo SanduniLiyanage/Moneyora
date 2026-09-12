@@ -14,6 +14,7 @@ import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
+import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/presentation/providers/analytics_providers.dart';
@@ -34,9 +35,9 @@ class _RecordingRepository implements AnalyticsRepository {
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    DateRange range,
+    SpendingQuery query,
   ) async {
-    asked.add(range);
+    asked.add(query.range);
     return const Right([
       CategoryTotal(
         categoryId: 1,
@@ -432,7 +433,7 @@ class _ScriptedRepository implements AnalyticsRepository {
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    DateRange range,
+    SpendingQuery query,
   ) async => result;
 
   @override

@@ -5,6 +5,7 @@ import 'package:moneyora/core/ports/spending_by_category_reader.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
 import 'package:moneyora/features/analytics/data/models/category_total_model.dart';
 import 'package:moneyora/features/analytics/data/repositories/analytics_repository_impl.dart';
+import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 
 /// Returns canned totals, or throws whatever it is handed.
@@ -14,6 +15,7 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
   final AppException? throws;
   DateTime? from;
   DateTime? to;
+  int? accountId;
 
   List<CategoryTotalModel> totals = const [
     CategoryTotalModel(
@@ -35,9 +37,11 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
   Future<List<CategoryTotalModel>> spendingByCategory({
     required DateTime from,
     required DateTime to,
+    int? accountId,
   }) async {
     this.from = from;
     this.to = to;
+    this.accountId = accountId;
     if (throws case final failure?) throw failure;
     return totals;
   }
@@ -63,7 +67,9 @@ void main() {
       // colour to draw the arc without a second query.
       final repository = AnalyticsRepositoryImpl(_FakeDataSource());
 
-      final result = await repository.spendingByCategory(august);
+      final result = await repository.spendingByCategory(
+        SpendingQuery(range: august),
+      );
 
       result.fold((f) => fail('unexpected failure: $f'), (totals) {
         expect(totals.first.categoryId, 1);
@@ -78,7 +84,9 @@ void main() {
         _FakeDataSource(throws: const CacheException('disk is full')),
       );
 
-      final result = await repository.spendingByCategory(august);
+      final result = await repository.spendingByCategory(
+        SpendingQuery(range: august),
+      );
 
       result.fold((failure) {
         expect(failure, isA<CacheFailure>());

@@ -8,6 +8,7 @@ import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/spending_by_category_reader.dart';
 import '../../domain/entities/category_total.dart';
+import '../../domain/entities/spending_query.dart';
 import '../../domain/repositories/analytics_repository.dart';
 import '../datasources/analytics_local_datasource.dart';
 
@@ -29,9 +30,14 @@ class AnalyticsRepositoryImpl
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    DateRange range,
-  ) =>
-      _attempt(() => _local.spendingByCategory(from: range.from, to: range.to));
+    SpendingQuery query,
+  ) => _attempt(
+    () => _local.spendingByCategory(
+      from: query.range.from,
+      to: query.range.to,
+      accountId: query.accountId,
+    ),
+  );
 
   @override
   Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
@@ -42,7 +48,14 @@ class AnalyticsRepositoryImpl
     required DateTime from,
     required DateTime to,
   }) async {
-    final totals = await spendingByCategory(DateRange(from: from, to: to));
+    // Every account: the Copilot asks about spending, not about where the
+    // money sat, and FR-RPT-003's filter is a screen affordance rather than
+    // something the port was ever given a way to express.
+    final totals = await spendingByCategory(
+      SpendingQuery(
+        range: DateRange(from: from, to: to),
+      ),
+    );
     // Ids and colours are dropped here rather than by the caller: a port whose
     // whole purpose is to hand data to something off-device should never have
     // been holding an id in the first place.

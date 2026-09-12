@@ -23,10 +23,12 @@ import '../models/category_total_model.dart';
 /// Reads aggregates over transaction history. Never writes.
 abstract interface class AnalyticsLocalDataSource {
   /// Totals expense spending per category between [from] and [to] inclusive,
-  /// largest first.
+  /// largest first, for [accountId] or — when it is null — every account.
+  /// FR-RPT-003.
   Future<List<CategoryTotalModel>> spendingByCategory({
     required DateTime from,
     required DateTime to,
+    int? accountId,
   });
 
   /// Totals income between [from] and [to] inclusive.
@@ -49,6 +51,15 @@ class AnalyticsLocalDataSourceImpl implements AnalyticsLocalDataSource {
   /// `type = 'expense'` is what excludes transfers and income both; it is
   /// stated as an equality rather than as `type <> 'transfer'` so that adding
   /// a fourth type later cannot quietly fold it into spending.
+  ///
+  /// FR-RPT-003's account filter is the `{account}` clause below, substituted
+  /// for `AND t.account_id = ?` or for nothing at all. One body with a hole in
+  /// it rather than two whole statements: the E-02 and E-04 invariants above
+  /// are the hard part of this query, and a second copy of them is a second
+  /// place for them to drift apart. The substituted text is a constant and the
+  /// account id stays a bound parameter, so nothing here is built from input.
+  static const String _accountClause = 'AND t.account_id = ?';
+
   static const String _spendingByCategory = '''
 SELECT c.id AS category_id, c.name AS name, c.color AS color,
        SUM(part.amount_cents) AS total_cents
@@ -58,12 +69,14 @@ SELECT c.id AS category_id, c.name AS name, c.color AS color,
          WHERE t.type = 'expense'
            AND t.is_split = 0
            AND t.date >= ? AND t.date <= ?
+           {account}
         UNION ALL
         SELECT s.category_id AS category_id, s.amount_cents AS amount_cents
           FROM transaction_splits s
           JOIN transactions t ON t.id = s.transaction_id
          WHERE t.type = 'expense'
            AND t.date >= ? AND t.date <= ?
+           {account}
        ) AS part
   JOIN categories c ON c.id = part.category_id
  GROUP BY c.id, c.name, c.color
@@ -74,6 +87,7 @@ SELECT c.id AS category_id, c.name AS name, c.color AS color,
   Future<List<CategoryTotalModel>> spendingByCategory({
     required DateTime from,
     required DateTime to,
+    int? accountId,
   }) async {
     return _guard('total spending by category', () async {
       // Fixed-width ISO dates, so string comparison is date comparison and the
@@ -81,12 +95,18 @@ SELECT c.id AS category_id, c.name AS name, c.color AS color,
       final start = encodeIsoDay(from);
       final end = encodeIsoDay(to);
 
-      final rows = await _db.rawQuery(_spendingByCategory, [
-        start,
-        end,
-        start,
-        end,
-      ]);
+      final sql = _spendingByCategory.replaceAll(
+        '{account}',
+        accountId == null ? '' : _accountClause,
+      );
+      // Both halves of the union carry the same three arguments, in the order
+      // the statement reads them — dates first, then the account when one is
+      // being filtered on.
+      final args = accountId == null
+          ? [start, end, start, end]
+          : [start, end, accountId, start, end, accountId];
+
+      final rows = await _db.rawQuery(sql, args);
 
       return rows.map(CategoryTotalModel.fromMap).toList(growable: false);
     });

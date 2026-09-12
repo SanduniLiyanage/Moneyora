@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 
@@ -20,9 +21,9 @@ class _FakeRepository implements AnalyticsRepository {
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    DateRange range,
+    SpendingQuery query,
   ) async {
-    asked = range;
+    asked = query.range;
     if (failWith case final failure?) return Left(failure);
     return Right(totals);
   }
@@ -31,6 +32,11 @@ class _FakeRepository implements AnalyticsRepository {
   Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
       throw UnimplementedError();
 }
+
+/// Every case here is about the period, so each range is wrapped in the
+/// all-accounts query the chart sends by default. FR-RPT-003's own cases live
+/// in `spending_query_test.dart` and `account_filter_test.dart`.
+SpendingQuery over(DateRange range) => SpendingQuery(range: range);
 
 void main() {
   late _FakeRepository repository;
@@ -45,7 +51,7 @@ void main() {
 
   group('happy path', () {
     test('returns what the repository read, unchanged', () async {
-      final result = await getSpendingByCategory(august);
+      final result = await getSpendingByCategory(over(august));
 
       result.fold((f) => fail('unexpected failure: $f'), (totals) {
         expect(totals.single.name, 'Food');
@@ -54,7 +60,7 @@ void main() {
     });
 
     test('passes the range down untouched', () async {
-      await getSpendingByCategory(august);
+      await getSpendingByCategory(over(august));
 
       expect(repository.asked, august);
     });
@@ -64,7 +70,7 @@ void main() {
       // error state here would make every empty screen look broken.
       repository.totals = const [];
 
-      final result = await getSpendingByCategory(august);
+      final result = await getSpendingByCategory(over(august));
 
       expect(result.isRight(), isTrue);
       result.fold((f) => fail('unexpected failure: $f'), (totals) {
@@ -75,7 +81,7 @@ void main() {
     test('passes a repository failure through unchanged', () async {
       repository.failWith = const CacheFailure('database is locked');
 
-      final result = await getSpendingByCategory(august);
+      final result = await getSpendingByCategory(over(august));
 
       result.fold(
         (failure) => expect(failure, isA<CacheFailure>()),
@@ -89,7 +95,7 @@ void main() {
       // SQLite answers an inverted range with an empty result, which reads as
       // "you spent nothing" rather than as the mistake it is.
       final result = await getSpendingByCategory(
-        DateRange(from: DateTime(2026, 8, 31), to: DateTime(2026, 8)),
+        over(DateRange(from: DateTime(2026, 8, 31), to: DateTime(2026, 8))),
       );
 
       result.fold(
@@ -107,7 +113,7 @@ void main() {
 
       expect(GetSpendingByCategory.validate(oneDay), isNull);
 
-      final result = await getSpendingByCategory(oneDay);
+      final result = await getSpendingByCategory(over(oneDay));
       expect(result.isRight(), isTrue);
     });
 
