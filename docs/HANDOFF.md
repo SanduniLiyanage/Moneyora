@@ -1,16 +1,18 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `87df4da`, after **49
-merged pull requests** (#2–#50; #1 was closed unmerged) — [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50),
-the entry screen's inline category creation, merged during this window.
-**Plus this session's E-27 retirement, on branch `feat/retire-entry-catalog`
-as [PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), open and
+State of the project as of **2026-09-12**, `main` at `008633e`, after **50
+merged pull requests** (#2–#51; #1 was closed unmerged) — [PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51),
+E-27's retirement of `entry_catalog.dart`, merged during this window and
+closing out Sprint 3.5.
+**Plus this session's NFR-PER-001 work, on branch
+`feat/analytics-cold-start-splash` as
+[PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), open and
 awaiting CI/review — not yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on
-`feat/retire-entry-catalog` (PR #51), before it merges.
+`feat/analytics-cold-start-splash` (PR #52), before it merges.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -36,6 +38,11 @@ option type, two more proving each `watchAll()` is the same live read as
 accounts stay excluded, and two in `injection_test.dart` proving
 `categoryReaderProvider`/`accountReaderProvider` read the same repository
 their writes go through — none yet broken out further by sub-area.
+**Still 656 after this session** — `main.dart` is composition-root wiring
+(a real `ProviderContainer` against real platform channels), not something
+`flutter test`'s VM can exercise the way the rest of the app is; it was
+verified on the emulator instead, the same way `HomePage`'s own doc comment
+says Sprint 1's proof always has been.
 
 `bash scripts/check_citations.sh` took **under 5 seconds on CI** historically
 but **nearly 5 minutes on this Windows machine** in an earlier session —
@@ -47,7 +54,69 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), open)
+## This session — NFR-PER-001's cold start, re-measured ([PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), open)
+
+Sprint 4 — analytics — opened with the roadmap's own first item: NFR-PER-001's
+cold start, "fixed before the charts, not after," diagnosed in
+[E-28](SPEC_ERRATA.md) as a main-thread block — the database opening during
+the first frame, ~10s and 608 skipped frames.
+
+Before writing that fix, it was re-measured against the code as it exists
+now, on a **release** build (debug and profile both JIT-compile and are not
+the comparison to trust), with `adb logcat` bracketing the launch, twice:
+
+- `SQLiteConnection: Database keying operation returned:0` — the database
+  actually opening — appears **after** `ActivityTaskManager: Displayed`, not
+  before, in both runs.
+- `sqflite_sqlcipher`'s Android implementation already dispatches every
+  database call to its own background `HandlerThread`, confirmed reading the
+  plugin's own source rather than assumed.
+- `injection.dart`'s `databaseProvider` is a `FutureProvider` that `HomePage`
+  renders a spinner against via `AsyncValue` while it resolves — the same
+  shape it has had since Sprint 1.
+
+**There was no main-thread database block left to fix.** Most likely this was
+true of an earlier version of the code, before the current `HomePage`/
+`FutureProvider` shape existed, and the diagnosis in `SPEC_ERRATA.md` was
+never re-checked against the refactors that followed — the same failure mode
+this file's own "what is idle" section warns about elsewhere: a claim that
+survives the change that falsifies it, because nothing fails when it does.
+
+What the trace shows instead: 32–123 frames skipped in the app's own process
+in the moments before `Displayed`, which is Flutter engine attach and
+native-plugin registration cost (eight native plugins), not application code
+with a thread to move it off of. `Displayed` measured 7.9s, 9.9s and 19s
+(`--profile`, discounted) across three runs on this session's
+nested-virtualised emulator — **comparative only**, per [E-28](SPEC_ERRATA.md)'s
+own rule, and still a long way from the 2s target, but not fixable by
+relocating work that was never on the main thread.
+
+**What shipped instead is the half of the original prescription that still
+held:** the native launch background was being dropped the instant Flutter
+drew anything, spinner included, leaving a bare `AppBar` over blank space for
+the rest of a genuinely slow engine start-up. `flutter_native_splash` now
+holds it — `FlutterNativeSplash.preserve`/`.remove` in `main.dart`, keyed to
+`databaseProvider` resolving either way — in brand indigo
+(`AppColors.light`/`dark.brand`; no logo image, because no logo asset exists
+in this repo yet). `main.dart` now builds an explicit `ProviderContainer` and
+hands it to `MoneyoraApp` via `UncontrolledProviderScope`, so the splash
+lifecycle lives entirely in the composition root — `app.dart`, `HomePage` and
+their widget tests are untouched.
+
+`docs/SPEC_ERRATA.md` (E-28's 2026-09-12 addendum) and this sprint's entry in
+`docs/ROADMAP.md` carry the measured evidence and the corrected claim, rather
+than leaving the stale diagnosis standing next to code that no longer matches
+it.
+
+`flutter analyze` (0 issues), `flutter test` (656 passing, unchanged —
+`main.dart` isn't unit-testable the way the rest of the app is; verified on
+the emulator instead), `check_architecture.sh` and `check_citations.sh` are
+all clean. Built and ran a release APK on the emulator — also closing out the
+"release APK never installed" gap this file has carried since the R8 fix —
+confirmed no crash and the home screen renders correctly.
+**Not yet merged — do not merge without asking first.**
+
+### Previous session — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), merged as `008633e`)
 
 E-27's resolution, next after [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50)
 gave the inline `+` its write path. The read the created row landed in was
@@ -101,8 +170,8 @@ categories and accounts slices — refreshed by hand rather than replaced.
   category can still be pushed through after the fact.
 
 `flutter analyze` (0 issues), `flutter test` (656 passing, up from 655),
-`check_architecture.sh` and `check_citations.sh` are all clean.
-**Not yet merged — do not merge without asking first.**
+`check_architecture.sh` and `check_citations.sh` were all clean, and it
+merged as `008633e`.
 
 **Sprint 3.5 is now fully complete.** FR-EXP-011's category-grouped
 *transaction* list toggle remains a separate requirement against
@@ -238,11 +307,13 @@ entry screen's category chips and both screens' account pickers all read
 `CategoryReader`/`AccountReader` now, the same ports the inline `+`'s write
 uses on the other side.
 
-**Sprint 4 — analytics — has domain and data only.** `GetSpendingByCategory`,
-its datasource and its repository are in and tested;
-`features/analytics/presentation/` is empty in all three of its
-subdirectories. There is no chart. `fl_chart` is declared in `pubspec.yaml` and
-imported nowhere.
+**Sprint 4 — analytics — has domain and data only, plus this session's
+cold-start work.** `GetSpendingByCategory`, its datasource and its repository
+are in and tested; `features/analytics/presentation/` is empty in all three
+of its subdirectories. There is no chart. `fl_chart` is declared in
+`pubspec.yaml` and imported nowhere. NFR-PER-001's item is done (see "This
+session" above) — it lived in `main.dart`, not the feature, so it did not
+need the feature's own layers to exist first.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -335,25 +406,37 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge [PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51).**
+**First: watch and merge [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52).**
 Opened this session, not yet merged — deliberately left for a human decision
 rather than merged automatically. Once reviewed and CI is green:
 
 ```powershell
-gh pr checks 51 --watch
-gh pr merge 51 --squash --delete-branch
+gh pr checks 52 --watch
+gh pr merge 52 --squash --delete-branch
 git pull
 ```
 
-Once that lands, **Sprint 3.5 is fully complete** — every FR-EXP-004,
-FR-EXP-005 and E-13 piece is built, and E-27's `entry_catalog.dart` is gone.
-The next work is **Sprint 4 — analytics** (see below), with two smaller
-things worth picking up alongside or before it:
+Once that lands, Sprint 4's cold-start item is closed — see "This session"
+above for why it turned out to be a splash screen and a corrected diagnosis
+rather than the off-main-thread rewrite it was scheduled as. The rest of
+**Sprint 4 — analytics** is, in the order `ROADMAP.md` sets:
 
-- **FR-EXP-011's category-grouped list toggle** is the one Sprint-3.5-shaped
-  requirement still open — it belongs to `transaction_list_page.dart` (E-11
-  raises it against FR-EXP-006 and SDD SCR-005), not this session's slice,
-  and is easy to mistake for categories-screen work because of the name.
+- **The 10k-row query benchmark**, comparative only, per
+  [E-28](SPEC_ERRATA.md) — seed 10,000 rows and measure query time, not frame
+  time.
+- **`get_income_for_period` and `compare_periods`** (FR-COP-008, FR-COP-021),
+  as analytics use cases first and Copilot tools second, per
+  [E-24](SPEC_ERRATA.md) — the same shape `GetSpendingByCategory` already has.
+- **The charts** — donut, income-vs-expense bars, trend lines, heatmap — once
+  the aggregates above exist to draw from.
+
+**FR-EXP-011's category-grouped list toggle is not Sprint 4 work**, despite
+the name inviting the mix-up. `ROADMAP.md`'s own Sprint 3.5 section lists it
+as one of that sprint's deliverables (E-11 raises it against FR-EXP-006 and
+SDD SCR-005), and it is still open — PR #51 closed out everything else in
+Sprint 3.5 but not this. It belongs to `transaction_list_page.dart`, and
+picking it up is independent of anything Sprint 4 builds.
+
 - **The account-picker widgets across `add_transaction_page.dart` and
   `transfer_page.dart` are near-duplicates** now that both read the same
   `AccountOption` shape from `entryAccountsProvider` — `_AccountPicker` in
@@ -374,8 +457,10 @@ for every new category — not a new answer to the open question, just the
 existing one applied consistently.
 
 **The release build is fixed** (see Environment below and
-[E-09](SPEC_ERRATA.md)). One thing it leaves open: a release APK has been built
-but never installed or run, so put that on the next emulator session.
+[E-09](SPEC_ERRATA.md)), and this session installed and ran one on the
+emulator for the first time (see "This session" above) — it launches, and the
+home screen renders correctly with real data. Still open: an actual **device**
+install, which stays on the batched checklist below.
 
 **Sprint 3 is now finished** — the accounts side, the transfer screen, the
 entry screen's account selector and the transfer row labels are all built.
@@ -508,9 +593,10 @@ done in one sitting. **No sprint blocks on this list** ([E-28](SPEC_ERRATA.md)).
 
 The rule for what belongs here: **if it can be done on the emulator, it is not
 on this list.** Two things were on it and have been taken off — the Copilot's
-live-API question (the emulator has network) and the cold-start *fix* (a
-main-thread block reproduces anywhere). Only the confirmed cold-start *number*
-remains.
+live-API question (the emulator has network) and the cold-start *fix* (there
+turned out to be no main-thread block to move, and the splash screen that
+shipped instead was fully verifiable on the emulator too). Only the confirmed
+cold-start *number* remains.
 
 Do these in order; each later step benefits from the seed loaded in step 2.
 
@@ -519,8 +605,9 @@ only:**
 
 - [ ] Build and install a **release** APK, not debug. Debug builds carry every
       ABI and unstripped symbols, and their timings are not the ones the NFRs
-      are about. **This does not currently work** — see the release-build note
-      under Environment below. Fix that first or the session is wasted.
+      are about. **This works now** — fixed per [E-09](SPEC_ERRATA.md) and
+      confirmed running on the emulator this session — so this step is
+      installing the same build onto the physical device, not fixing it.
 - [ ] Have the 10k-row seed ready to load, and know how you will time a query.
 - [ ] Charge the phone and keep it plugged in during timing.
 
@@ -595,12 +682,12 @@ script packages, and CI builds a release APK. Sizes, per
 [E-09](SPEC_ERRATA.md): **arm64-v8a 35.9 MB against an 80 MB budget**, with ML
 Kit included.
 
-**A release APK has been built but never run.** R8 with
-`proguard-android-optimize.txt` can break reflection-based code that compiles
-cleanly, and this app leans on several JNI-backed plugins. Installing a release
-build on the emulator is on the next emulator session's list. Until then,
-"compiles in release" is the only claim available — E-19's distinction, applied
-to a build type.
+**A release APK ran on the emulator for the first time this session** (Sprint
+4's NFR-PER-001 re-measurement — see "This session" above): it launches, the
+home screen renders with real data, and nothing in R8's minification broke
+the JNI-backed plugins this app leans on. "Compiles in release" is no longer
+the only claim available — only the physical-device install remains, on the
+batched checklist below.
 
 **`kotlin.incremental=false`** in `android/gradle.properties`. It bought
 nothing here and repeatedly corrupted its own caches.
