@@ -194,7 +194,7 @@ the Copilot table below.
 
 Then the charts themselves.
 
-### The donut chart — done ([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55), open)
+### The donut chart — done ([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55), merged as `05c5e9d`)
 
 First of the five, per the order at the top of this section, and the one
 SDD SCR-001 draws on the home screen itself rather than a separate report
@@ -210,23 +210,39 @@ disambiguated off the existing `databaseSummaryProvider` count rather than
 a second query. Composed into `HomePage` from `app_router.dart`, the same
 way `AccountDrawer` is.
 
-**No period picker yet.** The chart's only period is the current calendar
-month — FR-RPT-002's Day/Week/Month/Year/Custom filters are the next item
-below, not part of this slice.
+It shipped with no period picker — its only period was the current calendar
+month — which is what the item below replaced.
 
-`dart format`, `flutter analyze` (0 issues), `flutter test` (686 passing,
-up from 680 — `spending_donut_chart_test.dart`'s loading/data/"Other"-fold/
-both-empty-states/failure cases), `check_architecture.sh` and
-`check_citations.sh` are all clean. **Not yet merged — do not merge without
-asking first.**
+### Period filters (FR-RPT-002) — done
 
-### Next — period filters (FR-RPT-002)
+Day, Week, Month, Year, All, Custom Interval and Choose Date, all seven,
+replacing `currentMonthRangeProvider`'s hard-coded month with
+`analyticsPeriodProvider` — the `StateProvider` that provider's own doc
+comment said the filter work would swap it for.
 
-Day, Week, Month, Year, All, Custom Interval, Choose Date — replacing
-`currentMonthRangeProvider`'s hard-coded current month with something a
-`StateProvider` can hold, per that provider's own doc comment. Then the
-account filter (FR-RPT-003), then income-vs-expense bars, trend lines and
-the heatmap, in that order.
+The seven filters are not seven modes. Six choose a *shape* of period and
+"Choose Date" chooses which date that shape wraps around, so the state is one
+`AnalyticsPeriod` plus one anchor (`PeriodSelection`, in `domain/entities/`),
+and the `DateRange` is a pure function of the pair. `DateRange` gained `day`,
+`week`, `year` and `allTime` beside the `month` factory it already had; no
+query, repository method or use case changed, because a filter is a different
+argument to the same question. `DateRange.week` takes a `firstWeekday` that
+defaults to Monday — FR-SET-004 makes that user-configurable in Sprint 7, and
+the parameter is where that setting will land.
+
+An inverted custom interval is passed through rather than silently swapped:
+`GetSpendingByCategory.validate` already refuses one, in the words its doc
+comment says are there for "a screen's period picker", and the chart shows
+that refusal instead of an empty donut that reads as "you spent nothing".
+
+The picker is a chip row inside the donut's own card (the pattern
+`transaction_list_page.dart`'s type filter already uses) rather than a screen
+of its own — SDD SCR-001 puts the chart on the home screen, and a filter one
+scroll away from what it filters is a filter nobody touches.
+
+### Next — the account filter (FR-RPT-003)
+
+Then income-vs-expense bars, trend lines and the heatmap, in that order.
 
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
 
