@@ -9,8 +9,9 @@ import '../../../../injection.dart';
 
 /// Sprint 1's home screen.
 ///
-/// Not SCR-001 — the donut chart, balance bar and category ring arrive in
-/// Sprint 4. What this screen does is prove the foundation works **on a real
+/// Not SCR-001's full design — the balance bar and category ring are still
+/// open — but the donut chart (FR-RPT-001) arrived this session. What the
+/// rest of this screen does is prove the foundation works **on a real
 /// device**, which no unit test can: the SQLCipher file opened with a key from
 /// the platform keychain, the migration ran, and the default categories seeded.
 ///
@@ -19,7 +20,7 @@ import '../../../../injection.dart';
 /// screen is how it gets answered.
 class HomePage extends ConsumerWidget {
   /// Creates the home screen.
-  const HomePage({super.key, this.drawer});
+  const HomePage({super.key, this.drawer, this.spendingChart});
 
   /// The side panel opened from the app bar, if one was supplied.
   ///
@@ -34,6 +35,14 @@ class HomePage extends ConsumerWidget {
   /// Nullable so a widget test can build this screen without the accounts
   /// slice behind it.
   final Widget? drawer;
+
+  /// FR-RPT-001's donut chart, composed in from `features/analytics/` the
+  /// same way [drawer] is composed in from `features/accounts/`, and for the
+  /// same architectural reason.
+  ///
+  /// Nullable for the same reason [drawer] is: a widget test can build this
+  /// screen without the analytics slice behind it.
+  final Widget? spendingChart;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,7 +62,10 @@ class HomePage extends ConsumerWidget {
         ],
       ),
       body: switch (summary) {
-        AsyncData(:final value) => _Ready(summary: value),
+        AsyncData(:final value) => _Ready(
+          summary: value,
+          spendingChart: spendingChart,
+        ),
         AsyncError(:final error) => _Failed(error: error),
         _ => const Center(child: CircularProgressIndicator()),
       },
@@ -62,9 +74,10 @@ class HomePage extends ConsumerWidget {
 }
 
 class _Ready extends StatelessWidget {
-  const _Ready({required this.summary});
+  const _Ready({required this.summary, required this.spendingChart});
 
   final DatabaseSummary summary;
+  final Widget? spendingChart;
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +87,10 @@ class _Ready extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (spendingChart != null) ...[
+          spendingChart!,
+          const SizedBox(height: 16),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),

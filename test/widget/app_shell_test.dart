@@ -6,13 +6,50 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/app.dart';
 import 'package:moneyora/core/database/database_summary.dart';
+import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
+import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
+import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/injection.dart';
+
+/// An empty answer for [SpendingDonutChart]'s two reads, for every shell test
+/// below that does not care about the chart itself.
+///
+/// Without this, `getSpendingByCategoryProvider`/`categoryReaderProvider`
+/// fall through to `injection.dart`'s real ones, which open a real database —
+/// exactly what `databaseSummaryProvider` is already overridden to avoid, for
+/// the reason this file's own doc comment gives.
+class _NoSpendingRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
+    DateRange range,
+  ) async => const Right([]);
+
+  @override
+  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
+      throw UnimplementedError();
+}
+
+class _NoCategoryReader implements CategoryReader {
+  @override
+  Stream<Either<Failure, List<CategoryOption>>> watchAll() =>
+      Stream.value(const Right([]));
+}
+
+final List<Override> _noChartDataOverrides = [
+  getSpendingByCategoryProvider.overrideWith(
+    (ref) async => GetSpendingByCategory(_NoSpendingRepository()),
+  ),
+  categoryReaderProvider.overrideWith((ref) async => _NoCategoryReader()),
+];
 
 /// Widget tests for the app shell: theming, routing, and the three states the
 /// home screen can be in.
@@ -34,8 +71,10 @@ void main() {
     transactions: 0,
   );
 
-  Widget bootApp(Override summaryOverride) =>
-      ProviderScope(overrides: [summaryOverride], child: const MoneyoraApp());
+  Widget bootApp(Override summaryOverride) => ProviderScope(
+    overrides: [summaryOverride, ..._noChartDataOverrides],
+    child: const MoneyoraApp(),
+  );
 
   /// The whole app, with one account behind the accounts panel.
   ///
@@ -44,6 +83,7 @@ void main() {
   Widget bootWithAccounts() => ProviderScope(
     overrides: [
       databaseSummaryProvider.overrideWith((ref) => ready),
+      ..._noChartDataOverrides,
       accountsProvider(false).overrideWith(
         (ref) => Stream.value([
           Account(
@@ -127,6 +167,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// The donut chart (FR-RPT-001) now sits above "Coming next", so that
+    /// list no longer fits the 800×600 test surface without scrolling — the
+    /// same thing a real phone screen would do. `find.text`'s default
+    /// `skipOffstage: true` cannot see a tile below the fold, so every tap on
+    /// one goes through this first.
+    Future<void> scrollComingNextIntoView(WidgetTester tester) async {
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('applies the Moneyora theme rather than Flutter defaults', (
       tester,
     ) async {
@@ -147,6 +197,7 @@ void main() {
       tester,
     ) async {
       await pumpReady(tester);
+      await scrollComingNextIntoView(tester);
 
       await tester.tap(find.text('Money Plan'));
       await tester.pumpAndSettle();
@@ -182,6 +233,7 @@ void main() {
           ProviderScope(
             overrides: [
               databaseSummaryProvider.overrideWith((ref) => ready),
+              ..._noChartDataOverrides,
               // The Copilot screen asks the platform keychain whether a key
               // exists, and a platform channel never answers in a widget test.
               llmApiKeyStoreProvider.overrideWithValue(
@@ -192,6 +244,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        await scrollComingNextIntoView(tester);
         await tester.tap(find.text(destination));
         await tester.pumpAndSettle();
 
