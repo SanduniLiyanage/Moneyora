@@ -15,6 +15,7 @@ import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
+import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_income_for_period.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
@@ -64,6 +65,12 @@ class _ScriptedRepository implements AnalyticsRepository {
     if (spendingFailure case final failure?) return Left(failure);
     return Right(totals);
   }
+
+  @override
+  Future<Either<Failure, List<TrendPoint>>> spendingTrend(
+    AnalyticsQuery query,
+    TrendGranularity granularity,
+  ) => throw UnimplementedError();
 }
 
 class _FakeAccountReader implements AccountReader {

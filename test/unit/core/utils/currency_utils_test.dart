@@ -52,6 +52,35 @@ void main() {
     });
   });
 
+  group('formatCentsCompact', () {
+    test('leaves an amount under a thousand whole, with no decimals', () {
+      expect(formatCentsCompact(0), 'Rs0');
+      expect(formatCentsCompact(85050), 'Rs850');
+      expect(formatCentsCompact(99999), 'Rs999');
+    });
+
+    test('abbreviates thousands with one decimal while it matters', () {
+      expect(formatCentsCompact(123456), 'Rs1.2k');
+      expect(formatCentsCompact(100000), 'Rs1k');
+      expect(formatCentsCompact(950000), 'Rs9.5k');
+      expect(formatCentsCompact(1250000), 'Rs12k');
+      expect(formatCentsCompact(5000000), 'Rs50k');
+    });
+
+    test('abbreviates millions the same way', () {
+      expect(formatCentsCompact(150000000), 'Rs1.5M');
+      expect(formatCentsCompact(2500000000), 'Rs25M');
+    });
+
+    test('truncates rather than rounds, so a tick never overstates', () {
+      expect(formatCentsCompact(199999), 'Rs1.9k');
+    });
+
+    test('puts the sign before the symbol, as formatCents does', () {
+      expect(formatCentsCompact(-123456), '-Rs1.2k');
+    });
+  });
+
   group('parseToCents', () {
     test('parses a decimal amount', () {
       expect(parseToCents('1250.50'), 125050);

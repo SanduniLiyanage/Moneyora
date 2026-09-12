@@ -4,6 +4,7 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../entities/analytics_query.dart';
 import '../entities/category_total.dart';
+import '../entities/trend_point.dart';
 
 /// A closed period to report over, both ends **inclusive** whole days.
 ///
@@ -92,4 +93,15 @@ abstract class AnalyticsRepository {
   /// Income is never split (E-04's split table exists for FR-EXP-010's
   /// expenses only), so this is a plain sum with no union to write.
   Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query);
+
+  /// Expense spending per category per bucket of [granularity] over
+  /// [query]'s period, for one account or all of them. FR-RPT-005.
+  ///
+  /// Sparse: a category with nothing spent in a bucket has no point there.
+  /// The same rows [spendingByCategory] counts, cut by date rather than
+  /// totalled — so E-02 and E-04 hold here because they hold there.
+  Future<Either<Failure, List<TrendPoint>>> spendingTrend(
+    AnalyticsQuery query,
+    TrendGranularity granularity,
+  );
 }

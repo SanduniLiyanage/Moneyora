@@ -99,6 +99,45 @@ String formatCents(
   return buffer.toString();
 }
 
+/// Turns minor units into the short form an axis tick has room for.
+///
+/// ```dart
+/// formatCentsCompact(0)           // 'Rs0'
+/// formatCentsCompact(85000)       // 'Rs850'
+/// formatCentsCompact(123456)      // 'Rs1.2k'
+/// formatCentsCompact(5000000)     // 'Rs50k'
+/// formatCentsCompact(150000000)   // 'Rs1.5M'
+/// ```
+///
+/// For chart axes only (FR-RPT-005): a tick reading `Rs50,000.00` is wider
+/// than the plot beside it. Everywhere a person reads an *amount* rather
+/// than a scale, [formatCents] applies — this never rounds anything a user
+/// is owed or owes, only the labels on a ruler. Integer arithmetic
+/// throughout; the one decimal place is a remainder, not a `double`.
+String formatCentsCompact(
+  int cents, {
+  CurrencyFormat currency = CurrencyFormat.lkr,
+}) {
+  final negative = cents < 0;
+  final whole = cents.abs() ~/ currency.minorUnitsPerMajor;
+
+  final (scaled, tenths, suffix) = switch (whole) {
+    >= 1000000 => (whole ~/ 1000000, (whole % 1000000) ~/ 100000, 'M'),
+    >= 1000 => (whole ~/ 1000, (whole % 1000) ~/ 100, 'k'),
+    _ => (whole, 0, ''),
+  };
+
+  final buffer = StringBuffer()
+    ..write(negative ? '-' : '')
+    ..write(currency.symbol)
+    ..write(scaled);
+  // One decimal only while it changes the reading: `Rs1.2k` earns its digit,
+  // `Rs50.0k` does not — and past ten of a unit the tenth is noise.
+  if (tenths > 0 && scaled < 10) buffer.write('.$tenths');
+  buffer.write(suffix);
+  return buffer.toString();
+}
+
 /// Parses user input into minor units.
 ///
 /// Returns `null` when the text is not a number, so callers decide what to do

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/migrations/v1_initial.dart';
 import 'package:moneyora/core/database/seed/default_seed.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
+import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// NFR-PER-006's benchmark: 10,000 transactions, query time, not frame time.
@@ -153,4 +154,71 @@ void main() {
       expect(minMs, lessThan(1000));
     },
   );
+
+  test('spendingTrend by month over 10,000 transactions — one statement against '
+      'one query per point, host VM, comparative only', () async {
+    // FR-RPT-005's decision, kept measurable: the trend is one bucketed
+    // statement rather than `spendingByCategory` once per point. Both are
+    // timed here so a change that makes the single statement slower than
+    // the loop it replaced is visible, and so the reasoning in
+    // `GetSpendingTrend`'s doc comment stays a number rather than a memory.
+    // The VM pays no platform-channel round trip per call, so the per-point
+    // loop is *flattered* here relative to a device — the comparison is
+    // conservative in the single statement's favour.
+    final months = <DateTime>[];
+    for (
+      var m = DateTime(start.year, start.month + 1);
+      !m.isAfter(end);
+      m = DateTime(m.year, m.month + 1)
+    ) {
+      months.add(m);
+    }
+
+    await analytics.spendingTrend(
+      from: start,
+      to: end,
+      granularity: TrendGranularity.month,
+    );
+
+    const runs = 5;
+    var oneStatementMicros = double.infinity;
+    var perPointMicros = double.infinity;
+    for (var i = 0; i < runs; i++) {
+      final one = Stopwatch()..start();
+      final points = await analytics.spendingTrend(
+        from: start,
+        to: end,
+        granularity: TrendGranularity.month,
+      );
+      one.stop();
+      expect(points, isNotEmpty);
+      oneStatementMicros = min(
+        oneStatementMicros,
+        one.elapsedMicroseconds.toDouble(),
+      );
+
+      final loop = Stopwatch()..start();
+      for (final month in months) {
+        await analytics.spendingByCategory(
+          from: month,
+          to: DateTime(month.year, month.month + 1, 0),
+        );
+      }
+      loop.stop();
+      perPointMicros = min(perPointMicros, loop.elapsedMicroseconds.toDouble());
+    }
+
+    // ignore: avoid_print
+    print(
+      'spendingTrend (month) @ $rowCount transactions: '
+      'one statement min ${(oneStatementMicros / 1000).toStringAsFixed(1)}ms, '
+      '${months.length} x spendingByCategory min '
+      '${(perPointMicros / 1000).toStringAsFixed(1)}ms '
+      '(host machine VM, comparative — not NFR-PER-006 evidence).',
+    );
+
+    // The same generous ceiling as above, for the same reason: this exists
+    // to catch an index going missing, not to certify the NFR.
+    expect(oneStatementMicros / 1000, lessThan(1000));
+  });
 }

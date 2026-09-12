@@ -1734,9 +1734,22 @@ use `AppColors.income` and `AppColors.expense`, the fixed semantic pair whose
 contrast `app_colors_test.dart` already measures on every run. The three
 colliding pairs therefore cannot render together anywhere in the chart set as
 built. This stays open as a *check to redo* only if a later surface draws
-income and expense categories side by side — FR-RPT-005's trend lines are the
-first candidate, since a line per category over time could in principle plot
-both kinds at once.
+income and expense categories side by side — FR-RPT-005's trend lines were
+the first candidate, since a line per category over time could in principle
+plot both kinds at once.
+
+*Redone for the trend lines (PR #62): still no collision reachable.*
+FR-RPT-005 asks for per-category *spending*, and `SpendingTrendLines` draws
+the donut's own spending rows cut by date — the datasource's
+`_spendingTrend` is assembled from the same `type = 'expense'` fragment as
+`_spendingByCategory`, so an income category is never selected and its
+colour never rendered. Past five categories the tail folds into an "Other"
+line in `colorScheme.outline` at reduced alpha, which is not a category
+colour. That leaves the calendar heatmap (FR-RPT-009) as the last Sprint 4
+surface; it draws daily *totals* on a sequential ramp, not categories, so it
+cannot reopen this either. The three colliding pairs remain unreachable in
+the chart set as built, and the check is closed unless a later surface
+plots income and expense categories on one axis.
 
 **3. `receipt_scans` has no column for the receipt ID or number, for Sprint 6.**
 FR-RCP-005 requires parsing *"receipt total, tax/VAT amount (if present), and

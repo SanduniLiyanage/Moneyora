@@ -18,3 +18,26 @@ String encodeIsoDay(DateTime date) {
   final day = local.day.toString().padLeft(2, '0');
   return '$year-$month-$day';
 }
+
+/// Reads a `YYYY-MM-DD` column value back into a **local** midnight.
+///
+/// The inverse of [encodeIsoDay], and fixed-width by the same rule, so this
+/// slices three fields rather than running `DateTime.parse` — which is a
+/// general ISO-8601 parser built on a regular expression and costs around
+/// twenty microseconds a call on the test VM. That is nothing for one row and
+/// several milliseconds for the few hundred a bucketed aggregate returns,
+/// which is where this was measured to matter (FR-RPT-005).
+///
+/// Throws [FormatException] on anything else: a date column that does not
+/// hold this shape was not written by [encodeIsoDay], and a silent fallback
+/// would hide a row that every range query is already skipping.
+DateTime decodeIsoDay(String value) {
+  if (value.length != 10 || value[4] != '-' || value[7] != '-') {
+    throw FormatException('Expected YYYY-MM-DD', value);
+  }
+  return DateTime(
+    int.parse(value.substring(0, 4)),
+    int.parse(value.substring(5, 7)),
+    int.parse(value.substring(8, 10)),
+  );
+}
