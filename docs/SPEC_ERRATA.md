@@ -1721,9 +1721,22 @@ Gifts and Savings (`#008300`/`#008300`). FR-RPT-001's donut chart shows
 render together — but "likely" is doing real work in that sentence, and
 FR-RPT-004's income-vs-expense bars are a second surface with no stated colour
 rule at all. **Flagged for whoever builds Sprint 4's charts to verify against
-the actual chart set being built, not resolved here** — this entry exists to
-record that the check was done and what it found, not to guess at every
-report screen's colour needs before a single chart exists.
+the actual chart set being built**, rather than guessing at every report
+screen's colour needs before a single chart existed.
+
+*Resolution, once both charts existed (PR #55, PR #60): no collision is
+reachable on either.* FR-RPT-001's donut draws expense categories only, so an
+income colour never appears on it — and past six categories the tail folds
+into a single "Other" wedge in `colorScheme.outline`, which is not a category
+colour at all. **FR-RPT-004's bars draw two *totals*, not a category
+breakdown**, so no category colour renders on that chart either; its two bars
+use `AppColors.income` and `AppColors.expense`, the fixed semantic pair whose
+contrast `app_colors_test.dart` already measures on every run. The three
+colliding pairs therefore cannot render together anywhere in the chart set as
+built. This stays open as a *check to redo* only if a later surface draws
+income and expense categories side by side — FR-RPT-005's trend lines are the
+first candidate, since a line per category over time could in principle plot
+both kinds at once.
 
 **3. `receipt_scans` has no column for the receipt ID or number, for Sprint 6.**
 FR-RCP-005 requires parsing *"receipt total, tax/VAT amount (if present), and

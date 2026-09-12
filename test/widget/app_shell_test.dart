@@ -10,33 +10,38 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/app.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
+import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
-import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
+import 'package:moneyora/features/analytics/domain/usecases/get_income_for_period.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/injection.dart';
 
-/// An empty answer for [SpendingDonutChart]'s two reads, for every shell test
-/// below that does not care about the chart itself.
+/// An empty answer for the home screen's two charts, for every shell test
+/// below that does not care about either of them.
 ///
-/// Without this, `getSpendingByCategoryProvider`/`categoryReaderProvider`
-/// fall through to `injection.dart`'s real ones, which open a real database —
-/// exactly what `databaseSummaryProvider` is already overridden to avoid, for
-/// the reason this file's own doc comment gives.
+/// Without this, `getSpendingByCategoryProvider`, `getIncomeForPeriodProvider`
+/// and `categoryReaderProvider` fall through to `injection.dart`'s real ones,
+/// which open a real database — exactly what `databaseSummaryProvider` is
+/// already overridden to avoid, for the reason this file's own doc comment
+/// gives. `IncomeExpenseBars` (FR-RPT-004) is the second chart the router
+/// composes, so it needs the income half answered too or the card spins for
+/// ever and `pumpAndSettle` never returns.
 class _NoSpendingRepository implements AnalyticsRepository {
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    SpendingQuery query,
+    AnalyticsQuery query,
   ) async => const Right([]);
 
   @override
-  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
-      throw UnimplementedError();
+  Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query) async =>
+      const Right(0);
 }
 
 class _NoCategoryReader implements CategoryReader {
@@ -45,11 +50,22 @@ class _NoCategoryReader implements CategoryReader {
       Stream.value(const Right([]));
 }
 
+/// FR-RPT-003's picker reads this; an empty list still renders "All accounts".
+class _NoAccountReader implements AccountReader {
+  @override
+  Stream<Either<Failure, List<AccountOption>>> watchAll() =>
+      Stream.value(const Right([]));
+}
+
 final List<Override> _noChartDataOverrides = [
   getSpendingByCategoryProvider.overrideWith(
     (ref) async => GetSpendingByCategory(_NoSpendingRepository()),
   ),
+  getIncomeForPeriodProvider.overrideWith(
+    (ref) async => GetIncomeForPeriod(_NoSpendingRepository()),
+  ),
   categoryReaderProvider.overrideWith((ref) async => _NoCategoryReader()),
+  accountReaderProvider.overrideWith((ref) async => _NoAccountReader()),
 ];
 
 /// Widget tests for the app shell: theming, routing, and the three states the
@@ -122,6 +138,11 @@ void main() {
         bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
       );
       await tester.pumpAndSettle();
+      // Two charts sit above the summary card now (FR-RPT-001's donut and
+      // FR-RPT-004's bars), so it is below the 800×600 fold and `find.text`'s
+      // default `skipOffstage: true` cannot see it until the list scrolls.
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
 
       expect(find.text('Database ready'), findsOneWidget);
       // 15 expense + 3 income, per FR-EXP-003 and FR-INC-002. Scoped to the
@@ -168,13 +189,15 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// The donut chart (FR-RPT-001) now sits above "Coming next", so that
-    /// list no longer fits the 800×600 test surface without scrolling — the
-    /// same thing a real phone screen would do. `find.text`'s default
-    /// `skipOffstage: true` cannot see a tile below the fold, so every tap on
-    /// one goes through this first.
+    /// Two charts (FR-RPT-001's donut and FR-RPT-004's bars) now sit above
+    /// "Coming next", so that list no longer fits the 800×600 test surface
+    /// without scrolling — the same thing a real phone screen would do.
+    /// `find.text`'s default `skipOffstage: true` cannot see a tile below the
+    /// fold, so every tap on one goes through this first. The drag grew with
+    /// the second chart; it is one scroll, not a loop, so that a card
+    /// appearing above it fails here rather than silently scrolling past.
     Future<void> scrollComingNextIntoView(WidgetTester tester) async {
-      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.drag(find.byType(ListView), const Offset(0, -900));
       await tester.pumpAndSettle();
     }
 

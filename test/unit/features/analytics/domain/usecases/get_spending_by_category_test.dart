@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
-import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 
@@ -21,7 +21,7 @@ class _FakeRepository implements AnalyticsRepository {
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    SpendingQuery query,
+    AnalyticsQuery query,
   ) async {
     asked = query.range;
     if (failWith case final failure?) return Left(failure);
@@ -29,14 +29,14 @@ class _FakeRepository implements AnalyticsRepository {
   }
 
   @override
-  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
+  Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query) =>
       throw UnimplementedError();
 }
 
 /// Every case here is about the period, so each range is wrapped in the
 /// all-accounts query the chart sends by default. FR-RPT-003's own cases live
-/// in `spending_query_test.dart` and `account_filter_test.dart`.
-SpendingQuery over(DateRange range) => SpendingQuery(range: range);
+/// in `analytics_query_test.dart` and `account_filter_test.dart`.
+AnalyticsQuery over(DateRange range) => AnalyticsQuery(range: range);
 
 void main() {
   late _FakeRepository repository;

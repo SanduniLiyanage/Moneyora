@@ -11,9 +11,9 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
+import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
-import 'package:moneyora/features/analytics/domain/entities/spending_query.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/presentation/providers/analytics_providers.dart';
@@ -30,11 +30,11 @@ import 'package:moneyora/injection.dart';
 
 /// Records every query it is asked for, in order.
 class _RecordingRepository implements AnalyticsRepository {
-  final List<SpendingQuery> asked = [];
+  final List<AnalyticsQuery> asked = [];
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    SpendingQuery query,
+    AnalyticsQuery query,
   ) async {
     asked.add(query);
     return const Right([
@@ -48,7 +48,7 @@ class _RecordingRepository implements AnalyticsRepository {
   }
 
   @override
-  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
+  Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query) =>
       throw UnimplementedError();
 }
 

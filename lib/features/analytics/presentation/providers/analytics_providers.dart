@@ -14,9 +14,9 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../injection.dart';
+import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
 import '../../domain/entities/period_selection.dart';
-import '../../domain/entities/spending_query.dart';
 import '../../domain/repositories/analytics_repository.dart';
 
 /// The period every analytics surface reports over. FR-RPT-002.
@@ -47,7 +47,7 @@ final analyticsRangeProvider = Provider<DateRange>(
 /// Which account the analytics surfaces count, or null for **All Accounts**.
 /// FR-RPT-003.
 ///
-/// Null rather than a sentinel id, for the same reason [SpendingQuery] holds
+/// Null rather than a sentinel id, for the same reason [AnalyticsQuery] holds
 /// an `int?`: the requirement offers "All Accounts, or any specific single
 /// account", and null is that with no fourth state to handle. It opens on
 /// All, because the chart it filters is a home-screen summary and a summary
@@ -58,11 +58,11 @@ final analyticsAccountFilterProvider = StateProvider<int?>((ref) => null);
 /// FR-RPT-002, FR-RPT-003.
 ///
 /// Derived rather than assembled at each call site, so every surface watching
-/// the same filters keys the `family` below on one identical [SpendingQuery]
+/// the same filters keys the `family` below on one identical [AnalyticsQuery]
 /// — two equal-but-separate keys would run the query twice and cache it
 /// twice.
-final spendingQueryProvider = Provider<SpendingQuery>(
-  (ref) => SpendingQuery(
+final analyticsQueryProvider = Provider<AnalyticsQuery>(
+  (ref) => AnalyticsQuery(
     range: ref.watch(analyticsRangeProvider),
     accountId: ref.watch(analyticsAccountFilterProvider),
   ),
@@ -80,10 +80,10 @@ final spendingQueryProvider = Provider<SpendingQuery>(
 /// exception (`ARCHITECTURE.md` §3; also what keeps `only_throw_errors`
 /// clean here).
 ///
-/// `autoDispose` because it is keyed by [SpendingQuery] and read from one
+/// `autoDispose` because it is keyed by [AnalyticsQuery] and read from one
 /// chart; nothing needs the result once that chart leaves the tree.
 final spendingByCategoryTotalsProvider = FutureProvider.autoDispose
-    .family<List<CategoryTotal>, SpendingQuery>((ref, query) async {
+    .family<List<CategoryTotal>, AnalyticsQuery>((ref, query) async {
       final getSpendingByCategory = await ref.watch(
         getSpendingByCategoryProvider.future,
       );
@@ -92,6 +92,24 @@ final spendingByCategoryTotalsProvider = FutureProvider.autoDispose
         Future<List<CategoryTotal>>.error,
         Future<List<CategoryTotal>>.value,
       );
+    });
+
+/// Total income over the same period and account. FR-RPT-004.
+///
+/// Thin wrapper over [GetIncomeForPeriod], which was built and wired in PR #54
+/// and called by nothing until FR-RPT-004's bars. Keyed on the same
+/// [AnalyticsQuery] the spending provider above uses, so one filter change
+/// moves both bars and neither can be left reporting the last period.
+///
+/// A `Left` completes the future with the [Failure] as its error, the same
+/// convention [spendingByCategoryTotalsProvider] follows.
+final incomeTotalProvider = FutureProvider.autoDispose
+    .family<int, AnalyticsQuery>((ref, query) async {
+      final getIncomeForPeriod = await ref.watch(
+        getIncomeForPeriodProvider.future,
+      );
+      final result = await getIncomeForPeriod(query);
+      return result.match(Future<int>.error, Future<int>.value);
     });
 
 /// Every category, both kinds, kept live — read through [CategoryReader]

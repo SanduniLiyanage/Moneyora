@@ -7,8 +7,8 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/spending_by_category_reader.dart';
+import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
-import '../../domain/entities/spending_query.dart';
 import '../../domain/repositories/analytics_repository.dart';
 import '../datasources/analytics_local_datasource.dart';
 
@@ -30,7 +30,7 @@ class AnalyticsRepositoryImpl
 
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
-    SpendingQuery query,
+    AnalyticsQuery query,
   ) => _attempt(
     () => _local.spendingByCategory(
       from: query.range.from,
@@ -40,8 +40,14 @@ class AnalyticsRepositoryImpl
   );
 
   @override
-  Future<Either<Failure, int>> incomeForPeriod(DateRange range) =>
-      _attempt(() => _local.incomeForPeriod(from: range.from, to: range.to));
+  Future<Either<Failure, int>> incomeForPeriod(AnalyticsQuery query) =>
+      _attempt(
+        () => _local.incomeForPeriod(
+          from: query.range.from,
+          to: query.range.to,
+          accountId: query.accountId,
+        ),
+      );
 
   @override
   Future<Either<Failure, Map<String, int>>> totalsByCategory({
@@ -52,7 +58,7 @@ class AnalyticsRepositoryImpl
     // money sat, and FR-RPT-003's filter is a screen affordance rather than
     // something the port was ever given a way to express.
     final totals = await spendingByCategory(
-      SpendingQuery(
+      AnalyticsQuery(
         range: DateRange(from: from, to: to),
       ),
     );

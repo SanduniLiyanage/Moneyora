@@ -20,7 +20,12 @@ import '../../../../injection.dart';
 /// screen is how it gets answered.
 class HomePage extends ConsumerWidget {
   /// Creates the home screen.
-  const HomePage({super.key, this.drawer, this.spendingChart});
+  const HomePage({
+    super.key,
+    this.drawer,
+    this.spendingChart,
+    this.incomeExpenseChart,
+  });
 
   /// The side panel opened from the app bar, if one was supplied.
   ///
@@ -44,6 +49,11 @@ class HomePage extends ConsumerWidget {
   /// screen without the analytics slice behind it.
   final Widget? spendingChart;
 
+  /// FR-RPT-004's income-vs-expense bars, composed in the same way
+  /// [spendingChart] is. It reads the period and account filters that render
+  /// on the donut's card, so it is placed directly below it.
+  final Widget? incomeExpenseChart;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(databaseSummaryProvider);
@@ -65,6 +75,7 @@ class HomePage extends ConsumerWidget {
         AsyncData(:final value) => _Ready(
           summary: value,
           spendingChart: spendingChart,
+          incomeExpenseChart: incomeExpenseChart,
         ),
         AsyncError(:final error) => _Failed(error: error),
         _ => const Center(child: CircularProgressIndicator()),
@@ -74,10 +85,15 @@ class HomePage extends ConsumerWidget {
 }
 
 class _Ready extends StatelessWidget {
-  const _Ready({required this.summary, required this.spendingChart});
+  const _Ready({
+    required this.summary,
+    required this.spendingChart,
+    required this.incomeExpenseChart,
+  });
 
   final DatabaseSummary summary;
   final Widget? spendingChart;
+  final Widget? incomeExpenseChart;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +105,10 @@ class _Ready extends StatelessWidget {
       children: [
         if (spendingChart != null) ...[
           spendingChart!,
+          const SizedBox(height: 16),
+        ],
+        if (incomeExpenseChart != null) ...[
+          incomeExpenseChart!,
           const SizedBox(height: 16),
         ],
         Card(
