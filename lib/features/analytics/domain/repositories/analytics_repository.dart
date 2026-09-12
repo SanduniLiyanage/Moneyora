@@ -44,4 +44,10 @@ abstract class AnalyticsRepository {
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
     DateRange range,
   );
+
+  /// Totals income over [range]. FR-COP-008.
+  ///
+  /// Income is never split (E-04's split table exists for FR-EXP-010's
+  /// expenses only), so this is a plain sum with no union to write.
+  Future<Either<Failure, int>> incomeForPeriod(DateRange range);
 }

@@ -28,6 +28,9 @@ abstract interface class AnalyticsLocalDataSource {
     required DateTime from,
     required DateTime to,
   });
+
+  /// Totals income between [from] and [to] inclusive.
+  Future<int> incomeForPeriod({required DateTime from, required DateTime to});
 }
 
 /// sqflite implementation of [AnalyticsLocalDataSource].
@@ -86,6 +89,31 @@ SELECT c.id AS category_id, c.name AS name, c.color AS color,
       ]);
 
       return rows.map(CategoryTotalModel.fromMap).toList(growable: false);
+    });
+  }
+
+  /// Income has no split table to union against (E-04's applies to FR-EXP-010's
+  /// expenses only), so this is a plain sum. `COALESCE` turns SQLite's `NULL`
+  /// for "no matching rows" into 0, since there is no `GROUP BY` here to make
+  /// an empty period simply vanish the way `spendingByCategory` does.
+  static const String _incomeForPeriod = '''
+SELECT COALESCE(SUM(amount_cents), 0) AS total_cents
+  FROM transactions
+ WHERE type = 'income'
+   AND date >= ? AND date <= ?
+''';
+
+  @override
+  Future<int> incomeForPeriod({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    return _guard('total income for period', () async {
+      final rows = await _db.rawQuery(_incomeForPeriod, [
+        encodeIsoDay(from),
+        encodeIsoDay(to),
+      ]);
+      return (rows.single['total_cents']! as num).toInt();
     });
   }
 

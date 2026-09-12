@@ -25,6 +25,8 @@ import 'features/accounts/domain/usecases/watch_accounts.dart';
 import 'features/analytics/data/datasources/analytics_local_datasource.dart';
 import 'features/analytics/data/repositories/analytics_repository_impl.dart';
 import 'features/analytics/domain/repositories/analytics_repository.dart';
+import 'features/analytics/domain/usecases/compare_periods.dart';
+import 'features/analytics/domain/usecases/get_income_for_period.dart';
 import 'features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
@@ -399,6 +401,18 @@ final getSpendingByCategoryProvider = FutureProvider<GetSpendingByCategory>(
   (ref) async => GetSpendingByCategory(
     await ref.watch(analyticsRepositoryProvider.future),
   ),
+);
+
+/// Total income over a period. FR-COP-008.
+final getIncomeForPeriodProvider = FutureProvider<GetIncomeForPeriod>(
+  (ref) async =>
+      GetIncomeForPeriod(await ref.watch(analyticsRepositoryProvider.future)),
+);
+
+/// How spending by category moved between two periods. FR-COP-021.
+final comparePeriodsProvider = FutureProvider<ComparePeriods>(
+  (ref) async =>
+      ComparePeriods(await ref.watch(analyticsRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
