@@ -180,10 +180,12 @@ closed the query benchmark out:
   bars — the same aggregate serves both). One new method on
   `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl`: a plain `SUM` over
   income rows, since income is never split.
-- **`ComparePeriods`** (FR-COP-021, and the trend lines). No new query at
-  all — it calls `spendingByCategory` for each period and diffs the results
-  in the domain layer, since a delta is arithmetic on totals that already
-  exist.
+- **`ComparePeriods`** (FR-COP-021). No new query at all — it calls
+  `spendingByCategory` for each period and diffs the results in the domain
+  layer, since a delta is arithmetic on totals that already exist. This
+  paragraph used to add "and the trend lines"; they did not end up using it
+  (see FR-RPT-005 below — a delta is the wrong shape for a line), so it is
+  the Copilot tool's use case and nothing else's.
 
 [E-24](SPEC_ERRATA.md) required both to land as **analytics use cases first
 and Copilot tools second**, so the tool is a genuine wrapper and no aggregate
@@ -304,11 +306,53 @@ categories only, so Bills/Deposits, Entertainment/Salary and Gifts/Savings
 cannot appear together on either. The entry names what would reopen it —
 trend lines, if a line per category ever plots both kinds at once.
 
-### Next — trend lines (FR-RPT-005)
+### Trend lines (FR-RPT-005) — done ([PR #62](https://github.com/SanduniLiyanage/Moneyora/pull/62), merged as `c72abc5`)
 
-Per-category spending over time, over `ComparePeriods` — built, wired as
-`comparePeriodsProvider`, and still called by nothing. Then the calendar
-heatmap (FR-RPT-009), and Sprint 4 is closed.
+Per-category spending over time, one line per category, over the same period
+and account as the two charts above.
+
+**Not over `ComparePeriods`, which this file had pencilled in.** A delta is
+the wrong shape for a line — a line plots levels — and calling it once per
+point costs two `spendingByCategory` queries per point. The cheaper-looking
+middle option, `spendingByCategory` once per bucket, was measured rather than
+assumed: on the 10,000-row benchmark fixture it is within a few milliseconds
+of one bucketed statement on the host VM, which pays no platform-channel
+round trip per call. On a device the loop pays one per point (24 for a
+two-year monthly line, up to 92 for a daily one) and the statement pays one,
+so the statement is the option whose cost does not grow with the number of
+points. That is `AnalyticsLocalDataSource.spendingTrend`, **assembled from
+the same expense fragment as `spendingByCategory`** so the E-02/E-04
+invariants still live in one place, and `GetSpendingTrend` above it. The
+benchmark now times both paths on every CI run.
+
+**The account filter reaches it**, for the same reason it reached the bars:
+a chart under the filter row that quietly ignored the account would look
+filtered and not be. `GetSpendingTrend` takes `AnalyticsQuery`; `ComparePeriods`
+is untouched and still called by nothing.
+
+Granularity is the use case's decision, from the span: day up to about a
+quarter, month beyond it. No week bucket, on purpose — FR-SET-004 makes the
+first weekday configurable in Sprint 7 and a week cut in SQL would ignore it.
+A single Day period is refused as a trend in a sentence rather than drawn as
+one dot. Past five categories the tail folds into "Other", as the donut does
+past six.
+
+**[SPEC_ERRATA.md](SPEC_ERRATA.md)'s colour-collision check was redone for
+this surface and stays closed**: the chart draws expense categories only, the
+same rows the donut draws, so an income colour never renders on it.
+
+### Next — the calendar heatmap (FR-RPT-009)
+
+"A calendar heatmap view highlighting daily spending intensity" — the last of
+the five, and Sprint 4 is closed. Two things it opens with, recorded in
+[`HANDOFF.md`](HANDOFF.md) rather than left to be rediscovered: what a
+heatmap shows for a period that is not a month (a Year or All under a
+day-grid is a different picture, not a longer one), and where the intensity
+scale's ceiling comes from. `spendingTrend` at day granularity already
+answers "how much per day" with the account filter applied; whether the
+heatmap should sum that per day in the domain layer or ask a narrower
+daily-total query is the same measure-before-deciding question FR-RPT-005
+answered for lines.
 
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
 
@@ -398,7 +442,7 @@ way, and an unfinished app is never the price of a finished agent ([E-24](SPEC_E
 | Gemini datasource, egress guard | the above | **Done** |
 | The ask screen, with key entry | the above | **Done** |
 | One real question against the live API | a Gemini API key | **Next — emulator, not device** |
-| The income/compare-periods analytics use cases | Sprint 4 | **Done** — `GetIncomeForPeriod`, `ComparePeriods`, tested and wired into `injection.dart`, called by nothing yet |
+| The income/compare-periods analytics use cases | Sprint 4 | **Done** — `GetIncomeForPeriod` (called by FR-RPT-004's bars since PR #60), `ComparePeriods` (tested, wired into `injection.dart`, still called by nothing — its caller is the tool below) |
 | `get_income_for_period`, `compare_periods` **tools** | the use cases above | Deferred — the use case is the Sprint 4 deliverable; the tool wrapper is Copilot-workstream work, not scheduled here |
 | `get_budget_plan` | **Sprint 5** | Deferred |
 | `get_savings_goal_progress`, affordability query | **Sprint 5+** | Deferred |
