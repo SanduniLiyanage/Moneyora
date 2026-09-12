@@ -173,18 +173,24 @@ the E-02 (transfers) and E-04 (splits) traps. It is what the donut chart
 renders *and* what the Copilot's spending tool reads, through
 `core/ports/spending_by_category_reader.dart`: written once, consumed twice.
 
-Two more aggregates are **deliverables of this sprint**, listed here rather
-than only in the Copilot table below, because that is exactly how they would
-become Copilot-internal again:
+**The two remaining aggregates are also built**, as of the same session that
+closed the query benchmark out:
 
-- **`get_income_for_period`** (FR-COP-008, and FR-RPT-002's income-vs-expense
-  bars — the same aggregate serves both).
-- **`compare_periods`** (FR-COP-021, and the trend lines).
+- **`GetIncomeForPeriod`** (FR-COP-008, and FR-RPT-002's income-vs-expense
+  bars — the same aggregate serves both). One new method on
+  `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl`: a plain `SUM` over
+  income rows, since income is never split.
+- **`ComparePeriods`** (FR-COP-021, and the trend lines). No new query at
+  all — it calls `spendingByCategory` for each period and diffs the results
+  in the domain layer, since a delta is arithmetic on totals that already
+  exist.
 
-[E-24](SPEC_ERRATA.md) is explicit that both are **analytics use cases first
+[E-24](SPEC_ERRATA.md) required both to land as **analytics use cases first
 and Copilot tools second**, so the tool is a genuine wrapper and no aggregate
-query is written twice. Building them inside the Copilot module would
-contradict its own §1 and put reporting logic in a chat feature.
+query is written twice; that is what was built, in
+`lib/features/analytics/domain/usecases/`. The tool wrappers themselves are
+not — they are Copilot-workstream items, not Sprint 4 ones, and are tracked in
+the Copilot table below.
 
 Then the charts themselves.
 
@@ -276,7 +282,8 @@ way, and an unfinished app is never the price of a finished agent ([E-24](SPEC_E
 | Gemini datasource, egress guard | the above | **Done** |
 | The ask screen, with key entry | the above | **Done** |
 | One real question against the live API | a Gemini API key | **Next — emulator, not device** |
-| `get_income_for_period`, `compare_periods` | Sprint 4 | Planned — **Sprint 4 deliverables**, see above |
+| The income/compare-periods analytics use cases | Sprint 4 | **Done** — `GetIncomeForPeriod`, `ComparePeriods`, tested and wired into `injection.dart`, called by nothing yet |
+| `get_income_for_period`, `compare_periods` **tools** | the use cases above | Deferred — the use case is the Sprint 4 deliverable; the tool wrapper is Copilot-workstream work, not scheduled here |
 | `get_budget_plan` | **Sprint 5** | Deferred |
 | `get_savings_goal_progress`, affordability query | **Sprint 5+** | Deferred |
 

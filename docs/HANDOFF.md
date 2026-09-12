@@ -1,13 +1,11 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-12**, `main` at `e0ebf15`, after **51
-merged pull requests** (#2–#52; #1 was closed unmerged) — [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52),
-NFR-PER-001's cold-start splash screen and corrected diagnosis, merged during
-this window and closing out that item of Sprint 4.
-**Plus this session's 10k-row query-benchmark work, on branch
-`perf/analytics-10k-query-benchmark` as
-[PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), open and
-awaiting CI/review — not yet merged.** See "This session" below.
+State of the project as of **2026-09-12**, `main` at `221020f`, after **52
+merged pull requests** (#2–#53; #1 was closed unmerged) — [PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53),
+the 10k-row analytics query benchmark, merged during this window.
+**Plus this session's `get_income_for_period`/`compare_periods` work, on branch
+`feat/analytics-income-and-compare-periods` as PR #54, open and awaiting
+CI/review — not yet merged.** See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
@@ -49,7 +47,50 @@ Read this first, then [`CLAUDE.md`](../CLAUDE.md), then
 [`SPEC_ERRATA.md`](SPEC_ERRATA.md). Together they are everything a new session
 needs.
 
-## This session — the 10k-row query benchmark ([PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), open)
+## This session — `get_income_for_period` and `compare_periods` (PR #54, open)
+
+With [PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53) merged, the
+10k-row query benchmark is closed out. `ROADMAP.md`'s Sprint 4 section places
+the two remaining aggregates next, ahead of the charts, and [E-24](SPEC_ERRATA.md)
+requires both to be analytics use cases first and Copilot tools second — the
+same shape `GetSpendingByCategory` already has.
+
+**`GetIncomeForPeriod`** (FR-COP-008) totals income over a `DateRange`, the
+same period type `GetSpendingByCategory` takes. `AnalyticsRepository` gained
+one method, `incomeForPeriod`, fulfilled by one new query in
+`AnalyticsLocalDataSourceImpl` — a plain `SUM(amount_cents) WHERE type =
+'income'`, `COALESCE`d to 0 because a bare `SUM` with no matching rows is
+`NULL` in SQLite and there is no `GROUP BY` here to make the row disappear the
+way `spendingByCategory` does instead. Income is never split (E-04's split
+table exists for FR-EXP-010's expenses only), so there is no `UNION` to write.
+
+**`ComparePeriods`** (FR-COP-021) returns one `CategoryDelta` — categoryId,
+name, colour, `deltaCents` — per category present in either of two periods,
+largest movement first. It adds no query at all: it calls
+`AnalyticsRepository.spendingByCategory` for each period and diffs the two
+results in the domain layer, on the reasoning in E-24 that a delta is
+arithmetic on totals that already exist, not a second fact only SQL can know.
+A category missing from one period is treated as zero for it, the same
+"nothing appears" convention `spendingByCategory` already uses for a category
+with nothing spent. The first period's failure short-circuits before the
+second query runs, the same fail-fast shape `ArchiveAccount` and the category
+use cases already use via fpdart's `.match`.
+
+Both use cases got their own `validate` (an inverted range/period is rejected
+before any query, same as `GetSpendingByCategory`'s), and both got DI
+providers in `injection.dart` — `getIncomeForPeriodProvider`,
+`comparePeriodsProvider` — wired but not yet called by anything, the same
+state `getSpendingByCategoryProvider` was in before this sprint's chart work
+starts. No Copilot tool and no chart were touched; `features/analytics/
+presentation/` is still empty in all three subdirectories.
+
+`dart format`, `flutter analyze` (0 issues), `flutter test` (680 passing, up
+from 657 — 23 new: the two use cases' own test files, plus cases added to the
+existing datasource and repository tests for `incomeForPeriod`),
+`check_architecture.sh` and `check_citations.sh` are all clean.
+**Not yet merged — do not merge without asking first.**
+
+### Previous session — the 10k-row query benchmark ([PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53), merged as `221020f`)
 
 With [PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52) merged,
 NFR-PER-001's cold start is closed out. `ROADMAP.md`'s Sprint 4 section places
@@ -78,10 +119,9 @@ to catch, not a step toward the NFR figure itself.
 
 No production code changed — this is a test-only addition. `flutter analyze`
 (0 issues), `flutter test` (657 passing, up from 656), `check_architecture.sh`
-and `check_citations.sh` are all clean.
-**Not yet merged — do not merge without asking first.**
+and `check_citations.sh` are all clean. Merged as `221020f`.
 
-### Previous session — NFR-PER-001's cold start, re-measured ([PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), merged as `e0ebf15`)
+### Session before that — NFR-PER-001's cold start, re-measured ([PR #52](https://github.com/SanduniLiyanage/Moneyora/pull/52), merged as `e0ebf15`)
 
 Sprint 4 — analytics — opened with the roadmap's own first item: NFR-PER-001's
 cold start, "fixed before the charts, not after," diagnosed in
@@ -143,7 +183,7 @@ all clean. Built and ran a release APK on the emulator — also closing out the
 confirmed no crash and the home screen renders correctly. Merged as
 `e0ebf15`.
 
-### Session before that — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), merged as `008633e`)
+### Earlier still — retiring `entry_catalog.dart` ([PR #51](https://github.com/SanduniLiyanage/Moneyora/pull/51), merged as `008633e`)
 
 E-27's resolution, next after [PR #50](https://github.com/SanduniLiyanage/Moneyora/pull/50)
 gave the inline `+` its write path. The read the created row landed in was
@@ -335,13 +375,16 @@ entry screen's category chips and both screens' account pickers all read
 uses on the other side.
 
 **Sprint 4 — analytics — has domain and data only, plus the cold-start splash
-(PR #52) and this session's query benchmark.** `GetSpendingByCategory`, its
-datasource and its repository are in and tested; a benchmark now proves that
-query stays fast at 10,000 rows on this host's VM (see "This session" above);
-`features/analytics/presentation/` is still empty in all three of its
-subdirectories. There is no chart. `fl_chart` is declared in `pubspec.yaml`
-and imported nowhere. NFR-PER-001's item is done — it lived in `main.dart`,
-not the feature, so it did not need the feature's own layers to exist first.
+(PR #52), the query benchmark (PR #53) and this session's two remaining
+aggregates.** `GetSpendingByCategory`, `GetIncomeForPeriod` and
+`ComparePeriods` — with `AnalyticsRepository`/`AnalyticsLocalDataSourceImpl`
+underneath all three — are in and tested; a benchmark proves the
+category-total query stays fast at 10,000 rows on this host's VM (see
+"Previous session" above). `features/analytics/presentation/` is still empty
+in all three of its subdirectories. There is no chart. `fl_chart` is declared
+in `pubspec.yaml` and imported nowhere. NFR-PER-001's item is done — it lived
+in `main.dart`, not the feature, so it did not need the feature's own layers
+to exist first.
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
@@ -434,26 +477,27 @@ run cannot be an oracle.
 
 ## What is next
 
-**First: watch and merge [PR #53](https://github.com/SanduniLiyanage/Moneyora/pull/53).**
+**First: watch and merge PR #54** (`get_income_for_period`/`compare_periods`).
 Opened this session, not yet merged — deliberately left for a human decision
 rather than merged automatically. Once reviewed and CI is green:
 
 ```powershell
-gh pr checks 53 --watch
-gh pr merge 53 --squash --delete-branch
+gh pr checks 54 --watch
+gh pr merge 54 --squash --delete-branch
 git pull
 ```
 
-Once that lands, Sprint 4's cold-start item (PR #52) and its query benchmark
-(PR #53) are both closed. The rest of **Sprint 4 — analytics** is, in the
-order `ROADMAP.md` sets:
+Once that lands, Sprint 4's cold-start item (PR #52), its query benchmark
+(PR #53) and both remaining aggregates (PR #54) are closed. The rest of
+**Sprint 4 — analytics** is, in the order `ROADMAP.md` sets:
 
-- **`get_income_for_period` and `compare_periods`** (FR-COP-008, FR-COP-021),
-  as analytics use cases first and Copilot tools second, per
-  [E-24](SPEC_ERRATA.md) — the same shape `GetSpendingByCategory` already has.
-  **This is the next unfinished Sprint 4 item.**
-- **The charts** — donut, income-vs-expense bars, trend lines, heatmap — once
-  the aggregates above exist to draw from.
+- **The charts** — donut, income-vs-expense bars, trend lines, heatmap — now
+  that all three aggregates exist to draw from. `GetSpendingByCategory`,
+  `GetIncomeForPeriod` and `ComparePeriods` are wired into `injection.dart`
+  (`getSpendingByCategoryProvider`, `getIncomeForPeriodProvider`,
+  `comparePeriodsProvider`) but called by nothing yet — the same "built,
+  wired, unreached" state `RecomputeAccountBalance` is in below, until a
+  screen exists to call them. **This is the next unfinished Sprint 4 item.**
 
 **FR-EXP-011's category-grouped list toggle is not Sprint 4 work**, despite
 the name inviting the mix-up. `ROADMAP.md`'s own Sprint 3.5 section lists it
