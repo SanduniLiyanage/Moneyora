@@ -2,9 +2,10 @@ import 'package:equatable/equatable.dart';
 
 import 'category_classification.dart';
 import 'category_statistics.dart';
+import 'confidence_score.dart';
 
-/// What one category is allocated for a plan period, and how it got there.
-/// FR-PLN-007, FR-PLN-009.
+/// What one category is allocated for a plan period, how it got there, and
+/// how far to trust it. FR-PLN-007, FR-PLN-009, FR-PLN-010.
 ///
 /// Every factor is carried so the wizard can explain the number —
 /// *"Rs 45,000 a month, ×1.08 because this is rising"* — rather than show a
@@ -18,6 +19,7 @@ class CategoryAllocation extends Equatable {
     required this.trendFactor,
     required this.allocationCents,
     required this.dailyAllowanceCents,
+    required this.confidence,
   });
 
   /// The class and statistics the allocation was derived from.
@@ -43,6 +45,10 @@ class CategoryAllocation extends Equatable {
   /// day cannot overspend the allocation. FR-PLN-009.
   final int dailyAllowanceCents;
 
+  /// How far to trust the figure, and why. FR-PLN-010. Unchanged by the
+  /// total-budget modes: scaling to a total says nothing about the data.
+  final ConfidenceScore confidence;
+
   /// The category.
   int get categoryId => classification.categoryId;
 
@@ -65,6 +71,7 @@ class CategoryAllocation extends Equatable {
         trendFactor: trendFactor,
         allocationCents: allocationCents,
         dailyAllowanceCents: days > 0 ? allocationCents ~/ days : 0,
+        confidence: confidence,
       );
 
   @override
@@ -75,5 +82,6 @@ class CategoryAllocation extends Equatable {
     trendFactor,
     allocationCents,
     dailyAllowanceCents,
+    confidence,
   ];
 }
