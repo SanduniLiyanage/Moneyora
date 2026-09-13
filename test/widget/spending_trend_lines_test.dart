@@ -14,6 +14,7 @@ import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/core/theme/category_palette.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
@@ -32,6 +33,11 @@ import 'package:moneyora/injection.dart';
 
 /// Answers `spendingTrend` from a script, recording what it was asked.
 class _ScriptedRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) => throw UnimplementedError();
+
   _ScriptedRepository({this.points = const [], this.failure, this.hold});
 
   final List<TrendPoint> points;

@@ -4,6 +4,7 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../entities/analytics_query.dart';
 import '../entities/category_total.dart';
+import '../entities/daily_total.dart';
 import '../entities/trend_point.dart';
 
 /// A closed period to report over, both ends **inclusive** whole days.
@@ -103,5 +104,15 @@ abstract class AnalyticsRepository {
   Future<Either<Failure, List<TrendPoint>>> spendingTrend(
     AnalyticsQuery query,
     TrendGranularity granularity,
+  );
+
+  /// Expense spending per day over [query]'s period, every category added
+  /// together, for one account or all of them. FR-RPT-009.
+  ///
+  /// Sparse: a day with nothing spent has no row. The same rows
+  /// [spendingByCategory] counts, cut by day — E-02 and E-04 hold here
+  /// because they hold there.
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
   );
 }

@@ -221,4 +221,56 @@ void main() {
     // to catch an index going missing, not to certify the NFR.
     expect(oneStatementMicros / 1000, lessThan(1000));
   });
+
+  test('dailySpendingTotals over one month — one daily statement against '
+      'spendingTrend(day) folded per day, host VM, comparative only', () async {
+    // FR-RPT-009's decision, kept measurable: the heatmap reads a
+    // one-row-per-day statement with no `categories` join rather than the
+    // trend's per-category daily points summed in Dart. Both are timed here
+    // so the choice stays a number.
+    final from = DateTime(end.year, end.month);
+
+    await analytics.dailySpendingTotals(from: from, to: end);
+    await analytics.spendingTrend(
+      from: from,
+      to: end,
+      granularity: TrendGranularity.day,
+    );
+
+    const runs = 5;
+    var dailyMicros = double.infinity;
+    var foldedMicros = double.infinity;
+    for (var i = 0; i < runs; i++) {
+      final daily = Stopwatch()..start();
+      final days = await analytics.dailySpendingTotals(from: from, to: end);
+      daily.stop();
+      expect(days, isNotEmpty);
+      dailyMicros = min(dailyMicros, daily.elapsedMicroseconds.toDouble());
+
+      final folded = Stopwatch()..start();
+      final points = await analytics.spendingTrend(
+        from: from,
+        to: end,
+        granularity: TrendGranularity.day,
+      );
+      final perDay = <DateTime, int>{};
+      for (final p in points) {
+        perDay[p.bucket] = (perDay[p.bucket] ?? 0) + p.amountCents;
+      }
+      folded.stop();
+      expect(perDay, isNotEmpty);
+      foldedMicros = min(foldedMicros, folded.elapsedMicroseconds.toDouble());
+    }
+
+    // ignore: avoid_print
+    print(
+      'dailySpendingTotals (one month) @ $rowCount transactions: '
+      'daily statement min ${(dailyMicros / 1000).toStringAsFixed(1)}ms, '
+      'spendingTrend(day) folded min '
+      '${(foldedMicros / 1000).toStringAsFixed(1)}ms '
+      '(host machine VM, comparative — not NFR-PER-006 evidence).',
+    );
+
+    expect(dailyMicros / 1000, lessThan(1000));
+  });
 }

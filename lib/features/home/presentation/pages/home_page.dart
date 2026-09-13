@@ -26,6 +26,7 @@ class HomePage extends ConsumerWidget {
     this.spendingChart,
     this.incomeExpenseChart,
     this.spendingTrendChart,
+    this.spendingHeatmap,
   });
 
   /// The side panel opened from the app bar, if one was supplied.
@@ -60,6 +61,10 @@ class HomePage extends ConsumerWidget {
   /// donut's card.
   final Widget? spendingTrendChart;
 
+  /// FR-RPT-009's calendar heatmap, composed in the same way and placed
+  /// below the lines: fourth and last of the Sprint 4 charts.
+  final Widget? spendingHeatmap;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(databaseSummaryProvider);
@@ -83,6 +88,7 @@ class HomePage extends ConsumerWidget {
           spendingChart: spendingChart,
           incomeExpenseChart: incomeExpenseChart,
           spendingTrendChart: spendingTrendChart,
+          spendingHeatmap: spendingHeatmap,
         ),
         AsyncError(:final error) => _Failed(error: error),
         _ => const Center(child: CircularProgressIndicator()),
@@ -97,12 +103,14 @@ class _Ready extends StatelessWidget {
     required this.spendingChart,
     required this.incomeExpenseChart,
     required this.spendingTrendChart,
+    required this.spendingHeatmap,
   });
 
   final DatabaseSummary summary;
   final Widget? spendingChart;
   final Widget? incomeExpenseChart;
   final Widget? spendingTrendChart;
+  final Widget? spendingHeatmap;
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +130,10 @@ class _Ready extends StatelessWidget {
         ],
         if (spendingTrendChart != null) ...[
           spendingTrendChart!,
+          const SizedBox(height: 16),
+        ],
+        if (spendingHeatmap != null) ...[
+          spendingHeatmap!,
           const SizedBox(height: 16),
         ],
         Card(

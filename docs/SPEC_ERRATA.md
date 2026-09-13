@@ -1751,6 +1751,17 @@ cannot reopen this either. The three colliding pairs remain unreachable in
 the chart set as built, and the check is closed unless a later surface
 plots income and expense categories on one axis.
 
+*Redone for the calendar heatmap (PR #64): still no collision reachable, and
+the Sprint 4 chart set is now complete.* FR-RPT-009's `SpendingHeatmap` draws
+daily *totals* — the datasource's `_dailySpending` is the same
+`type = 'expense'` fragment as the other three statements, grouped by day
+with no `categories` join — so no category is selected and no category
+colour rendered. Every cell is `AppColors.expense` at one of five opacities,
+shaded against the largest day in the displayed month. With all five Sprint
+4 charts built, the three colliding pairs are unreachable on every surface,
+and the check is closed unless a later surface plots income and expense
+categories on one axis.
+
 **3. `receipt_scans` has no column for the receipt ID or number, for Sprint 6.**
 FR-RCP-005 requires parsing *"receipt total, tax/VAT amount (if present), and
 receipt ID/number."* DBD §3.9's `receipt_scans` table stores `image_path`,

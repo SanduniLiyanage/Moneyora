@@ -6,6 +6,7 @@ import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/account_drawer.dart';
 import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
 import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
+import '../../features/analytics/presentation/widgets/spending_heatmap.dart';
 import '../../features/analytics/presentation/widgets/spending_trend_lines.dart';
 import '../../features/categories/domain/entities/category.dart';
 import '../../features/categories/presentation/pages/category_form_page.dart';
@@ -72,8 +73,8 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.home,
       name: 'home',
       // The accounts panel (FR-ACC-003), the donut chart (FR-RPT-001), the
-      // income-vs-expense bars (FR-RPT-004) and the trend lines (FR-RPT-005)
-      // are composed in here rather than imported by the home screen, which
+      // income-vs-expense bars (FR-RPT-004), the trend lines (FR-RPT-005)
+      // and the heatmap (FR-RPT-009) are composed in here rather than imported by the home screen, which
       // would be one feature importing another. This file already names
       // every feature's pages, so it is where the app is assembled.
       builder: (context, state) => const HomePage(
@@ -81,6 +82,7 @@ GoRouter buildRouter() => GoRouter(
         spendingChart: SpendingDonutChart(),
         incomeExpenseChart: IncomeExpenseBars(),
         spendingTrendChart: SpendingTrendLines(),
+        spendingHeatmap: SpendingHeatmap(),
       ),
     ),
     GoRoute(

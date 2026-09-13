@@ -9,6 +9,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/spending_by_category_reader.dart';
 import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
+import '../../domain/entities/daily_total.dart';
 import '../../domain/entities/trend_point.dart';
 import '../../domain/repositories/analytics_repository.dart';
 import '../datasources/analytics_local_datasource.dart';
@@ -59,6 +60,17 @@ class AnalyticsRepositoryImpl
       from: query.range.from,
       to: query.range.to,
       granularity: granularity,
+      accountId: query.accountId,
+    ),
+  );
+
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) => _attempt(
+    () => _local.dailySpendingTotals(
+      from: query.range.from,
+      to: query.range.to,
       accountId: query.accountId,
     ),
   );

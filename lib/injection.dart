@@ -28,6 +28,7 @@ import 'features/analytics/domain/repositories/analytics_repository.dart';
 import 'features/analytics/domain/usecases/compare_periods.dart';
 import 'features/analytics/domain/usecases/get_income_for_period.dart';
 import 'features/analytics/domain/usecases/get_spending_by_category.dart';
+import 'features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'features/analytics/domain/usecases/get_spending_trend.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
@@ -420,6 +421,12 @@ final comparePeriodsProvider = FutureProvider<ComparePeriods>(
 final getSpendingTrendProvider = FutureProvider<GetSpendingTrend>(
   (ref) async =>
       GetSpendingTrend(await ref.watch(analyticsRepositoryProvider.future)),
+);
+
+/// One month of daily totals, for the calendar heatmap. FR-RPT-009.
+final getSpendingCalendarProvider = FutureProvider<GetSpendingCalendar>(
+  (ref) async =>
+      GetSpendingCalendar(await ref.watch(analyticsRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

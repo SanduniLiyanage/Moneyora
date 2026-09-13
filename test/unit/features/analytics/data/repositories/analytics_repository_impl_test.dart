@@ -4,6 +4,7 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/spending_by_category_reader.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
 import 'package:moneyora/features/analytics/data/models/category_total_model.dart';
+import 'package:moneyora/features/analytics/data/models/daily_total_model.dart';
 import 'package:moneyora/features/analytics/data/models/trend_point_model.dart';
 import 'package:moneyora/features/analytics/data/repositories/analytics_repository_impl.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
@@ -83,6 +84,23 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
     this.granularity = granularity;
     if (throws case final failure?) throw failure;
     return points;
+  }
+
+  List<DailyTotalModel> days = [
+    DailyTotalModel(date: DateTime(2026, 8, 3), amountCents: 120000),
+  ];
+
+  @override
+  Future<List<DailyTotalModel>> dailySpendingTotals({
+    required DateTime from,
+    required DateTime to,
+    int? accountId,
+  }) async {
+    this.from = from;
+    this.to = to;
+    this.accountId = accountId;
+    if (throws case final failure?) throw failure;
+    return days;
   }
 }
 
@@ -199,6 +217,43 @@ void main() {
         expect(failure, isA<CacheFailure>());
         expect(failure.message, 'disk is full');
       }, (_) => fail('should not have returned points'));
+    });
+  });
+
+  group('daily totals (FR-RPT-009)', () {
+    test(
+      'passes the period and account through and returns the days',
+      () async {
+        final datasource = _FakeDataSource();
+        final repository = AnalyticsRepositoryImpl(datasource);
+
+        final result = await repository.dailySpendingTotals(
+          AnalyticsQuery(range: august, accountId: 2),
+        );
+
+        expect(datasource.from, august.from);
+        expect(datasource.to, august.to);
+        expect(datasource.accountId, 2);
+        result.fold((f) => fail('unexpected failure: $f'), (days) {
+          expect(days.single.date, DateTime(2026, 8, 3));
+          expect(days.single.amountCents, 120000);
+        });
+      },
+    );
+
+    test('turns a cache exception into a failure at this boundary', () async {
+      final repository = AnalyticsRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final result = await repository.dailySpendingTotals(
+        AnalyticsQuery(range: august),
+      );
+
+      result.fold((failure) {
+        expect(failure, isA<CacheFailure>());
+        expect(failure.message, 'disk is full');
+      }, (_) => fail('should not have returned days'));
     });
   });
 

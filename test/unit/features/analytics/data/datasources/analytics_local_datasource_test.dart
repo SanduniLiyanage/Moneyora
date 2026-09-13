@@ -881,6 +881,174 @@ void main() {
     );
   });
 
+  group('spending per day (FR-RPT-009)', () {
+    test(
+      'totals every category into one row per day, earliest first',
+      () async {
+        await insertExpense(
+          categoryId: food,
+          amountCents: 120000,
+          date: '2026-08-14',
+        );
+        await insertExpense(
+          categoryId: food,
+          amountCents: 80000,
+          date: '2026-08-03',
+        );
+        await insertExpense(
+          categoryId: transport,
+          amountCents: 50000,
+          date: '2026-08-03',
+        );
+
+        final days = await analytics.dailySpendingTotals(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+        );
+
+        expect(days.map((d) => d.date), [
+          DateTime(2026, 8, 3),
+          DateTime(2026, 8, 14),
+        ]);
+        expect(days.first.amountCents, 130000);
+        expect(days.last.amountCents, 120000);
+      },
+    );
+
+    test('is sparse: a day with nothing spent has no row', () async {
+      await insertExpense(categoryId: food, amountCents: 1, date: '2026-08-03');
+
+      final days = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(days.length, 1);
+    });
+
+    test('stays inside the range at both edges', () async {
+      await insertExpense(categoryId: food, amountCents: 1, date: '2026-07-31');
+      await insertExpense(categoryId: food, amountCents: 2, date: '2026-08-01');
+      await insertExpense(categoryId: food, amountCents: 4, date: '2026-08-31');
+      await insertExpense(categoryId: food, amountCents: 8, date: '2026-09-01');
+
+      final days = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(days.map((d) => d.amountCents), [2, 4]);
+    });
+
+    test("a split counts its parts once, on the parent's day (E-04)", () async {
+      final parent = await insertExpense(
+        categoryId: food,
+        amountCents: 300000,
+        date: '2026-08-05',
+        isSplit: true,
+      );
+      await db.insert('transaction_splits', {
+        'transaction_id': parent,
+        'category_id': food,
+        'amount_cents': 200000,
+      });
+      await db.insert('transaction_splits', {
+        'transaction_id': parent,
+        'category_id': transport,
+        'amount_cents': 100000,
+      });
+
+      final days = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(days.single.date, DateTime(2026, 8, 5));
+      expect(days.single.amountCents, 300000);
+    });
+
+    test('a transfer and an income contribute nothing (E-02)', () async {
+      for (final (account, direction) in [(cash, 'out'), (card, 'in')]) {
+        await db.insert('transactions', {
+          'account_id': account,
+          'amount_cents': 2500000,
+          'type': 'transfer',
+          'transfer_direction': direction,
+          'date': '2026-08-10',
+          'created_at': '2026-08-10T00:00:00Z',
+          'updated_at': '2026-08-10T00:00:00Z',
+        });
+      }
+      await insertExpense(
+        categoryId: salary,
+        amountCents: 8000000,
+        date: '2026-08-01',
+        type: 'income',
+      );
+
+      final days = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(days, isEmpty);
+    });
+
+    test('counts only the account asked for (FR-RPT-003)', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 100,
+        date: '2026-08-03',
+        accountId: cash,
+      );
+      await insertExpense(
+        categoryId: food,
+        amountCents: 900,
+        date: '2026-08-04',
+        accountId: card,
+      );
+
+      final onCard = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        accountId: card,
+      );
+      final everywhere = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(onCard.single.amountCents, 900);
+      expect(everywhere.map((d) => d.amountCents), [100, 900]);
+    });
+
+    test('agrees with the trend cut by day, summed per day', () async {
+      await insertExpense(categoryId: food, amountCents: 5, date: '2026-08-03');
+      await insertExpense(
+        categoryId: transport,
+        amountCents: 7,
+        date: '2026-08-03',
+      );
+      await insertExpense(categoryId: food, amountCents: 9, date: '2026-08-20');
+
+      final days = await analytics.dailySpendingTotals(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+        granularity: TrendGranularity.day,
+      );
+      final folded = <DateTime, int>{};
+      for (final p in points) {
+        folded[p.bucket] = (folded[p.bucket] ?? 0) + p.amountCents;
+      }
+
+      expect({for (final d in days) d.date: d.amountCents}, folded);
+    });
+  });
+
   group('against the seeded 24 months', () {
     // `dev_seed` generates deliberately shaped categories. Because it is
     // deterministic, the aggregate can be checked against what the fixture is

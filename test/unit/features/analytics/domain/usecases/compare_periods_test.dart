@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/compare_periods.dart';
@@ -23,6 +24,11 @@ const _transport = CategoryTotal(
 /// Returns canned totals for whichever range it is asked for, keyed by call
 /// order, and can be told to fail on either call.
 class _FakeRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) => throw UnimplementedError();
+
   final List<DateRange> asked = [];
   Failure? failFirstWith;
   Failure? failSecondWith;
