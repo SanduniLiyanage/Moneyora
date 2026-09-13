@@ -1,17 +1,20 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-13**, `main` at `893e673`, after **69
-merged pull requests** (#2–#70; #1 was closed unmerged). **Sprint 5 is
-under way**: statistics
+State of the project as of **2026-09-13**, `main` at `4bbae30`, after **71
+merged pull requests** (#2–#72; #1 was closed unmerged). **Sprint 5's
+engine is complete**: statistics
 ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)),
 classification
-([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68)) and
-allocation ([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70)) all merged during this window. See "This session" below.
+([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68)),
+allocation
+([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70)) and
+confidence ([PR #72](https://github.com/SanduniLiyanage/Moneyora/pull/72)) all merged during this window; what remains of the
+sprint is the wizard and live tracking. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `893e673`, with PR #70 merged.
+at `4bbae30`, with PR #72 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -20,15 +23,24 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **1020 passing** | `flutter test` |
+| Tests | **1045 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 127 in `lib/`, 71 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 129 in `lib/`, 73 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 946 at `afe2f3b` (PR #68, merged) plus 74 net new from
+Tests by area: 1020 at `893e673` (PR #70, merged) plus 25 net new from
+FR-PLN-010 — 15 in `score_confidence_test.dart` (the level ordering, months
+not rows, the count threshold at 9/10 and 3/4, the CV threshold at
+0.2492/0.2503 and 0.4995/0.5005 on constructed series, the E-07 cap at 12
+and 23 vs 24 months and that it never raises) and 10 in
+`test/integration/score_confidence_seed_test.dart` against `dev_seed` at
+24 and 6 months, including that Option A scaling leaves the score
+unchanged. **No assertion changed or was removed.**
+
+Before that: 946 at `afe2f3b` (PR #68, merged) plus 74 net new from
 FR-PLN-007/008/009 — 40 in `allocate_budget_formulas_test.dart` (each
 formula alone: the recent average, the weighted moving average at and
 below three months, the seasonal multiplier, the trend factor, proportional
@@ -96,6 +108,52 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the confidence score ([PR #72](https://github.com/SanduniLiyanage/Moneyora/pull/72), merged as `4bbae30`)
+
+**FR-PLN-010**, the fourth and last engine stage of Sprint 5:
+`ScoreConfidence.score(statistics, window)` gives every
+`CategoryAllocation` a `ConfidenceScore` — High / Medium / Low, the level
+the data alone earned, the data points and CV it read, the lookback —
+attached by `AllocateBudget.allocate`, so `MoneyPlanDraft` is complete for
+the wizard. Pure arithmetic (E-05); nothing new to read.
+
+**"Data points" are `activeMonths`, not `transactionCount` — decided, and
+nothing after this stage may quietly redefine it.** An allocation is a
+monthly figure estimated from monthly totals, so its support is the number
+of monthly observations: Food's 521 rows are 24 observations. Rows within a
+month make that month less noisy, which the CV already reflects; counted
+as data points they would let a category bought daily reach High on one
+month of history. Two consequences, both wanted: `activeMonths` never
+exceeds the window, so High (ten or more) is unreachable under the
+six-month default — which is what E-07 requires anyway, so the two rules
+agree rather than the cap doing the sufficiency rule's work; and the cap
+is only *binding* for windows of 10–23 months, where it is tested.
+
+**The bands** are the SDD's, with strict `<` on the CV, and E-07's cap is
+a `min` applied after them. **On the seed at 24 months:** Bills High
+(24 months, CV 0.001), Food High (on 24 months, not on 521 rows), Pets Low
+(3 months). **At six months** nothing is High; Bills and Food are Medium
+*earned* on count, not imposed by the cap.
+
+**Two things the bands do, recorded rather than changed** — both would
+take a different CV, and both are a decision for whoever next touches the
+statistics stage, not a quiet fix:
+
+- **Car reads Low at 24 months** (CV 0.52). The SDD's CV is not detrended,
+  so a clean 8%/month climb on 72 rows is "high variance". A CV of the
+  residuals around the regression line would read it as steady-and-rising.
+- **Every Seasonal category reads Low.** Two spikes that clear 1.5× the
+  mean put the CV past 0.16 by construction (PR #68), and usually far past
+  0.50 (Gifts: 2.15). The multiplier already accounts for the spikes; the
+  band still counts them as variance. A CV excluding the seasonal months
+  would be the matching remedy.
+
+Confidence is attached, not applied: no figure changes. Pets still gets
+its 8% buffer (the SDD applies it unconditionally); the Low score is what
+tells the user not to trust it.
+
+---
 
 ## This session — the allocator ([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70), merged as `893e673`)
 
@@ -1066,20 +1124,23 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5 is under way.** Its statistics (PR #66), classification
-(PR #68) and allocation (PR #70) stages are merged and `main` is clean at
-`893e673`. Per `ROADMAP.md` the order is statistics → classification →
-allocation → **confidence** → wizard UI → live tracking — so the next slice
-is FR-PLN-010's confidence score per allocation: High / Medium / Low from
-data sufficiency and variance (the SDD's `data_points >= 10 and CV < 0.25`
-/ `>= 4 and CV < 0.50` / otherwise), with E-07's cap at MEDIUM below a
-24-month lookback. It reads `CategoryAllocation.statistics`
-(`transactionCount`, `activeMonths`, `coefficientOfVariation`) and the
-window; nothing new to query. Three cases it inherits from the seed: Pets
-(3 rows, "rising"), Food at CV 0.157 over 24 months and Fixed over 6, and
-whether "data points" means rows or months — `transactionCount` says 521
-for Food and 24 for Bills, `activeMonths` says 24 for both. Two Sprint 4
-leftovers are *not* blockers for it:
+**Sprint 5's engine is complete.** Statistics (PR #66), classification
+(PR #68), allocation (PR #70) and confidence (PR #72) are merged and `main`
+is clean at `4bbae30`. Per `ROADMAP.md` what follows is the **wizard UI** —
+FR-PLN-001's entry from the main navigation, FR-PLN-002's period picker,
+FR-PLN-008's mode choice, the review screen over `MoneyPlanDraft` with
+FR-PLN-011's manual adjustment (others recalculating to hold the total —
+`AllocateBudget.distribute` is the arithmetic for that) and FR-PLN-012's
+what-if, then saving to `money_plans` / `plan_allocations` (the first
+write this feature makes, and the first use of `ExpenseType` and
+`ConfidenceLevel`'s stored strings), then FR-PLN-013's live tracking. The
+draft carries every factor and every reason so the screen can explain a
+figure rather than show one; E-07 requires the reason to be stated when
+the lookback caps the confidence, and `ConfidenceScore.isCappedByLookback`
+is that flag. The lookback length itself is FR-PLN-003's setting, which
+does not exist until Sprint 7: until then the wizard passes
+`LookbackWindow.defaultMonths`. Two Sprint 4 leftovers are *not*
+blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
