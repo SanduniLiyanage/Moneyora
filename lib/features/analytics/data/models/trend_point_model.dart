@@ -13,6 +13,7 @@ class TrendPointModel extends TrendPoint {
     required super.name,
     required super.color,
     required super.amountCents,
+    required super.transactionCount,
   });
 
   /// Reads one row of the aggregate.
@@ -32,5 +33,6 @@ class TrendPointModel extends TrendPoint {
     name: map['name']! as String,
     color: map['color']! as String,
     amountCents: (map['total_cents']! as num).toInt(),
+    transactionCount: map['transaction_count']! as int,
   );
 }

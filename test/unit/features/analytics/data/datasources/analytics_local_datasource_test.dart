@@ -710,6 +710,38 @@ void main() {
       );
     });
 
+    test('counts the rows behind each point (FR-PLN-005)', () async {
+      await insertExpense(categoryId: food, amountCents: 1, date: '2026-03-31');
+      await insertExpense(categoryId: food, amountCents: 2, date: '2026-03-01');
+      await insertExpense(categoryId: food, amountCents: 4, date: '2026-11-15');
+      // A split with two parts in one category counts twice: E-04 counts
+      // parts, and the total above them does too.
+      final split = await insertExpense(
+        categoryId: food,
+        amountCents: 10,
+        date: '2026-11-20',
+        isSplit: true,
+      );
+      for (final part in [3, 7]) {
+        await db.insert('transaction_splits', {
+          'transaction_id': split,
+          'category_id': food,
+          'amount_cents': part,
+        });
+      }
+
+      final points = await analytics.spendingTrend(
+        from: DateTime(2026),
+        to: DateTime(2026, 12, 31),
+        granularity: TrendGranularity.month,
+      );
+
+      expect(
+        {for (final p in points) p.bucket: p.transactionCount},
+        {DateTime(2026, 3): 2, DateTime(2026, 11): 3},
+      );
+    });
+
     test('is sparse: a bucket with nothing spent has no row', () async {
       await insertExpense(categoryId: food, amountCents: 1, date: '2026-08-03');
 

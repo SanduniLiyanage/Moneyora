@@ -84,6 +84,7 @@ void main() {
     name: name,
     color: color,
     amountCents: cents,
+    transactionCount: 1,
   );
 
   Widget boot(

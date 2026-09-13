@@ -65,6 +65,7 @@ class TrendPoint extends Equatable {
     required this.name,
     required this.color,
     required this.amountCents,
+    required this.transactionCount,
   });
 
   /// The start of the bucket, as [TrendGranularity.bucketOf] would give it.
@@ -83,6 +84,17 @@ class TrendPoint extends Equatable {
   /// (E-06): a bucket with nothing spent has no point at all.
   final int amountCents;
 
+  /// How many expense rows — or split parts (E-04) — [amountCents] sums.
+  /// Carried for FR-PLN-005's transaction frequency; the charts ignore it.
+  final int transactionCount;
+
   @override
-  List<Object?> get props => [bucket, categoryId, name, color, amountCents];
+  List<Object?> get props => [
+    bucket,
+    categoryId,
+    name,
+    color,
+    amountCents,
+    transactionCount,
+  ];
 }
