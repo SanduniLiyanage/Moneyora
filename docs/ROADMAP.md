@@ -390,12 +390,22 @@ cross-feature import. Proven against `dev_seed` end to end; the two
 findings the classifier inherits (Food's CV is 0.157 at month granularity;
 Pets trends on three rows) are in [`HANDOFF.md`](HANDOFF.md).
 
-### Next — classification (FR-PLN-004)
+### Classification (FR-PLN-004) — done ([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68), merged as `afe2f3b`)
 
-Fixed (CV < 0.15) / Variable / Seasonal over `CategoryStatistics`, with
-E-07's gate: Seasonal needs the full 24 months and a month-of-year index
-above 1.5 recurring in the same month across two years; below 24 months it
-is never assigned and confidence is capped at MEDIUM.
+`ClassifyCategories` over `CategoryStatistics`: Fixed at the SDD's CV < 0.15
+(kept unchanged — Food's 0.157 reads Variable, reasoning in
+[`HANDOFF.md`](HANDOFF.md)), Seasonal by E-07's month-of-year index read
+strictly and gated on the full 24 months, Variable otherwise. Proven on
+`dev_seed` at 24 and 6 months. No confidence check — that is FR-PLN-010's.
+One finding for the allocator: over six months Car reads Fixed *and*
+rising, so the trend buffer goes by trend, not class.
+
+### Next — allocation (FR-PLN-007, FR-PLN-008, FR-PLN-009)
+
+Exact recent average for Fixed; 60/40 weighted moving average for
+Variable; a seasonal multiplier where the planned period lands on a
+`seasonalMonths` entry; the trend adjustment by `trend`, whatever the
+class. Then the two total-budget modes and the daily allowance.
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 

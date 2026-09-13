@@ -1,16 +1,16 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-13**, `main` at `76ebe8c`, after **65
-merged pull requests** (#2–#66; #1 was closed unmerged). **Sprint 4 is
-closed** (PR #65 recorded it) and **Sprint 5 has started**: its first slice,
-FR-PLN-005's per-category statistics
-([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)), merged
-during this window. See "This session" below.
+State of the project as of **2026-09-13**, `main` at `afe2f3b`, after **67
+merged pull requests** (#2–#68; #1 was closed unmerged). **Sprint 5 is
+under way**: its statistics stage
+([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)) and its
+classification stage ([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68)) both merged during this window. See "This
+session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `76ebe8c`, with PR #66 merged.
+at `afe2f3b`, with PR #68 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -19,15 +19,23 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **920 passing** | `flutter test` |
+| Tests | **946 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 118 in `lib/`, 65 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 120 in `lib/`, 67 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 874 at `d7a3416` (PR #64, merged) plus 46 net new from
+Tests by area: 920 at `76ebe8c` (PR #66, merged) plus 26 net new from
+FR-PLN-004 — 17 in `classify_categories_test.dart` (the Fixed line at its
+edges, the E-07 gate at 6 and 23 months, recurrence, the strict reading,
+the 1.5 index at its edge, the use case over the real statistics stage) and
+9 in `test/integration/category_classification_seed_test.dart` against
+`dev_seed` at both 24 and 6 months. **No assertion changed or was
+removed.**
+
+Before that: 874 at `d7a3416` (PR #64, merged) plus 46 net new from
 FR-PLN-005 — 16 in `category_statistics_test.dart` (the arithmetic: mean,
 median, sample deviation, CV, active months, the trend band); 7 in
 `lookback_window_test.dart`; 10 in `compute_category_statistics_test.dart`
@@ -75,6 +83,47 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the classifier ([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68), merged as `afe2f3b`)
+
+**FR-PLN-004**, the second slice of Sprint 5: `ClassifyCategories` turns a
+`LookbackWindow` into one `CategoryClassification` per category — Fixed /
+Variable / Seasonal, the months a seasonal spike recurs in, and the
+statistics it was decided from. Pure arithmetic over PR #66's output (E-05).
+Allocation, confidence and the wizard are not started.
+
+**The two findings PR #66 left were decided, not guessed:**
+
+- **Food (CV 0.157) reads Variable; the SDD's 0.15 line is unchanged.**
+  Fixed means "budget the exact recent average" (FR-PLN-007), and a
+  *monthly* total that holds within 15% is one where that is safe however
+  many rows make it up — the plan is a per-period budget, so monthly-total
+  variance is the variance that matters. Near the line the two allocations
+  converge anyway, so a borderline call costs little, which is the reason
+  not to move the line for one fixture. `ClassifyCategories.fixedCvCeiling`
+  carries the reasoning.
+- **Pets is classified from its three rows** (Variable). No confidence
+  check was invented here; FR-PLN-010 is where trust is decided.
+
+**Seasonal is E-07 read strictly.** Gated on the full 24 months (23 is
+refused); the month-of-year index is `total / mean(all)` above 1.5, and
+*recurring* means every occurrence of that calendar month clears it on its
+own — one enormous December and one ordinary one do not average into a
+cycle. Gifts is Seasonal `[4, 12]` at 24 months and Variable at 6 on the
+same rows: both halves of the rule, on the seed.
+
+**Order is Seasonal → Fixed → Variable, and it cannot change a verdict**:
+two months that each clear 1.5× the mean put the CV of 24 months at about
+0.16 or more. Checked, and stated in the doc comment rather than the
+opposite.
+
+**One finding for the allocator (FR-PLN-007):** over six months, Car's 8%
+climb has CV 0.145 and reads **Fixed with a rising trend**. CV cannot see a
+monotone drift over a short window; the trend can. The trend buffer must be
+applied by `statistics.trend`, not by class, or this case gets none.
+Asserted in the seed test so it is not rediscovered by surprise.
+
+---
 
 ## This session — the per-category statistics ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66), merged as `76ebe8c`)
 
@@ -959,15 +1008,17 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5 is under way.** Its statistics stage is merged (PR #66) and
-`main` is clean at `76ebe8c`. Per `ROADMAP.md` the order is statistics →
-**classification** → allocation → confidence → wizard UI → live tracking,
-each stage tested against the seed fixtures before the next — so the next
-slice is FR-PLN-004's Fixed / Variable / Seasonal classifier over
-`CategoryStatistics`, with E-07's rules: Seasonal only on a 24-month window,
-by month-of-year index rather than FFT, and confidence capped at MEDIUM
-below it. Read "This session" for the two seed findings it inherits (Food at
-CV 0.157; Pets trending on three rows). Two Sprint 4 leftovers are *not*
+**Sprint 5 is under way.** Its statistics (PR #66) and classification
+(PR #68) stages are merged and `main` is clean at `afe2f3b`. Per
+`ROADMAP.md` the order is statistics → classification → **allocation** →
+confidence → wizard UI → live tracking, each stage tested against the seed
+fixtures before the next — so the next slice is FR-PLN-007's allocation
+over `CategoryClassification`: exact recent average for Fixed, the 60/40
+weighted moving average for Variable, a seasonal multiplier where the
+planned period lands on a `seasonalMonths` entry, and the trend adjustment
+applied **by trend, not by class** (see "This session": Car at six months
+is Fixed and rising). Both budget modes (FR-PLN-008) and the daily
+allowance (FR-PLN-009) sit beside it. Two Sprint 4 leftovers are *not*
 blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
