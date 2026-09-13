@@ -3,12 +3,18 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_income_for_period.dart';
 
 /// Records the range it was asked for, and can be told to fail.
 class _FakeRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) => throw UnimplementedError();
+
   DateRange? asked;
   int? askedAccountId;
   Failure? failWith;

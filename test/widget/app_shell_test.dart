@@ -17,10 +17,12 @@ import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_income_for_period.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
+import 'package:moneyora/features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/injection.dart';
@@ -37,6 +39,11 @@ import 'package:moneyora/injection.dart';
 /// router composes, so each needs its aggregate answered too or its card
 /// spins for ever and `pumpAndSettle` never returns.
 class _NoSpendingRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) async => const Right([]);
+
   @override
   Future<Either<Failure, List<CategoryTotal>>> spendingByCategory(
     AnalyticsQuery query,
@@ -74,6 +81,9 @@ final List<Override> _noChartDataOverrides = [
   ),
   getSpendingTrendProvider.overrideWith(
     (ref) async => GetSpendingTrend(_NoSpendingRepository()),
+  ),
+  getSpendingCalendarProvider.overrideWith(
+    (ref) async => GetSpendingCalendar(_NoSpendingRepository()),
   ),
   categoryReaderProvider.overrideWith((ref) async => _NoCategoryReader()),
   accountReaderProvider.overrideWith((ref) async => _NoAccountReader()),
@@ -213,8 +223,14 @@ void main() {
     /// fold, so every tap on one goes through this first. The drag grew with
     /// the second chart; it is one scroll, not a loop, so that a card
     /// appearing above it fails here rather than silently scrolling past.
+    // `scrollUntilVisible` rather than a fixed drag: four charts now sit
+    // above this list and a fixed offset stopped reaching it at the fourth.
     Future<void> scrollComingNextIntoView(WidgetTester tester) async {
-      await tester.drag(find.byType(ListView), const Offset(0, -900));
+      await tester.scrollUntilVisible(
+        find.text('Coming next'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
     }
 

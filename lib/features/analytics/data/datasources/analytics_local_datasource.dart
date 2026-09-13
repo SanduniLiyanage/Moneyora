@@ -20,6 +20,7 @@ import '../../../../core/errors/exceptions.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/trend_point.dart';
 import '../models/category_total_model.dart';
+import '../models/daily_total_model.dart';
 import '../models/trend_point_model.dart';
 
 /// Reads aggregates over transaction history. Never writes.
@@ -49,6 +50,16 @@ abstract interface class AnalyticsLocalDataSource {
     required DateTime from,
     required DateTime to,
     required TrendGranularity granularity,
+    int? accountId,
+  });
+
+  /// Totals expense spending per day between [from] and [to] inclusive,
+  /// every category added together, earliest day first, for [accountId] or
+  /// — when it is null — every account. Sparse: a day with nothing spent has
+  /// no row. FR-RPT-009.
+  Future<List<DailyTotalModel>> dailySpendingTotals({
+    required DateTime from,
+    required DateTime to,
     int? accountId,
   });
 }
@@ -158,6 +169,21 @@ SELECT g.bucket AS bucket, c.id AS category_id, c.name AS name,
     TrendGranularity.month: "substr(part.date, 1, 7) || '-01'",
   };
 
+  /// [_spendingParts] totalled per day, earliest first. FR-RPT-009.
+  ///
+  /// A fourth statement over the same fragment rather than [_spendingTrend]
+  /// at day granularity folded per day in Dart: no `categories` join and at
+  /// most 31 rows back instead of 31 × categories.
+  /// `analytics_query_benchmark_test.dart` times both on every run.
+  static const String _dailySpending = '''
+SELECT part.date AS date, SUM(part.amount_cents) AS total_cents
+  FROM (
+{parts}
+       ) AS part
+ GROUP BY part.date
+ ORDER BY part.date ASC
+''';
+
   /// [statement] with its `{parts}` hole filled by [_spendingParts] and the
   /// account clause substituted in or out, plus the bound arguments in the
   /// order the finished text reads them — dates for the first half of the
@@ -219,6 +245,25 @@ SELECT g.bucket AS bucket, c.id AS category_id, c.name AS name,
       final rows = await _db.rawQuery(sql, args);
 
       return rows.map(TrendPointModel.fromMap).toList(growable: false);
+    });
+  }
+
+  @override
+  Future<List<DailyTotalModel>> dailySpendingTotals({
+    required DateTime from,
+    required DateTime to,
+    int? accountId,
+  }) async {
+    return _guard('total spending by day', () async {
+      final (sql, args) = _assemble(
+        _dailySpending,
+        from: from,
+        to: to,
+        accountId: accountId,
+      );
+      final rows = await _db.rawQuery(sql, args);
+
+      return rows.map(DailyTotalModel.fromMap).toList(growable: false);
     });
   }
 

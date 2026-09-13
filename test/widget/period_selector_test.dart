@@ -14,6 +14,7 @@ import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
@@ -32,6 +33,11 @@ import 'package:moneyora/injection.dart';
 
 /// Records every range it is asked for, in order.
 class _RecordingRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) => throw UnimplementedError();
+
   final List<DateRange> asked = [];
 
   @override
@@ -433,6 +439,11 @@ void main() {
 
 /// A repository with one scripted answer, for the empty and failing cases.
 class _ScriptedRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
+    AnalyticsQuery query,
+  ) => throw UnimplementedError();
+
   _ScriptedRepository(this.result);
 
   final Either<Failure, List<CategoryTotal>> result;

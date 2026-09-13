@@ -17,6 +17,7 @@ import '../../../../injection.dart';
 import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
 import '../../domain/entities/period_selection.dart';
+import '../../domain/entities/spending_calendar.dart';
 import '../../domain/entities/spending_trend.dart';
 import '../../domain/repositories/analytics_repository.dart';
 
@@ -133,6 +134,36 @@ final spendingTrendProvider = FutureProvider.autoDispose
       return result.match(
         Future<SpendingTrend>.error,
         Future<SpendingTrend>.value,
+      );
+    });
+
+/// Which month the heatmap draws, and for which account. FR-RPT-009.
+///
+/// Derived from the period picker's *anchor* and the account filter, not from
+/// [analyticsRangeProvider]: the heatmap always draws the calendar month the
+/// anchor falls in, whatever period shape is selected — a Year under a grid
+/// of days is a different picture, not a longer one. The account filter
+/// reaches it for the reason it reaches the bars and the lines.
+final spendingCalendarQueryProvider = Provider<SpendingCalendarQuery>(
+  (ref) => SpendingCalendarQuery(
+    anchor: ref.watch(analyticsPeriodProvider).anchor,
+    accountId: ref.watch(analyticsAccountFilterProvider),
+  ),
+);
+
+/// One month of daily spending, for the heatmap. FR-RPT-009.
+///
+/// Thin wrapper over [GetSpendingCalendar]; a `Left` completes the future
+/// with the [Failure] as its error, the convention the other three follow.
+final spendingCalendarProvider = FutureProvider.autoDispose
+    .family<SpendingCalendar, SpendingCalendarQuery>((ref, query) async {
+      final getSpendingCalendar = await ref.watch(
+        getSpendingCalendarProvider.future,
+      );
+      final result = await getSpendingCalendar(query);
+      return result.match(
+        Future<SpendingCalendar>.error,
+        Future<SpendingCalendar>.value,
       );
     });
 
