@@ -67,7 +67,7 @@ No image and no total ever leaves the phone.
 | AI Copilot — agent loop, first tool, model integration | **Built** |
 | AI Copilot — the ask screen | **Built** — not yet proven against the live API |
 | Categories — custom, hierarchy, inline create | Not started — Sprint 3.5 |
-| Analytics — donut chart, trends, heatmap | Not started — Sprint 4 |
+| Analytics — donut chart, filters, bars, trend lines, heatmap | **Built** — Sprint 4 complete |
 | Money Plan Generator | Not started — Sprint 5 |
 | Receipt Scanner | Not started — Sprint 6 |
 | PIN and biometrics, backup and export | Not started — Sprints 7–8 |
