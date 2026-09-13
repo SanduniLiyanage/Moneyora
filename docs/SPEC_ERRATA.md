@@ -47,6 +47,7 @@ follows the Resolution sections.
 | [E-29](#e-29) | Two more places the SRS contradicts or undercuts itself | Clarified | NFR-PER-006 |
 | [E-30](#e-30) | The SDD and DBD disagree with each other, and the DBD disagrees with itself | Clarified | — |
 | [E-31](#e-31) | Three DBD schema gaps that will bite a specific sprint | Resolved | — |
+| [E-32](#e-32) | The plan tables as built depart from the DBD in four places | Clarified | FR-PLN-001, FR-PLN-002, FR-PLN-004, FR-PLN-008, FR-PLN-010 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -1775,6 +1776,42 @@ legibly, and FR-RCP-011's low-confidence handling already has to cope with a
 field OCR could not read. No migration exists yet to amend — this is scoped as
 a note for whoever writes Sprint 6's schema change, not a v1 migration to ship
 now for a column nothing reads.
+
+<a id="e-32"></a>
+
+## E-32 — The plan tables as built depart from the DBD in four places
+
+**Severity:** Low · **Affects:** DBD §3.7 (`money_plans`), §3.8
+(`plan_allocations`); SRS §6.2
+
+Raised while writing the first code that reads and writes these tables
+([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)), by mapping the
+models to the schema and finding it is not the DBD's. The v1 migration
+(`lib/core/database/migrations/v1_initial.dart`, shipped in Sprint 1) is the
+departure; it was written to the schema conventions the rest of the file
+already used, and nothing before Sprint 5 touched these two tables to notice.
+Recorded here so a reader of the DBD does not take its column names and
+check-constraint values as what the database holds.
+
+| | DBD | Schema as built |
+|---|---|---|
+| Stored class and confidence strings | `'Fixed'` / `'Variable'` / `'Seasonal'`, `'High'` / `'Medium'` / `'Low'` | **lowercase**: `'fixed'` / `'variable'` / `'seasonal'`, `'high'` / `'medium'` / `'low'` — like every other check constraint in the schema (`type IN ('expense','income','transfer')`) |
+| The class column | `expense_type` | **`expense_class`** (nullable: the generator may not have decided one) |
+| The total | `total_budget REAL NULLABLE` (*"null = sum of allocations"*) | **`total_budget_cents INTEGER NOT NULL`** — integer minor units per E-06, and never null: the unconstrained mode stores the sum rather than leaving a hole for readers to fill |
+| The period shapes | `period_type IN ('day','week','month','year','custom')` | **`('day','week','month','year','custom_days','custom_range')`** — FR-PLN-002 names two custom shapes, "a number of days" and "a date range", and one `custom` cannot say which was chosen |
+
+### Resolution — the schema as built is authoritative
+
+No code changes. `v1_initial.dart` stands; the models in
+`features/money_plan/data/models/` map the domain enums to the lowercase
+strings and the two custom period types, and that mapping lives in the data
+layer, not on the enums (`PlanAllocationModel.encodeConfidence`,
+`MoneyPlanModel.encodePeriodType`). A DBD v1.1, if one is issued, adopts the
+four rows above. The `NOT NULL` total is the one row that changes behaviour a
+reader might rely on: a plan's total is always the number in the column, and
+`MoneyPlan.allocatedCents` equals it on any plan the data layer wrote.
+
+---
 
 ---
 
