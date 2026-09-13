@@ -1,5 +1,30 @@
 import 'package:equatable/equatable.dart';
 
+/// Which of FR-PLN-002's shapes a period was chosen as.
+///
+/// Carried so a saved plan can say "a month" rather than only "1–30
+/// September" — `money_plans.period_type`'s check constraint, in the same
+/// order.
+enum PlanPeriodType {
+  /// One day.
+  day,
+
+  /// One week.
+  week,
+
+  /// One calendar month.
+  month,
+
+  /// One calendar year.
+  year,
+
+  /// "The next N days".
+  customDays,
+
+  /// Any start and end.
+  customRange,
+}
+
 /// How much of one calendar month a [PlanPeriod] covers.
 class MonthCoverage extends Equatable {
   /// Creates a coverage.
@@ -37,19 +62,52 @@ class MonthCoverage extends Equatable {
 /// only (FR-PLN-007).
 class PlanPeriod extends Equatable {
   /// Creates a period from [from] to [to], inclusive. Any time of day on
-  /// either end is ignored.
-  PlanPeriod({required DateTime from, required DateTime to})
-    : from = DateTime(from.year, from.month, from.day),
-      to = DateTime(to.year, to.month, to.day);
+  /// either end is ignored. FR-PLN-002's "Custom date range" unless [type]
+  /// says otherwise — the named factories set it.
+  PlanPeriod({
+    required DateTime from,
+    required DateTime to,
+    this.type = PlanPeriodType.customRange,
+  }) : from = DateTime(from.year, from.month, from.day),
+       to = DateTime(to.year, to.month, to.day);
+
+  /// The single day [date] falls on. FR-PLN-002's "Day".
+  factory PlanPeriod.day(DateTime date) =>
+      PlanPeriod(from: date, to: date, type: PlanPeriodType.day);
+
+  /// The whole week [date] falls in, starting on [firstWeekday] (a
+  /// `DateTime` weekday constant, Monday until FR-SET-004 makes it a
+  /// setting in Sprint 7). FR-PLN-002's "Week".
+  factory PlanPeriod.week(DateTime date, {int firstWeekday = DateTime.monday}) {
+    final start = DateTime(date.year, date.month, date.day);
+    final offset = (start.weekday - firstWeekday + 7) % 7;
+    final from = DateTime(start.year, start.month, start.day - offset);
+    return PlanPeriod(
+      from: from,
+      to: DateTime(from.year, from.month, from.day + 6),
+      type: PlanPeriodType.week,
+    );
+  }
 
   /// The whole of one calendar month. FR-PLN-002's "Month".
-  factory PlanPeriod.month(int year, int month) =>
-      PlanPeriod(from: DateTime(year, month), to: DateTime(year, month + 1, 0));
+  factory PlanPeriod.month(int year, int month) => PlanPeriod(
+    from: DateTime(year, month),
+    to: DateTime(year, month + 1, 0),
+    type: PlanPeriodType.month,
+  );
+
+  /// The whole of one calendar year. FR-PLN-002's "Year".
+  factory PlanPeriod.year(int year) => PlanPeriod(
+    from: DateTime(year),
+    to: DateTime(year, 12, 31),
+    type: PlanPeriodType.year,
+  );
 
   /// [days] days starting on [start]. FR-PLN-002's "Custom number of days".
   factory PlanPeriod.days(DateTime start, int days) => PlanPeriod(
     from: start,
     to: DateTime(start.year, start.month, start.day + days - 1),
+    type: PlanPeriodType.customDays,
   );
 
   /// First day.
@@ -57,6 +115,9 @@ class PlanPeriod extends Equatable {
 
   /// Last day.
   final DateTime to;
+
+  /// Which shape this was chosen as.
+  final PlanPeriodType type;
 
   /// True when the period runs backwards.
   bool get isInverted => from.isAfter(to);
@@ -103,5 +164,5 @@ class PlanPeriod extends Equatable {
   double get months => monthCoverage.fold(0.0, (sum, m) => sum + m.fraction);
 
   @override
-  List<Object?> get props => [from, to];
+  List<Object?> get props => [from, to, type];
 }

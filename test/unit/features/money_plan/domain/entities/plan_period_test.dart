@@ -72,7 +72,59 @@ void main() {
         to: DateTime(2026, 9, 30, 0, 1),
       );
 
-      expect(a, PlanPeriod.month(2026, 9));
+      expect(a.from, DateTime(2026, 9));
+      expect(a.to, DateTime(2026, 9, 30));
+    });
+
+    test('the named factories carry their FR-PLN-002 shape', () {
+      expect(PlanPeriod.day(DateTime(2026, 9, 9)).type, PlanPeriodType.day);
+      expect(PlanPeriod.week(DateTime(2026, 9, 9)).type, PlanPeriodType.week);
+      expect(PlanPeriod.month(2026, 9).type, PlanPeriodType.month);
+      expect(PlanPeriod.year(2026).type, PlanPeriodType.year);
+      expect(
+        PlanPeriod.days(DateTime(2026, 9, 9), 15).type,
+        PlanPeriodType.customDays,
+      );
+      expect(
+        PlanPeriod(from: DateTime(2026, 9), to: DateTime(2026, 9, 30)).type,
+        PlanPeriodType.customRange,
+      );
+    });
+
+    test('the same days as a different shape are a different period', () {
+      final range = PlanPeriod(
+        from: DateTime(2026, 9),
+        to: DateTime(2026, 9, 30),
+      );
+
+      expect(range, isNot(PlanPeriod.month(2026, 9)));
+    });
+
+    test('a week runs Monday to Sunday by default', () {
+      // 9 September 2026 is a Wednesday.
+      final week = PlanPeriod.week(DateTime(2026, 9, 9));
+
+      expect(week.from, DateTime(2026, 9, 7));
+      expect(week.to, DateTime(2026, 9, 13));
+      expect(week.days, 7);
+    });
+
+    test('a week can start on Sunday', () {
+      final week = PlanPeriod.week(
+        DateTime(2026, 9, 9),
+        firstWeekday: DateTime.sunday,
+      );
+
+      expect(week.from, DateTime(2026, 9, 6));
+      expect(week.to, DateTime(2026, 9, 12));
+    });
+
+    test('a year is the whole calendar year', () {
+      final year = PlanPeriod.year(2027);
+
+      expect(year.from, DateTime(2027));
+      expect(year.to, DateTime(2027, 12, 31));
+      expect(year.months, 12.0);
     });
 
     test('an inverted period has no days and no coverage', () {

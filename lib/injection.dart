@@ -47,9 +47,16 @@ import 'features/copilot/domain/repositories/llm_repository.dart';
 import 'features/copilot/domain/usecases/run_copilot_query.dart';
 import 'features/copilot/domain/usecases/tools/copilot_tool.dart';
 import 'features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
+import 'features/money_plan/data/datasources/money_plan_local_datasource.dart';
+import 'features/money_plan/data/repositories/money_plan_repository_impl.dart';
+import 'features/money_plan/domain/repositories/money_plan_repository.dart';
+import 'features/money_plan/domain/usecases/activate_plan.dart';
 import 'features/money_plan/domain/usecases/allocate_budget.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
+import 'features/money_plan/domain/usecases/save_plan.dart';
+import 'features/money_plan/domain/usecases/update_allocation.dart';
+import 'features/money_plan/domain/usecases/watch_active_plan.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -437,8 +444,8 @@ final getSpendingCalendarProvider = FutureProvider<GetSpendingCalendar>(
 // ─────────────────────────────────────────────────────────────────────────────
 // Money Plan
 //
-// Sprint 5, stage by stage: statistics, classification, allocation, then
-// confidence and the wizard. Nothing here writes a row yet.
+// Sprint 5, stage by stage: statistics, classification, allocation,
+// confidence — then the saved plan, the feature's first writes.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The month-cut read the plan's statistics run on.
@@ -478,6 +485,51 @@ final allocateBudgetProvider = FutureProvider<AllocateBudget>(
     await ref.watch(classifyCategoriesProvider.future),
     await ref.watch(incomeReaderProvider.future),
   ),
+);
+
+/// Reads and writes saved plans. The only holder of SQL for the feature.
+///
+/// On the shared bus, as [accountLocalDataSourceProvider] is: FR-PLN-013's
+/// spend against the active plan moves when a *transaction* is written, so
+/// a plan watcher must hear the transactions datasource too.
+final moneyPlanLocalDataSourceProvider =
+    FutureProvider<MoneyPlanLocalDataSource>((ref) async {
+      final source = MoneyPlanLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+        changeBus: ref.watch(databaseChangeBusProvider),
+      );
+      ref.onDispose(source.dispose);
+      return source;
+    });
+
+/// Turns plan data-layer exceptions into failures. The layer boundary.
+final moneyPlanRepositoryProvider = FutureProvider<MoneyPlanRepository>(
+  (ref) async => MoneyPlanRepositoryImpl(
+    await ref.watch(moneyPlanLocalDataSourceProvider.future),
+  ),
+);
+
+/// Saves a reviewed draft, activating it by default. FR-PLN-001.
+final savePlanProvider = FutureProvider<SavePlan>(
+  (ref) async => SavePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Makes a saved plan the tracked one. FR-PLN-015.
+final activatePlanProvider = FutureProvider<ActivatePlan>(
+  (ref) async =>
+      ActivatePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// The active plan, live. FR-PLN-013.
+final watchActivePlanProvider = FutureProvider<WatchActivePlan>(
+  (ref) async =>
+      WatchActivePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// One allocation set by hand, the rest holding the total. FR-PLN-011.
+final updateAllocationProvider = FutureProvider<UpdateAllocation>(
+  (ref) async =>
+      UpdateAllocation(await ref.watch(moneyPlanRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
