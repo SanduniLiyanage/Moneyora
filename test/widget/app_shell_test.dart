@@ -256,12 +256,26 @@ void main() {
       await pumpReady(tester);
       await scrollComingNextIntoView(tester);
 
-      await tester.tap(find.text('Money Plan'));
+      await tester.tap(find.text('Scan Receipt'));
       await tester.pumpAndSettle();
 
       // Stating the sprint makes an unbuilt screen read as planned work
       // rather than as a bug.
-      expect(find.text('Arrives in Sprint 5.'), findsOneWidget);
+      expect(find.text('Arrives in Sprint 6.'), findsOneWidget);
+    });
+
+    testWidgets('reaches the money plan wizard from the home screen', (
+      tester,
+    ) async {
+      // FR-PLN-001: "Create Money Plan" from the main navigation.
+      await pumpReady(tester);
+      await scrollComingNextIntoView(tester);
+
+      await tester.tap(find.text('Create Money Plan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Plan for'), findsOneWidget);
+      expect(find.text('Total budget'), findsOneWidget);
     });
 
     testWidgets('reaches Settings from the app bar', (tester) async {
@@ -283,7 +297,7 @@ void main() {
       // next.
       for (final destination in const [
         'Ask Moneyora',
-        'Money Plan',
+        'Create Money Plan',
         'Scan Receipt',
       ]) {
         await tester.pumpWidget(
