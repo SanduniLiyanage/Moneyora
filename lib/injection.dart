@@ -12,6 +12,7 @@ import 'core/network/network_info.dart';
 import 'core/ports/account_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
+import 'core/ports/monthly_spending_reader.dart';
 import 'core/ports/spending_by_category_reader.dart';
 import 'features/accounts/data/datasources/account_local_datasource.dart';
 import 'features/accounts/data/repositories/account_repository_impl.dart';
@@ -45,6 +46,7 @@ import 'features/copilot/domain/repositories/llm_repository.dart';
 import 'features/copilot/domain/usecases/run_copilot_query.dart';
 import 'features/copilot/domain/usecases/tools/copilot_tool.dart';
 import 'features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
+import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -428,6 +430,29 @@ final getSpendingCalendarProvider = FutureProvider<GetSpendingCalendar>(
   (ref) async =>
       GetSpendingCalendar(await ref.watch(analyticsRepositoryProvider.future)),
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Money Plan
+//
+// Sprint 5, stage by stage: statistics first (this), then classification,
+// allocation, confidence and the wizard. Nothing here writes a row yet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The month-cut read the plan's statistics run on.
+///
+/// The same object as [analyticsRepositoryProvider], seen through the
+/// contract in `core/ports/` — one month query, shared with the trend lines.
+final monthlySpendingReaderProvider = FutureProvider<MonthlySpendingReader>(
+  (ref) async => ref.watch(_analyticsRepositoryImplProvider.future),
+);
+
+/// Per-category statistics over a lookback window. FR-PLN-005.
+final computeCategoryStatisticsProvider =
+    FutureProvider<ComputeCategoryStatistics>(
+      (ref) async => ComputeCategoryStatistics(
+        await ref.watch(monthlySpendingReaderProvider.future),
+      ),
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Copilot

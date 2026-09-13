@@ -54,6 +54,7 @@ TrendPoint _point(
   name: name,
   color: color,
   amountCents: cents,
+  transactionCount: 1,
 );
 
 void main() {

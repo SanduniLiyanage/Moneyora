@@ -6,6 +6,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/monthly_spending_reader.dart';
 import '../../../../core/ports/spending_by_category_reader.dart';
 import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
@@ -17,14 +18,18 @@ import '../datasources/analytics_local_datasource.dart';
 /// Fulfils [AnalyticsRepository] against the local encrypted database.
 ///
 /// It also fulfils [SpendingByCategoryReader], the narrow contract in `core/`
-/// that the Copilot reads through. One class, two views of the same query:
-/// the feature's own callers get category ids and colours for the chart, and
-/// everyone outside the feature gets names and amounts and nothing more.
+/// that the Copilot reads through, and [MonthlySpendingReader], the one the
+/// Money Plan Generator's statistics read through. One class, three views of
+/// the same queries: the feature's own callers get category ids and colours
+/// for the chart, and everyone outside the feature gets only what it needs.
 ///
 /// The alternative was an adapter class in `injection.dart`, which would have
 /// put a piece of behaviour somewhere nothing can test it.
 class AnalyticsRepositoryImpl
-    implements AnalyticsRepository, SpendingByCategoryReader {
+    implements
+        AnalyticsRepository,
+        SpendingByCategoryReader,
+        MonthlySpendingReader {
   /// Creates a repository over [local].
   const AnalyticsRepositoryImpl(this._local);
 
@@ -93,6 +98,35 @@ class AnalyticsRepositoryImpl
     // been holding an id in the first place.
     return totals.map(
       (rows) => {for (final row in rows) row.name: row.amountCents},
+    );
+  }
+
+  @override
+  Future<Either<Failure, List<MonthlySpending>>> monthlySpendingByCategory({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    // Every account, as `totalsByCategory` above: a plan budgets what the
+    // person spends, not what one account paid for. The month cut is the
+    // trend lines' own statement, so E-02 and E-04 hold here because they
+    // hold there.
+    final points = await spendingTrend(
+      AnalyticsQuery(
+        range: DateRange(from: from, to: to),
+      ),
+      TrendGranularity.month,
+    );
+    return points.map(
+      (rows) => [
+        for (final p in rows)
+          MonthlySpending(
+            categoryId: p.categoryId,
+            name: p.name,
+            month: p.bucket,
+            amountCents: p.amountCents,
+            transactionCount: p.transactionCount,
+          ),
+      ],
     );
   }
 

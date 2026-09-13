@@ -149,12 +149,18 @@ SELECT c.id AS category_id, c.name AS name, c.color AS color,
   /// bucket, substituted from [_bucketExpressions] — a constant per
   /// granularity, never input. A month bucket is padded back out to its
   /// first day so the model parses one shape of string.
+  ///
+  /// `transaction_count` rides along for FR-PLN-005's transaction frequency:
+  /// one column in the statement that already groups the rows, rather than a
+  /// second statement over the same fragment (E-05).
   static const String _spendingTrend = '''
 SELECT g.bucket AS bucket, c.id AS category_id, c.name AS name,
-       c.color AS color, g.total_cents AS total_cents
+       c.color AS color, g.total_cents AS total_cents,
+       g.transaction_count AS transaction_count
   FROM (
         SELECT {bucket} AS bucket, part.category_id AS category_id,
-               SUM(part.amount_cents) AS total_cents
+               SUM(part.amount_cents) AS total_cents,
+               COUNT(*) AS transaction_count
           FROM (
 {parts}
                ) AS part
