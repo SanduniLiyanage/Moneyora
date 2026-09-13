@@ -12,9 +12,10 @@ import '../entities/lookback_window.dart';
 import '../entities/money_plan_draft.dart';
 import '../entities/plan_period.dart';
 import 'classify_categories.dart';
+import 'score_confidence.dart';
 
-/// A budget per category for a plan period, and a total. FR-PLN-007,
-/// FR-PLN-008, FR-PLN-009.
+/// A budget per category for a plan period, a confidence for each, and a
+/// total. FR-PLN-007, FR-PLN-008, FR-PLN-009, FR-PLN-010.
 ///
 /// The third stage of the plan generator, over [ClassifyCategories]'
 /// output: arithmetic on statistics already computed (E-05), no query of
@@ -32,7 +33,10 @@ import 'classify_categories.dart';
 ///    ([seasonalMultiplier]);
 /// 3. the **trend adjustment**, by [CategoryStatistics.trend] and *not* by
 ///    class ([trendFactor]) — over six months the seed's Car is Fixed *and*
-///    rising, and a buffer keyed on class would give it none.
+///    rising, and a buffer keyed on class would give it none;
+/// 4. a **confidence** from the same statistics and the window
+///    ([ScoreConfidence]) — attached, not applied: a Low score changes no
+///    figure, it tells the user how far to trust one.
 ///
 /// Then the mode: nothing, or scale every allocation to the user's total
 /// (Option A), or fit the non-fixed ones into income less savings less
@@ -213,6 +217,7 @@ class AllocateBudget implements UseCase<MoneyPlanDraft, AllocationRequest> {
       trendFactor: trend,
       allocationCents: cents,
       dailyAllowanceCents: period.days > 0 ? cents ~/ period.days : 0,
+      confidence: ScoreConfidence.score(statistics, window),
     );
   }
 
