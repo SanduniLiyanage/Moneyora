@@ -341,18 +341,35 @@ past six.
 this surface and stays closed**: the chart draws expense categories only, the
 same rows the donut draws, so an income colour never renders on it.
 
-### Next — the calendar heatmap (FR-RPT-009)
+### The calendar heatmap (FR-RPT-009) — done ([PR #64](https://github.com/SanduniLiyanage/Moneyora/pull/64), merged as `d7a3416`)
 
 "A calendar heatmap view highlighting daily spending intensity" — the last of
-the five, and Sprint 4 is closed. Two things it opens with, recorded in
-[`HANDOFF.md`](HANDOFF.md) rather than left to be rediscovered: what a
-heatmap shows for a period that is not a month (a Year or All under a
-day-grid is a different picture, not a longer one), and where the intensity
-scale's ceiling comes from. `spendingTrend` at day granularity already
-answers "how much per day" with the account filter applied; whether the
-heatmap should sum that per day in the domain layer or ask a narrower
-daily-total query is the same measure-before-deciding question FR-RPT-005
-answered for lines.
+the five. **Sprint 4 is closed.**
+
+**Always a calendar month.** The donut, the bars and the lines take the
+selected period as their window; a heatmap is a grid of days, and a Year or
+All under it is a different picture, not a longer one. So this card draws
+the month the picker's *anchor* falls in, whatever shape is selected — the
+chips change nothing on it, "Choose Date" does — and its subtitle says so.
+`GetSpendingCalendar` takes a month, not an `AnalyticsQuery`, so the decision
+is in the type. The account filter reaches it, as it reached the bars and
+the lines.
+
+**Its own daily statement, measured.** `dailySpendingTotals` is a fourth
+statement over the same `_spendingParts` fragment — one row per day, no
+`categories` join — chosen over `spendingTrend(day)` folded per day in Dart
+on the benchmark fixture: 1.6ms against 6.8ms on the host VM, comparative.
+`analytics_query_benchmark_test.dart` times both on every run.
+
+**Intensity relative to the displayed month.** Five buckets on
+`AppColors.expense` at rising opacity, the busiest day in view always the
+darkest. No category colour renders, so
+**[SPEC_ERRATA.md](SPEC_ERRATA.md)'s colour-collision check is closed with
+the chart set complete.**
+
+**Left open, on purpose:** FR-RPT-006's summary figures (never scheduled as
+a chart) and a user-configurable first weekday (FR-SET-004, Sprint 7 — the
+heatmap's `_firstWeekday` and `DateRange.week`'s default are where it lands).
 
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
 
