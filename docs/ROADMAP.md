@@ -423,12 +423,22 @@ Pets Low, nothing High at six. Recorded, not changed: Car reads Low
 because the CV includes its climb, and every Seasonal category reads Low
 because its spikes are its variance.
 
+### The saved plan (FR-PLN-001, 011, 013, 015) — done ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74), merged as `507229b`)
+
+The feature's first writes: `SavePlan`, `WatchActivePlan`, `ActivatePlan`,
+`UpdateAllocation` over a repository, a datasource on the shared change
+bus, and models that map the stored strings to the schema as built. One
+active plan at a time, held in the datasource's transactions; every
+multi-row write atomic and proven on real SQLite. Reasoning in
+[`HANDOFF.md`](HANDOFF.md).
+
 ### Next — the wizard (FR-PLN-001, 002, 008, 011, 012), then live tracking (FR-PLN-013, 014, 015)
 
-The engine is complete and `MoneyPlanDraft` carries every factor and
-reason. The wizard is the first screen, the first write
-(`money_plans` / `plan_allocations`) and the first place FR-PLN-003's
-lookback setting is missed (Sprint 7 — pass the default until then).
+Every use case the wizard calls exists and is wired. It is the first
+screen of the feature and the first place FR-PLN-003's lookback setting is
+missed (Sprint 7 — pass the default until then). Live tracking then needs
+the transactions datasource to move `spent_amount_cents` the way it moves
+account balances (E-18).
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 

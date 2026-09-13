@@ -1,20 +1,22 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-13**, `main` at `4bbae30`, after **71
-merged pull requests** (#2–#72; #1 was closed unmerged). **Sprint 5's
-engine is complete**: statistics
+State of the project as of **2026-09-13**, `main` at `507229b`, after **73
+merged pull requests** (#2–#74; #1 was closed unmerged). **Sprint 5's
+engine and persistence are complete**: statistics
 ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)),
 classification
 ([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68)),
 allocation
-([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70)) and
-confidence ([PR #72](https://github.com/SanduniLiyanage/Moneyora/pull/72)) all merged during this window; what remains of the
+([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70)),
+confidence
+([PR #72](https://github.com/SanduniLiyanage/Moneyora/pull/72)) and the
+saved plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)) all merged during this window; what remains of the
 sprint is the wizard and live tracking. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `4bbae30`, with PR #72 merged.
+at `507229b`, with PR #74 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -23,15 +25,31 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **1045 passing** | `flutter test` |
+| Tests | **1099 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 129 in `lib/`, 73 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 140 in `lib/`, 79 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 1020 at `893e673` (PR #70, merged) plus 25 net new from
+Tests by area: 1045 at `4bbae30` (PR #72, merged) plus 54 net new from
+the saved plan — 18 in `money_plan_local_datasource_test.dart` against real
+SQLite (the round trip with category names, atomicity of a save, of the
+deactivation it carries and of an allocation update, the one-active
+invariant after every write, the change signal, the shared bus surviving
+dispose); 8 in `money_plan_repository_impl_test.dart` (failure mapping,
+the stream on listen, on change, on failure, on cancel); 5 in
+`money_plan_model_test.dart` (every stored string both ways, a full round
+trip); 14 in `update_allocation_test.dart` (`rebalance` alone, then the
+use case); 5 in `save_plan_test.dart`; 4 in
+`test/integration/save_plan_seed_test.dart` (seed → draft → save → read
+back → switch → adjust → stream follows). `plan_period_test.dart` gained
+the period types and factories, and one assertion moved from entity
+equality to the two dates because a period now carries its shape. **No
+assertion was removed.**
+
+Before that: 1020 at `893e673` (PR #70, merged) plus 25 net new from
 FR-PLN-010 — 15 in `score_confidence_test.dart` (the level ordering, months
 not rows, the count threshold at 9/10 and 3/4, the CV threshold at
 0.2492/0.2503 and 0.4995/0.5005 on constructed series, the E-07 cap at 12
@@ -108,6 +126,51 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the saved plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74), merged as `507229b`)
+
+**The feature's first writes.** `SavePlan` turns a reviewed
+`MoneyPlanDraft` into a `money_plans` row and its `plan_allocations` rows;
+`WatchActivePlan` reads the active one back live; `ActivatePlan` switches
+between saved plans; `UpdateAllocation` is FR-PLN-011. Repository,
+datasource and models follow the accounts feature's shape, and the
+datasource sits on the shared change bus so a plan watcher hears the
+transaction writes FR-PLN-013 will need. No screens.
+
+**One active plan, held by the data layer — the decision the wizard
+depends on.** Saving with `activate` (the default: the SDD's last step is
+"saved & activated") and `ActivatePlan` both clear every other plan's flag
+**in the same transaction** as they set this one's. Asking callers to
+deactivate first is two transactions with a moment between them in which
+no plan, or two, is active, and a rule every caller has to remember; this
+way it is an invariant the datasource keeps and its tests assert after
+every write, including that a failed save rolls the deactivation back.
+`activate: false` is FR-PLN-015's "save for later" and leaves the active
+plan alone. There is no deactivate use case on purpose: choosing another
+plan is how the user stops tracking this one.
+
+**Every multi-row write is one transaction**, as `MakeTransfer`'s is, and
+tested on real SQLite: an allocation naming a category that does not
+exist leaves no plan row; an update naming a category not in the plan
+rewrites nothing; activating a missing id leaves the previous plan active.
+
+**FR-PLN-011's rebalance** reuses `AllocateBudget.distribute`. The
+allocations the user has *not* touched absorb a change first, so a second
+manual adjustment does not undo the first; only when none can does it
+spread across all the others. The total is held either way. Refused: a
+negative amount, one over the total, a category not in the plan, and a
+plan with a single allocation.
+
+**The stored strings live in the models and map to the schema as
+`v1_initial.dart` built it, not to the DBD**: lowercase `'high'` /
+`'fixed'` (like every other check constraint in the schema), the column is
+`expense_class`, `total_budget_cents` is `NOT NULL` (the unconstrained mode
+stores the sum), and `period_type` carries `custom_days` / `custom_range`.
+`PlanPeriod` gained a `type` and the `day` / `week` / `year` factories so a
+saved plan can say which of FR-PLN-002's shapes it was. Worth an errata
+line if the DBD is ever reconciled; the schema was already the departure.
+
+---
 
 ## This session — the confidence score ([PR #72](https://github.com/SanduniLiyanage/Moneyora/pull/72), merged as `4bbae30`)
 
@@ -1124,23 +1187,30 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5's engine is complete.** Statistics (PR #66), classification
-(PR #68), allocation (PR #70) and confidence (PR #72) are merged and `main`
-is clean at `4bbae30`. Per `ROADMAP.md` what follows is the **wizard UI** —
-FR-PLN-001's entry from the main navigation, FR-PLN-002's period picker,
-FR-PLN-008's mode choice, the review screen over `MoneyPlanDraft` with
-FR-PLN-011's manual adjustment (others recalculating to hold the total —
-`AllocateBudget.distribute` is the arithmetic for that) and FR-PLN-012's
-what-if, then saving to `money_plans` / `plan_allocations` (the first
-write this feature makes, and the first use of `ExpenseType` and
-`ConfidenceLevel`'s stored strings), then FR-PLN-013's live tracking. The
-draft carries every factor and every reason so the screen can explain a
-figure rather than show one; E-07 requires the reason to be stated when
-the lookback caps the confidence, and `ConfidenceScore.isCappedByLookback`
-is that flag. The lookback length itself is FR-PLN-003's setting, which
-does not exist until Sprint 7: until then the wizard passes
-`LookbackWindow.defaultMonths`. Two Sprint 4 leftovers are *not*
-blockers for it:
+**Sprint 5's engine and persistence are complete.** Statistics (PR #66),
+classification (PR #68), allocation (PR #70), confidence (PR #72) and the
+saved plan (PR #74) are merged and `main` is clean at `507229b`. What follows
+is the **wizard UI**: FR-PLN-001's entry from the main navigation,
+FR-PLN-002's period picker over `PlanPeriod`'s six factories, FR-PLN-008's
+mode choice, the review screen over `MoneyPlanDraft`, then
+`SavePlan`. Everything it calls exists and is wired:
+`allocateBudgetProvider`, `savePlanProvider`, `watchActivePlanProvider`,
+`activatePlanProvider`, `updateAllocationProvider`. Three things to know
+before drawing it: the draft carries every factor and reason, and E-07
+requires the reason to be stated when the lookback caps the confidence
+(`ConfidenceScore.isCappedByLookback`); FR-PLN-011's adjustment is on the
+*saved* plan (`UpdateAllocation` reads and writes rows), so a review
+screen that lets the user adjust *before* saving needs
+`UpdateAllocation.rebalance` on the draft's figures and the same rules —
+or saves first and adjusts the saved plan, which is simpler and what the
+rows support; and FR-PLN-003's lookback setting does not exist until
+Sprint 7, so the wizard passes `LookbackWindow.defaultMonths`. FR-PLN-012's
+what-if is `rebalance` with a percentage turned into cents. After the
+wizard: FR-PLN-013's live tracking, whose `spent_amount_cents` cache is
+written by nothing yet — the transactions datasource will move it inside
+the same transaction as the row, the way it moves account balances
+(E-18), and `WatchActivePlan` already re-reads on that bus. Two Sprint 4
+leftovers are *not* blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
