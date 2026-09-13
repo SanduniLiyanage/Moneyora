@@ -46,6 +46,7 @@ import 'features/copilot/domain/repositories/llm_repository.dart';
 import 'features/copilot/domain/usecases/run_copilot_query.dart';
 import 'features/copilot/domain/usecases/tools/copilot_tool.dart';
 import 'features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
+import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
@@ -434,8 +435,8 @@ final getSpendingCalendarProvider = FutureProvider<GetSpendingCalendar>(
 // ─────────────────────────────────────────────────────────────────────────────
 // Money Plan
 //
-// Sprint 5, stage by stage: statistics first (this), then classification,
-// allocation, confidence and the wizard. Nothing here writes a row yet.
+// Sprint 5, stage by stage: statistics, classification, then allocation,
+// confidence and the wizard. Nothing here writes a row yet.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The month-cut read the plan's statistics run on.
@@ -453,6 +454,14 @@ final computeCategoryStatisticsProvider =
         await ref.watch(monthlySpendingReaderProvider.future),
       ),
     );
+
+/// Fixed / Variable / Seasonal per category, over those statistics.
+/// FR-PLN-004.
+final classifyCategoriesProvider = FutureProvider<ClassifyCategories>(
+  (ref) async => ClassifyCategories(
+    await ref.watch(computeCategoryStatisticsProvider.future),
+  ),
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Copilot
