@@ -400,12 +400,25 @@ strictly and gated on the full 24 months, Variable otherwise. Proven on
 One finding for the allocator: over six months Car reads Fixed *and*
 rising, so the trend buffer goes by trend, not class.
 
-### Next — allocation (FR-PLN-007, FR-PLN-008, FR-PLN-009)
+### Allocation (FR-PLN-007, FR-PLN-008, FR-PLN-009) — done ([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70), merged as `893e673`)
 
-Exact recent average for Fixed; 60/40 weighted moving average for
-Variable; a seasonal multiplier where the planned period lands on a
-`seasonalMonths` entry; the trend adjustment by `trend`, whatever the
-class. Then the two total-budget modes and the daily allowance.
+`AllocateBudget` over `CategoryClassification`: Fixed at the mean of the
+last three months, Variable and Seasonal at the 60/40 weighted moving
+average, a seasonal month at what it historically costs (the overall mean
+× E-07's index — not the weighted base × index, which under-budgeted the
+seed's December by half before it was caught), the trend buffer by trend
+and never by class, a period as the months it touches weighted by share.
+Three modes: unconstrained, the user's total (summing exactly), the
+suggested total (income − savings − fixed). Daily allowance floored.
+Reasoning in [`HANDOFF.md`](HANDOFF.md).
+
+### Next — confidence (FR-PLN-010)
+
+High / Medium / Low per allocation from `CategoryAllocation.statistics`:
+the SDD's data-points and CV thresholds, E-07's cap at MEDIUM below 24
+months, and a decision on whether "data points" are rows or months — the
+seed's Pets (3 rows), Food (CV 0.157) and Bills (24 rows, 24 months) are
+the cases to settle it on.
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
