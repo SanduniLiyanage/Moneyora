@@ -1,22 +1,16 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-13**, `main` at `d7a3416`, after **63
-merged pull requests** (#2–#64; #1 was closed unmerged) — the donut chart
-([PR #55](https://github.com/SanduniLiyanage/Moneyora/pull/55)), FR-RPT-002's
-period filters ([PR #56](https://github.com/SanduniLiyanage/Moneyora/pull/56)),
-FR-RPT-003's account filter
-([PR #58](https://github.com/SanduniLiyanage/Moneyora/pull/58)),
-FR-RPT-004's income-vs-expense bars
-([PR #60](https://github.com/SanduniLiyanage/Moneyora/pull/60)),
-FR-RPT-005's trend lines
-([PR #62](https://github.com/SanduniLiyanage/Moneyora/pull/62)) and
-FR-RPT-009's calendar heatmap ([PR #64](https://github.com/SanduniLiyanage/Moneyora/pull/64)) all merged during this
-window. **Sprint 4 is closed.** See "This session" below.
+State of the project as of **2026-09-13**, `main` at `76ebe8c`, after **65
+merged pull requests** (#2–#66; #1 was closed unmerged). **Sprint 4 is
+closed** (PR #65 recorded it) and **Sprint 5 has started**: its first slice,
+FR-PLN-005's per-category statistics
+([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)), merged
+during this window. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `d7a3416`, with PR #64 merged.
+at `76ebe8c`, with PR #66 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -25,15 +19,25 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **874 passing** | `flutter test` |
+| Tests | **920 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 114 in `lib/`, 61 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 118 in `lib/`, 65 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 839 at `c72abc5` (PR #62, merged) plus 35 net new from
+Tests by area: 874 at `d7a3416` (PR #64, merged) plus 46 net new from
+FR-PLN-005 — 16 in `category_statistics_test.dart` (the arithmetic: mean,
+median, sample deviation, CV, active months, the trend band); 7 in
+`lookback_window_test.dart`; 10 in `compute_category_statistics_test.dart`
+(validation, densifying, ordering, the failure passing through); 8 in
+`test/integration/category_statistics_seed_test.dart` against `dev_seed`
+through the real pipeline; 1 datasource test for the new count column; and
+4 repository tests for the port. Three existing fakes gained a
+`transactionCount`; **no assertion changed or was removed.**
+
+Before that: 839 at `c72abc5` (PR #62, merged) plus 35 net new from
 FR-RPT-009 — 12 in `test/widget/spending_heatmap_test.dart` (one cell per
 day, the shading against the month's largest day, the tooltip, the summary
 line, the anchor's month over every account, a Year *not* changing the month,
@@ -71,6 +75,49 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the per-category statistics ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66), merged as `76ebe8c`)
+
+**FR-PLN-005**, the first slice of Sprint 5: `ComputeCategoryStatistics`
+turns a `LookbackWindow` (1–24 whole months, FR-PLN-003) into one
+`CategoryStatistics` per category — mean, median, **sample** standard
+deviation, min, max, transaction count, months active, a least-squares
+slope and a `TrendDirection`. Nothing past it (classification, allocation,
+confidence, the wizard) is started.
+
+**Over monthly totals, in Dart (E-05).** The datasource returns rows and the
+domain does the arithmetic; the rows are per-category *monthly totals*, not
+transactions, because a budget is set per period.
+
+**No new SQL statement.** `spendingTrend` at month granularity already gave
+the totals, so the trend lines' statement gained `COUNT(*) AS
+transaction_count`, `TrendPoint` carries it, and `AnalyticsRepositoryImpl`
+now also implements `MonthlySpendingReader` in `core/ports/` — the seam the
+Copilot already reads `spendingByCategory` through. `money_plan` depends on
+the port, never on `analytics` (rule 4).
+
+**Against the seed, end to end** (`test/integration/`, real SQLite →
+datasource → port → use case): Bills CV 0.001 and flat, Gifts' Decembers
+several times its mean, Car rising at 7% of its mean a month, Pets three
+transactions in two years. Two findings for the classification slice:
+
+- **Food's CV over monthly totals is 0.157** — near-daily noise averages out
+  per month, and it lands a hair above the 0.15 Fixed line. The seed's doc
+  says Food should read Variable; at month granularity that is a close
+  call, and the classifier should know it before choosing its threshold or
+  its basis.
+- **Pets reads "rising" on three transactions.** Trend on noise; the
+  confidence gate (FR-PLN-010) is what discounts it, and the trend
+  adjustment (FR-PLN-007) should not run before that gate does.
+
+**Decided here, worth knowing:** `LookbackWindow.before(date)` is the whole
+months *before* the one `date` falls in — a plan generated mid-month does
+not count the partial month. The trend is flat inside ±2% of the mean per
+month (`CategoryStatistics.flatBand`). Amounts on the entity are integer
+cents; `stdDevCents` and `slopeCentsPerMonth` are a dispersion and a rate
+and stay `double`.
+
+---
 
 ## This session — the calendar heatmap ([PR #64](https://github.com/SanduniLiyanage/Moneyora/pull/64), merged as `d7a3416`)
 
@@ -912,14 +959,16 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 4 is closed.** Its cold-start item (PR #52), query benchmark (PR
-#53), aggregates (PR #54), donut chart (PR #55), period filters (PR #56),
-account filter (PR #58), income-vs-expense bars (PR #60), trend lines (PR
-#62) and calendar heatmap (PR #64) are all merged, and `main` is clean at
-`d7a3416`. Per `ROADMAP.md`, what follows is **Sprint 5 — the Money Plan
-Generator**, the headline feature: statistics → classification → allocation
-→ confidence → wizard UI → live tracking, each stage tested against the seed
-fixtures before the next. Two Sprint 4 leftovers are *not* blockers for it:
+**Sprint 5 is under way.** Its statistics stage is merged (PR #66) and
+`main` is clean at `76ebe8c`. Per `ROADMAP.md` the order is statistics →
+**classification** → allocation → confidence → wizard UI → live tracking,
+each stage tested against the seed fixtures before the next — so the next
+slice is FR-PLN-004's Fixed / Variable / Seasonal classifier over
+`CategoryStatistics`, with E-07's rules: Seasonal only on a 24-month window,
+by month-of-year index rather than FFT, and confidence capped at MEDIUM
+below it. Read "This session" for the two seed findings it inherits (Food at
+CV 0.157; Pets trending on three rows). Two Sprint 4 leftovers are *not*
+blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
