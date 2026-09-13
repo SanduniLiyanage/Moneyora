@@ -375,8 +375,27 @@ heatmap's `_firstWeekday` and `DateRange.week`'s default are where it lands).
 
 Order: statistics -> classification -> allocation -> confidence -> wizard UI ->
 live tracking. Test each stage against the seed fixtures before moving on.
-Budget an extra 2–3 days for the FFT seasonal detection; it is the fiddliest
-part of the spec and the easiest to get subtly wrong.
+Budget an extra 2–3 days for the seasonal detection; it is the fiddliest
+part of the spec and the easiest to get subtly wrong — and per
+[E-07](SPEC_ERRATA.md) it is a month-of-year index, not the FFT the SDD names.
+
+### Statistics (FR-PLN-005) — done ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66), merged as `76ebe8c`)
+
+`ComputeCategoryStatistics` over a 1–24 month `LookbackWindow`: mean,
+median, sample standard deviation, min, max, transaction count and a
+least-squares trend per category, all over monthly totals and all in Dart
+(E-05). It reads the trend lines' month query through a
+`MonthlySpendingReader` port in `core/` — no second statement, no
+cross-feature import. Proven against `dev_seed` end to end; the two
+findings the classifier inherits (Food's CV is 0.157 at month granularity;
+Pets trends on three rows) are in [`HANDOFF.md`](HANDOFF.md).
+
+### Next — classification (FR-PLN-004)
+
+Fixed (CV < 0.15) / Variable / Seasonal over `CategoryStatistics`, with
+E-07's gate: Seasonal needs the full 24 months and a month-of-year index
+above 1.5 recurring in the same month across two years; below 24 months it
+is never assigned and confidence is capped at MEDIUM.
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
