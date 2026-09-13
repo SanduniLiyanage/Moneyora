@@ -412,13 +412,23 @@ Three modes: unconstrained, the user's total (summing exactly), the
 suggested total (income − savings − fixed). Daily allowance floored.
 Reasoning in [`HANDOFF.md`](HANDOFF.md).
 
-### Next — confidence (FR-PLN-010)
+### Confidence (FR-PLN-010) — done ([PR #72](https://github.com/SanduniLiyanage/Moneyora/pull/72), merged as `4bbae30`)
 
-High / Medium / Low per allocation from `CategoryAllocation.statistics`:
-the SDD's data-points and CV thresholds, E-07's cap at MEDIUM below 24
-months, and a decision on whether "data points" are rows or months — the
-seed's Pets (3 rows), Food (CV 0.157) and Bills (24 rows, 24 months) are
-the cases to settle it on.
+`ScoreConfidence` over `CategoryAllocation.statistics`: the SDD's bands
+with E-07's cap at Medium below 24 months. **"Data points" are active
+months, not rows** — an allocation is a monthly figure, its support is
+monthly observations — and that is settled; the reasoning is in
+[`HANDOFF.md`](HANDOFF.md). On the seed: Bills and Food High at 24 months,
+Pets Low, nothing High at six. Recorded, not changed: Car reads Low
+because the CV includes its climb, and every Seasonal category reads Low
+because its spikes are its variance.
+
+### Next — the wizard (FR-PLN-001, 002, 008, 011, 012), then live tracking (FR-PLN-013, 014, 015)
+
+The engine is complete and `MoneyPlanDraft` carries every factor and
+reason. The wizard is the first screen, the first write
+(`money_plans` / `plan_allocations`) and the first place FR-PLN-003's
+lookback setting is missed (Sprint 7 — pass the default until then).
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
