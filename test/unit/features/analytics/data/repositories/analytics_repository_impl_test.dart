@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/income_reader.dart';
 import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/ports/spending_by_category_reader.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
@@ -70,6 +71,7 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
   }) async {
     this.from = from;
     this.to = to;
+    this.accountId = accountId;
     if (throws case final failure?) throw failure;
     return income;
   }
@@ -397,6 +399,40 @@ void main() {
           CacheFailure('disk is full'),
         ),
       );
+    });
+  });
+
+  group('as the IncomeReader the plan generator sees', () {
+    test('is the same object, so the income query is written once', () {
+      expect(AnalyticsRepositoryImpl(_FakeDataSource()), isA<IncomeReader>());
+    });
+
+    test('asks the income statement over every account', () async {
+      final source = _FakeDataSource();
+      final IncomeReader reader = AnalyticsRepositoryImpl(source);
+
+      final result = await reader.totalIncome(
+        from: DateTime(2024, 9),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(source.from, DateTime(2024, 9));
+      expect(source.to, DateTime(2026, 8, 31));
+      expect(source.accountId, isNull);
+      expect(result, const Right<Failure, int>(9000000));
+    });
+
+    test('turns a cache exception into a failure at this boundary', () async {
+      final IncomeReader reader = AnalyticsRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final result = await reader.totalIncome(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(result, const Left<Failure, int>(CacheFailure('disk is full')));
     });
   });
 }

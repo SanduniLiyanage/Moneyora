@@ -6,6 +6,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/income_reader.dart';
 import '../../../../core/ports/monthly_spending_reader.dart';
 import '../../../../core/ports/spending_by_category_reader.dart';
 import '../../domain/entities/analytics_query.dart';
@@ -18,10 +19,11 @@ import '../datasources/analytics_local_datasource.dart';
 /// Fulfils [AnalyticsRepository] against the local encrypted database.
 ///
 /// It also fulfils [SpendingByCategoryReader], the narrow contract in `core/`
-/// that the Copilot reads through, and [MonthlySpendingReader], the one the
-/// Money Plan Generator's statistics read through. One class, three views of
-/// the same queries: the feature's own callers get category ids and colours
-/// for the chart, and everyone outside the feature gets only what it needs.
+/// that the Copilot reads through, and [MonthlySpendingReader] and
+/// [IncomeReader], the ones the Money Plan Generator reads through. One
+/// class, several views of the same queries: the feature's own callers get
+/// category ids and colours for the chart, and everyone outside the feature
+/// gets only what it needs.
 ///
 /// The alternative was an adapter class in `injection.dart`, which would have
 /// put a piece of behaviour somewhere nothing can test it.
@@ -29,7 +31,8 @@ class AnalyticsRepositoryImpl
     implements
         AnalyticsRepository,
         SpendingByCategoryReader,
-        MonthlySpendingReader {
+        MonthlySpendingReader,
+        IncomeReader {
   /// Creates a repository over [local].
   const AnalyticsRepositoryImpl(this._local);
 
@@ -129,6 +132,19 @@ class AnalyticsRepositoryImpl
       ],
     );
   }
+
+  @override
+  Future<Either<Failure, int>> totalIncome({
+    required DateTime from,
+    required DateTime to,
+  }) =>
+      // Every account, as the other two ports: a plan is budgeted against
+      // what the person earns, not what one account received.
+      incomeForPeriod(
+        AnalyticsQuery(
+          range: DateRange(from: from, to: to),
+        ),
+      );
 
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {
