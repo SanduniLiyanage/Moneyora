@@ -12,6 +12,7 @@ import 'core/network/network_info.dart';
 import 'core/ports/account_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
+import 'core/ports/income_reader.dart';
 import 'core/ports/monthly_spending_reader.dart';
 import 'core/ports/spending_by_category_reader.dart';
 import 'features/accounts/data/datasources/account_local_datasource.dart';
@@ -46,6 +47,7 @@ import 'features/copilot/domain/repositories/llm_repository.dart';
 import 'features/copilot/domain/usecases/run_copilot_query.dart';
 import 'features/copilot/domain/usecases/tools/copilot_tool.dart';
 import 'features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
+import 'features/money_plan/domain/usecases/allocate_budget.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
@@ -435,7 +437,7 @@ final getSpendingCalendarProvider = FutureProvider<GetSpendingCalendar>(
 // ─────────────────────────────────────────────────────────────────────────────
 // Money Plan
 //
-// Sprint 5, stage by stage: statistics, classification, then allocation,
+// Sprint 5, stage by stage: statistics, classification, allocation, then
 // confidence and the wizard. Nothing here writes a row yet.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -460,6 +462,21 @@ final computeCategoryStatisticsProvider =
 final classifyCategoriesProvider = FutureProvider<ClassifyCategories>(
   (ref) async => ClassifyCategories(
     await ref.watch(computeCategoryStatisticsProvider.future),
+  ),
+);
+
+/// The income read Option B budgets against — the same object as
+/// [analyticsRepositoryProvider], through the contract in `core/ports/`.
+final incomeReaderProvider = FutureProvider<IncomeReader>(
+  (ref) async => ref.watch(_analyticsRepositoryImplProvider.future),
+);
+
+/// A budget per category for a plan period, and a total. FR-PLN-007,
+/// FR-PLN-008, FR-PLN-009.
+final allocateBudgetProvider = FutureProvider<AllocateBudget>(
+  (ref) async => AllocateBudget(
+    await ref.watch(classifyCategoriesProvider.future),
+    await ref.watch(incomeReaderProvider.future),
   ),
 );
 
