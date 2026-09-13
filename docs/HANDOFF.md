@@ -1,16 +1,17 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-13**, `main` at `afe2f3b`, after **67
-merged pull requests** (#2–#68; #1 was closed unmerged). **Sprint 5 is
-under way**: its statistics stage
-([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)) and its
-classification stage ([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68)) both merged during this window. See "This
-session" below.
+State of the project as of **2026-09-13**, `main` at `893e673`, after **69
+merged pull requests** (#2–#70; #1 was closed unmerged). **Sprint 5 is
+under way**: statistics
+([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66)),
+classification
+([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68)) and
+allocation ([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70)) all merged during this window. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `afe2f3b`, with PR #68 merged.
+at `893e673`, with PR #70 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -19,15 +20,27 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **946 passing** | `flutter test` |
+| Tests | **1020 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 120 in `lib/`, 67 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 127 in `lib/`, 71 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 920 at `76ebe8c` (PR #66, merged) plus 26 net new from
+Tests by area: 946 at `afe2f3b` (PR #68, merged) plus 74 net new from
+FR-PLN-007/008/009 — 40 in `allocate_budget_formulas_test.dart` (each
+formula alone: the recent average, the weighted moving average at and
+below three months, the seasonal multiplier, the trend factor, proportional
+distribution summing exactly, and `allocate` composed per category); 17 in
+`allocate_budget_test.dart` (the three modes over the real statistics and
+classifier stages); 8 in `plan_period_test.dart`; 11 in
+`test/integration/allocate_budget_seed_test.dart` against `dev_seed`; and 3
+repository tests for the `IncomeReader` port. The repository test's fake
+gained an `accountId` record on its income call. **No assertion changed or
+was removed.**
+
+Before that: 920 at `76ebe8c` (PR #66, merged) plus 26 net new from
 FR-PLN-004 — 17 in `classify_categories_test.dart` (the Fixed line at its
 edges, the E-07 gate at 6 and 23 months, recurrence, the strict reading,
 the 1.5 index at its edge, the use case over the real statistics stage) and
@@ -83,6 +96,51 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the allocator ([PR #70](https://github.com/SanduniLiyanage/Moneyora/pull/70), merged as `893e673`)
+
+**FR-PLN-007, FR-PLN-008, FR-PLN-009**, the third slice of Sprint 5:
+`AllocateBudget` turns an `AllocationRequest` (a `PlanPeriod`, a
+`LookbackWindow`, a `BudgetMode`) into a `MoneyPlanDraft` — one
+`CategoryAllocation` per category with its base, seasonal factor, trend
+factor, period allocation and daily allowance, and a total. Arithmetic on
+the classifier's output (E-05); the one read of its own is income for
+Option B, through an `IncomeReader` port over the existing query.
+Confidence and the wizard are not started.
+
+**Decided here, and worth knowing before the next slice:**
+
+- **Fixed = mean of the last 3 months**, not the lookback mean. The SRS's
+  Phase 2 pseudocode says `average(last 3 occurrences)`; the case it
+  matters for is a fixed cost that stepped (rent that went up four months
+  ago). Same `recentMonths` the Variable formula's 60% part uses.
+- **Trend buffer is flat ×1.08 / ×0.95** (the SRS's numbers), applied by
+  `statistics.trend` and never by class — the six-month Car (Fixed and
+  rising) gets it, asserted in unit and seed tests.
+- **A seasonal month is budgeted at what it costs**: the overall mean ×
+  E-07's index, *not* the recency-weighted base × index. The first draft
+  did the latter and put Gifts' December at 6.1M against Decembers of
+  12.7M, because the WMA sat in a quiet summer — caught by printing the
+  seed figures, fixed, and a test now proves the spike budget does not
+  move with the recent months.
+- **A period is the months it touches, weighted by the share covered**
+  (`PlanPeriod.monthCoverage`): one monthly statistic serves all six of
+  FR-PLN-002's period shapes, and a week across a month boundary carries a
+  spike multiplier on the spike month's days only.
+- **Option A sums to the total exactly** (largest-remainder rounding);
+  **Option B** is income − savings target − Fixed at face value, the rest
+  shared proportionally, refused when fixed costs and savings exceed
+  income; an **unconstrained** third mode is what both build on (SRS Phase
+  3, DBD's nullable `total_budget`). Daily allowance is floored.
+
+**Two things for later slices:** Gifts' quiet months are budgeted at the
+WMA, which includes its spikes — the spec applies the multiplier only when
+a spike is in the planned period, and this follows it; the wizard may want
+to say so, or the index could apply in every month (below 1 in quiet
+ones), a one-line change. And over 6 months **Food is Fixed** (CV under
+0.15 on Mar–Aug), a second close call for the confidence slice.
+
+---
 
 ## This session — the classifier ([PR #68](https://github.com/SanduniLiyanage/Moneyora/pull/68), merged as `afe2f3b`)
 
@@ -1008,18 +1066,20 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5 is under way.** Its statistics (PR #66) and classification
-(PR #68) stages are merged and `main` is clean at `afe2f3b`. Per
-`ROADMAP.md` the order is statistics → classification → **allocation** →
-confidence → wizard UI → live tracking, each stage tested against the seed
-fixtures before the next — so the next slice is FR-PLN-007's allocation
-over `CategoryClassification`: exact recent average for Fixed, the 60/40
-weighted moving average for Variable, a seasonal multiplier where the
-planned period lands on a `seasonalMonths` entry, and the trend adjustment
-applied **by trend, not by class** (see "This session": Car at six months
-is Fixed and rising). Both budget modes (FR-PLN-008) and the daily
-allowance (FR-PLN-009) sit beside it. Two Sprint 4 leftovers are *not*
-blockers for it:
+**Sprint 5 is under way.** Its statistics (PR #66), classification
+(PR #68) and allocation (PR #70) stages are merged and `main` is clean at
+`893e673`. Per `ROADMAP.md` the order is statistics → classification →
+allocation → **confidence** → wizard UI → live tracking — so the next slice
+is FR-PLN-010's confidence score per allocation: High / Medium / Low from
+data sufficiency and variance (the SDD's `data_points >= 10 and CV < 0.25`
+/ `>= 4 and CV < 0.50` / otherwise), with E-07's cap at MEDIUM below a
+24-month lookback. It reads `CategoryAllocation.statistics`
+(`transactionCount`, `activeMonths`, `coefficientOfVariation`) and the
+window; nothing new to query. Three cases it inherits from the seed: Pets
+(3 rows, "rising"), Food at CV 0.157 over 24 months and Fixed over 6, and
+whether "data points" means rows or months — `transactionCount` says 521
+for Food and 24 for Bills, `activeMonths` says 24 for both. Two Sprint 4
+leftovers are *not* blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
