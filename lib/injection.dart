@@ -54,6 +54,7 @@ import 'features/money_plan/domain/usecases/activate_plan.dart';
 import 'features/money_plan/domain/usecases/allocate_budget.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
+import 'features/money_plan/domain/usecases/recompute_plan_spending.dart';
 import 'features/money_plan/domain/usecases/save_plan.dart';
 import 'features/money_plan/domain/usecases/update_allocation.dart';
 import 'features/money_plan/domain/usecases/watch_active_plan.dart';
@@ -530,6 +531,13 @@ final watchActivePlanProvider = FutureProvider<WatchActivePlan>(
 final updateAllocationProvider = FutureProvider<UpdateAllocation>(
   (ref) async =>
       UpdateAllocation(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Re-derives a plan's spend from history. FR-PLN-013, E-18.
+final recomputePlanSpendingProvider = FutureProvider<RecomputePlanSpending>(
+  (ref) async => RecomputePlanSpending(
+    await ref.watch(moneyPlanRepositoryProvider.future),
+  ),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

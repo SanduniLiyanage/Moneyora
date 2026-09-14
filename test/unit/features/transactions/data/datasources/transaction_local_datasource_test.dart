@@ -666,6 +666,391 @@ void main() {
     });
   });
 
+  // ── FR-PLN-013: the plan's spend follows the expense writes ───────────────
+
+  group('the active plan\'s spent_amount_cents', () {
+    // A fourth category the plan does not allocate, so "not in the plan" can
+    // be told apart from "not an expense category".
+    const other = 4;
+    final september = (from: DateTime(2026, 9, 1), to: DateTime(2026, 9, 30));
+    late int planId;
+
+    /// A plan over [period] with a row for each of [categories], written by
+    /// hand: this file is about what the *transactions* datasource does to
+    /// the plan tables, not about how a plan is saved.
+    Future<int> insertPlan({
+      ({DateTime from, DateTime to})? period,
+      bool active = true,
+      List<int> categories = const [food, transport],
+    }) async {
+      final p = period ?? september;
+      final id = await db.insert('money_plans', {
+        'user_id': 1,
+        'name': 'Plan',
+        'period_type': 'month',
+        'start_date': TransactionModel.encodeDate(p.from),
+        'end_date': TransactionModel.encodeDate(p.to),
+        'total_budget_cents': 0,
+        'is_active': active ? 1 : 0,
+        'created_at': '2026-09-01T00:00:00Z',
+      });
+      for (final categoryId in categories) {
+        await db.insert('plan_allocations', {
+          'plan_id': id,
+          'category_id': categoryId,
+          'allocated_amount_cents': 100000,
+          'confidence_level': 'high',
+        });
+      }
+      return id;
+    }
+
+    Future<int> spentOf(int plan, int categoryId) async =>
+        (await db.query(
+              'plan_allocations',
+              columns: ['spent_amount_cents'],
+              where: 'plan_id = ? AND category_id = ?',
+              whereArgs: [plan, categoryId],
+            )).single['spent_amount_cents']!
+            as int;
+
+    /// The spend re-derived from history, which the cached column must
+    /// match — E-18's oracle again, for the plan tables. It reads the rows
+    /// and adds them up the way the analytics datasource defines spending:
+    /// unsplit expenses by their own category, split ones by their parts
+    /// (E-04), income and transfers not at all (E-02). It knows nothing
+    /// about how the cache is kept.
+    Future<int> recountSpent(int plan, int categoryId) async {
+      final header = (await db.query(
+        'money_plans',
+        where: 'id = ?',
+        whereArgs: [plan],
+      )).single;
+      final rows = await db.query(
+        'transactions',
+        where: "type = 'expense' AND date >= ? AND date <= ?",
+        whereArgs: [header['start_date'], header['end_date']],
+      );
+      var total = 0;
+      for (final row in rows) {
+        if (row['is_split'] == 1) {
+          final parts = await db.query(
+            'transaction_splits',
+            where: 'transaction_id = ? AND category_id = ?',
+            whereArgs: [row['id'], categoryId],
+          );
+          for (final part in parts) {
+            total += part['amount_cents']! as int;
+          }
+        } else if (row['category_id'] == categoryId) {
+          total += row['amount_cents']! as int;
+        }
+      }
+      return total;
+    }
+
+    setUp(() async {
+      await db.insert('categories', {
+        'id': other,
+        'user_id': 1,
+        'name': 'Other',
+        'icon': 'dot',
+        'color': '#3F51B5',
+        'type': 'expense',
+      });
+      planId = await insertPlan();
+    });
+
+    test('moves up for an expense in the period, in its category', () async {
+      await source.add(expense(amountCents: 125000));
+
+      expect(await spentOf(planId, food), 125000);
+      expect(await spentOf(planId, transport), 0);
+    });
+
+    test('is written in the same transaction as the row', () async {
+      // The parent inserts, the balance and the plan move, then a split with
+      // an unknown category fails. If the plan's figure were a second write,
+      // it would survive the rollback and count an expense that does not
+      // exist.
+      final doomed = expense(
+        amountCents: 125000,
+        parts: const [
+          TransactionSplit(categoryId: food, amountCents: 75000),
+          TransactionSplit(categoryId: missingCategory, amountCents: 50000),
+        ],
+      );
+
+      await expectLater(source.add(doomed), throwsA(isA<CacheException>()));
+
+      expect(await countOf('transactions'), 0);
+      expect(await spentOf(planId, food), 0, reason: 'plan rolled back');
+    });
+
+    test('ignores an expense outside the period', () async {
+      await source.add(expense(amountCents: 125000, on: DateTime(2026, 8, 31)));
+      await source.add(expense(amountCents: 125000, on: DateTime(2026, 10, 1)));
+
+      expect(await spentOf(planId, food), 0);
+    });
+
+    test('counts both ends of the period', () async {
+      await source.add(expense(amountCents: 10000, on: september.from));
+      await source.add(expense(amountCents: 20000, on: september.to));
+
+      expect(await spentOf(planId, food), 30000);
+    });
+
+    test('ignores a category the plan has no row for', () async {
+      await source.add(expense(amountCents: 125000, categoryId: other));
+
+      expect(await spentOf(planId, food), 0);
+      expect(await spentOf(planId, transport), 0);
+    });
+
+    test('ignores income', () async {
+      // FR-PLN-013 tracks spending. Income in a plan's period is not spend,
+      // whatever category it carries.
+      await source.add(income(amountCents: 300000));
+
+      expect(
+        await db.rawQuery(
+          'SELECT SUM(spent_amount_cents) AS s FROM plan_allocations',
+        ),
+        [
+          {'s': 0},
+        ],
+      );
+    });
+
+    test('ignores a transfer', () async {
+      // E-02: a transfer is neither income nor expense, and it carries no
+      // category to match on anyway (E-17).
+      await source.createTransfer(
+        fromAccountId: card,
+        toAccountId: cash,
+        amountCents: 800000,
+        date: date,
+      );
+
+      expect(await spentOf(planId, food), 0);
+      expect(await spentOf(planId, transport), 0);
+    });
+
+    test('moves by a split\'s parts, not by its parent', () async {
+      // E-04: the parent carries the dominant category and the whole amount.
+      // Counting it would put 125,000 on Food; the parts say 75,000 of it
+      // was Food and 50,000 Transport, and that is what the plan tracks —
+      // the same reading the reports give.
+      await source.add(
+        expense(
+          amountCents: 125000,
+          categoryId: food,
+          parts: const [
+            TransactionSplit(categoryId: food, amountCents: 75000),
+            TransactionSplit(categoryId: transport, amountCents: 50000),
+          ],
+        ),
+      );
+
+      expect(await spentOf(planId, food), 75000);
+      expect(await spentOf(planId, transport), 50000);
+    });
+
+    test('follows an edit to the amount', () async {
+      final id = await source.add(expense(amountCents: 50000));
+
+      await source.update(expense(id: id, amountCents: 80000));
+
+      expect(await spentOf(planId, food), 80000);
+    });
+
+    test('moves the spend between rows when the category changes', () async {
+      final id = await source.add(expense(amountCents: 50000));
+
+      await source.update(expense(id: id, categoryId: transport));
+
+      expect(await spentOf(planId, food), 0, reason: 'old category restored');
+      expect(await spentOf(planId, transport), 50000, reason: 'new charged');
+    });
+
+    test('reverses when the date moves out of the period', () async {
+      final id = await source.add(expense(amountCents: 50000));
+
+      await source.update(expense(id: id, on: DateTime(2026, 10, 1)));
+
+      expect(await spentOf(planId, food), 0);
+    });
+
+    test('applies when the date moves into the period', () async {
+      final id = await source.add(
+        expense(amountCents: 50000, on: DateTime(2026, 10, 1)),
+      );
+
+      await source.update(expense(id: id, on: DateTime(2026, 9, 15)));
+
+      expect(await spentOf(planId, food), 50000);
+    });
+
+    test('replaces a split\'s parts on edit, reversing the old ones', () async {
+      final id = await source.add(
+        expense(
+          amountCents: 100000,
+          parts: const [
+            TransactionSplit(categoryId: food, amountCents: 60000),
+            TransactionSplit(categoryId: transport, amountCents: 40000),
+          ],
+        ),
+      );
+
+      await source.update(
+        expense(
+          id: id,
+          amountCents: 100000,
+          parts: const [
+            TransactionSplit(categoryId: food, amountCents: 100000),
+          ],
+        ),
+      );
+
+      expect(await spentOf(planId, food), 100000);
+      expect(await spentOf(planId, transport), 0);
+    });
+
+    test('reverses on delete', () async {
+      final id = await source.add(expense(amountCents: 50000));
+
+      await source.delete(id);
+
+      expect(await spentOf(planId, food), 0);
+    });
+
+    test('reverses a split\'s parts on delete', () async {
+      final id = await source.add(
+        expense(
+          amountCents: 100000,
+          parts: const [
+            TransactionSplit(categoryId: food, amountCents: 60000),
+            TransactionSplit(categoryId: transport, amountCents: 40000),
+          ],
+        ),
+      );
+
+      await source.delete(id);
+
+      expect(await spentOf(planId, food), 0);
+      expect(await spentOf(planId, transport), 0);
+    });
+
+    test('is a no-op with no active plan', () async {
+      // An inactive plan over the same period is not being tracked. Nothing
+      // is refused: an expense the plan does not cover is still an expense.
+      await db.update('money_plans', {'is_active': 0});
+
+      final id = await source.add(expense(amountCents: 50000));
+      await source.update(expense(id: id, amountCents: 80000));
+      await source.delete(id);
+      await source.add(expense(amountCents: 30000));
+
+      expect(await spentOf(planId, food), 0);
+      expect(await countOf('transactions'), 1);
+    });
+
+    test('targets the active plan, not another one holding the date', () async {
+      final shelved = await insertPlan(active: false);
+
+      await source.add(expense(amountCents: 50000));
+
+      expect(await spentOf(planId, food), 50000);
+      expect(await spentOf(shelved, food), 0);
+    });
+
+    test('cached == recounted after a random sequence of writes', () async {
+      // E-18's property, for the plan tables: after any sequence of writes
+      // the cache must equal a recount from history. The sequence reaches
+      // every path that can move it — in and out of the period, in and out
+      // of the plan's categories, split and unsplit, income and transfers
+      // that must not count — so a path that forgets the plan, moves it
+      // twice or moves the wrong row fails here.
+      final random = Random(20260914);
+      final live = <int>[];
+      final categories = [food, transport, other];
+      final days = [
+        DateTime(2026, 8, 31),
+        DateTime(2026, 9, 1),
+        DateTime(2026, 9, 15),
+        DateTime(2026, 9, 30),
+        DateTime(2026, 10, 1),
+      ];
+
+      TransactionModel someExpense({int? id}) {
+        final on = days[random.nextInt(days.length)];
+        if (random.nextInt(3) == 0) {
+          final a = 1000 + random.nextInt(50000);
+          final b = 1000 + random.nextInt(50000);
+          return expense(
+            id: id,
+            amountCents: a + b,
+            categoryId: categories[random.nextInt(categories.length)],
+            on: on,
+            parts: [
+              TransactionSplit(
+                categoryId: categories[random.nextInt(categories.length)],
+                amountCents: a,
+              ),
+              TransactionSplit(
+                categoryId: categories[random.nextInt(categories.length)],
+                amountCents: b,
+              ),
+            ],
+          );
+        }
+        return expense(
+          id: id,
+          amountCents: 1000 + random.nextInt(90000),
+          categoryId: categories[random.nextInt(categories.length)],
+          on: on,
+        );
+      }
+
+      for (var step = 0; step < 150; step++) {
+        switch (random.nextInt(6)) {
+          case 0:
+          case 1:
+            live.add(await source.add(someExpense()));
+          case 2:
+            await source.add(income(amountCents: 1000 + random.nextInt(9000)));
+          case 3:
+            await source.createTransfer(
+              fromAccountId: card,
+              toAccountId: cash,
+              amountCents: 1000 + random.nextInt(9000),
+              date: days[random.nextInt(days.length)],
+            );
+          case 4:
+            if (live.isEmpty) continue;
+            await source.update(
+              someExpense(id: live[random.nextInt(live.length)]),
+            );
+          case 5:
+            if (live.isEmpty) continue;
+            await source.delete(live.removeAt(random.nextInt(live.length)));
+        }
+      }
+
+      for (final categoryId in [food, transport]) {
+        final recounted = await recountSpent(planId, categoryId);
+        expect(
+          await spentOf(planId, categoryId),
+          recounted,
+          reason: 'cached spend drifted from history on category $categoryId',
+        );
+        // A test that did nothing would also pass the assertion above.
+        expect(recounted, greaterThan(0));
+      }
+    });
+  });
+
   // ── change notification ───────────────────────────────────────────────────
 
   group('changes', () {

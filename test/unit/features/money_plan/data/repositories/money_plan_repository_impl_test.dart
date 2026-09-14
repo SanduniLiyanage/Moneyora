@@ -24,6 +24,7 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   MoneyPlanModel? inserted;
   int? activated;
   List<PlanAllocationModel>? updated;
+  int? recomputed;
   int reads = 0;
 
   void tick() => _changes.add(null);
@@ -67,6 +68,12 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   ) async {
     if (throws case final e?) throw e;
     updated = allocations;
+  }
+
+  @override
+  Future<void> recomputeSpent(int planId) async {
+    if (throws case final e?) throw e;
+    recomputed = planId;
   }
 }
 
@@ -123,6 +130,17 @@ void main() {
     expect(source.updated!.single.allocatedCents, 100);
   });
 
+  test('recomputeSpent passes the plan id through', () async {
+    final source = _FakeDataSource();
+    final repository = MoneyPlanRepositoryImpl(source);
+
+    expect(
+      await repository.recomputeSpent(5),
+      const Right<Failure, Unit>(unit),
+    );
+    expect(source.recomputed, 5);
+  });
+
   test('turns a cache exception into a failure at this boundary', () async {
     final repository = MoneyPlanRepositoryImpl(
       _FakeDataSource(throws: const CacheException('disk is full')),
@@ -139,6 +157,10 @@ void main() {
     expect(
       await repository.getById(5),
       const Left<Failure, MoneyPlan?>(CacheFailure('disk is full')),
+    );
+    expect(
+      await repository.recomputeSpent(5),
+      const Left<Failure, Unit>(CacheFailure('disk is full')),
     );
   });
 

@@ -95,6 +95,10 @@ class _MemoryRepository implements MoneyPlanRepository {
   Future<Either<Failure, Unit>> activate(int id) => throw UnimplementedError();
 
   @override
+  Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) =>
       throw UnimplementedError();
 

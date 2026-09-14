@@ -41,6 +41,10 @@ class _FakeRepository implements MoneyPlanRepository {
   @override
   Stream<Either<Failure, MoneyPlan?>> watchActive() =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      throw UnimplementedError();
 }
 
 CategoryAllocation _allocation({

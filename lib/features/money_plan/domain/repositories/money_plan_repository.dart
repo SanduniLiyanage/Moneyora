@@ -36,4 +36,8 @@ abstract interface class MoneyPlanRepository {
     int planId,
     List<PlanAllocation> allocations,
   );
+
+  /// Re-derives every allocation's `spentCents` of [planId] from the
+  /// expenses in its period and stores the result. FR-PLN-013, E-18.
+  Future<Either<Failure, Unit>> recomputeSpent(int planId);
 }
