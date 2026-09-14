@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/category_allocation.dart';
 import '../../domain/entities/confidence_score.dart';
 import '../../domain/entities/money_plan_draft.dart';
+import '../../domain/usecases/save_plan.dart';
 import '../providers/money_plan_providers.dart';
 import '../widgets/plan_labels.dart';
 
@@ -15,10 +20,9 @@ import '../widgets/plan_labels.dart';
 /// Shows every figure with its provenance — the monthly base, the seasonal
 /// and trend factors, the class, the confidence and the reason for it —
 /// because a budget the user cannot interrogate is a budget they will not
-/// trust (E-07). Nothing is saved from here yet; saving, adjusting
-/// (FR-PLN-011) and what-if (FR-PLN-012) are the next slice, and adjusting
-/// happens on the *saved* plan, where `UpdateAllocation` already holds the
-/// total.
+/// trust (E-07). Save names the plan and activates it; adjusting
+/// (FR-PLN-011) and what-if (FR-PLN-012) happen on the *saved* plan, where
+/// `UpdateAllocation` already holds the total — so a save lands there.
 class PlanReviewPage extends ConsumerWidget {
   /// Creates the review screen for [request].
   const PlanReviewPage({required this.request, super.key});
@@ -29,6 +33,7 @@ class PlanReviewPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(planDraftProvider(request));
+    final saving = ref.watch(savePlanControllerProvider).isLoading;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Your plan')),
@@ -38,8 +43,95 @@ class PlanReviewPage extends ConsumerWidget {
         data: (draft) =>
             draft.isEmpty ? const _NothingToPlanFrom() : _Draft(draft: draft),
       ),
+      bottomNavigationBar: switch (draft.valueOrNull) {
+        final MoneyPlanDraft d when !d.isEmpty => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: FilledButton(
+              onPressed: saving ? null : () => _save(context, ref, d),
+              child: Text(saving ? 'Saving…' : 'Save plan'),
+            ),
+          ),
+        ),
+        _ => null,
+      },
     );
   }
+
+  Future<void> _save(
+    BuildContext context,
+    WidgetRef ref,
+    MoneyPlanDraft draft,
+  ) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _NameDialog(initial: planPeriodLabel(draft.period)),
+    );
+    if (name == null || !context.mounted) return;
+
+    final id = await ref
+        .read(savePlanControllerProvider.notifier)
+        .save(SavePlanRequest(draft: draft, name: name));
+    if (!context.mounted) return;
+
+    if (id != null) {
+      // Home underneath, the saved plan on top: back leaves to home, not to
+      // a review of a draft that has already been saved.
+      context.go(Routes.home);
+      unawaited(context.push(Routes.activePlan));
+      return;
+    }
+
+    final error = ref.read(savePlanControllerProvider).error;
+    if (error is Failure) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+/// Asks what to call the plan. Returns the name, or null when dismissed.
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final TextEditingController _name = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Name your plan'),
+    content: TextField(
+      controller: _name,
+      autofocus: true,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: const InputDecoration(labelText: 'Name'),
+      onSubmitted: (value) => Navigator.of(context).pop(value),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.of(context).pop(_name.text),
+        child: const Text('Save'),
+      ),
+    ],
+  );
 }
 
 class _Draft extends StatelessWidget {
