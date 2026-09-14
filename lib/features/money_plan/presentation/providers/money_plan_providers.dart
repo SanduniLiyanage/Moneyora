@@ -15,6 +15,8 @@ import '../../../../injection.dart';
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/money_plan_draft.dart';
+import '../../domain/entities/plan_comparison.dart';
+import '../../domain/usecases/compare_plans.dart';
 import '../../domain/usecases/respond_to_overspend.dart';
 import '../../domain/usecases/save_plan.dart';
 import '../../domain/usecases/update_allocation.dart';
@@ -153,4 +155,93 @@ class RespondToOverspendController extends AutoDisposeAsyncNotifier<void> {
 final respondToOverspendControllerProvider =
     AutoDisposeAsyncNotifierProvider<RespondToOverspendController, void>(
       RespondToOverspendController.new,
+    );
+
+/// Every saved plan, live, newest first. FR-PLN-015.
+///
+/// The same stream shape as [activePlanProvider]: activation is a write on
+/// the shared bus, so the list shows a switch without being told.
+final plansProvider = StreamProvider.autoDispose<List<MoneyPlan>>((ref) {
+  return Stream.fromFuture(ref.watch(watchPlansProvider.future))
+      .asyncExpand((watch) => watch(const NoParams()))
+      .transform(
+        StreamTransformer<
+          Either<Failure, List<MoneyPlan>>,
+          List<MoneyPlan>
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
+
+/// Two plans side by side. FR-PLN-015. A `Left` is the future's error, as
+/// [planDraftProvider] does it, so the screen shows the use case's sentence.
+final planComparisonProvider = FutureProvider.autoDispose
+    .family<PlanComparison, ComparePlansRequest>((ref, request) async {
+      final compare = await ref.watch(comparePlansProvider.future);
+      final result = await compare(request);
+      return result.match(
+        Future<PlanComparison>.error,
+        Future<PlanComparison>.value,
+      );
+    });
+
+/// Makes a saved plan the tracked one. FR-PLN-015 — `ActivatePlan`'s first
+/// caller from a screen.
+class ActivatePlanController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Returns true when it was written; the failure stays in [state].
+  Future<bool> activate(int planId) async {
+    state = const AsyncValue<void>.loading();
+    final activatePlan = await ref.read(activatePlanProvider.future);
+    final result = await activatePlan(planId);
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return true;
+      },
+    );
+  }
+}
+
+/// Controller for the plan list's Activate action.
+final activatePlanControllerProvider =
+    AutoDisposeAsyncNotifierProvider<ActivatePlanController, void>(
+      ActivatePlanController.new,
+    );
+
+/// Recounts a plan's spend from history. E-18's repair, reachable from the
+/// plan list — `RecomputePlanSpending`'s first caller from a screen.
+class RecomputePlanSpendingController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Returns true when it was written; the failure stays in [state].
+  Future<bool> recount(int planId) async {
+    state = const AsyncValue<void>.loading();
+    final recompute = await ref.read(recomputePlanSpendingProvider.future);
+    final result = await recompute(planId);
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return true;
+      },
+    );
+  }
+}
+
+/// Controller for the plan list's Recount action.
+final recomputePlanSpendingControllerProvider =
+    AutoDisposeAsyncNotifierProvider<RecomputePlanSpendingController, void>(
+      RecomputePlanSpendingController.new,
     );

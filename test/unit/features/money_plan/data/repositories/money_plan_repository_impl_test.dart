@@ -64,6 +64,13 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   }
 
   @override
+  Future<List<MoneyPlanModel>> listAll() async {
+    reads += 1;
+    if (throws case final e?) throw e;
+    return [?active];
+  }
+
+  @override
   Future<MoneyPlanModel?> getActive() async {
     reads += 1;
     if (throws case final e?) throw e;
@@ -182,6 +189,42 @@ void main() {
       await repository.recomputeSpent(5),
       const Left<Failure, Unit>(CacheFailure('disk is full')),
     );
+  });
+
+  group('watchAll', () {
+    test('emits every plan on listen and again on every change', () async {
+      final source = _FakeDataSource()
+        ..active = MoneyPlanModel.fromEntity(_plan);
+      final repository = MoneyPlanRepositoryImpl(source);
+      final seen = <Either<Failure, List<MoneyPlan>>>[];
+
+      final sub = repository.watchAll().listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+      source.active = null;
+      source.tick();
+      await Future<void>.delayed(Duration.zero);
+
+      // Unwrapped: a List inside an Either compares by identity.
+      expect(seen.map((e) => e.getOrElse((_) => fail('left'))), [
+        [_plan],
+        <MoneyPlan>[],
+      ]);
+      await sub.cancel();
+      await source.dispose();
+    });
+
+    test('a failed read is a Left on the stream', () async {
+      final repository = MoneyPlanRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final first = await repository.watchAll().first;
+
+      expect(
+        first,
+        const Left<Failure, List<MoneyPlan>>(CacheFailure('disk is full')),
+      );
+    });
   });
 
   group('watchActive', () {

@@ -30,6 +30,10 @@ class _FakeRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll() =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, int>> save(MoneyPlan plan) =>
       throw UnimplementedError();
 

@@ -599,6 +599,23 @@ void main() {
     });
   });
 
+  group('listAll', () {
+    test('is every plan, newest first, each with its rows', () async {
+      final first = await plans.insert(plan('First'));
+      final second = await plans.insert(plan('Second', active: false));
+
+      final read = await plans.listAll();
+
+      expect(read.map((p) => p.id), [second, first]);
+      expect(read.map((p) => p.isActive), [false, true]);
+      expect(read.every((p) => p.allocations.length == 2), isTrue);
+    });
+
+    test('is empty with no plans', () async {
+      expect(await plans.listAll(), isEmpty);
+    });
+  });
+
   group('getLatestEndingBefore', () {
     MoneyPlanModel over(String name, int year, int month) => MoneyPlanModel(
       name: name,

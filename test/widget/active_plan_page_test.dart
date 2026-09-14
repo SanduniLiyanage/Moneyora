@@ -66,6 +66,10 @@ class _MemoryRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll() =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) async =>
       Right(plan?.id == id ? plan : null);
 

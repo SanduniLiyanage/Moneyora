@@ -170,6 +170,7 @@ class _Ready extends StatelessWidget {
           ('Ask Moneyora', Routes.copilot),
           ('Create Money Plan', Routes.moneyPlan),
           ('Your plan', Routes.activePlan),
+          ('Saved plans', Routes.plans),
           ('Scan Receipt', Routes.scanReceipt),
         ])
           // `push`, not `go`. Every route here is top-level, and `go` replaces

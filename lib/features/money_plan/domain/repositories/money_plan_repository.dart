@@ -35,6 +35,10 @@ abstract interface class MoneyPlanRepository {
   /// transaction.
   Stream<Either<Failure, MoneyPlan?>> watchActive();
 
+  /// Every saved plan with its allocations, newest first — re-read after
+  /// every database write, as [watchActive] is. FR-PLN-015.
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll();
+
   /// Rewrites the allocation figures of [planId]'s rows from [allocations],
   /// matched by category, as one transaction. FR-PLN-011.
   Future<Either<Failure, Unit>> updateAllocations(

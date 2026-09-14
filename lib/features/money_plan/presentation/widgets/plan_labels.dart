@@ -117,3 +117,11 @@ String trackingLabel(AllocationProgress p) {
     final d => '$head · heading ${formatCents(-d)} under',
   };
 }
+
+/// How a comparison's difference reads: `Rs500.00 more`, `Rs500.00 less`,
+/// `the same`. FR-PLN-015.
+String differenceLabel(int cents) => switch (cents) {
+  0 => 'the same',
+  > 0 => '${formatCents(cents)} more',
+  _ => '${formatCents(-cents)} less',
+};

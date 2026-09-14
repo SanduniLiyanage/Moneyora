@@ -53,12 +53,14 @@ import 'features/money_plan/domain/repositories/money_plan_repository.dart';
 import 'features/money_plan/domain/usecases/activate_plan.dart';
 import 'features/money_plan/domain/usecases/allocate_budget.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
+import 'features/money_plan/domain/usecases/compare_plans.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'features/money_plan/domain/usecases/recompute_plan_spending.dart';
 import 'features/money_plan/domain/usecases/respond_to_overspend.dart';
 import 'features/money_plan/domain/usecases/save_plan.dart';
 import 'features/money_plan/domain/usecases/update_allocation.dart';
 import 'features/money_plan/domain/usecases/watch_active_plan.dart';
+import 'features/money_plan/domain/usecases/watch_plans.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -540,6 +542,18 @@ final watchActivePlanProvider = FutureProvider<WatchActivePlan>(
 final updateAllocationProvider = FutureProvider<UpdateAllocation>(
   (ref) async =>
       UpdateAllocation(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Every saved plan, live. FR-PLN-015.
+final watchPlansProvider = FutureProvider<WatchPlans>(
+  (ref) async =>
+      WatchPlans(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Two saved plans side by side. FR-PLN-015.
+final comparePlansProvider = FutureProvider<ComparePlans>(
+  (ref) async =>
+      ComparePlans(await ref.watch(moneyPlanRepositoryProvider.future)),
 );
 
 /// Re-derives a plan's spend from history. FR-PLN-013, E-18.

@@ -63,22 +63,31 @@ class PlanReviewPage extends ConsumerWidget {
     WidgetRef ref,
     MoneyPlanDraft draft,
   ) async {
-    final name = await showDialog<String>(
+    final choice = await showDialog<({String name, bool activate})>(
       context: context,
       builder: (_) => _NameDialog(initial: planPeriodLabel(draft.period)),
     );
-    if (name == null || !context.mounted) return;
+    if (choice == null || !context.mounted) return;
 
     final id = await ref
         .read(savePlanControllerProvider.notifier)
-        .save(SavePlanRequest(draft: draft, name: name));
+        .save(
+          SavePlanRequest(
+            draft: draft,
+            name: choice.name,
+            activate: choice.activate,
+          ),
+        );
     if (!context.mounted) return;
 
     if (id != null) {
       // Home underneath, the saved plan on top: back leaves to home, not to
-      // a review of a draft that has already been saved.
+      // a review of a draft that has already been saved. A plan saved for
+      // later (FR-PLN-015) lands on the list, where it can be activated.
       context.go(Routes.home);
-      unawaited(context.push(Routes.activePlan));
+      unawaited(
+        context.push(choice.activate ? Routes.activePlan : Routes.plans),
+      );
       return;
     }
 
@@ -90,7 +99,9 @@ class PlanReviewPage extends ConsumerWidget {
   }
 }
 
-/// Asks what to call the plan. Returns the name, or null when dismissed.
+/// Asks what to call the plan and whether to track it now. Returns both,
+/// or null when dismissed. Saving without activating is FR-PLN-015's "June
+/// Vacation Plan" kept beside the "Regular Monthly" still being tracked.
 class _NameDialog extends StatefulWidget {
   const _NameDialog({required this.initial});
 
@@ -104,6 +115,7 @@ class _NameDialogState extends State<_NameDialog> {
   late final TextEditingController _name = TextEditingController(
     text: widget.initial,
   );
+  bool _activate = true;
 
   @override
   void dispose() {
@@ -111,25 +123,37 @@ class _NameDialogState extends State<_NameDialog> {
     super.dispose();
   }
 
+  void _submit() =>
+      Navigator.of(context).pop((name: _name.text, activate: _activate));
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Name your plan'),
-    content: TextField(
-      controller: _name,
-      autofocus: true,
-      textCapitalization: TextCapitalization.sentences,
-      decoration: const InputDecoration(labelText: 'Name'),
-      onSubmitted: (value) => Navigator.of(context).pop(value),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Name'),
+          onSubmitted: (_) => _submit(),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _activate,
+          onChanged: (v) => setState(() => _activate = v ?? true),
+          title: const Text('Track it now'),
+          subtitle: const Text('Untick to keep it for later.'),
+        ),
+      ],
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
         child: const Text('Cancel'),
       ),
-      FilledButton(
-        onPressed: () => Navigator.of(context).pop(_name.text),
-        child: const Text('Save'),
-      ),
+      FilledButton(onPressed: _submit, child: const Text('Save')),
     ],
   );
 }
