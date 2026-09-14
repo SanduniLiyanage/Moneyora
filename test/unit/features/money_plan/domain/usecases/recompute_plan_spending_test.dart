@@ -26,6 +26,10 @@ class _FakeRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, int>> save(MoneyPlan plan) =>
       throw UnimplementedError();
 

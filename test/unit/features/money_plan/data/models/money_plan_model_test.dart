@@ -101,6 +101,7 @@ void main() {
           categoryName: 'Food',
           allocatedCents: 3000000,
           spentCents: 120000,
+          carryOverCents: 25000,
           confidence: ConfidenceLevel.medium,
           isUserModified: true,
           notes: 'trimmed',
@@ -123,6 +124,7 @@ void main() {
       expect(rows[0]['expense_class'], 'fixed');
       expect(rows[1]['expense_class'], isNull);
       expect(rows[1]['is_user_modified'], 1);
+      expect(rows[1]['carry_over_cents'], 25000);
 
       // Read back as SQLite would hand them, with the ids and the joined
       // category name the query adds.

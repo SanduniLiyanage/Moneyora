@@ -17,6 +17,7 @@ class MoneyPlanDraft extends Equatable {
     required this.allocations,
     this.incomeCents,
     this.savingsTargetCents,
+    this.carriedFromPlan,
   });
 
   /// The days the plan is for.
@@ -39,6 +40,28 @@ class MoneyPlanDraft extends Equatable {
   /// The savings held back from [incomeCents] — under
   /// [BudgetMode.suggested] only.
   final int? savingsTargetCents;
+
+  /// The name of the plan whose carried-over overspend was deducted from
+  /// these allocations (FR-PLN-014), or null when none was.
+  final String? carriedFromPlan;
+
+  /// Every carried-over deduction added up.
+  int get carryOverCents =>
+      allocations.fold(0, (sum, a) => sum + a.carryOverCents);
+
+  /// This draft with [allocations] replaced and [carriedFromPlan] set.
+  MoneyPlanDraft withCarryOvers(
+    List<CategoryAllocation> allocations, {
+    required String carriedFromPlan,
+  }) => MoneyPlanDraft(
+    period: period,
+    lookback: lookback,
+    mode: mode,
+    allocations: allocations,
+    incomeCents: incomeCents,
+    savingsTargetCents: savingsTargetCents,
+    carriedFromPlan: carriedFromPlan,
+  );
 
   /// What the allocations add up to. Under [BudgetMode.total] this is the
   /// user's total exactly.
@@ -68,5 +91,6 @@ class MoneyPlanDraft extends Equatable {
     allocations,
     incomeCents,
     savingsTargetCents,
+    carriedFromPlan,
   ];
 }

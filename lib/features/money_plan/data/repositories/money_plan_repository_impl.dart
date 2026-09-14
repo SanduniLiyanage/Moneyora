@@ -8,6 +8,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/plan_allocation.dart';
 import '../../domain/repositories/money_plan_repository.dart';
@@ -35,6 +36,13 @@ class MoneyPlanRepositoryImpl implements MoneyPlanRepository {
   @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) =>
       _attempt(() async => (await _local.getById(id))?.toEntity());
+
+  @override
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>
+      _attempt(
+        () async =>
+            (await _local.getLatestEndingBefore(encodeIsoDay(day)))?.toEntity(),
+      );
 
   @override
   Future<Either<Failure, Unit>> updateAllocations(

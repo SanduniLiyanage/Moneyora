@@ -25,6 +25,8 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   int? activated;
   List<PlanAllocationModel>? updated;
   int? recomputed;
+  MoneyPlanModel? previous;
+  String? askedBefore;
   int reads = 0;
 
   void tick() => _changes.add(null);
@@ -52,6 +54,13 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   Future<MoneyPlanModel?> getById(int id) async {
     if (throws case final e?) throw e;
     return active?.id == id ? active : null;
+  }
+
+  @override
+  Future<MoneyPlanModel?> getLatestEndingBefore(String isoDay) async {
+    if (throws case final e?) throw e;
+    askedBefore = isoDay;
+    return previous;
   }
 
   @override
@@ -114,6 +123,17 @@ void main() {
 
     expect(result, Right<Failure, MoneyPlan?>(_plan));
     expect(await repository.getById(6), const Right<Failure, MoneyPlan?>(null));
+  });
+
+  test('getLatestEndingBefore encodes the day and converts back', () async {
+    final source = _FakeDataSource()
+      ..previous = MoneyPlanModel.fromEntity(_plan);
+    final repository = MoneyPlanRepositoryImpl(source);
+
+    final result = await repository.getLatestEndingBefore(DateTime(2026, 10));
+
+    expect(source.askedBefore, '2026-10-01');
+    expect(result, Right<Failure, MoneyPlan?>(_plan));
   });
 
   test('activate and updateAllocations pass through', () async {

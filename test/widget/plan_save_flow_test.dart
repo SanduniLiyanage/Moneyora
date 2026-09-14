@@ -99,6 +99,10 @@ class _MemoryRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) =>
       throw UnimplementedError();
 

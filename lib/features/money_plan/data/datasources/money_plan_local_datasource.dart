@@ -58,6 +58,11 @@ abstract interface class MoneyPlanLocalDataSource {
   /// Reads the active plan with its allocations, or null.
   Future<MoneyPlanModel?> getActive();
 
+  /// The plan whose period ended most recently before [isoDay]
+  /// (`YYYY-MM-DD`), with its allocations, or null. FR-PLN-014's "next
+  /// period" seen from the other side: the plan a new one follows.
+  Future<MoneyPlanModel?> getLatestEndingBefore(String isoDay);
+
   /// Rewrites the allocation figures of [planId]'s rows from
   /// [allocations], matched by category, in one transaction. Every category
   /// given must already have a row.
@@ -109,8 +114,8 @@ class MoneyPlanLocalDataSourceImpl implements MoneyPlanLocalDataSource {
   /// back displayable without a second query per row.
   static const String _allocationsOf = '''
 SELECT a.id, a.category_id, c.name AS category_name,
-       a.allocated_amount_cents, a.spent_amount_cents, a.confidence_level,
-       a.expense_class, a.is_user_modified, a.notes
+       a.allocated_amount_cents, a.spent_amount_cents, a.carry_over_cents,
+       a.confidence_level, a.expense_class, a.is_user_modified, a.notes
   FROM plan_allocations a
   JOIN categories c ON c.id = a.category_id
  WHERE a.plan_id = ?
@@ -179,6 +184,22 @@ SELECT a.id, a.category_id, c.name AS category_name,
           'money_plans',
           where: 'is_active = 1',
           orderBy: 'id DESC',
+          limit: 1,
+        );
+        if (rows.isEmpty) return null;
+        return _withAllocations(rows.single);
+      });
+
+  @override
+  Future<MoneyPlanModel?> getLatestEndingBefore(String isoDay) =>
+      _guard('read the plan before $isoDay', () async {
+        // Latest end first; the id breaks a tie between two plans over the
+        // same days in favour of the one saved last.
+        final rows = await _db.query(
+          'money_plans',
+          where: 'end_date < ?',
+          whereArgs: [isoDay],
+          orderBy: 'end_date DESC, id DESC',
           limit: 1,
         );
         if (rows.isEmpty) return null;
