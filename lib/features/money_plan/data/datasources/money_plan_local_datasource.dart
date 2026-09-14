@@ -15,6 +15,21 @@
 /// between them in which no plan, or two, is active, and a rule every
 /// caller has to remember. This way it is an invariant the data layer
 /// keeps, and the tests below assert it.
+///
+/// ## The spend cache is recounted when a plan becomes active
+///
+/// `plan_allocations.spent_amount_cents` is kept incrementally by the
+/// transactions datasource, inside each expense's own write, for the plan
+/// that is active *at the time of the write* (FR-PLN-013, E-18). That is
+/// exact for a plan across the writes made while it is active, and blind to
+/// everything before: a plan saved on the 14th over a month that began on
+/// the 1st has never seen the first two weeks, and a plan re-activated
+/// after a spell inactive missed whatever was written meanwhile. So the two
+/// writes that make a plan active — [insert] with `isActive` and
+/// [activate] — end with [_recomputeSpentWithin] in the same transaction,
+/// and the figure is right from the first moment anything can read it. An
+/// inactive plan's figure is "as of the last time it was active" and is
+/// not maintained; it is recounted the moment that changes.
 library;
 
 import 'dart:async';
@@ -29,10 +44,12 @@ import '../models/plan_allocation_model.dart';
 /// Reads and writes plans in the local encrypted database.
 abstract interface class MoneyPlanLocalDataSource {
   /// Inserts [plan] and its allocations as one transaction, returning the
-  /// plan id. When [plan.isActive], deactivates every other plan first.
+  /// plan id. When [plan.isActive], deactivates every other plan first and
+  /// recounts the new plan's spend from the expenses already in its period.
   Future<int> insert(MoneyPlanModel plan);
 
-  /// Sets [id] active and every other plan inactive, in one transaction.
+  /// Sets [id] active and every other plan inactive, in one transaction,
+  /// and recounts its spend from history.
   Future<void> activate(int id);
 
   /// Reads one plan with its allocations, or null.
@@ -112,6 +129,7 @@ SELECT a.id, a.category_id, c.name AS category_name,
         for (final a in plan.allocationModels) {
           await txn.insert('plan_allocations', a.toMap(planId));
         }
+        if (plan.isActive) await _recomputeSpentWithin(txn, planId);
         return planId;
       });
     });
@@ -134,6 +152,7 @@ SELECT a.id, a.category_id, c.name AS category_name,
         // Inside the transaction, so a missing id rolls the deactivation
         // back rather than leaving no plan active.
         if (changed == 0) throw CacheException('No plan with id $id.');
+        await _recomputeSpentWithin(txn, id);
       });
     });
 
@@ -216,11 +235,10 @@ SELECT a.id, a.category_id, c.name AS category_name,
   /// (`SUM` over nothing is `NULL`, hence the `COALESCE`); an allocation
   /// row is never added or removed.
   ///
-  /// Called by nothing in the app yet, on purpose, and the reason is the
-  /// same as E-18's addendum: a recount is `O(expenses in the period)` and
-  /// belongs where repair is asked for. What asks for it is an activation —
-  /// a plan activated after rows in its period were written has never
-  /// counted them — and the Settings action of Sprint 7.
+  /// Runs inside [insert] and [activate] (see the library comment) and
+  /// behind [recomputeSpent] for the repair E-18 asks for — never on
+  /// launch: a recount is `O(expenses in the period)`, and NFR-PER-001 is
+  /// why nothing scans history on the cold-start path.
   Future<void> _recomputeSpentWithin(DatabaseExecutor txn, int planId) async {
     final plans = await txn.query(
       'money_plans',

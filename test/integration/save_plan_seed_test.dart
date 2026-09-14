@@ -122,6 +122,8 @@ void main() {
     expect(bills.confidence, ConfidenceLevel.high);
     expect(byName['Gifts']!.expenseType, ExpenseType.seasonal);
     expect(byName['Pets']!.confidence, ConfidenceLevel.low);
+    // The save recounts spend from history (FR-PLN-013); the seed ends on
+    // 31 August, so a September plan has nothing to count.
     expect(plan.allocations.every((a) => a.spentCents == 0), isTrue);
   });
 
