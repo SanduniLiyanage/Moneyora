@@ -14,6 +14,7 @@ import '../../features/categories/presentation/pages/category_list_page.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/money_plan/domain/entities/allocation_request.dart';
+import '../../features/money_plan/presentation/pages/active_plan_page.dart';
 import '../../features/money_plan/presentation/pages/money_plan_page.dart';
 import '../../features/money_plan/presentation/pages/plan_review_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
@@ -39,6 +40,10 @@ abstract final class Routes {
   /// without one — a deep link — it opens the first step instead, which is
   /// the only honest answer to "review what?".
   static const String moneyPlanReview = '/plan/review';
+
+  /// The active plan: adjust it, ask what-if, and (FR-PLN-013, later) watch
+  /// spending against it. FR-PLN-011, FR-PLN-012.
+  static const String activePlan = '/plan/active';
 
   /// SCR-013 — receipt scanner.
   static const String scanReceipt = '/scan';
@@ -112,6 +117,11 @@ GoRouter buildRouter() => GoRouter(
         final AllocationRequest request => PlanReviewPage(request: request),
         _ => const MoneyPlanPage(),
       },
+    ),
+    GoRoute(
+      path: Routes.activePlan,
+      name: 'activePlan',
+      builder: (context, state) => const ActivePlanPage(),
     ),
     GoRoute(
       path: Routes.scanReceipt,

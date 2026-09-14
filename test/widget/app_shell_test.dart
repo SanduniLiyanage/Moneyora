@@ -25,6 +25,7 @@ import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_cate
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
+import 'package:moneyora/features/money_plan/presentation/providers/money_plan_providers.dart';
 import 'package:moneyora/injection.dart';
 
 /// An empty answer for the home screen's three charts, for every shell test
@@ -73,6 +74,9 @@ class _NoAccountReader implements AccountReader {
 }
 
 final List<Override> _noChartDataOverrides = [
+  // The saved-plan screen watches the active plan the same way; with no
+  // plan it shows its empty state and settles.
+  activePlanProvider.overrideWith((ref) => Stream.value(null)),
   getSpendingByCategoryProvider.overrideWith(
     (ref) async => GetSpendingByCategory(_NoSpendingRepository()),
   ),
@@ -298,6 +302,7 @@ void main() {
       for (final destination in const [
         'Ask Moneyora',
         'Create Money Plan',
+        'Your plan',
         'Scan Receipt',
       ]) {
         await tester.pumpWidget(
