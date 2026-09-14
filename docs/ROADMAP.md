@@ -441,12 +441,20 @@ lookback is the six-month default until Sprint 7. Decided here:
 FR-PLN-011 adjusts the *saved* plan, so Save comes before adjustment
 (reasoning in [`HANDOFF.md`](HANDOFF.md)).
 
-### Next — save and the saved-plan screen (FR-PLN-011, 012), then live tracking (FR-PLN-013, 014, 015)
+### Save, the saved plan, adjustment and what-if (FR-PLN-011, 012) — done ([PR #79](https://github.com/SanduniLiyanage/Moneyora/pull/79), merged as `a47b977`)
 
-Save on the review (name it, `SavePlan`, activate by default), a
-saved-plan screen over `WatchActivePlan` with `UpdateAllocation` and the
-what-if, then `spent_amount_cents` moved by the transactions datasource
-the way it moves account balances (E-18).
+Save names and activates the plan and lands on the saved-plan screen,
+where FR-PLN-011 adjusts the saved rows through the live stream and
+FR-PLN-012 answers "reduce A by X%, how much more for B" as a preview —
+the same `rebalance` arithmetic, nothing written (reasoning in
+[`HANDOFF.md`](HANDOFF.md)).
+
+### Next — live tracking (FR-PLN-013), then FR-PLN-014 and FR-PLN-015
+
+The transactions datasource moves `spent_amount_cents` inside the same
+transaction as the row, the way it moves account balances (E-18); the
+screen adds the percentage, the projection and the three colours. The
+riskier slice, since it changes an existing feature's write path.
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 

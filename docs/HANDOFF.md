@@ -1,21 +1,23 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-14**, `main` at `b84b01c`, after **76
-merged pull requests** (#2–#77; #1 was closed unmerged). **Sprint 5 has its
-first screens**: the engine
+State of the project as of **2026-09-14**, `main` at `a47b977`, after **78
+merged pull requests** (#2–#79; #1 was closed unmerged). **Sprint 5's
+wizard is complete**: the engine
 ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66),
 [#68](https://github.com/SanduniLiyanage/Moneyora/pull/68),
 [#70](https://github.com/SanduniLiyanage/Moneyora/pull/70),
 [#72](https://github.com/SanduniLiyanage/Moneyora/pull/72)), the saved
-plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)),
-errata E-32 ([PR #76](https://github.com/SanduniLiyanage/Moneyora/pull/76))
-and the wizard's first two screens ([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77)) all merged during this window.
-See "This session" below.
+plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)), the
+wizard's first screens
+([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77)) and its
+second half — save, the saved-plan screen, adjustment and what-if
+([PR #79](https://github.com/SanduniLiyanage/Moneyora/pull/79)) — all merged during this window; what remains of the sprint is live
+tracking. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `b84b01c`, with PR #77 merged.
+at `a47b977`, with PR #79 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -24,15 +26,27 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **1114 passing** | `flutter test` |
+| Tests | **1136 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 144 in `lib/`, 81 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 146 in `lib/`, 84 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 1099 at `507229b` (PR #74, merged) plus 15 net new from
+Tests by area: 1114 at `b84b01c` (PR #77, merged) plus 22 net new from
+the wizard's second half — 11 in `test/widget/active_plan_page_test.dart`
+(loading, no plan → the wizard, the populated plan, a failure reading;
+adjusting: the write and the recalculated rows arriving through the
+stream with the total held, the over-total refusal, an unparseable amount,
+cancel; what-if: the default answer, the percentage followed and refused
+past 100, the same category twice), 4 in
+`test/widget/plan_save_flow_test.dart` (save → named, activated, on the
+saved plan, back goes home; the blank-name refusal; a failure beneath;
+cancel) and 7 in `what_if_test.dart`. `app_shell_test.dart`'s leave-again
+loop gained "Your plan". **No assertion was removed.**
+
+Before that: 1099 at `507229b` (PR #74, merged) plus 15 net new from
 the wizard's first screens — 8 in `test/widget/plan_review_page_test.dart`
 (loading, every figure and factor on a populated draft, the E-07 cap reason
 at 12 months, Option B's income and savings, Option A's total, the empty
@@ -138,6 +152,43 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — save, the saved plan, adjustment and what-if ([PR #79](https://github.com/SanduniLiyanage/Moneyora/pull/79), merged as `a47b977`)
+
+**The wizard's second half.** Save on `PlanReviewPage` names the plan
+(defaulting to its period), writes it activated through
+`savePlanControllerProvider`, and lands on `ActivePlanPage`
+(`/plan/active`) with home beneath it — `go(home)` then
+`push(activePlan)`, so back leaves to home rather than to a review of a
+draft already saved. `ActivePlanPage` watches `activePlanProvider` (a
+stream over `WatchActivePlan` in the `accountsProvider` shape), says when
+there is no active plan and offers the wizard, and is on the home list as
+**Your plan**. Spend against the plan is not shown yet — FR-PLN-013.
+
+**FR-PLN-011 adjusts here, on the saved rows**, as decided in PR #77's
+session: tap a row, set a figure, `updateAllocationControllerProvider
+.adjust(...)`; the recalculated others come back through the stream, not
+local state, because the datasource fires the shared bus on the write.
+Refusals are `UpdateAllocation`'s own sentences.
+
+**FR-PLN-012 is a preview, not a write — decided.** The requirement is a
+question ("how much more *can* go to B"), and answering it is not doing
+it: moving the freed cents from A to B while holding every other row is
+not a single `UpdateAllocation`, which spreads a change proportionally
+across the *untouched* rows — setting A down would hand most of the freed
+cents to the largest rows, not to B. A two-category "move" write would be
+new domain and persistence logic. `WhatIf.reduce` reuses
+`UpdateAllocation.rebalance` with every row but B treated as held — the
+same arithmetic the write would use, the total held — and returns a
+`WhatIfResult` without writing; the sheet says it is a preview, and the
+user acts on it through FR-PLN-011. If a later slice wants "apply", it
+needs a repository write that sets two rows and holds the rest, and the
+tests in `what_if_test.dart` are its oracle.
+
+**One mechanic:** the controller's method is `adjust`, not `update` —
+`AsyncNotifier` already defines `update`.
+
+---
 
 ## This session — the wizard's first screens ([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77), merged as `b84b01c`)
 
@@ -1240,20 +1291,22 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5 has its first screens.** The engine (PRs #66–#72), the saved
-plan (PR #74) and the wizard's period picker, mode choice and review (PR
-#77) are merged and `main` is clean at `b84b01c`. What follows is the
-**wizard's second half**: a **Save** action on `PlanReviewPage` that names
-the plan and calls `savePlanProvider` (activating by default), landing on a
-**saved-plan screen** over `watchActivePlanProvider` where FR-PLN-011's
-adjustment (`updateAllocationProvider` — the decision to adjust *after*
-save is in "This session") and FR-PLN-012's what-if (`rebalance` with a
-percentage turned into cents) live; then FR-PLN-013's live tracking, which
-needs the transactions datasource to move `spent_amount_cents` inside the
-same transaction as the row, the way it moves account balances (E-18) —
-`WatchActivePlan` already re-reads on that bus. FR-PLN-014's overspend
-responses and FR-PLN-015's plan list and comparison follow. Two Sprint 4
-leftovers are *not* blockers for it:
+**Sprint 5's wizard is complete.** The engine (PRs #66–#72), the saved
+plan (PR #74), the wizard (PRs #77, #79) are merged and `main` is clean at
+`a47b977`. What remains of the sprint is **FR-PLN-013's live tracking**, and
+it is the riskier slice because it touches an existing feature: the
+transactions datasource has to move `plan_allocations.spent_amount_cents`
+inside the same transaction as the expense row it writes, the way it
+moves `accounts.current_balance_cents` (E-18) — on add, edit and delete,
+for the active plan whose period holds the row's date, matched by
+category (and by split part, E-04). `WatchActivePlan` already re-reads on
+the shared bus, and `PlanAllocation.spentCents` is already read, so the
+screen's side is a percentage, a projection and FR-PLN-013's three
+colours. E-18's oracle applies: after any sequence of writes, the cache
+must equal a recount from history, and `RecomputeAccountBalance`'s shape
+is the model for the repair. Then FR-PLN-014's three overspend responses
+and FR-PLN-015's plan list and comparison (`ActivatePlan` is built and
+called by nothing yet). Two Sprint 4 leftovers are *not* blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
