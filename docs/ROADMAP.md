@@ -432,13 +432,21 @@ active plan at a time, held in the datasource's transactions; every
 multi-row write atomic and proven on real SQLite. Reasoning in
 [`HANDOFF.md`](HANDOFF.md).
 
-### Next — the wizard (FR-PLN-001, 002, 008, 011, 012), then live tracking (FR-PLN-013, 014, 015)
+### The wizard's first screens (FR-PLN-001, 002, 008) — done ([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77), merged as `b84b01c`)
 
-Every use case the wizard calls exists and is wired. It is the first
-screen of the feature and the first place FR-PLN-003's lookback setting is
-missed (Sprint 7 — pass the default until then). Live tracking then needs
-the transactions datasource to move `spent_amount_cents` the way it moves
-account balances (E-18).
+"Create Money Plan" from the home screen, the period picker with the
+budget-mode choice, and the review of the generated draft with every
+factor and reason on each card — E-07's cap stated where it applies. The
+lookback is the six-month default until Sprint 7. Decided here:
+FR-PLN-011 adjusts the *saved* plan, so Save comes before adjustment
+(reasoning in [`HANDOFF.md`](HANDOFF.md)).
+
+### Next — save and the saved-plan screen (FR-PLN-011, 012), then live tracking (FR-PLN-013, 014, 015)
+
+Save on the review (name it, `SavePlan`, activate by default), a
+saved-plan screen over `WatchActivePlan` with `UpdateAllocation` and the
+what-if, then `spent_amount_cents` moved by the transactions datasource
+the way it moves account balances (E-18).
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
