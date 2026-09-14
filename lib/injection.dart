@@ -7,6 +7,7 @@ import 'core/database/database_helper.dart';
 import 'core/database/database_summary.dart';
 import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
+import 'core/database/seed/keyword_seed.dart';
 import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
 import 'core/ports/account_reader.dart';
@@ -61,6 +62,11 @@ import 'features/money_plan/domain/usecases/save_plan.dart';
 import 'features/money_plan/domain/usecases/update_allocation.dart';
 import 'features/money_plan/domain/usecases/watch_active_plan.dart';
 import 'features/money_plan/domain/usecases/watch_plans.dart';
+import 'features/receipt_scanner/data/datasources/keyword_dictionary_local_datasource.dart';
+import 'features/receipt_scanner/data/repositories/keyword_dictionary_repository_impl.dart';
+import 'features/receipt_scanner/domain/repositories/keyword_dictionary_repository.dart';
+import 'features/receipt_scanner/domain/usecases/categorise_receipt.dart';
+import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -133,6 +139,9 @@ final databaseProvider = FutureProvider<Database>((ref) async {
   if (await isFirstLaunch(db)) {
     await applyDefaultSeed(db);
   }
+  // Every launch, not only the first: installs that predate Sprint 6 have
+  // the dictionary table and nothing in it. One COUNT when already seeded.
+  await applyKeywordSeed(db);
   return db;
 });
 
@@ -560,6 +569,45 @@ final comparePlansProvider = FutureProvider<ComparePlans>(
 final recomputePlanSpendingProvider = FutureProvider<RecomputePlanSpending>(
   (ref) async => RecomputePlanSpending(
     await ref.watch(moneyPlanRepositoryProvider.future),
+  ),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Receipt scanner
+//
+// Sprint 6, stage by stage: the parser and the categoriser first, because
+// they are the stages a test can prove without a camera.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reads the keyword dictionary. The only holder of SQL for the feature so
+/// far; read-only until FR-RCP-015's learning lands.
+final keywordDictionaryLocalDataSourceProvider =
+    FutureProvider<KeywordDictionaryLocalDataSource>(
+      (ref) async => KeywordDictionaryLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+      ),
+    );
+
+/// Turns dictionary data-layer exceptions into failures. The layer
+/// boundary.
+final keywordDictionaryRepositoryProvider =
+    FutureProvider<KeywordDictionaryRepository>(
+      (ref) async => KeywordDictionaryRepositoryImpl(
+        await ref.watch(keywordDictionaryLocalDataSourceProvider.future),
+      ),
+    );
+
+/// Merchant, items, total and tax from the lines OCR read. FR-RCP-005,
+/// FR-RCP-006. Stateless; a provider so the screen gets it the same way as
+/// every other use case.
+final parseReceiptTextProvider = Provider<ParseReceiptText>(
+  (ref) => const ParseReceiptText(),
+);
+
+/// A category and a confidence for every parsed item. FR-RCP-007.
+final categoriseReceiptProvider = FutureProvider<CategoriseReceipt>(
+  (ref) async => CategoriseReceipt(
+    await ref.watch(keywordDictionaryRepositoryProvider.future),
   ),
 );
 
