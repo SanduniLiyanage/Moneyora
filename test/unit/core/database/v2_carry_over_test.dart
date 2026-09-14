@@ -61,7 +61,7 @@ void main() {
   test('adds carry_over_cents at zero and keeps every row', () async {
     await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2});
+    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3});
     final rows = await db.query('plan_allocations');
     expect(rows, hasLength(1));
     expect(rows.single['spent_amount_cents'], 1234500, reason: 'intact');
@@ -91,7 +91,8 @@ void main() {
     );
   });
 
-  test('v2 is the latest version', () {
-    expect(latestSchemaVersion, v2SchemaVersion);
+  test('v2 is a version, no longer the latest', () {
+    expect(schemaMigrations[v2SchemaVersion], v2Statements);
+    expect(latestSchemaVersion, greaterThan(v2SchemaVersion));
   });
 }

@@ -1778,6 +1778,23 @@ field OCR could not read. No migration exists yet to amend — this is scoped as
 a note for whoever writes Sprint 6's schema change, not a v1 migration to ship
 now for a column nothing reads.
 
+*Done, as schema v3 (`lib/core/database/migrations/v3_receipt_scanner.dart`),
+with one more fix found while writing it.* The column is added as specified.
+Writing the first datasource over `keyword_dictionary` also surfaced that v1
+built its `category_id` foreign key **without** the `ON DELETE CASCADE` that
+DBD §2.2 specifies — inert while the table was empty, and a constraint failure
+on deleting any otherwise-unused category the moment the seed fills it. v3
+recreates the table with the cascade. That is a `DROP TABLE`, against
+`database_helper.dart`'s additive-only rule, and it is the one place the rule
+is set aside for the reason the rule itself gives: it guards rows, and no
+datasource had ever written to this table — every install upgrading to v3
+drops an empty one. The v3 test proves the cascade, the surviving constraints,
+and that `receipt_scans` rows come through intact.
+
+The 200+ keyword seed the DBD promises in §9.2 (`keyword_seed.dart`, which the
+DBD names and never wrote) ships beside it, applied on every open rather than
+only on first launch so that installs predating Sprint 6 get it too.
+
 <a id="e-32"></a>
 
 ## E-32 — The plan tables as built depart from the DBD in four places

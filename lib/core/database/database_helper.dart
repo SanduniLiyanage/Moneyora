@@ -3,6 +3,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'encryption_key_store.dart';
 import 'migrations/v1_initial.dart';
 import 'migrations/v2_carry_over.dart';
+import 'migrations/v3_receipt_scanner.dart';
 
 /// Every schema version, keyed by the version it produces.
 ///
@@ -19,6 +20,7 @@ import 'migrations/v2_carry_over.dart';
 const Map<int, List<String>> schemaMigrations = <int, List<String>>{
   v1SchemaVersion: v1Statements,
   v2SchemaVersion: v2Statements,
+  v3SchemaVersion: v3Statements,
 };
 
 /// The version a fresh install lands on.
