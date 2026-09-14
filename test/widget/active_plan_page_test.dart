@@ -18,6 +18,7 @@ import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
 import 'package:moneyora/features/money_plan/domain/repositories/money_plan_repository.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/respond_to_overspend.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/update_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/watch_active_plan.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/active_plan_page.dart';
@@ -58,6 +59,10 @@ class _MemoryRepository implements MoneyPlanRepository {
 
   @override
   Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>
       throw UnimplementedError();
 
   @override
@@ -156,6 +161,9 @@ void main() {
       ),
       updateAllocationProvider.overrideWith(
         (ref) async => UpdateAllocation(repository),
+      ),
+      respondToOverspendProvider.overrideWith(
+        (ref) async => RespondToOverspend(repository),
       ),
     ],
     child: MaterialApp.router(
@@ -459,6 +467,136 @@ void main() {
       );
       expect(barColour(tester, 0), AppColors.light.expense);
       expect(find.text('Rs95,000.00 spent · day 15 of 30'), findsOneWidget);
+    });
+  });
+
+  group('responding to an overspend (FR-PLN-014)', () {
+    final midMonth = DateTime(2026, 9, 15);
+    // Bills 1,000 over; Food has 6,000 left; Car exactly spent.
+    MoneyPlan over() => _tracked(billsSpent: 4600000);
+
+    Future<_MemoryRepository> open(WidgetTester tester) async {
+      final repository = _MemoryRepository(plan: over());
+      await tester.pumpWidget(boot(repository, now: midMonth));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Over by Rs1,000.00 · Respond'));
+      await tester.pumpAndSettle();
+      return repository;
+    }
+
+    PlanAllocation row(_MemoryRepository r, int categoryId) =>
+        r.written!.firstWhere((a) => a.categoryId == categoryId);
+
+    testWidgets('only a row spent past its allocation offers a response', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(_MemoryRepository(plan: over()), now: midMonth),
+      );
+      await tester.pumpAndSettle();
+
+      // Bills is over; Food is at 80%; Car is at exactly 100% — nothing
+      // left, but nothing exceeded either.
+      expect(find.text('Over by Rs1,000.00 · Respond'), findsOneWidget);
+      expect(find.textContaining('Respond'), findsOneWidget);
+    });
+
+    testWidgets('the sheet names the three responses with the figures', (
+      tester,
+    ) async {
+      await open(tester);
+
+      expect(find.text('Bills is over by Rs1,000.00'), findsOneWidget);
+      expect(find.text('Auto-redistribute'), findsOneWidget);
+      expect(find.text('Manual adjust'), findsOneWidget);
+      expect(find.text('Carry over'), findsOneWidget);
+      expect(find.textContaining('Raise Bills to Rs46,000.00'), findsOneWidget);
+    });
+
+    testWidgets('auto-redistribute raises the row to its spend and takes '
+        'the difference from what the others have left', (tester) async {
+      final repository = await open(tester);
+
+      await tester.tap(find.text('Auto-redistribute'));
+      await tester.pumpAndSettle();
+
+      // Food has 6,000 left and Car nothing, so Food takes all 1,000.
+      expect(row(repository, 1).allocatedCents, 4600000);
+      expect(row(repository, 2).allocatedCents, 2900000);
+      expect(row(repository, 3).allocatedCents, 2500000);
+      // Through the stream: the figures, and the offer gone.
+      expect(find.text('Rs46,000.00'), findsOneWidget);
+      expect(find.text('Rs29,000.00'), findsOneWidget);
+      expect(find.textContaining('Respond'), findsNothing);
+    });
+
+    testWidgets('manual adjust takes it from the chosen category', (
+      tester,
+    ) async {
+      final repository = await open(tester);
+
+      await tester.tap(find.text('Manual adjust'));
+      await tester.pumpAndSettle();
+      // Food is offered first, with what it has left.
+      expect(find.text('Food · Rs6,000.00 left'), findsOneWidget);
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+
+      expect(row(repository, 1).allocatedCents, 4600000);
+      expect(row(repository, 1).isUserModified, isTrue);
+      expect(row(repository, 2).allocatedCents, 2900000);
+      expect(row(repository, 2).isUserModified, isTrue);
+      expect(row(repository, 3).allocatedCents, 2500000);
+      expect(find.textContaining('set by you'), findsNWidgets(2));
+    });
+
+    testWidgets('carry over records it and changes no figure', (tester) async {
+      final repository = await open(tester);
+
+      await tester.tap(find.text('Carry over'));
+      await tester.pumpAndSettle();
+
+      expect(row(repository, 1).carryOverCents, 100000);
+      expect(row(repository, 1).allocatedCents, 4500000);
+      expect(row(repository, 2).allocatedCents, 3000000);
+      expect(find.text('Rs1,000.00 carried to your next plan'), findsOneWidget);
+      // Still over, so the offer stays.
+      expect(find.text('Over by Rs1,000.00 · Respond'), findsOneWidget);
+    });
+
+    testWidgets("a refusal shows the use case's own sentence and writes "
+        'nothing', (tester) async {
+      // Nothing left anywhere else: Food fully spent too.
+      final repository = _MemoryRepository(
+        plan: MoneyPlan(
+          id: 7,
+          name: 'September',
+          period: PlanPeriod.month(2026, 9),
+          totalBudgetCents: 10000000,
+          isActive: true,
+          allocations: [
+            _row(1, 'Bills', 4500000, spent: 4600000),
+            _row(2, 'Food', 3000000, spent: 3000000),
+            _row(3, 'Car', 2500000, spent: 2500000),
+          ],
+        ),
+      );
+      await tester.pumpWidget(boot(repository, now: midMonth));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Over by Rs1,000.00 · Respond'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Auto-redistribute'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The other categories do not have enough left between them to '
+          'cover the overspend.',
+        ),
+        findsOneWidget,
+      );
+      expect(repository.written, isNull);
     });
   });
 }

@@ -13,8 +13,12 @@ import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/money_plan/domain/entities/allocation_request.dart';
 import 'package:moneyora/features/money_plan/domain/entities/budget_mode.dart';
+import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
 import 'package:moneyora/features/money_plan/domain/entities/lookback_window.dart';
+import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
+import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
+import 'package:moneyora/features/money_plan/domain/repositories/money_plan_repository.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/allocate_budget.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/classify_categories.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/compute_category_statistics.dart';
@@ -43,6 +47,43 @@ class _ScriptedSpending implements MonthlySpendingReader {
     if (failure case final f?) return Left(f);
     return Right(rows);
   }
+}
+
+/// The previous plan, for FR-PLN-014's carry-over; nothing else answers.
+class _ScriptedPlans implements MoneyPlanRepository {
+  _ScriptedPlans(this.previous);
+
+  final MoneyPlan? previous;
+
+  @override
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(
+    DateTime day,
+  ) async => Right(previous);
+
+  @override
+  Future<Either<Failure, Unit>> activate(int id) => throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, MoneyPlan?>> getById(int id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, int>> save(MoneyPlan plan) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> updateAllocations(
+    int planId,
+    List<PlanAllocation> allocations,
+  ) => throw UnimplementedError();
+
+  @override
+  Stream<Either<Failure, MoneyPlan?>> watchActive() =>
+      throw UnimplementedError();
 }
 
 class _ScriptedIncome implements IncomeReader {
@@ -96,12 +137,14 @@ void main() {
     _ScriptedSpending spending, {
     required AllocationRequest request,
     int income = 0,
+    MoneyPlan? previous,
   }) => ProviderScope(
     overrides: [
       allocateBudgetProvider.overrideWith(
         (ref) async => AllocateBudget(
           ClassifyCategories(ComputeCategoryStatistics(spending)),
           _ScriptedIncome(income: income),
+          plans: _ScriptedPlans(previous),
         ),
       ),
     ],
@@ -265,5 +308,39 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('disk is full'), findsOneWidget);
+  });
+
+  testWidgets('says what the previous plan carried over, on the header and '
+      'on the card', (tester) async {
+    // FR-PLN-014's Carry Over, arriving: September carried 3,000 on Bills.
+    final september = MoneyPlan(
+      id: 1,
+      name: 'September',
+      period: PlanPeriod.month(2026, 9),
+      totalBudgetCents: 0,
+      isActive: false,
+      allocations: const [
+        PlanAllocation(
+          categoryId: 1,
+          allocatedCents: 4500000,
+          spentCents: 4800000,
+          carryOverCents: 300000,
+          confidence: ConfidenceLevel.high,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      boot(
+        _ScriptedSpending(rows: shaped(halfYear)),
+        request: AllocationRequest(period: october, lookback: halfYear),
+        previous: september,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Carried over from September'), findsOneWidget);
+    expect(find.text('-Rs3,000.00'), findsOneWidget);
+    expect(find.text('Rs42,000.00'), findsOneWidget, reason: '45,000 − 3,000');
+    expect(find.textContaining('−Rs3,000.00 carried over'), findsOneWidget);
   });
 }

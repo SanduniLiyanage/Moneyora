@@ -15,6 +15,7 @@ import '../../../../injection.dart';
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/money_plan_draft.dart';
+import '../../domain/usecases/respond_to_overspend.dart';
 import '../../domain/usecases/save_plan.dart';
 import '../../domain/usecases/update_allocation.dart';
 
@@ -119,4 +120,37 @@ class UpdateAllocationController extends AutoDisposeAsyncNotifier<void> {
 final updateAllocationControllerProvider =
     AutoDisposeAsyncNotifierProvider<UpdateAllocationController, void>(
       UpdateAllocationController.new,
+    );
+
+/// Applies one of FR-PLN-014's responses to an exceeded category.
+///
+/// Same shape as [UpdateAllocationController], for the same reason: the
+/// rows come back through [activePlanProvider]'s stream, and the refusal —
+/// the use case's own sentence — stays in [state] for the sheet to show.
+class RespondToOverspendController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Returns true when it was written; the failure stays in [state].
+  Future<bool> respond(OverspendRequest request) async {
+    state = const AsyncValue<void>.loading();
+    final respond = await ref.read(respondToOverspendProvider.future);
+    final result = await respond(request);
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return true;
+      },
+    );
+  }
+}
+
+/// Controller for the saved-plan screen's overspend sheet.
+final respondToOverspendControllerProvider =
+    AutoDisposeAsyncNotifierProvider<RespondToOverspendController, void>(
+      RespondToOverspendController.new,
     );

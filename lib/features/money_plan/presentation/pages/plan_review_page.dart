@@ -168,6 +168,11 @@ class _Draft extends StatelessWidget {
                   _Figure(label: 'Savings', cents: savings),
                 if (draft.unallocatedCents case final left? when left > 0)
                   _Figure(label: 'Unallocated', cents: left),
+                if (draft.carriedFromPlan case final from?)
+                  _Figure(
+                    label: 'Carried over from $from',
+                    cents: -draft.carryOverCents,
+                  ),
                 const SizedBox(height: 4),
                 Text(
                   'From the last ${draft.lookback.months} months.',
@@ -224,6 +229,9 @@ class _AllocationCard extends StatelessWidget {
       if (a.trendFactor != 1.0)
         '×${a.trendFactor.toStringAsFixed(2)} '
             '${a.trendFactor > 1 ? 'rising' : 'falling'}',
+      // FR-PLN-014: what last plan's overspend took off this one.
+      if (a.carryOverCents > 0)
+        '−${formatCents(a.carryOverCents)} carried over',
     ];
     final seasonal = a.classification.seasonalMonths;
 

@@ -8,13 +8,15 @@ import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/allocation_progress.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/plan_allocation.dart';
+import '../../domain/usecases/respond_to_overspend.dart';
 import '../../domain/usecases/update_allocation.dart';
 import '../../domain/usecases/what_if.dart';
 import '../providers/money_plan_providers.dart';
 import '../widgets/plan_labels.dart';
 
-/// The active plan: what was saved, adjusted by hand, asked what-if, and
-/// tracked. FR-PLN-011, FR-PLN-012, FR-PLN-013.
+/// The active plan: what was saved, adjusted by hand, asked what-if,
+/// tracked, and answered when a category runs over. FR-PLN-011, FR-PLN-012,
+/// FR-PLN-013, FR-PLN-014.
 ///
 /// Reached from the home screen as well as after a save, so it has to say
 /// when there is no active plan and offer the way to make one (E-22).
@@ -28,6 +30,9 @@ import '../widgets/plan_labels.dart';
 /// bus — so a row's bar moves the moment an expense is saved, with nothing
 /// on this side but arithmetic: [AllocationProgress] over each row, the
 /// period and [now].
+///
+/// A row spent past its allocation offers FR-PLN-014's three responses in
+/// a sheet; each is `RespondToOverspend`'s, and a refusal is its sentence.
 class ActivePlanPage extends ConsumerWidget {
   /// Creates the screen. [now] is the clock, injectable for tests.
   const ActivePlanPage({super.key, this.now});
@@ -147,9 +152,43 @@ class _Plan extends ConsumerWidget {
             progress: p,
             days: days,
             onTap: () => _adjust(context, ref, plan, p.allocation),
+            onRespond: p.allocation.overspendCents > 0
+                ? () => _respond(context, ref, plan, p.allocation)
+                : null,
           ),
       ],
     );
+  }
+
+  Future<void> _respond(
+    BuildContext context,
+    WidgetRef ref,
+    MoneyPlan plan,
+    PlanAllocation allocation,
+  ) async {
+    final response = await showModalBottomSheet<OverspendResponse>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _OverspendSheet(plan: plan, allocation: allocation),
+    );
+    if (response == null || !context.mounted) return;
+
+    final written = await ref
+        .read(respondToOverspendControllerProvider.notifier)
+        .respond(
+          OverspendRequest(
+            planId: plan.id!,
+            categoryId: allocation.categoryId,
+            response: response,
+          ),
+        );
+    if (written || !context.mounted) return;
+
+    final error = ref.read(respondToOverspendControllerProvider).error;
+    if (error is Failure) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   static String _dayLabel(int elapsed, int days) =>
@@ -194,11 +233,15 @@ class _AllocationRow extends StatelessWidget {
     required this.progress,
     required this.days,
     required this.onTap,
+    this.onRespond,
   });
 
   final AllocationProgress progress;
   final int days;
   final VoidCallback onTap;
+
+  /// Opens FR-PLN-014's responses; null when the row is within budget.
+  final VoidCallback? onRespond;
 
   @override
   Widget build(BuildContext context) {
@@ -244,11 +287,125 @@ class _AllocationRow extends StatelessWidget {
                     trackingLabel(progress),
                     style: theme.textTheme.bodySmall?.copyWith(color: colour),
                   ),
+                  if (a.carryOverCents > 0)
+                    Text(
+                      '${formatCents(a.carryOverCents)} carried to your '
+                      'next plan',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  if (onRespond case final respond?)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: respond,
+                        child: Text(
+                          'Over by ${formatCents(a.overspendCents)} · '
+                          'Respond',
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// FR-PLN-014's three responses, chosen and returned; nothing written here.
+class _OverspendSheet extends StatefulWidget {
+  const _OverspendSheet({required this.plan, required this.allocation});
+
+  final MoneyPlan plan;
+  final PlanAllocation allocation;
+
+  @override
+  State<_OverspendSheet> createState() => _OverspendSheetState();
+}
+
+class _OverspendSheetState extends State<_OverspendSheet> {
+  int? _from;
+
+  String _name(PlanAllocation a) =>
+      a.categoryName ?? 'Category ${a.categoryId}';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final a = widget.allocation;
+    final over = formatCents(a.overspendCents);
+    final others = [
+      for (final o in widget.plan.allocations)
+        if (o.categoryId != a.categoryId) o,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_name(a)} is over by $over',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Auto-redistribute'),
+            subtitle: Text(
+              'Raise ${_name(a)} to ${formatCents(a.spentCents)} and take '
+              '$over from the other categories, in proportion to what each '
+              'has left.',
+            ),
+            onTap: () =>
+                Navigator.of(context)
+                    .pop(const OverspendResponse.autoRedistribute()),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Manual adjust'),
+            subtitle: Text('Take $over from one category you choose.'),
+            onTap: () => setState(() => _from = others.first.categoryId),
+          ),
+          if (_from case final from?) ...[
+            DropdownButtonFormField<int>(
+              initialValue: from,
+              decoration: const InputDecoration(labelText: 'Reduce'),
+              items: [
+                for (final o in others)
+                  DropdownMenuItem(
+                    value: o.categoryId,
+                    child: Text(
+                      '${_name(o)} · ${formatCents(o.remainingCents)} left',
+                    ),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _from = v),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context)
+                    .pop(OverspendResponse.manualAdjust(fromCategoryId: from)),
+                child: const Text('Apply'),
+              ),
+            ),
+          ],
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Carry over'),
+            subtitle: Text(
+              'Leave this plan as it is and deduct $over from ${_name(a)} in '
+              'your next plan.',
+            ),
+            onTap: () =>
+                Navigator.of(context).pop(const OverspendResponse.carryOver()),
+          ),
+        ],
       ),
     );
   }
