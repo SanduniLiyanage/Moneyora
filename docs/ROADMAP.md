@@ -449,12 +449,22 @@ FR-PLN-012 answers "reduce A by X%, how much more for B" as a preview —
 the same `rebalance` arithmetic, nothing written (reasoning in
 [`HANDOFF.md`](HANDOFF.md)).
 
-### Next — live tracking (FR-PLN-013), then FR-PLN-014 and FR-PLN-015
+### Live tracking's write path (FR-PLN-013, slice 1) — done ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81), merged as `32119e3`)
 
-The transactions datasource moves `spent_amount_cents` inside the same
-transaction as the row, the way it moves account balances (E-18); the
-screen adds the percentage, the projection and the three colours. The
-riskier slice, since it changes an existing feature's write path.
+The transactions datasource moves `plan_allocations.spent_amount_cents`
+inside the same transaction as the expense row, the way it moves account
+balances (E-18): add, edit and delete, the active plan whose period
+holds the date, matched by category, a split by its parts (E-04). Income
+and transfers never touch it; no active plan, an out-of-period date or an
+unallocated category is a no-op. The recount (`RecomputePlanSpending`)
+is built, tested against the cache both ways, and called by nothing.
+Reasoning in [`HANDOFF.md`](HANDOFF.md).
+
+### Next — the tracking screen (FR-PLN-013, slice 2), then FR-PLN-014 and FR-PLN-015
+
+First wire the recount into activation, so a plan saved mid-period counts
+what is already in it; then `ActivePlanPage` adds the percentage, the
+projection and the three colours.
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
