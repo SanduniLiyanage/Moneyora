@@ -61,7 +61,7 @@ void main() {
 
     test('records the version it applied', () async {
       final db = await helper.database;
-      expect(await DatabaseHelper.appliedVersions(db), {1});
+      expect(await DatabaseHelper.appliedVersions(db), {1, 2});
     });
 
     test('reuses the open connection rather than reopening', () async {

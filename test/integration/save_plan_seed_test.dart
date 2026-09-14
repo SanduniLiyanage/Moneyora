@@ -4,7 +4,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/database/database_change_bus.dart';
-import 'package:moneyora/core/database/migrations/v1_initial.dart';
+import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/database/seed/default_seed.dart';
 import 'package:moneyora/core/database/seed/dev_seed.dart';
 import 'package:moneyora/core/errors/failures.dart';
@@ -53,12 +53,16 @@ void main() {
         onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
         onCreate: (d, _) async {
           final batch = d.batch();
-          for (final statement in v1Statements) {
-            batch.execute(statement);
+          // Every version, not v1 alone: the plan tables read
+          // carry_over_cents, which v2 adds (E-33).
+          for (final version in schemaMigrations.keys.toList()..sort()) {
+            for (final statement in schemaMigrations[version]!) {
+              batch.execute(statement);
+            }
           }
           await batch.commit(noResult: true);
         },
-        version: v1SchemaVersion,
+        version: latestSchemaVersion,
       ),
     );
     await applyDefaultSeed(db);
