@@ -77,6 +77,8 @@ final List<Override> _noChartDataOverrides = [
   // The saved-plan screen watches the active plan the same way; with no
   // plan it shows its empty state and settles.
   activePlanProvider.overrideWith((ref) => Stream.value(null)),
+  // The plan list likewise: with no plans it shows its empty state.
+  plansProvider.overrideWith((ref) => Stream.value(const [])),
   getSpendingByCategoryProvider.overrideWith(
     (ref) async => GetSpendingByCategory(_NoSpendingRepository()),
   ),
@@ -303,6 +305,7 @@ void main() {
         'Ask Moneyora',
         'Create Money Plan',
         'Your plan',
+        'Saved plans',
         'Scan Receipt',
       ]) {
         await tester.pumpWidget(

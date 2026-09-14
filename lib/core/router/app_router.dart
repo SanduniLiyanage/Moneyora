@@ -14,8 +14,11 @@ import '../../features/categories/presentation/pages/category_list_page.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/money_plan/domain/entities/allocation_request.dart';
+import '../../features/money_plan/domain/usecases/compare_plans.dart';
 import '../../features/money_plan/presentation/pages/active_plan_page.dart';
+import '../../features/money_plan/presentation/pages/compare_plans_page.dart';
 import '../../features/money_plan/presentation/pages/money_plan_page.dart';
+import '../../features/money_plan/presentation/pages/plan_list_page.dart';
 import '../../features/money_plan/presentation/pages/plan_review_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
@@ -44,6 +47,13 @@ abstract final class Routes {
   /// The active plan: adjust it, ask what-if, and (FR-PLN-013, later) watch
   /// spending against it. FR-PLN-011, FR-PLN-012.
   static const String activePlan = '/plan/active';
+
+  /// Every saved plan: switch the active one, pick two to compare.
+  /// FR-PLN-015; the SDD's SCR-010.
+  static const String plans = '/plans';
+
+  /// Two plans side by side, named by `?a=` and `?b=`. FR-PLN-015.
+  static const String comparePlans = '/plans/compare';
 
   /// SCR-013 — receipt scanner.
   static const String scanReceipt = '/scan';
@@ -122,6 +132,27 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.activePlan,
       name: 'activePlan',
       builder: (context, state) => const ActivePlanPage(),
+    ),
+    GoRoute(
+      path: Routes.plans,
+      name: 'plans',
+      builder: (context, state) => const PlanListPage(),
+    ),
+    GoRoute(
+      path: Routes.comparePlans,
+      name: 'comparePlans',
+      // Both ids come from the query so the screen is a plain link. One
+      // that is missing or not a number opens the list rather than
+      // crashing — the same rule the form routes apply to `extra`.
+      builder: (context, state) => switch ((
+        int.tryParse(state.uri.queryParameters['a'] ?? ''),
+        int.tryParse(state.uri.queryParameters['b'] ?? ''),
+      )) {
+        (final int a, final int b) => ComparePlansPage(
+          request: ComparePlansRequest(leftId: a, rightId: b),
+        ),
+        _ => const PlanListPage(),
+      },
     ),
     GoRoute(
       path: Routes.scanReceipt,

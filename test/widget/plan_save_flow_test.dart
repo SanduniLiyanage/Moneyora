@@ -103,6 +103,10 @@ class _MemoryRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll() =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) =>
       throw UnimplementedError();
 
@@ -172,6 +176,11 @@ void main() {
             path: Routes.activePlan,
             builder: (context, state) => const ActivePlanPage(),
           ),
+          GoRoute(
+            path: Routes.plans,
+            builder: (context, state) =>
+                const Scaffold(body: Text('the saved plans')),
+          ),
         ],
       ),
     ),
@@ -213,6 +222,26 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('unticking "Track it now" saves it for later and lands on the '
+      'list (FR-PLN-015)', (tester) async {
+    // "June Vacation Plan" kept beside the "Regular Monthly" still being
+    // tracked: saved, not activated.
+    final repository = _MemoryRepository();
+    await tester.pumpWidget(boot(repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Save plan'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'June Vacation Plan');
+    await tester.tap(find.text('Track it now'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(repository.saved!.name, 'June Vacation Plan');
+    expect(repository.saved!.isActive, isFalse);
+    expect(find.text('the saved plans'), findsOneWidget);
   });
 
   testWidgets('a blank name is refused in the use case\'s words, and nothing '
