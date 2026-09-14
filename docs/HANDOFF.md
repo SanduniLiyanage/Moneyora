@@ -1,23 +1,24 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-14**, `main` at `a47b977`, after **78
-merged pull requests** (#2–#79; #1 was closed unmerged). **Sprint 5's
-wizard is complete**: the engine
+State of the project as of **2026-09-14**, `main` at `32119e3`, after **80
+merged pull requests** (#2–#81; #1 was closed unmerged). **Sprint 5's
+wizard is complete and live tracking's write path is in**: the engine
 ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66),
 [#68](https://github.com/SanduniLiyanage/Moneyora/pull/68),
 [#70](https://github.com/SanduniLiyanage/Moneyora/pull/70),
 [#72](https://github.com/SanduniLiyanage/Moneyora/pull/72)), the saved
 plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)), the
-wizard's first screens
-([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77)) and its
-second half — save, the saved-plan screen, adjustment and what-if
-([PR #79](https://github.com/SanduniLiyanage/Moneyora/pull/79)) — all merged during this window; what remains of the sprint is live
-tracking. See "This session" below.
+wizard ([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77),
+[#79](https://github.com/SanduniLiyanage/Moneyora/pull/79)) and the
+first slice of FR-PLN-013 — the plan's spend kept inside the expense
+write ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81)) —
+all merged during this window; what remains of the sprint is the
+tracking screen, FR-PLN-014 and FR-PLN-015. See "This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `a47b977`, with PR #79 merged.
+at `32119e3`, with PR #81 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -26,15 +27,35 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **1136 passing** | `flutter test` |
+| Tests | **1166 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 146 in `lib/`, 84 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 147 in `lib/`, 85 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 1114 at `b84b01c` (PR #77, merged) plus 22 net new from
+Tests by area: 1136 at `a47b977` (PR #79, merged) plus 30 net new from
+live tracking's write path — 18 in
+`transaction_local_datasource_test.dart`, one new group appended and
+**no existing assertion changed** (385 lines added, none removed): an
+expense in the period moves its category's row and is rolled back with
+the row when a split fails; outside the period, both period ends, a
+category the plan has no row for, income and a transfer; a split by its
+parts; an amount edit, a category edit moving spend between two rows, a
+date edit out of and into the period, a split edit; delete and split
+delete; no active plan; the active plan rather than an inactive one on
+the same period; and a seeded random-write property test against a Dart
+recount oracle. 9 in `money_plan_local_datasource_test.dart` for
+`recomputeSpent` (no history, the incremental figure, a split by parts,
+income/transfers/out-of-period, corruption repair, the mid-month
+activation gap, a missing plan, the change signal, and the SQL recount
+agreeing with the cache after a random sequence); 1 in
+`money_plan_repository_impl_test.dart` plus one assertion added to its
+failure-mapping case; 2 in `recompute_plan_spending_test.dart`. **No
+assertion was removed.**
+
+Before that: 1114 at `b84b01c` (PR #77, merged) plus 22 net new from
 the wizard's second half — 11 in `test/widget/active_plan_page_test.dart`
 (loading, no plan → the wizard, the populated plan, a failure reading;
 adjusting: the write and the recalculated rows arriving through the
@@ -152,6 +173,67 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — live tracking's write path ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81), merged as `32119e3`)
+
+**FR-PLN-013, slice 1: `plan_allocations.spent_amount_cents` is now
+kept, and kept the way `accounts.current_balance_cents` is (E-18).**
+`TransactionLocalDataSourceImpl` moves it on add, edit and delete of an
+expense, inside the same database transaction as the row —
+`_applyPlanSpend`, beside `_applyBalance` — for the active plan whose
+period holds the row's date, matched by category. One statement: the
+plan is a subquery (`is_active = 1 AND start_date <= ? AND end_date >=
+?`), so no active plan, a date outside the period and a category the
+plan has no row for are all no-ops by construction, not errors. No
+screen changes; `ActivePlanPage` still does not show the figure.
+
+**Decided, and the reasoning is in `_applyPlanSpend`'s doc comment:**
+
+- **Expense only.** FR-PLN-013 tracks "actual spending vs. the active
+  plan". Income is not spending, a transfer is neither (E-02), and a plan
+  allocates expense categories.
+- **A split by its parts, never its parent (E-04).** The parent carries
+  the dominant category and the whole amount; counting it would put a
+  split's Transport share on Food. The parts are the rows
+  `analytics_local_datasource.dart`'s `_spendingParts` counts, so the
+  plan and the reports agree on what was spent. `_requireRow` now loads
+  a split's parts when `is_split = 1` so an edit or delete can reverse
+  them; unsplit rows cost no second query.
+- **Edit is reverse-then-apply, in full**, as balances are: the old row
+  is taken out against the plan holding the *old* date, the new row put
+  in against the plan holding the new one — which is what moves spend
+  between two categories when the category changes, and in or out of the
+  plan when the date does.
+- **One transaction, not eventual consistency.** A second write is a
+  write something can skip, and the cost here is a plan screen saying "on
+  track" over an expense the list screen already shows.
+- **No new change signal.** `MoneyPlanLocalDataSourceImpl` was already
+  on the shared bus (PR #74), so `WatchActivePlan` re-reads on every
+  transaction write.
+
+**The recount is built and called by nothing**, the way
+`RecomputeAccountBalance` was before Settings called it:
+`MoneyPlanLocalDataSource.recomputeSpent(planId)` (one `UPDATE` with a
+correlated subquery over the same union the analytics datasource uses),
+`MoneyPlanRepository.recomputeSpent`, the `RecomputePlanSpending` use
+case, `recomputePlanSpendingProvider`. Its oracle runs both ways: the
+transactions datasource's property test recounts in Dart, and the plan
+datasource's runs the SQL recount after a random sequence and asserts it
+changes nothing.
+
+**Known and deliberate gap — the first thing slice 2 should close.** The
+cache is exact for a plan across the writes made *while it is active*. A
+plan saved on the 14th over a month that began on the 1st starts at 0 and
+has never counted the first two weeks; editing or deleting one of those
+rows then reverses a figure that was never applied, and the row can go
+negative. The `activate` and `insert`-with-`activate` writes in the plan
+datasource should call `_recomputeSpentWithin` inside their own
+transaction — two lines, and the test "counts the expenses a plan was
+activated after" is already the oracle. It was left unwired because this
+slice's scope was the write path and an unreferenced repair, matching
+E-18's history; wire it before the screen shows the number.
+
+---
 
 ## This session — save, the saved plan, adjustment and what-if ([PR #79](https://github.com/SanduniLiyanage/Moneyora/pull/79), merged as `a47b977`)
 
@@ -1291,22 +1373,23 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5's wizard is complete.** The engine (PRs #66–#72), the saved
-plan (PR #74), the wizard (PRs #77, #79) are merged and `main` is clean at
-`a47b977`. What remains of the sprint is **FR-PLN-013's live tracking**, and
-it is the riskier slice because it touches an existing feature: the
-transactions datasource has to move `plan_allocations.spent_amount_cents`
-inside the same transaction as the expense row it writes, the way it
-moves `accounts.current_balance_cents` (E-18) — on add, edit and delete,
-for the active plan whose period holds the row's date, matched by
-category (and by split part, E-04). `WatchActivePlan` already re-reads on
-the shared bus, and `PlanAllocation.spentCents` is already read, so the
-screen's side is a percentage, a projection and FR-PLN-013's three
-colours. E-18's oracle applies: after any sequence of writes, the cache
-must equal a recount from history, and `RecomputeAccountBalance`'s shape
-is the model for the repair. Then FR-PLN-014's three overspend responses
-and FR-PLN-015's plan list and comparison (`ActivatePlan` is built and
-called by nothing yet). Two Sprint 4 leftovers are *not* blockers for it:
+**Sprint 5's wizard is complete and live tracking's write path is in.**
+The engine (PRs #66–#72), the saved plan (PR #74), the wizard (PRs #77,
+#79) and FR-PLN-013's first slice (PR #81) are merged and `main` is clean
+at `32119e3`. What remains of the sprint is **FR-PLN-013's second slice**,
+the screen: `PlanAllocation.spentCents` is now a real number, kept inside
+every expense write and re-read through `WatchActivePlan` on the shared
+bus, so `ActivePlanPage`'s side is a percentage per row, a projection to
+the period's end and the three colours (green on track, yellow 80–99%,
+red exceeded). **Do first, before the number is shown:** wire the recount
+into activation — `activate` and `insert`-with-`activate` in
+`money_plan_local_datasource.dart` call `_recomputeSpentWithin` in their
+own transaction — so a plan saved mid-period counts the expenses already
+in it (see "This session" for why this is the one gap the incremental
+write cannot close). Then FR-PLN-014's three overspend responses and
+FR-PLN-015's plan list and comparison (`ActivatePlan` is built and called
+by nothing yet; `RecomputePlanSpending` likewise, its Settings caller is
+Sprint 7's). Two Sprint 4 leftovers are *not* blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
