@@ -49,6 +49,10 @@ class _MemoryRepository implements MoneyPlanRepository {
   }
 
   @override
+  Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) async =>
       Right(plan?.id == id ? plan : null);
 

@@ -48,6 +48,13 @@ class MoneyPlanRepositoryImpl implements MoneyPlanRepository {
   });
 
   @override
+  Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      _attempt(() async {
+        await _local.recomputeSpent(planId);
+        return unit;
+      });
+
+  @override
   Stream<Either<Failure, MoneyPlan?>> watchActive() {
     // The controller shape `AccountRepositoryImpl.watch` uses, for the
     // reason it records: an async generator suspended over a broadcast

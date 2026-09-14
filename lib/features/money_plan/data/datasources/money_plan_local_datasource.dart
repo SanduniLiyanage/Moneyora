@@ -49,6 +49,10 @@ abstract interface class MoneyPlanLocalDataSource {
     List<PlanAllocationModel> allocations,
   );
 
+  /// Re-derives every `spent_amount_cents` of [planId] from history and
+  /// writes it, in one transaction. FR-PLN-013, E-18.
+  Future<void> recomputeSpent(int planId);
+
   /// Fires after every successful write — by this datasource or, when the
   /// bus is shared, by any other.
   Stream<void> get changes;
@@ -188,6 +192,70 @@ SELECT a.id, a.category_id, c.name AS category_name,
     });
 
     _notify();
+  }
+
+  @override
+  Future<void> recomputeSpent(int planId) async {
+    await _guard('recount the spending of plan $planId', () async {
+      await _db.transaction((txn) => _recomputeSpentWithin(txn, planId));
+    });
+
+    _notify();
+  }
+
+  /// Derives every allocation's spend of [planId] from history and writes
+  /// it. The recount E-18 asks for, in the shape of
+  /// `AccountLocalDataSourceImpl._recomputeWithin`.
+  ///
+  /// The transactions datasource keeps `spent_amount_cents` incrementally,
+  /// inside each expense's own write. This is the thing that checks it: the
+  /// same rows the analytics datasource counts as spending — unsplit
+  /// expenses plus the parts of split ones (E-04), never income or a
+  /// transfer (E-02) — summed per category over the plan's period,
+  /// inclusive at both ends, and stored. A category with no spend gets 0
+  /// (`SUM` over nothing is `NULL`, hence the `COALESCE`); an allocation
+  /// row is never added or removed.
+  ///
+  /// Called by nothing in the app yet, on purpose, and the reason is the
+  /// same as E-18's addendum: a recount is `O(expenses in the period)` and
+  /// belongs where repair is asked for. What asks for it is an activation —
+  /// a plan activated after rows in its period were written has never
+  /// counted them — and the Settings action of Sprint 7.
+  Future<void> _recomputeSpentWithin(DatabaseExecutor txn, int planId) async {
+    final plans = await txn.query(
+      'money_plans',
+      columns: ['start_date', 'end_date'],
+      where: 'id = ?',
+      whereArgs: [planId],
+      limit: 1,
+    );
+    if (plans.isEmpty) throw CacheException('No plan with id $planId.');
+    final from = plans.single['start_date'];
+    final to = plans.single['end_date'];
+
+    await txn.rawUpdate(
+      '''
+UPDATE plan_allocations
+   SET spent_amount_cents = COALESCE((
+         SELECT SUM(part.amount_cents)
+           FROM (
+             SELECT t.category_id AS category_id, t.amount_cents AS amount_cents
+               FROM transactions t
+              WHERE t.type = 'expense' AND t.is_split = 0
+                AND t.date >= ? AND t.date <= ?
+             UNION ALL
+             SELECT s.category_id AS category_id, s.amount_cents AS amount_cents
+               FROM transaction_splits s
+               JOIN transactions t ON t.id = s.transaction_id
+              WHERE t.type = 'expense'
+                AND t.date >= ? AND t.date <= ?
+           ) AS part
+          WHERE part.category_id = plan_allocations.category_id
+       ), 0)
+ WHERE plan_id = ?
+''',
+      [from, to, from, to, planId],
+    );
   }
 
   Future<MoneyPlanModel> _withAllocations(Map<String, Object?> plan) async {

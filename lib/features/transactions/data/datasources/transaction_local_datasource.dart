@@ -4,7 +4,7 @@
 /// the layer contract in `docs/ARCHITECTURE.md` §3. The repository above
 /// catches and converts; nothing further up ever sees a sqflite error.
 ///
-/// ## Three invariants this file exists to hold
+/// ## Four invariants this file exists to hold
 ///
 /// Each is an errata resolution, and each is impossible to enforce from any
 /// other layer:
@@ -19,6 +19,10 @@
 /// * **`accounts.current_balance_cents` is a cache** (E-18), written only
 ///   inside the same transaction as the row that moves it. Never as a second
 ///   call, because a second call is a call something can skip.
+/// * **`plan_allocations.spent_amount_cents` is a cache with the same rules**
+///   (FR-PLN-013, E-18): an expense moves the active plan's figure for its
+///   category inside the transaction that writes the expense. See
+///   [_applyPlanSpend] for what counts as spending and what is a no-op.
 library;
 
 import 'dart:async';
@@ -122,6 +126,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
         final rowId = await txn.insert('transactions', transaction.toMap());
         await _writeSplits(txn, transaction, rowId);
         await _applyBalance(txn, transaction.accountId, _delta(transaction));
+        await _applyPlanSpend(txn, transaction, sign: 1);
         return rowId;
       });
     });
@@ -144,7 +149,12 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
         // Reverse the old row's effect before applying the new one. The two
         // may sit on different accounts, and they may be different amounts, so
         // there is no shortcut that adjusts a single balance by a difference.
+        // The same goes for the plan: the category, the date or the split
+        // parts may all have changed, so the old row is taken out in full and
+        // the new one put in — which is also what moves spend between two
+        // categories when the category changes.
         await _applyBalance(txn, existing.accountId, -_delta(existing));
+        await _applyPlanSpend(txn, existing, sign: -1);
 
         await txn.update(
           'transactions',
@@ -164,6 +174,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
         await _writeSplits(txn, transaction, id);
 
         await _applyBalance(txn, transaction.accountId, _delta(transaction));
+        await _applyPlanSpend(txn, transaction, sign: 1);
       });
     });
 
@@ -182,6 +193,9 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
         }
 
         await _applyBalance(txn, existing.accountId, -_delta(existing));
+        // Before the row goes: a split's parts are what moved the plan, and
+        // they cascade away with the parent (E-04).
+        await _applyPlanSpend(txn, existing, sign: -1);
         // transaction_splits cascades on delete (E-04), so the parts go with
         // the parent without a second statement.
         await txn.delete('transactions', where: 'id = ?', whereArgs: [id]);
@@ -317,6 +331,65 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
     );
   }
 
+  /// Moves the active plan's `spent_amount_cents` by what [transaction]
+  /// spends, times [sign] (`1` to apply, `-1` to reverse). FR-PLN-013.
+  ///
+  /// Always called from inside the transaction that writes the row, never on
+  /// its own — the same rule as [_applyBalance] and for the same reason
+  /// (E-18): a second call is a call something can skip, and eventual
+  /// consistency here is a plan screen that says "on track" over an expense
+  /// the list screen already shows.
+  ///
+  /// **What counts as spending.** Only `expense` rows. FR-PLN-013 tracks
+  /// "actual spending vs. the active plan"; income is not spending, a
+  /// transfer is neither (E-02), and a plan allocates expense categories. A
+  /// split parent contributes nothing and each of its parts contributes its
+  /// own amount to its own category (E-04) — the rows the analytics
+  /// datasource's `_spendingParts` counts, so the plan and the reports agree
+  /// on what was spent on Food.
+  ///
+  /// **What is a no-op, not an error.** No active plan; the date outside the
+  /// active plan's period; a category the plan has no row for. All three
+  /// come out of the one statement below: the subquery yields `NULL` when no
+  /// active plan holds the date, `plan_id = NULL` matches nothing, and a
+  /// category with no allocation row matches nothing. An expense the plan
+  /// does not cover is simply not tracked, which is what "tracking against
+  /// the plan" means; refusing the expense would let the plan veto the
+  /// ledger.
+  ///
+  /// **Active plan only, as of the write.** The reversal on edit and delete
+  /// targets the plan that is active *now*, holding the *old* row's date. A
+  /// plan that was active when a row was written and is not any more keeps
+  /// the figure it had, and a plan activated after rows in its period were
+  /// written starts from whatever `spent_amount_cents` says. Both are
+  /// repaired by `MoneyPlanLocalDataSource.recomputeSpent`, the recount E-18
+  /// asks for; activation is where that recount belongs.
+  Future<void> _applyPlanSpend(
+    DatabaseExecutor txn,
+    TransactionModel transaction, {
+    required int sign,
+  }) async {
+    if (transaction.type != TransactionType.expense) return;
+
+    final parts = transaction.splits.isEmpty
+        ? [(transaction.categoryId, transaction.amountCents)]
+        : [for (final s in transaction.splits) (s.categoryId, s.amountCents)];
+    final date = TransactionModel.encodeDate(transaction.date);
+
+    for (final (categoryId, amountCents) in parts) {
+      if (categoryId == null || amountCents == 0) continue;
+      await txn.rawUpdate(
+        'UPDATE plan_allocations '
+        'SET spent_amount_cents = spent_amount_cents + ? '
+        'WHERE category_id = ? AND plan_id = ('
+        'SELECT id FROM money_plans '
+        'WHERE is_active = 1 AND start_date <= ? AND end_date >= ? '
+        'ORDER BY id DESC LIMIT 1)',
+        [sign * amountCents, categoryId, date, date],
+      );
+    }
+  }
+
   /// Deletes both halves of a transfer and its header row.
   ///
   /// Deleting one half alone would leave `transfers` pointing at a row that no
@@ -359,6 +432,11 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
 
   // ── reads ─────────────────────────────────────────────────────────────────
 
+  /// The stored row, with its split parts when it has any.
+  ///
+  /// The parts are needed by whoever reverses the row's effect (E-04: they,
+  /// not the parent, are what moved the plan), and an unsplit row costs no
+  /// second query.
   Future<TransactionModel> _requireRow(DatabaseExecutor txn, int id) async {
     final rows = await txn.query(
       'transactions',
@@ -369,7 +447,16 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
     if (rows.isEmpty) {
       throw CacheException('No transaction with id $id.');
     }
-    return TransactionModel.fromMap(rows.first);
+    final row = rows.first;
+    final splitRows = row['is_split'] == 1
+        ? await txn.query(
+            'transaction_splits',
+            where: 'transaction_id = ?',
+            whereArgs: [id],
+            orderBy: 'id ASC',
+          )
+        : const <Map<String, Object?>>[];
+    return TransactionModel.fromMap(row, splitRows: splitRows);
   }
 
   /// Split parts for [rows], keyed by parent id.
