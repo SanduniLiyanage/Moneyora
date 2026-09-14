@@ -460,11 +460,32 @@ unallocated category is a no-op. The recount (`RecomputePlanSpending`)
 is built, tested against the cache both ways, and called by nothing.
 Reasoning in [`HANDOFF.md`](HANDOFF.md).
 
-### Next — the tracking screen (FR-PLN-013, slice 2), then FR-PLN-014 and FR-PLN-015
+### The tracking screen (FR-PLN-013, slice 2) — done ([PR #83](https://github.com/SanduniLiyanage/Moneyora/pull/83), merged as `8917bf0`)
 
-First wire the recount into activation, so a plan saved mid-period counts
-what is already in it; then `ActivePlanPage` adds the percentage, the
-projection and the three colours.
+First the recount wired into activation, so a plan saved mid-period
+counts what is already in it; then `AllocationProgress` — the percentage
+floored, green below 80%, yellow to just under 100%, red at 100% and
+above, the projection by elapsed days — drawn on `ActivePlanPage` over
+the live stream. Reasoning in [`HANDOFF.md`](HANDOFF.md).
+
+### The three overspend responses (FR-PLN-014) — done ([PR #84](https://github.com/SanduniLiyanage/Moneyora/pull/84), merged as `00702c8`)
+
+`RespondToOverspend`: Auto-Redistribute by what the other categories have
+*left*, Manual Adjust from the one the user picks, Carry Over recorded on
+the row and deducted by the generator from the plan that follows. Schema
+v2 adds the column the DBD lacked ([E-33](SPEC_ERRATA.md)). Reasoning in
+[`HANDOFF.md`](HANDOFF.md).
+
+### The plan list and comparison (FR-PLN-015) — done ([PR #85](https://github.com/SanduniLiyanage/Moneyora/pull/85), merged as `a2104fe`)
+
+Every saved plan, the active one switched by tap, a recount action, and
+any two compared side by side without scaling to a common period. The
+first screen callers of `ActivatePlan` and `RecomputePlanSpending`.
+"Track it now" on save keeps a plan for later. Reasoning in
+[`HANDOFF.md`](HANDOFF.md).
+
+**Sprint 5 is complete.** FR-PLN-003's Settings control is Sprint 7's;
+FR-PLN-006's behavioural patterns were never scheduled and stay open.
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
@@ -549,7 +570,7 @@ way, and an unfinished app is never the price of a finished agent ([E-24](SPEC_E
 | One real question against the live API | a Gemini API key | **Next — emulator, not device** |
 | The income/compare-periods analytics use cases | Sprint 4 | **Done** — `GetIncomeForPeriod` (called by FR-RPT-004's bars since PR #60), `ComparePeriods` (tested, wired into `injection.dart`, still called by nothing — its caller is the tool below) |
 | `get_income_for_period`, `compare_periods` **tools** | the use cases above | Deferred — the use case is the Sprint 4 deliverable; the tool wrapper is Copilot-workstream work, not scheduled here |
-| `get_budget_plan` | **Sprint 5** | Deferred |
+| `get_budget_plan` | Sprint 5 — **done**, so nothing blocks it now | Deferred — `WatchActivePlan` and `PlanAllocation.spentCents` are what the tool would read; the wrapper is Copilot-workstream work, as above |
 | `get_savings_goal_progress`, affordability query | **Sprint 5+** | Deferred |
 
 Test counts for each stage are in [`HANDOFF.md`](HANDOFF.md), not restated

@@ -1,24 +1,28 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-14**, `main` at `32119e3`, after **80
-merged pull requests** (#2–#81; #1 was closed unmerged). **Sprint 5's
-wizard is complete and live tracking's write path is in**: the engine
+State of the project as of **2026-09-14**, `main` at `a2104fe`, after **84
+merged pull requests** (#2–#85; #1 was closed unmerged). **Sprint 5 is
+complete**: the engine
 ([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66),
 [#68](https://github.com/SanduniLiyanage/Moneyora/pull/68),
 [#70](https://github.com/SanduniLiyanage/Moneyora/pull/70),
 [#72](https://github.com/SanduniLiyanage/Moneyora/pull/72)), the saved
 plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)), the
 wizard ([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77),
-[#79](https://github.com/SanduniLiyanage/Moneyora/pull/79)) and the
-first slice of FR-PLN-013 — the plan's spend kept inside the expense
-write ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81)) —
-all merged during this window; what remains of the sprint is the
-tracking screen, FR-PLN-014 and FR-PLN-015. See "This session" below.
+[#79](https://github.com/SanduniLiyanage/Moneyora/pull/79)), live
+tracking ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81),
+[#83](https://github.com/SanduniLiyanage/Moneyora/pull/83)), the three
+overspend responses
+([PR #84](https://github.com/SanduniLiyanage/Moneyora/pull/84)) and the
+plan list with comparison
+([PR #85](https://github.com/SanduniLiyanage/Moneyora/pull/85)) — all
+merged during this window. Next is Sprint 6, the receipt scanner. See
+"This session" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `32119e3`, with PR #81 merged.
+at `a2104fe`, with PR #85 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -27,15 +31,36 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **1166 passing** | `flutter test` |
+| Tests | **1267 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **13 tables, 11 indexes** | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 147 in `lib/`, 85 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Schema | **13 tables, 11 indexes**, at version 2 (v2 adds one column, E-33) | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
+| Dart files | 155 in `lib/`, 90 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 1136 at `a47b977` (PR #79, merged) plus 30 net new from
+Tests by area: 1166 at `32119e3` (PR #81, merged) plus 101 net new from
+the rest of Sprint 5 — **26** from the tracking screen (PR #83: 19 in
+`allocation_progress_test.dart` for every band edge, the floored
+percentage and the projection on exact days; 5 in
+`active_plan_page_test.dart` including a row moving green to red through
+the stream; 2 net in the plan datasource test, where the test that
+recorded the mid-period activation gap became the one that closes it);
+**48** from the overspend responses (PR #84: 4 in `v2_carry_over_test.dart`
+proving a v1 database upgrades with its rows intact, 23 in
+`respond_to_overspend_test.dart`, 9 carry-over cases in
+`allocate_budget_test.dart`, 4 datasource, 1 repository, 6 on the sheet in
+`active_plan_page_test.dart`, 1 on the review card); **27** from the plan
+list (PR #85: 11 in `compare_plans_test.dart`, 2 datasource, 2 repository,
+11 in `test/widget/plan_list_page_test.dart`, 1 save-for-later in
+`plan_save_flow_test.dart`). `app_shell_test.dart`'s leave-again loop
+gained "Saved plans". Two tests changed shape rather than only growing:
+`money_plan_local_datasource_test.dart` and `save_plan_seed_test.dart`
+now build every schema version rather than v1 alone, and one seed
+assertion was annotated with why it still holds. **No assertion was
+removed.**
+
+Before that: 1136 at `a47b977` (PR #79, merged) plus 30 net new from
 live tracking's write path — 18 in
 `transaction_local_datasource_test.dart`, one new group appended and
 **no existing assertion changed** (385 lines added, none removed): an
@@ -173,6 +198,106 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the plan list and the comparison ([PR #85](https://github.com/SanduniLiyanage/Moneyora/pull/85), merged as `a2104fe`)
+
+**FR-PLN-015, and the end of Sprint 5.** `PlanListPage` (`/plans`, the
+SDD's SCR-010, "Saved plans" on home) lists every saved plan through
+`WatchPlans` — a stream on the shared bus, so an activation shows without
+being told — with the active one marked. Tapping the active plan opens it;
+tapping another **activates** it, and the menu repeats Activate beside
+**Recount spending** and **Compare with…**. This is the first screen to
+call `ActivatePlan` and `RecomputePlanSpending`, both of which had been
+built and called by nothing; `RecomputeAccountBalance` is now the only
+use case in that state (its Settings caller is Sprint 7's).
+
+**Comparison is not scaled to a common period — decided.** The SRS's own
+example puts "June Vacation Plan" beside "Regular Monthly", which are not
+the same length. `PlanComparison.of` lays out the union of both plans'
+categories in the first plan's order, a blank where one plan does not
+budget a category, each figure what the plan actually allots, the periods
+on the header to read them against, and the difference in words under
+each pair. `ComparePlansPage` is a plain link (`/plans/compare?a=&b=`); a
+bad id opens the list.
+
+**"Track it now"** on the name dialog, unticked, saves a plan without
+activating it and lands on the list — how a vacation plan is kept beside
+the monthly one still being tracked. `SavePlanRequest.activate` had
+existed for this since PR #74.
+
+---
+
+## This session — the three overspend responses ([PR #84](https://github.com/SanduniLiyanage/Moneyora/pull/84), merged as `00702c8`)
+
+**FR-PLN-014.** A row spent past its allocation on `ActivePlanPage` says
+by how much and opens a sheet with the SRS's three responses, each stated
+with its figures. `RespondToOverspend` is one use case with three
+branches; the decisions not in the SRS are on its doc comment and in
+[E-33](SPEC_ERRATA.md):
+
+- **"Exceeded" is strictly past the allocation.** A row at exactly 100%
+  is red (FR-PLN-013: nothing left) but has nothing to respond to.
+- **Auto-Redistribute reduces the other categories in proportion to what
+  each has *left*, not to their allocations.** By allocation —
+  `UpdateAllocation`'s rule for FR-PLN-011 — a nearly-spent category could
+  be pushed under its own spend, creating the next overspend to respond
+  to. It refuses, in its own sentence, when what is left does not cover
+  the overspend. The exceeded row is raised to exactly its spend; the
+  total is held through `AllocateBudget.distribute`.
+- **Manual Adjust** takes the whole overspend from the one category the
+  user picks (offered with what each has left), both rows marked as the
+  user's; refused if it has not got it left.
+- **Carry Over changes no figure on this plan.** It records the overspend
+  on the row, and `AllocateBudget` — now optionally given the repository
+  — deducts each carried figure from its category in the plan whose
+  period ended last before the new one's start
+  (`getLatestEndingBefore`), **after the budget mode**, floored at zero,
+  so under Option A the draft sums to the user's total less what was
+  already overspent. The review screen names the deduction on the header
+  and on the card. Choosing again replaces the figure. A category the
+  lookback has no spending on is not in the draft and gets no deduction.
+
+**Schema v2 — the first migration after v1.** Carry Over is a decision on
+one plan that has to reach a plan that does not exist yet, and the DBD's
+`plan_allocations` had nowhere to hold it (E-33).
+`migrations/v2_carry_over.dart` adds `carry_over_cents INTEGER NOT NULL
+DEFAULT 0 CHECK(>= 0)`, additive per SDD §5.3; `v2_carry_over_test.dart`
+is the upgrade-with-rows-intact test `database_helper.dart` asks for.
+Any test that builds the plan tables by hand must now run every version
+in `schemaMigrations`, not `v1Statements` alone — two were changed to.
+
+---
+
+## This session — the tracking screen ([PR #83](https://github.com/SanduniLiyanage/Moneyora/pull/83), merged as `8917bf0`)
+
+**FR-PLN-013, slice 2 — and first, the recount wired into activation.**
+`insert` with `isActive` and `activate` in the plan datasource now end
+with `_recomputeSpentWithin` in the same transaction, closing the gap
+PR #81 recorded: a plan saved on the 14th over a month that began on the
+1st counts the first two weeks before anything reads it, and a
+re-activated plan catches up on what it missed. An inactive plan's figure
+is "as of the last time it was active" and is not maintained (the
+incremental write targets the active plan only); the library comment says
+so. The datasource test that recorded the gap became the one that closes
+it.
+
+**The arithmetic is a domain value, `AllocationProgress.of(allocation,
+period, today)`**, with the clock injected so every band is asserted on
+exact days: the percentage `spent × 100 ~/ allocated`, floored and
+uncapped — 2,999,999 of 3,000,000 reads **99%**, never the number that
+means red; green below 80%, yellow from exactly 80% to just under 100%,
+**red at exactly 100% and above** (nothing left is not on track); the
+projection `spent × totalDays ~/ elapsedDays`, elapsed counted from the
+period's first day through today inclusive (day one is one day, not a
+division by zero), null before the period begins, the spend itself after
+it ends. `ActivePlanPage` draws it as a bar in the theme's semantic
+colours (`income` / `accent` / `expense`, so both themes keep the
+contrast `AppColors` was verified for), a line under each row and a
+total on the header; `now` is injectable like `MoneyPlanPage`'s. Display
+only — no local state; a widget test drives an expense through the
+repository's change signal and watches a row go green to red.
+
+---
 
 ## This session — live tracking's write path ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81), merged as `32119e3`)
 
@@ -1373,23 +1498,29 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5's wizard is complete and live tracking's write path is in.**
-The engine (PRs #66–#72), the saved plan (PR #74), the wizard (PRs #77,
-#79) and FR-PLN-013's first slice (PR #81) are merged and `main` is clean
-at `32119e3`. What remains of the sprint is **FR-PLN-013's second slice**,
-the screen: `PlanAllocation.spentCents` is now a real number, kept inside
-every expense write and re-read through `WatchActivePlan` on the shared
-bus, so `ActivePlanPage`'s side is a percentage per row, a projection to
-the period's end and the three colours (green on track, yellow 80–99%,
-red exceeded). **Do first, before the number is shown:** wire the recount
-into activation — `activate` and `insert`-with-`activate` in
-`money_plan_local_datasource.dart` call `_recomputeSpentWithin` in their
-own transaction — so a plan saved mid-period counts the expenses already
-in it (see "This session" for why this is the one gap the incremental
-write cannot close). Then FR-PLN-014's three overspend responses and
-FR-PLN-015's plan list and comparison (`ActivatePlan` is built and called
-by nothing yet; `RecomputePlanSpending` likewise, its Settings caller is
-Sprint 7's). Two Sprint 4 leftovers are *not* blockers for it:
+**Sprint 5 is complete.** The engine (PRs #66–#72), the saved plan
+(PR #74), the wizard (PRs #77, #79), live tracking (PRs #81, #83), the
+overspend responses (PR #84) and the plan list with comparison (PR #85)
+are merged and `main` is clean at `a2104fe`. Every FR-PLN requirement
+but FR-PLN-003's Settings control (the lookback is the six-month default
+until Sprint 7) and FR-PLN-006's behavioural patterns (never scheduled
+into a sprint; see `ROADMAP.md`) is built, and two things are worth
+knowing before Sprint 6:
+
+- **The schema is at version 2.** `carry_over_cents` on
+  `plan_allocations` (E-33) is the first column added since v1, and any
+  test that builds tables by hand must run every version in
+  `schemaMigrations` — `v1Statements` alone no longer matches what the
+  plan datasource reads. Sprint 6's receipt tables, if E-31's notes lead
+  to a change, are a v3 on the same pattern.
+- **Only one built use case is still called by nothing:
+  `RecomputeAccountBalance`** — its Settings action is Sprint 7's.
+  `RecomputePlanSpending` got its caller on the plan list in PR #85.
+
+Next is **Sprint 6, the receipt scanner** — camera → preprocess → ML Kit →
+parse → categorise → review → save → learn. Collect the 20–30 real
+receipt photos in the sprint's first week; nothing about accuracy can be
+claimed without them. Two Sprint 4 leftovers are *not* blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
