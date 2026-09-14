@@ -48,6 +48,7 @@ follows the Resolution sections.
 | [E-30](#e-30) | The SDD and DBD disagree with each other, and the DBD disagrees with itself | Clarified | — |
 | [E-31](#e-31) | Three DBD schema gaps that will bite a specific sprint | Resolved | — |
 | [E-32](#e-32) | The plan tables as built depart from the DBD in four places | Clarified | FR-PLN-001, FR-PLN-002, FR-PLN-004, FR-PLN-008, FR-PLN-010 |
+| [E-33](#e-33) | FR-PLN-014's Carry Over has nowhere to live in the schema | Resolved | FR-PLN-014 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -1810,6 +1811,72 @@ layer, not on the enums (`PlanAllocationModel.encodeConfidence`,
 four rows above. The `NOT NULL` total is the one row that changes behaviour a
 reader might rely on: a plan's total is always the number in the column, and
 `MoneyPlan.allocatedCents` equals it on any plan the data layer wrote.
+
+---
+
+<a id="e-33"></a>
+
+## E-33 — FR-PLN-014's Carry Over has nowhere to live in the schema
+
+**Severity:** Medium · **Affects:** SRS FR-PLN-014; DBD §3.8 (`plan_allocations`)
+
+FR-PLN-014 offers three responses when a category is exceeded. Two of them —
+Auto-Redistribute and Manual Adjust — rewrite this plan's allocations, which
+the schema already holds. The third, *"Carry Over (deduct overspend from
+next period's allocation)"*, is a decision taken on one plan that has to
+reach a plan that does not exist yet, and may not exist for weeks. It has to
+be stored, and the DBD's `plan_allocations` has no column for it: `notes` is
+free text, and encoding a figure in free text is how a figure stops being
+one.
+
+Raised while building the response
+([PR #84](https://github.com/SanduniLiyanage/Moneyora/pull/84)). The SDD says
+nothing about how a carry-over is applied either — nowhere in the generator's
+description (§5.2) does a previous plan appear.
+
+### Resolution — schema v2 adds one column, and the generator reads it
+
+`migrations/v2_carry_over.dart`, the project's first migration after v1 and
+additive per SDD §5.3:
+
+```sql
+ALTER TABLE plan_allocations
+  ADD COLUMN carry_over_cents INTEGER NOT NULL DEFAULT 0
+  CHECK(carry_over_cents >= 0);
+```
+
+On the row it was decided for, the amount in cents (E-06) to deduct from that
+category in whichever plan comes next. Zero for every existing row and for
+every row the user has not chosen Carry Over on. `DatabaseHelper.migrate`
+applies it to an existing v1 database with its rows intact, and
+`v2_carry_over_test.dart` proves that.
+
+Three decisions the SRS leaves open, made here:
+
+1. **"Next period" is the next plan, found by date.** `AllocateBudget` reads
+   the plan whose period ended last before the new period's first day
+   (`MoneyPlanRepository.getLatestEndingBefore`) and deducts each carried
+   figure from its category's allocation. A plan is not "next" by being
+   created next; a plan for December created in October does not inherit
+   September's overspend past an October plan.
+2. **The deduction comes off after the budget mode**, floored at zero. Under
+   Option A the draft sums to the user's total *less* the carry-over, which
+   is what carrying an overspend forward means — the money is already spent —
+   and the review screen names the deduction on the header and on the card
+   so the user is not left wondering why the total is short.
+3. **Choosing Carry Over again replaces the figure**, it does not add to it.
+   The stored amount is the whole overspend at the time of choosing. A
+   category the previous plan carried but the lookback has no spending on is
+   not in the draft, so gets no deduction.
+
+Auto-Redistribute's arithmetic is recorded on `RespondToOverspend`, not
+here: it reduces the other categories in proportion to what each has *left*
+rather than to their allocations, so no category is taken under what it has
+already spent, and it refuses when what is left does not cover the
+overspend. That is a reading of *"reduce remaining categories
+proportionally"*, not a departure from it.
+
+The DBD v1.1 that E-32 anticipates should carry this column.
 
 ---
 

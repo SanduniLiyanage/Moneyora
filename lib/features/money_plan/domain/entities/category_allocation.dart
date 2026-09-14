@@ -20,6 +20,7 @@ class CategoryAllocation extends Equatable {
     required this.allocationCents,
     required this.dailyAllowanceCents,
     required this.confidence,
+    this.carryOverCents = 0,
   });
 
   /// The class and statistics the allocation was derived from.
@@ -49,6 +50,11 @@ class CategoryAllocation extends Equatable {
   /// total-budget modes: scaling to a total says nothing about the data.
   final ConfidenceScore confidence;
 
+  /// What the previous plan's overspend on this category took off
+  /// [allocationCents] — FR-PLN-014's Carry Over, arriving. Zero when the
+  /// previous plan carried nothing for it.
+  final int carryOverCents;
+
   /// The category.
   int get categoryId => classification.categoryId;
 
@@ -72,7 +78,26 @@ class CategoryAllocation extends Equatable {
         allocationCents: allocationCents,
         dailyAllowanceCents: days > 0 ? allocationCents ~/ days : 0,
         confidence: confidence,
+        carryOverCents: carryOverCents,
       );
+
+  /// This allocation with [carryOverCents] taken off it, never below zero,
+  /// the daily allowance following. FR-PLN-014.
+  CategoryAllocation lessCarryOver(int carryOverCents, {required int days}) {
+    final deducted = carryOverCents > allocationCents
+        ? allocationCents
+        : carryOverCents;
+    return CategoryAllocation(
+      classification: classification,
+      baseMonthlyCents: baseMonthlyCents,
+      seasonalFactor: seasonalFactor,
+      trendFactor: trendFactor,
+      allocationCents: allocationCents - deducted,
+      dailyAllowanceCents: days > 0 ? (allocationCents - deducted) ~/ days : 0,
+      confidence: confidence,
+      carryOverCents: deducted,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -83,5 +108,6 @@ class CategoryAllocation extends Equatable {
     allocationCents,
     dailyAllowanceCents,
     confidence,
+    carryOverCents,
   ];
 }

@@ -19,6 +19,7 @@ class PlanAllocationModel extends PlanAllocation {
     super.id,
     super.categoryName,
     super.spentCents,
+    super.carryOverCents,
     super.expenseType,
     super.isUserModified,
     super.notes,
@@ -32,6 +33,7 @@ class PlanAllocationModel extends PlanAllocation {
         categoryName: a.categoryName,
         allocatedCents: a.allocatedCents,
         spentCents: a.spentCents,
+        carryOverCents: a.carryOverCents,
         confidence: a.confidence,
         expenseType: a.expenseType,
         isUserModified: a.isUserModified,
@@ -47,6 +49,7 @@ class PlanAllocationModel extends PlanAllocation {
         categoryName: map['category_name'] as String?,
         allocatedCents: map['allocated_amount_cents']! as int,
         spentCents: map['spent_amount_cents']! as int,
+        carryOverCents: map['carry_over_cents']! as int,
         confidence: decodeConfidence(map['confidence_level']! as String),
         expenseType: switch (map['expense_class']) {
           final String s => decodeExpenseType(s),
@@ -64,6 +67,7 @@ class PlanAllocationModel extends PlanAllocation {
     'category_id': categoryId,
     'allocated_amount_cents': allocatedCents,
     'spent_amount_cents': spentCents,
+    'carry_over_cents': carryOverCents,
     'confidence_level': encodeConfidence(confidence),
     'expense_class': expenseType == null
         ? null
@@ -72,9 +76,12 @@ class PlanAllocationModel extends PlanAllocation {
     'notes': notes,
   };
 
-  /// The columns FR-PLN-011 rewrites.
+  /// The columns FR-PLN-011 and FR-PLN-014 rewrite. Never the spend: that
+  /// is the transactions datasource's cache (FR-PLN-013), and a row read
+  /// a moment ago may already be stale on it.
   Map<String, Object?> toAllocationUpdateMap() => {
     'allocated_amount_cents': allocatedCents,
+    'carry_over_cents': carryOverCents,
     'is_user_modified': isUserModified ? 1 : 0,
   };
 
@@ -100,6 +107,7 @@ class PlanAllocationModel extends PlanAllocation {
     categoryName: categoryName,
     allocatedCents: allocatedCents,
     spentCents: spentCents,
+    carryOverCents: carryOverCents,
     confidence: confidence,
     expenseType: expenseType,
     isUserModified: isUserModified,

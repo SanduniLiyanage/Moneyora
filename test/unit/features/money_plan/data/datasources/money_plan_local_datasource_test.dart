@@ -5,7 +5,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/database_change_bus.dart';
-import 'package:moneyora/core/database/migrations/v1_initial.dart';
+import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/database/seed/default_seed.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/features/money_plan/data/datasources/money_plan_local_datasource.dart';
@@ -38,12 +38,16 @@ void main() {
         onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
         onCreate: (d, _) async {
           final batch = d.batch();
-          for (final statement in v1Statements) {
-            batch.execute(statement);
+          // Every version, not v1 alone: the plan tables read
+          // carry_over_cents, which v2 adds (E-33).
+          for (final version in schemaMigrations.keys.toList()..sort()) {
+            for (final statement in schemaMigrations[version]!) {
+              batch.execute(statement);
+            }
           }
           await batch.commit(noResult: true);
         },
-        version: v1SchemaVersion,
+        version: latestSchemaVersion,
       ),
     );
     await applyDefaultSeed(db);
@@ -247,6 +251,28 @@ void main() {
         expect(read.totalBudgetCents, 7500000);
       },
     );
+
+    test('writes the carry-over and never the spend', () async {
+      // FR-PLN-014's column goes with the allocation figures; the spend
+      // is FR-PLN-013's cache and a stale model must not put it back.
+      final id = await plans.insert(plan('September'));
+      await db.update('plan_allocations', {'spent_amount_cents': 999});
+
+      await plans.updateAllocations(id, [
+        PlanAllocationModel(
+          categoryId: food,
+          allocatedCents: 3000000,
+          spentCents: 0,
+          carryOverCents: 40000,
+          confidence: ConfidenceLevel.medium,
+        ),
+      ]);
+
+      final read = (await plans.getById(id))!;
+      expect(read.allocations[1].carryOverCents, 40000);
+      expect(read.allocations[1].spentCents, 999, reason: 'left alone');
+      expect(read.allocations[0].carryOverCents, 0);
+    });
 
     test(
       'is all or nothing: an unknown category rolls every row back',
@@ -570,6 +596,47 @@ void main() {
           reason: 'the recount disagrees with the cache on category $c',
         );
       }
+    });
+  });
+
+  group('getLatestEndingBefore', () {
+    MoneyPlanModel over(String name, int year, int month) => MoneyPlanModel(
+      name: name,
+      period: PlanPeriod.month(year, month),
+      totalBudgetCents: 1,
+      isActive: false,
+      allocations: [
+        PlanAllocationModel(
+          categoryId: food,
+          allocatedCents: 1,
+          confidence: ConfidenceLevel.low,
+        ),
+      ],
+    );
+
+    test('is the plan whose period ended last before the day', () async {
+      await plans.insert(over('July', 2026, 7));
+      final august = await plans.insert(over('August', 2026, 8));
+      await plans.insert(over('October', 2026, 10));
+
+      final read = await plans.getLatestEndingBefore('2026-09-01');
+
+      expect(read!.id, august);
+      expect(read.allocations, hasLength(1), reason: 'with its rows');
+    });
+
+    test('a plan ending on the day itself does not count', () async {
+      await plans.insert(over('September', 2026, 9));
+
+      expect(await plans.getLatestEndingBefore('2026-09-30'), isNull);
+      expect(
+        (await plans.getLatestEndingBefore('2026-10-01'))!.name,
+        'September',
+      );
+    });
+
+    test('is null with nothing before', () async {
+      expect(await plans.getLatestEndingBefore('2026-09-01'), isNull);
     });
   });
 

@@ -55,6 +55,7 @@ import 'features/money_plan/domain/usecases/allocate_budget.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'features/money_plan/domain/usecases/recompute_plan_spending.dart';
+import 'features/money_plan/domain/usecases/respond_to_overspend.dart';
 import 'features/money_plan/domain/usecases/save_plan.dart';
 import 'features/money_plan/domain/usecases/update_allocation.dart';
 import 'features/money_plan/domain/usecases/watch_active_plan.dart';
@@ -480,12 +481,20 @@ final incomeReaderProvider = FutureProvider<IncomeReader>(
 );
 
 /// A budget per category for a plan period, and a total. FR-PLN-007,
-/// FR-PLN-008, FR-PLN-009.
+/// FR-PLN-008, FR-PLN-009 — less what the previous plan carried over,
+/// FR-PLN-014.
 final allocateBudgetProvider = FutureProvider<AllocateBudget>(
   (ref) async => AllocateBudget(
     await ref.watch(classifyCategoriesProvider.future),
     await ref.watch(incomeReaderProvider.future),
+    plans: await ref.watch(moneyPlanRepositoryProvider.future),
   ),
+);
+
+/// Applies one of FR-PLN-014's three responses to an exceeded category.
+final respondToOverspendProvider = FutureProvider<RespondToOverspend>(
+  (ref) async =>
+      RespondToOverspend(await ref.watch(moneyPlanRepositoryProvider.future)),
 );
 
 /// Reads and writes saved plans. The only holder of SQL for the feature.

@@ -25,6 +25,11 @@ abstract interface class MoneyPlanRepository {
   /// Reads one plan with its allocations, or null when there is none.
   Future<Either<Failure, MoneyPlan?>> getById(int id);
 
+  /// The plan whose period ended most recently before [day], or null when
+  /// none has. The plan a new one starting on [day] follows — where
+  /// FR-PLN-014's carried-over overspend is read from.
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day);
+
   /// The active plan, or null when there is none — re-read after every
   /// database write, since FR-PLN-013's spend against it moves with every
   /// transaction.

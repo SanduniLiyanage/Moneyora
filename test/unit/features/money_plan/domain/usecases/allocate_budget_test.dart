@@ -6,9 +6,13 @@ import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/features/money_plan/domain/entities/allocation_request.dart';
 import 'package:moneyora/features/money_plan/domain/entities/budget_mode.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_classification.dart';
+import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
 import 'package:moneyora/features/money_plan/domain/entities/lookback_window.dart';
+import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/money_plan_draft.dart';
+import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
+import 'package:moneyora/features/money_plan/domain/repositories/money_plan_repository.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/allocate_budget.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/classify_categories.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/compute_category_statistics.dart';
@@ -45,6 +49,47 @@ class _FakeIncome implements IncomeReader {
     if (failWith case final failure?) return Left(failure);
     return Right(income);
   }
+}
+
+/// The previous plan, scripted, for FR-PLN-014's carry-over.
+class _FakePlans implements MoneyPlanRepository {
+  MoneyPlan? previous;
+  Failure? failWith;
+  DateTime? askedBefore;
+
+  @override
+  Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(
+    DateTime day,
+  ) async {
+    askedBefore = day;
+    if (failWith case final f?) return Left(f);
+    return Right(previous);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> activate(int id) => throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, MoneyPlan?>> getById(int id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, int>> save(MoneyPlan plan) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> updateAllocations(
+    int planId,
+    List<PlanAllocation> allocations,
+  ) => throw UnimplementedError();
+
+  @override
+  Stream<Either<Failure, MoneyPlan?>> watchActive() =>
+      throw UnimplementedError();
 }
 
 final halfYear = LookbackWindow(months: 6, lastMonth: DateTime(2026, 8));
@@ -464,5 +509,252 @@ void main() {
         const Left<Failure, MoneyPlanDraft>(CacheFailure('disk is full')),
       );
     });
+  });
+
+  group('carry over from the previous plan (FR-PLN-014)', () {
+    late _FakePlans plans;
+
+    MoneyPlan previous(
+      String name,
+      PlanPeriod period, {
+      required Map<int, int> carried,
+    }) => MoneyPlan(
+      id: 1,
+      name: name,
+      period: period,
+      totalBudgetCents: 0,
+      isActive: false,
+      allocations: [
+        for (final MapEntry(key: id, value: cents) in carried.entries)
+          PlanAllocation(
+            categoryId: id,
+            allocatedCents: 1,
+            carryOverCents: cents,
+            confidence: ConfidenceLevel.low,
+          ),
+      ],
+    );
+
+    setUp(() {
+      plans = _FakePlans();
+      allocate = AllocateBudget(
+        ClassifyCategories(ComputeCategoryStatistics(reader)),
+        income,
+        plans: plans,
+      );
+      seedThree();
+    });
+
+    test('asks for the plan that ended last before this period', () async {
+      await allocate(
+        AllocationRequest(
+          period: september,
+          lookback: halfYear,
+          mode: const BudgetMode.unconstrained(),
+        ),
+      );
+
+      expect(plans.askedBefore, DateTime(2026, 9));
+    });
+
+    test('deducts each carried overspend from its category', () async {
+      plans.previous = previous(
+        'August',
+        PlanPeriod.month(2026, 8),
+        carried: {2: 300000, 3: 100000},
+      );
+      final without = unwrap(
+        await AllocateBudget(
+          ClassifyCategories(ComputeCategoryStatistics(reader)),
+          income,
+        )(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        ),
+      );
+
+      final draft = unwrap(
+        await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        ),
+      );
+
+      expect(draft.carriedFromPlan, 'August');
+      expect(draft.carryOverCents, 400000);
+      expect(
+        draft.allocations[0].allocationCents,
+        without.allocations[0].allocationCents,
+        reason: 'Bills carried nothing',
+      );
+      expect(draft.allocations[0].carryOverCents, 0);
+      expect(
+        draft.allocations[1].allocationCents,
+        without.allocations[1].allocationCents - 300000,
+      );
+      expect(draft.allocations[1].carryOverCents, 300000);
+      expect(
+        draft.allocations[2].allocationCents,
+        without.allocations[2].allocationCents - 100000,
+      );
+      expect(draft.totalCents, without.totalCents - 400000);
+    });
+
+    test('the daily allowance follows the deduction', () async {
+      plans.previous = previous(
+        'August',
+        PlanPeriod.month(2026, 8),
+        carried: {2: 300000},
+      );
+
+      final draft = unwrap(
+        await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        ),
+      );
+
+      final food = draft.allocations[1];
+      expect(food.dailyAllowanceCents, food.allocationCents ~/ 30);
+    });
+
+    test('comes off after the mode: Option A sums to the total less the '
+        'carry-over', () async {
+      // Carrying an overspend forward means that money is already spent;
+      // the user's total is what they have, and the draft is what is left.
+      plans.previous = previous(
+        'August',
+        PlanPeriod.month(2026, 8),
+        carried: {2: 300000},
+      );
+
+      final draft = unwrap(
+        await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.total(10000000),
+          ),
+        ),
+      );
+
+      expect(draft.totalCents, 10000000 - 300000);
+    });
+
+    test('never takes an allocation below zero', () async {
+      plans.previous = previous(
+        'August',
+        PlanPeriod.month(2026, 8),
+        carried: {2: 99999999},
+      );
+
+      final draft = unwrap(
+        await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        ),
+      );
+
+      expect(draft.allocations[1].allocationCents, 0);
+      expect(draft.allocations[1].dailyAllowanceCents, 0);
+      expect(
+        draft.allocations[1].carryOverCents,
+        lessThan(99999999),
+        reason: 'only what there was to deduct',
+      );
+    });
+
+    test(
+      'a category the lookback has no spending on gets no deduction',
+      () async {
+        // Pets (9) carried an overspend, but the draft has no Pets row to
+        // take it from; it is simply not in this plan.
+        plans.previous = previous(
+          'August',
+          PlanPeriod.month(2026, 8),
+          carried: {9: 300000},
+        );
+
+        final draft = unwrap(
+          await allocate(
+            AllocationRequest(
+              period: september,
+              lookback: halfYear,
+              mode: const BudgetMode.unconstrained(),
+            ),
+          ),
+        );
+
+        expect(draft.carriedFromPlan, isNull);
+        expect(draft.carryOverCents, 0);
+      },
+    );
+
+    test('is nothing when the previous plan carried nothing', () async {
+      plans.previous = previous(
+        'August',
+        PlanPeriod.month(2026, 8),
+        carried: {2: 0},
+      );
+
+      final draft = unwrap(
+        await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        ),
+      );
+
+      expect(draft.carriedFromPlan, isNull);
+    });
+
+    test('is nothing when there is no previous plan', () async {
+      final draft = unwrap(
+        await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        ),
+      );
+
+      expect(draft.carriedFromPlan, isNull);
+      expect(draft.carryOverCents, 0);
+    });
+
+    test(
+      'a failure reading the previous plan is the draft\'s failure',
+      () async {
+        plans.failWith = const CacheFailure('disk is full');
+
+        final result = await allocate(
+          AllocationRequest(
+            period: september,
+            lookback: halfYear,
+            mode: const BudgetMode.unconstrained(),
+          ),
+        );
+
+        expect(
+          result,
+          const Left<Failure, MoneyPlanDraft>(CacheFailure('disk is full')),
+        );
+      },
+    );
   });
 }

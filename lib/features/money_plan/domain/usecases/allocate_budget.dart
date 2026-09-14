@@ -11,6 +11,7 @@ import '../entities/category_statistics.dart';
 import '../entities/lookback_window.dart';
 import '../entities/money_plan_draft.dart';
 import '../entities/plan_period.dart';
+import '../repositories/money_plan_repository.dart';
 import 'classify_categories.dart';
 import 'score_confidence.dart';
 
@@ -42,12 +43,28 @@ import 'score_confidence.dart';
 /// (Option A), or fit the non-fixed ones into income less savings less
 /// fixed costs (Option B). Rounded to the cent once, at the end of step 3,
 /// and again only if a mode rescales.
+///
+/// Last, **FR-PLN-014's Carry Over arrives here**: when a [MoneyPlanRepository]
+/// is given, the plan whose period ended last before this one's start is
+/// read, and each category's carried-over overspend is taken off its
+/// allocation ([CategoryAllocation.lessCarryOver]) — after the mode, so
+/// under Option A the draft sums to the user's total *less* what was
+/// already overspent, which is what carrying an overspend forward means;
+/// the review screen says so on the card. A category the previous plan
+/// carried but the lookback has no spending on is not in the draft and
+/// gets no deduction. Without a repository — the engine's own tests, the
+/// seed integration tests — no plan is read and nothing is deducted.
 class AllocateBudget implements UseCase<MoneyPlanDraft, AllocationRequest> {
-  /// Creates the use case over the classifier and the income read.
-  const AllocateBudget(this._classify, this._income);
+  /// Creates the use case over the classifier and the income read, and
+  /// [plans] for the previous plan's carry-overs (FR-PLN-014); none when
+  /// null.
+  const AllocateBudget(this._classify, this._income, {this.plans});
 
   final ClassifyCategories _classify;
   final IncomeReader _income;
+
+  /// Where the previous plan's carry-overs are read from, or null.
+  final MoneyPlanRepository? plans;
 
   /// How many of the most recent months are "recent": the Fixed average's
   /// window (the SRS's *"average(last 3 occurrences)"*) and the weighted
@@ -82,8 +99,8 @@ class AllocateBudget implements UseCase<MoneyPlanDraft, AllocationRequest> {
         for (final c in classifications)
           allocate(c, params.lookback, params.period),
       ];
-      return switch (params.mode) {
-        UnconstrainedBudget() => Right(
+      final drafted = switch (params.mode) {
+        UnconstrainedBudget() => Right<Failure, MoneyPlanDraft>(
           MoneyPlanDraft(
             period: params.period,
             lookback: params.lookback,
@@ -102,6 +119,36 @@ class AllocateBudget implements UseCase<MoneyPlanDraft, AllocationRequest> {
           savingsTargetPct,
         ),
       };
+      return drafted.fold(Left.new, _lessCarryOvers);
+    });
+  }
+
+  /// [draft] with the previous plan's carried-over overspend deducted per
+  /// category. FR-PLN-014. Unchanged when there is no repository, no
+  /// previous plan, or nothing carried.
+  Future<Either<Failure, MoneyPlanDraft>> _lessCarryOvers(
+    MoneyPlanDraft draft,
+  ) async {
+    final plans = this.plans;
+    if (plans == null) return Right(draft);
+    final read = await plans.getLatestEndingBefore(draft.period.from);
+    return read.map((previous) {
+      if (previous == null) return draft;
+      final carried = {
+        for (final a in previous.allocations)
+          if (a.carryOverCents > 0) a.categoryId: a.carryOverCents,
+      };
+      if (carried.isEmpty) return draft;
+      final days = draft.period.days;
+      final deducted = [
+        for (final a in draft.allocations)
+          switch (carried[a.categoryId]) {
+            null => a,
+            final cents => a.lessCarryOver(cents, days: days),
+          },
+      ];
+      if (deducted.every((a) => a.carryOverCents == 0)) return draft;
+      return draft.withCarryOvers(deducted, carriedFromPlan: previous.name);
     });
   }
 
