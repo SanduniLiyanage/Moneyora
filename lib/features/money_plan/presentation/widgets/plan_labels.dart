@@ -4,8 +4,12 @@
 /// the dates and enums, and how they read in a locale is `intl`'s.
 library;
 
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/currency_utils.dart';
+import '../../domain/entities/allocation_progress.dart';
 import '../../domain/entities/budget_mode.dart';
 import '../../domain/entities/category_classification.dart';
 import '../../domain/entities/confidence_score.dart';
@@ -83,3 +87,33 @@ String confidenceReason(ConfidenceScore score) {
 /// `Sep` for month 9 — the seasonal months a category spikes in.
 String monthAbbreviation(int month) =>
     DateFormat.MMM().format(DateTime(2000, month));
+
+/// FR-PLN-013's colour for [status]: green, yellow, red — drawn from the
+/// theme's semantic set rather than `Colors.*`, so both themes keep the
+/// contrast `AppColors` was verified for. Green is the income colour,
+/// yellow the accent, red the expense colour.
+Color trackingColour(ThemeData theme, TrackingStatus status) {
+  final colors = theme.extension<AppColors>()!;
+  return switch (status) {
+    TrackingStatus.onTrack => colors.income,
+    TrackingStatus.warning => colors.accent,
+    TrackingStatus.exceeded => colors.expense,
+  };
+}
+
+/// One line under a row: `Rs1,000.00 spent · 33% · heading Rs500.00
+/// under`. FR-PLN-013's percentage and projection.
+///
+/// The projection names the direction in words rather than with a sign,
+/// and says "on budget" at exactly zero; before the period starts there
+/// is nothing to project and the line stops at the percentage.
+String trackingLabel(AllocationProgress p) {
+  final head =
+      '${formatCents(p.allocation.spentCents)} spent · ${p.percentUsed}%';
+  return switch (p.projectedDifferenceCents) {
+    null => head,
+    0 => '$head · heading on budget',
+    final d when d > 0 => '$head · heading ${formatCents(d)} over',
+    final d => '$head · heading ${formatCents(-d)} under',
+  };
+}

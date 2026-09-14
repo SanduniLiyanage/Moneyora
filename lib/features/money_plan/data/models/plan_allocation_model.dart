@@ -56,8 +56,9 @@ class PlanAllocationModel extends PlanAllocation {
         notes: map['notes'] as String?,
       );
 
-  /// The row to insert under [planId]. `spent_amount_cents` starts at 0 and
-  /// is moved by FR-PLN-013, never written here.
+  /// The row to insert under [planId]. `spent_amount_cents` is written as
+  /// given (0 on a fresh draft), recounted by the datasource when the plan
+  /// is active, and moved by every expense write after that. FR-PLN-013.
   Map<String, Object?> toMap(int planId) => {
     'plan_id': planId,
     'category_id': categoryId,

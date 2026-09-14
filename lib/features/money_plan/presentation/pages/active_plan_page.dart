@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../domain/entities/allocation_progress.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/plan_allocation.dart';
 import '../../domain/usecases/update_allocation.dart';
@@ -12,22 +13,32 @@ import '../../domain/usecases/what_if.dart';
 import '../providers/money_plan_providers.dart';
 import '../widgets/plan_labels.dart';
 
-/// The active plan: what was saved, adjusted by hand, asked what-if.
-/// FR-PLN-011, FR-PLN-012, FR-PLN-013.
+/// The active plan: what was saved, adjusted by hand, asked what-if, and
+/// tracked. FR-PLN-011, FR-PLN-012, FR-PLN-013.
 ///
 /// Reached from the home screen as well as after a save, so it has to say
 /// when there is no active plan and offer the way to make one (E-22).
 /// Adjustment happens here, on the saved rows, where `UpdateAllocation`
 /// holds the total; the recalculated rows arrive back through the live
-/// stream, not through local state. Spend against the plan is FR-PLN-013's
-/// slice and is not shown yet.
+/// stream, not through local state.
+///
+/// Tracking is display only. `PlanAllocation.spentCents` is kept by the
+/// transactions datasource inside every expense write and re-read here
+/// through the same stream, because the plan datasource shares the change
+/// bus — so a row's bar moves the moment an expense is saved, with nothing
+/// on this side but arithmetic: [AllocationProgress] over each row, the
+/// period and [now].
 class ActivePlanPage extends ConsumerWidget {
-  /// Creates the screen.
-  const ActivePlanPage({super.key});
+  /// Creates the screen. [now] is the clock, injectable for tests.
+  const ActivePlanPage({super.key, this.now});
+
+  /// The clock. `DateTime.now()` when null.
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final plan = ref.watch(activePlanProvider);
+    final today = now ?? DateTime.now();
 
     return Scaffold(
       appBar: AppBar(
@@ -52,8 +63,9 @@ class ActivePlanPage extends ConsumerWidget {
             ),
           ),
         ),
-        data: (plan) =>
-            plan == null ? const _NoActivePlan() : _Plan(plan: plan),
+        data: (plan) => plan == null
+            ? const _NoActivePlan()
+            : _Plan(plan: plan, today: today),
       ),
     );
   }
@@ -72,14 +84,21 @@ class ActivePlanPage extends ConsumerWidget {
 }
 
 class _Plan extends ConsumerWidget {
-  const _Plan({required this.plan});
+  const _Plan({required this.plan, required this.today});
 
   final MoneyPlan plan;
+  final DateTime today;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final days = plan.period.days;
+    final progress = [
+      for (final a in plan.allocations)
+        AllocationProgress.of(a, plan.period, today),
+    ];
+    final spent = plan.allocations.fold(0, (s, a) => s + a.spentCents);
+    final elapsed = progress.isEmpty ? 0 : progress.first.elapsedDays;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -107,6 +126,11 @@ class _Plan extends ConsumerWidget {
                     ),
                   ],
                 ),
+                Text(
+                  '${formatCents(spent)} spent · '
+                  '${_dayLabel(elapsed, days)}',
+                  style: theme.textTheme.bodyMedium,
+                ),
                 const SizedBox(height: 4),
                 Text(
                   'Tap a category to change its budget; the others adjust '
@@ -118,15 +142,18 @@ class _Plan extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 8),
-        for (final allocation in plan.allocations)
+        for (final p in progress)
           _AllocationRow(
-            allocation: allocation,
+            progress: p,
             days: days,
-            onTap: () => _adjust(context, ref, plan, allocation),
+            onTap: () => _adjust(context, ref, plan, p.allocation),
           ),
       ],
     );
   }
+
+  static String _dayLabel(int elapsed, int days) =>
+      elapsed == 0 ? 'not started' : 'day $elapsed of $days';
 
   Future<void> _adjust(
     BuildContext context,
@@ -159,20 +186,24 @@ class _Plan extends ConsumerWidget {
   }
 }
 
+/// One category: its budget, its provenance, and FR-PLN-013's three
+/// figures beneath — the bar in the status colour, the percentage and
+/// the projection.
 class _AllocationRow extends StatelessWidget {
   const _AllocationRow({
-    required this.allocation,
+    required this.progress,
     required this.days,
     required this.onTap,
   });
 
-  final PlanAllocation allocation;
+  final AllocationProgress progress;
   final int days;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final a = allocation;
+    final theme = Theme.of(context);
+    final a = progress.allocation;
     final perDay = days > 0 ? a.allocatedCents ~/ days : 0;
     final details = <String>[
       '${formatCents(perDay)} a day',
@@ -180,15 +211,44 @@ class _AllocationRow extends StatelessWidget {
       '${confidenceLabel(a.confidence)} confidence',
       if (a.isUserModified) 'set by you',
     ];
+    final colour = trackingColour(theme, progress.status);
     return Card(
-      child: ListTile(
-        title: Text(a.categoryName ?? 'Category ${a.categoryId}'),
-        subtitle: Text(details.join(' · ')),
-        trailing: Text(
-          formatCents(a.allocatedCents),
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+      child: InkWell(
         onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              title: Text(a.categoryName ?? 'Category ${a.categoryId}'),
+              subtitle: Text(details.join(' · ')),
+              trailing: Text(
+                formatCents(a.allocatedCents),
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    // The bar fills at 100% and stays full past it; the
+                    // number beside it is what says how far past.
+                    value: (progress.percentUsed / 100).clamp(0, 1),
+                    color: colour,
+                    backgroundColor: colour.withValues(alpha: 0.2),
+                    minHeight: 6,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    trackingLabel(progress),
+                    style: theme.textTheme.bodySmall?.copyWith(color: colour),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

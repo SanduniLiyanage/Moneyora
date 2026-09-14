@@ -420,21 +420,52 @@ void main() {
       expect(await spentOf(id, bills), 0);
     });
 
-    test('counts the expenses a plan was activated after', () async {
-      // The gap the incremental write cannot close on its own: these rows
-      // were written while no plan was active, so nothing moved. A plan
-      // saved on the 14th over a month that began on the 1st starts at zero
-      // until something recounts it — which is why activation is this
-      // method's first caller.
+    test(
+      'a plan saved active counts the expenses already in its period',
+      () async {
+        // The gap the incremental write cannot close on its own: these rows
+        // were written while no plan was active, so nothing moved them onto
+        // any plan. A plan saved on the 14th over a month that began on the
+        // 1st would start at zero — so the save recounts, in its own
+        // transaction, and the figure is right before anything reads it.
+        await transactions.add(expense(food, 30000, on: DateTime(2026, 9, 3)));
+        await transactions.add(expense(bills, 45000, on: DateTime(2026, 9, 5)));
+
+        final id = await plans.insert(plan('Mid-month'));
+
+        expect(await spentOf(id, food), 30000);
+        expect(await spentOf(id, bills), 45000);
+      },
+    );
+
+    test('a plan saved for later is not counted until activated', () async {
+      // Inactive plans are not tracked (the incremental write targets the
+      // active one only), so the figure is "as of the last time it was
+      // active" — zero for one that never was — and activation recounts.
       await transactions.add(expense(food, 30000, on: DateTime(2026, 9, 3)));
-      await transactions.add(expense(bills, 45000, on: DateTime(2026, 9, 5)));
-      final id = await plans.insert(plan('Mid-month'));
-      expect(await spentOf(id, food), 0, reason: 'nothing counted yet');
+      final id = await plans.insert(plan('Later', active: false));
+      expect(await spentOf(id, food), 0, reason: 'not tracked yet');
+      await transactions.add(expense(food, 20000, on: DateTime(2026, 9, 6)));
 
-      await plans.recomputeSpent(id);
+      await plans.activate(id);
 
-      expect(await spentOf(id, food), 30000);
-      expect(await spentOf(id, bills), 45000);
+      expect(await spentOf(id, food), 50000);
+    });
+
+    test('re-activating a plan catches up on what it missed', () async {
+      final first = await plans.insert(plan('First'));
+      await transactions.add(expense(food, 30000));
+      final second = await plans.insert(plan('Second'));
+      // Written while `second` was active: `first` never saw it.
+      await transactions.add(expense(food, 20000));
+      expect(await spentOf(first, food), 30000, reason: 'as of deactivation');
+
+      await plans.activate(first);
+
+      expect(await spentOf(first, food), 50000);
+      // `second` was saved active mid-period, so it counted the 30,000 on
+      // save and the 20,000 as it was written; deactivation freezes it.
+      expect(await spentOf(second, food), 50000, reason: 'left as it was');
     });
 
     test('refuses a plan that does not exist', () async {
