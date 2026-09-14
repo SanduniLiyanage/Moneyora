@@ -13,6 +13,9 @@ import '../../features/categories/presentation/pages/category_form_page.dart';
 import '../../features/categories/presentation/pages/category_list_page.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/money_plan/domain/entities/allocation_request.dart';
+import '../../features/money_plan/presentation/pages/money_plan_page.dart';
+import '../../features/money_plan/presentation/pages/plan_review_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
 
@@ -27,8 +30,15 @@ abstract final class Routes {
   /// SCR-005 — transaction list.
   static const String transactions = '/transactions';
 
-  /// SCR-010 — money plan.
+  /// SCR-010 — the money plan wizard's first step. FR-PLN-001.
   static const String moneyPlan = '/plan';
+
+  /// The generated draft, for review. FR-PLN-007 to FR-PLN-010.
+  ///
+  /// The `AllocationRequest` the wizard built travels as `extra`; reached
+  /// without one — a deep link — it opens the first step instead, which is
+  /// the only honest answer to "review what?".
+  static const String moneyPlanReview = '/plan/review';
 
   /// SCR-013 — receipt scanner.
   static const String scanReceipt = '/scan';
@@ -93,8 +103,15 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.moneyPlan,
       name: 'moneyPlan',
-      builder: (context, state) =>
-          const _PlannedScreen(title: 'Money Plan', sprint: 'Sprint 5'),
+      builder: (context, state) => const MoneyPlanPage(),
+    ),
+    GoRoute(
+      path: Routes.moneyPlanReview,
+      name: 'moneyPlanReview',
+      builder: (context, state) => switch (state.extra) {
+        final AllocationRequest request => PlanReviewPage(request: request),
+        _ => const MoneyPlanPage(),
+      },
     ),
     GoRoute(
       path: Routes.scanReceipt,
