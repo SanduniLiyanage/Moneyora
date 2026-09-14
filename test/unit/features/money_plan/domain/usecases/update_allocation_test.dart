@@ -51,6 +51,10 @@ class _FakeRepository implements MoneyPlanRepository {
   @override
   Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>
       throw UnimplementedError();
+
+  @override
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll() =>
+      throw UnimplementedError();
 }
 
 PlanAllocation _row(int categoryId, int cents, {bool byUser = false}) =>

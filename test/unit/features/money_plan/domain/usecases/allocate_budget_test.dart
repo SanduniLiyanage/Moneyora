@@ -90,6 +90,10 @@ class _FakePlans implements MoneyPlanRepository {
   @override
   Stream<Either<Failure, MoneyPlan?>> watchActive() =>
       throw UnimplementedError();
+
+  @override
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll() =>
+      throw UnimplementedError();
 }
 
 final halfYear = LookbackWindow(months: 6, lastMonth: DateTime(2026, 8));

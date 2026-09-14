@@ -58,6 +58,9 @@ abstract interface class MoneyPlanLocalDataSource {
   /// Reads the active plan with its allocations, or null.
   Future<MoneyPlanModel?> getActive();
 
+  /// Reads every plan with its allocations, newest first. FR-PLN-015.
+  Future<List<MoneyPlanModel>> listAll();
+
   /// The plan whose period ended most recently before [isoDay]
   /// (`YYYY-MM-DD`), with its allocations, or null. FR-PLN-014's "next
   /// period" seen from the other side: the plan a new one follows.
@@ -189,6 +192,15 @@ SELECT a.id, a.category_id, c.name AS category_name,
         if (rows.isEmpty) return null;
         return _withAllocations(rows.single);
       });
+
+  @override
+  Future<List<MoneyPlanModel>> listAll() => _guard('read the plans', () async {
+    final rows = await _db.query('money_plans', orderBy: 'id DESC');
+    // One allocations query per plan. A user has a handful of plans, not
+    // hundreds; the join-once shape `_readSplits` uses is for lists that
+    // grow with the ledger.
+    return [for (final row in rows) await _withAllocations(row)];
+  });
 
   @override
   Future<MoneyPlanModel?> getLatestEndingBefore(String isoDay) =>

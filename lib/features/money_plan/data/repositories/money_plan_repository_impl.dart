@@ -63,24 +63,32 @@ class MoneyPlanRepositoryImpl implements MoneyPlanRepository {
       });
 
   @override
-  Stream<Either<Failure, MoneyPlan?>> watchActive() {
-    // The controller shape `AccountRepositoryImpl.watch` uses, for the
-    // reason it records: an async generator suspended over a broadcast
-    // stream cannot be cancelled, so a screen that leaves keeps listening.
-    late final StreamController<Either<Failure, MoneyPlan?>> controller;
+  Stream<Either<Failure, MoneyPlan?>> watchActive() =>
+      _watch(() async => (await _local.getActive())?.toEntity());
+
+  @override
+  Stream<Either<Failure, List<MoneyPlan>>> watchAll() => _watch(
+    () async => [for (final p in await _local.listAll()) p.toEntity()],
+  );
+
+  /// [read] on listen and again after every change signal.
+  ///
+  /// The controller shape `AccountRepositoryImpl.watch` uses, for the
+  /// reason it records: an async generator suspended over a broadcast
+  /// stream cannot be cancelled, so a screen that leaves keeps listening.
+  Stream<Either<Failure, T>> _watch<T>(Future<T> Function() read) {
+    late final StreamController<Either<Failure, T>> controller;
     StreamSubscription<void>? signal;
     var pending = Future<void>.value();
 
-    Future<void> read() async {
-      final result = await _attempt(
-        () async => (await _local.getActive())?.toEntity(),
-      );
+    Future<void> emit() async {
+      final result = await _attempt(read);
       if (!controller.isClosed) controller.add(result);
     }
 
-    void schedule() => pending = pending.then((_) => read());
+    void schedule() => pending = pending.then((_) => emit());
 
-    controller = StreamController<Either<Failure, MoneyPlan?>>(
+    controller = StreamController<Either<Failure, T>>(
       onListen: () {
         signal = _local.changes.listen((_) => schedule());
         schedule();
