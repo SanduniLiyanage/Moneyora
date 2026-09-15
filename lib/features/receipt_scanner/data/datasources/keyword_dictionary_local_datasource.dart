@@ -20,6 +20,14 @@ abstract interface class KeywordDictionaryLocalDataSource {
   ///
   /// Returns how many rows moved — zero is not an error.
   Future<int> recordApplied({required String text, required int categoryId});
+
+  /// Writes [text] as an `exact`, priority-10, user-defined keyword for
+  /// [categoryId], replacing any user row for the same keyword under
+  /// another category. FR-RCP-015.
+  ///
+  /// Returns the normalised keyword stored, or null when [text] was blank
+  /// and nothing was written.
+  Future<String?> learn({required String text, required int categoryId});
 }
 
 /// sqflite implementation of [KeywordDictionaryLocalDataSource].
@@ -27,10 +35,14 @@ class KeywordDictionaryLocalDataSourceImpl
     implements KeywordDictionaryLocalDataSource {
   /// Creates a datasource over an already-open [db].
   ///
-  /// No change bus: nothing watches the dictionary. [recordApplied]
-  /// notifies nobody, and FR-RCP-015's write, when it lands, will not
-  /// either — the next scan simply reads the new row.
+  /// No change bus: nothing watches the dictionary. Neither write here
+  /// notifies anybody — the next scan simply reads the new row.
   const KeywordDictionaryLocalDataSourceImpl(this._db);
+
+  /// The priority a user's lesson is stored at. `v1_initial.dart`: a
+  /// correction always beats a built-in keyword, which is what makes
+  /// FR-RCP-015 observable on the very next scan.
+  static const int userPriority = 10;
 
   final Database _db;
 
@@ -87,13 +99,48 @@ UPDATE keyword_dictionary
     required String text,
     required int categoryId,
   }) async {
-    final needle = text.trim().toLowerCase();
+    final needle = _normalise(text);
     if (needle.isEmpty) return 0;
     return _guard(
       'count a use of "$text"',
       () => _db.rawUpdate(_count, [needle, categoryId]),
     );
   }
+
+  @override
+  Future<String?> learn({required String text, required int categoryId}) async {
+    final keyword = _normalise(text);
+    if (keyword.isEmpty) return null;
+    await _guard('learn "$text"', () {
+      return _db.transaction((txn) async {
+        // The user changed their mind: an earlier lesson for the same text
+        // under another category goes, so Layer 2 has one answer. Seed
+        // rows are left alone — the priority-10 row outranks them.
+        await txn.delete(
+          'keyword_dictionary',
+          where: 'keyword = ? AND is_user_defined = 1 AND category_id <> ?',
+          whereArgs: [keyword, categoryId],
+        );
+        // UNIQUE(keyword, category_id): the same lesson twice is one row,
+        // and its usage_count survives.
+        await txn.insert('keyword_dictionary', {
+          'keyword': keyword,
+          'category_id': categoryId,
+          'match_type': 'exact',
+          'priority': userPriority,
+          'usage_count': 0,
+          'is_user_defined': 1,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      });
+    });
+    return keyword;
+  }
+
+  /// Lower-cased, trimmed, one space between words — the form keywords
+  /// are stored in and compared against. The lookup lower-cases in Dart
+  /// too, for the reason on [_matches].
+  static String _normalise(String text) =>
+      text.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   Future<T> _guard<T>(String action, Future<T> Function() body) async {
     try {

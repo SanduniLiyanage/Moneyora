@@ -32,6 +32,15 @@ class KeywordDictionaryRepositoryImpl implements KeywordDictionaryRepository {
     return unit;
   });
 
+  @override
+  Future<Either<Failure, Unit>> learn({
+    required String text,
+    required int categoryId,
+  }) => _attempt(() async {
+    await _local.learn(text: text, categoryId: categoryId);
+    return unit;
+  });
+
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {
       return Right(await body());

@@ -137,6 +137,98 @@ void main() {
     expect(await dictionary.matchesFor('ZZZZ'), isEmpty);
   });
 
+  group('learn', () {
+    Future<List<Map<String, Object?>>> rowsFor(String keyword) => db.query(
+      'keyword_dictionary',
+      where: 'keyword = ?',
+      whereArgs: [keyword],
+      orderBy: 'id ASC',
+    );
+
+    test('stores the line as an exact, priority-10 user keyword', () async {
+      final stored = await dictionary.learn(
+        text: '  SHAMPOO   200ML ',
+        categoryId: health,
+      );
+
+      expect(stored, 'shampoo 200ml');
+      final row = (await rowsFor('shampoo 200ml')).single;
+      expect(row['category_id'], health);
+      expect(row['match_type'], 'exact');
+      expect(row['priority'], 10);
+      expect(row['is_user_defined'], 1);
+      expect(row['usage_count'], 0);
+    });
+
+    test('is what the next scan reads, ahead of the seed', () async {
+      // The whole point: Layer 2 decisive on the next receipt.
+      expect(
+        (await dictionary.matchesFor('RICE 5KG')).single.categoryName,
+        'Food',
+      );
+
+      await dictionary.learn(text: 'RICE 5KG', categoryId: health);
+
+      final matches = await dictionary.matchesFor('RICE 5KG');
+      expect(matches.first.categoryName, 'Health');
+      expect(matches.first.isUserDefined, isTrue);
+      expect(matches.first.matchType, KeywordMatchType.exact);
+    });
+
+    test('a changed mind replaces the earlier lesson', () async {
+      Future<int> seedRows() async =>
+          (await db.rawQuery(
+                'SELECT COUNT(*) AS n FROM keyword_dictionary '
+                'WHERE is_user_defined = 0',
+              )).single['n']!
+              as int;
+      final seedBefore = await seedRows();
+
+      await dictionary.learn(text: 'PANADOL 500MG', categoryId: food);
+      await dictionary.learn(text: 'PANADOL 500MG', categoryId: health);
+
+      final rows = await rowsFor('panadol 500mg');
+      expect(rows, hasLength(1));
+      expect(rows.single['category_id'], health);
+      expect(rows.single['is_user_defined'], 1);
+      // Only the user's own rows are replaced; the seed is never touched.
+      expect(await seedRows(), seedBefore);
+    });
+
+    test('teaching what the seed already says adds nothing', () async {
+      // UNIQUE(keyword, category_id) covers the seed row too: the user
+      // agreeing with `rice -> Food` by hand is not a second row, and
+      // the seed row keeps its own priority.
+      await dictionary.learn(text: 'rice', categoryId: food);
+
+      final rows = await rowsFor('rice');
+      expect(rows, hasLength(1));
+      expect(rows.single['is_user_defined'], 0);
+    });
+
+    test('the same lesson twice is one row, and keeps its count', () async {
+      await dictionary.learn(text: 'MILK 1L', categoryId: food);
+      await dictionary.recordApplied(text: 'MILK 1L', categoryId: food);
+      await dictionary.learn(text: 'milk 1l', categoryId: food);
+
+      final row = (await rowsFor('milk 1l')).single;
+      expect(row['usage_count'], 1);
+    });
+
+    test('a blank line teaches nothing', () async {
+      expect(await dictionary.learn(text: '   ', categoryId: food), isNull);
+      expect(await rowsFor(''), isEmpty);
+    });
+
+    test('a category that does not exist is a CacheException', () async {
+      await expectLater(
+        dictionary.learn(text: 'GHOST', categoryId: 999),
+        throwsA(isA<CacheException>()),
+      );
+      expect(await rowsFor('ghost'), isEmpty);
+    });
+  });
+
   group('recordApplied', () {
     Future<int> usageOf(String keyword, int categoryId) async =>
         (await db.query(

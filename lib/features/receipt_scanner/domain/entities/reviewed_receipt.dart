@@ -21,15 +21,20 @@ class ReviewedItem extends Equatable {
   final int categoryId;
 
   /// What the categoriser had suggested, kept so the record can say
-  /// whether the user agreed (FR-RCP-015's learning reads this).
+  /// whether the user agreed — which is what decides [needsLearning].
   final int? suggestedCategoryId;
 
   /// The suggestion's confidence, 0–100.
   final int confidence;
 
-  /// True when the user chose something other than the suggestion.
-  bool get wasCorrected =>
-      suggestedCategoryId != null && suggestedCategoryId != categoryId;
+  /// True when confirming this line teaches the dictionary something:
+  /// the user chose a category other than the one suggested, or chose
+  /// one where nothing was suggested. FR-RCP-015.
+  ///
+  /// The SRS says "when a user changes a suggested category"; a line
+  /// nothing matched, categorised by hand, is the case most worth
+  /// learning from, so it counts as a change from nothing.
+  bool get needsLearning => suggestedCategoryId != categoryId;
 
   @override
   List<Object?> get props => [

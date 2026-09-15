@@ -13,6 +13,12 @@ import 'package:moneyora/features/receipt_scanner/domain/usecases/categorise_rec
 /// order of the lookups.
 class _FakeDictionary implements KeywordDictionaryRepository {
   @override
+  Future<Either<Failure, Unit>> learn({
+    required String text,
+    required int categoryId,
+  }) => throw UnimplementedError('learn');
+
+  @override
   Future<Either<Failure, Unit>> recordApplied({
     required String text,
     required int categoryId,
