@@ -163,6 +163,10 @@ void main() {
 }
 
 class _FakeRepository implements TransactionRepository {
+  @override
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
+      throw UnimplementedError('addAll');
+
   ({int from, int to, int amount, DateTime date, String? note})? received;
   Failure? failWith;
 

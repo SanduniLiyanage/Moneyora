@@ -120,6 +120,10 @@ void main() {
 }
 
 class _FakeRepository implements TransactionRepository {
+  @override
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
+      throw UnimplementedError('addAll');
+
   Transaction? saved;
   Failure? failWith;
 

@@ -11,6 +11,10 @@ import 'package:moneyora/features/transactions/domain/usecases/add_transaction.d
 /// methods, only one of which this test needs, and `build_runner` costs a
 /// codegen step on every change for no benefit at this size.
 class _FakeRepository implements TransactionRepository {
+  @override
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
+      throw UnimplementedError('addAll');
+
   Transaction? saved;
   Failure? failWith;
 

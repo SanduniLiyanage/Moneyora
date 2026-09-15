@@ -22,6 +22,14 @@ abstract interface class TransactionRepository {
   /// breakdown silently disagrees with its amount.
   Future<Either<Failure, int>> add(Transaction transaction);
 
+  /// Saves [transactions] as one unit, returning their ids in order.
+  ///
+  /// All rows or none, in one database transaction: a receipt's items
+  /// (FR-RCP-009) are one purchase, and a caller that retried after a
+  /// partial write would record half of it twice. Transfers are refused
+  /// here as they are by [add].
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions);
+
   /// Updates an existing transaction.
   Future<Either<Failure, Unit>> update(Transaction transaction);
 

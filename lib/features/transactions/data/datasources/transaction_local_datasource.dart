@@ -43,6 +43,14 @@ abstract interface class TransactionLocalDataSource {
   /// half on its own leaves the other account short.
   Future<int> add(TransactionModel transaction);
 
+  /// Inserts every row of [transactions] in one database transaction and
+  /// returns their ids in order. FR-RCP-009.
+  ///
+  /// All or none: a receipt's items are one purchase, and a failure on the
+  /// fourth line must not leave three in the ledger. Rejects transfers as
+  /// [add] does, and fires [changes] once for the whole batch.
+  Future<List<int>> addAll(List<TransactionModel> transactions);
+
   /// Replaces the stored row for [transaction], which must carry an id.
   Future<void> update(TransactionModel transaction);
 
@@ -122,17 +130,38 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
     }
 
     final id = await _guard('add a transaction', () async {
-      return _db.transaction((txn) async {
-        final rowId = await txn.insert('transactions', transaction.toMap());
-        await _writeSplits(txn, transaction, rowId);
-        await _applyBalance(txn, transaction.accountId, _delta(transaction));
-        await _applyPlanSpend(txn, transaction, sign: 1);
-        return rowId;
-      });
+      return _db.transaction((txn) => _insert(txn, transaction));
     });
 
     _notify();
     return id;
+  }
+
+  @override
+  Future<List<int>> addAll(List<TransactionModel> transactions) async {
+    if (transactions.any((t) => t.type == TransactionType.transfer)) {
+      throw const CacheException(
+        'A transfer cannot be added as a single row. Use createTransfer, '
+        'which writes both halves and the header together (E-15).',
+      );
+    }
+
+    final ids = await _guard('add ${transactions.length} transactions', () {
+      // One transaction around every row: SQLite rolls the lot back if any
+      // insert fails, which is the whole reason this is not a loop over
+      // [add]. The balance and plan caches move per row, inside it, as
+      // always (E-18).
+      return _db.transaction((txn) async {
+        final ids = <int>[];
+        for (final transaction in transactions) {
+          ids.add(await _insert(txn, transaction));
+        }
+        return ids;
+      });
+    });
+
+    if (ids.isNotEmpty) _notify();
+    return ids;
   }
 
   @override
@@ -299,6 +328,20 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
   }
 
   // ── writes shared by several paths ────────────────────────────────────────
+
+  /// Writes one non-transfer row with its parts and cache moves. Always
+  /// inside a transaction — [add] opens one per row, [addAll] one per
+  /// batch.
+  Future<int> _insert(
+    DatabaseExecutor txn,
+    TransactionModel transaction,
+  ) async {
+    final rowId = await txn.insert('transactions', transaction.toMap());
+    await _writeSplits(txn, transaction, rowId);
+    await _applyBalance(txn, transaction.accountId, _delta(transaction));
+    await _applyPlanSpend(txn, transaction, sign: 1);
+    return rowId;
+  }
 
   Future<void> _writeSplits(
     DatabaseExecutor txn,

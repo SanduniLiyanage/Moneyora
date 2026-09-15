@@ -23,6 +23,10 @@ import 'package:moneyora/injection.dart';
 /// violates a foreign key leaves no rows and no balance change behind. A widget
 /// test cannot make that claim and does not try to.
 class _FakeRepository implements TransactionRepository {
+  @override
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
+      throw UnimplementedError('addAll');
+
   final List<({int from, int to, int amount, DateTime date, String? note})>
   transfers = [];
 

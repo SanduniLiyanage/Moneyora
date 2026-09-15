@@ -31,6 +31,14 @@ class TransactionRepositoryImpl implements TransactionRepository {
       _attempt(() => _local.add(TransactionModel.fromEntity(transaction)));
 
   @override
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
+      _attempt(
+        () => _local.addAll([
+          for (final t in transactions) TransactionModel.fromEntity(t),
+        ]),
+      );
+
+  @override
   Future<Either<Failure, Unit>> update(Transaction transaction) =>
       _attempt(() async {
         await _local.update(TransactionModel.fromEntity(transaction));

@@ -23,6 +23,15 @@ class KeywordDictionaryRepositoryImpl implements KeywordDictionaryRepository {
   Future<Either<Failure, List<KeywordMatch>>> matchesFor(String text) =>
       _attempt(() => _local.matchesFor(text));
 
+  @override
+  Future<Either<Failure, Unit>> recordApplied({
+    required String text,
+    required int categoryId,
+  }) => _attempt(() async {
+    await _local.recordApplied(text: text, categoryId: categoryId);
+    return unit;
+  });
+
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {
       return Right(await body());

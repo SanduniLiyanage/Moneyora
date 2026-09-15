@@ -251,6 +251,107 @@ void main() {
 
   // ── update ────────────────────────────────────────────────────────────────
 
+  group('addAll', () {
+    Future<int> receiptScan() => db.insert('receipt_scans', {
+      'user_id': 1,
+      'image_path': '/receipts/1.jpg',
+      'created_at': '2026-09-01T00:00:00Z',
+    });
+
+    test(
+      'writes every row, in order, and moves the balance once each',
+      () async {
+        final ids = await source.addAll([
+          expense(amountCents: 125000, note: 'RICE 5KG'),
+          expense(amountCents: 18000, note: 'BREAD'),
+          expense(amountCents: 65000, note: 'SHAMPOO', categoryId: transport),
+        ]);
+
+        expect(ids, hasLength(3));
+        expect(ids, ids.toList()..sort());
+        final rows = await db.query('transactions', orderBy: 'id ASC');
+        expect(rows.map((r) => r['note']), ['RICE 5KG', 'BREAD', 'SHAMPOO']);
+        expect(await balanceOf(cash), -(125000 + 18000 + 65000));
+      },
+    );
+
+    test('links each row to its receipt scan', () async {
+      final scanId = await receiptScan();
+
+      final ids = await source.addAll([
+        TransactionModel(
+          accountId: cash,
+          categoryId: food,
+          amountCents: 125000,
+          type: TransactionType.expense,
+          date: date,
+          note: 'RICE 5KG',
+          receiptScanId: scanId,
+          receiptImagePath: '/receipts/1.jpg',
+        ),
+      ]);
+
+      final row = (await db.query(
+        'transactions',
+        where: 'id = ?',
+        whereArgs: [ids.single],
+      )).single;
+      expect(row['receipt_scan_id'], scanId);
+      expect(row['receipt_image_path'], '/receipts/1.jpg');
+    });
+
+    test('all or none: a bad row rolls back the rows before it', () async {
+      // The reason this is not a loop over add. A receipt whose fourth line
+      // fails must not leave three lines in the ledger for the user to
+      // confirm again on top of.
+      await expectLater(
+        source.addAll([
+          expense(note: 'RICE 5KG'),
+          expense(note: 'BREAD'),
+          expense(categoryId: missingCategory),
+        ]),
+        throwsA(isA<CacheException>()),
+      );
+
+      expect(await countOf('transactions'), 0);
+      expect(await balanceOf(cash), 0);
+    });
+
+    test('refuses a transfer before writing anything', () async {
+      await expectLater(
+        source.addAll([
+          expense(),
+          TransactionModel(
+            accountId: cash,
+            amountCents: 100,
+            type: TransactionType.transfer,
+            transferDirection: TransferDirection.out,
+            date: date,
+          ),
+        ]),
+        throwsA(isA<CacheException>()),
+      );
+
+      expect(await countOf('transactions'), 0);
+    });
+
+    test('an empty batch writes nothing and returns nothing', () async {
+      expect(await source.addAll(const []), isEmpty);
+      expect(await countOf('transactions'), 0);
+    });
+
+    test('fires changes once for the whole batch', () async {
+      var fired = 0;
+      final sub = source.changes.listen((_) => fired++);
+
+      await source.addAll([expense(), expense(), expense()]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fired, 1);
+      await sub.cancel();
+    });
+  });
+
   group('update', () {
     test('reverses the old amount and applies the new one', () async {
       final id = await source.add(expense(amountCents: 50000));

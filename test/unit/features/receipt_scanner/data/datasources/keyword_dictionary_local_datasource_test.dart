@@ -137,9 +137,63 @@ void main() {
     expect(await dictionary.matchesFor('ZZZZ'), isEmpty);
   });
 
+  group('recordApplied', () {
+    Future<int> usageOf(String keyword, int categoryId) async =>
+        (await db.query(
+              'keyword_dictionary',
+              columns: ['usage_count'],
+              where: 'keyword = ? AND category_id = ?',
+              whereArgs: [keyword, categoryId],
+            )).single['usage_count']!
+            as int;
+
+    test('counts the rows that match the text under the category', () async {
+      // The same predicate as the lookup: what matchesFor would have
+      // returned for Food is exactly what moves.
+      final moved = await dictionary.recordApplied(
+        text: 'RICE 5KG',
+        categoryId: food,
+      );
+
+      expect(moved, 1);
+      expect(await usageOf('rice', food), 1);
+    });
+
+    test('leaves a matching row that maps elsewhere alone', () async {
+      // The user confirmed Health for a line the seed calls Food: the seed
+      // row was suggested, not applied.
+      await teach('rice', health);
+
+      final moved = await dictionary.recordApplied(
+        text: 'FRIED RICE',
+        categoryId: health,
+      );
+
+      expect(moved, 1);
+      expect(await usageOf('rice', health), 1);
+      expect(await usageOf('rice', food), 0);
+    });
+
+    test('adds up across confirmations', () async {
+      await dictionary.recordApplied(text: 'rice', categoryId: food);
+      await dictionary.recordApplied(text: 'RICE 1KG', categoryId: food);
+
+      expect(await usageOf('rice', food), 2);
+    });
+
+    test('nothing matching is zero, not an error', () async {
+      expect(await dictionary.recordApplied(text: 'ZZZZ', categoryId: food), 0);
+      expect(await dictionary.recordApplied(text: ' ', categoryId: food), 0);
+    });
+  });
+
   test('a closed database is a CacheException', () async {
     await db.close();
 
     expect(() => dictionary.matchesFor('rice'), throwsA(isA<CacheException>()));
+    expect(
+      () => dictionary.recordApplied(text: 'rice', categoryId: food),
+      throwsA(isA<CacheException>()),
+    );
   });
 }

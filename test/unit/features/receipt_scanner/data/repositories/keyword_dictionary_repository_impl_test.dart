@@ -16,6 +16,18 @@ class _FakeLocal implements KeywordDictionaryLocalDataSource {
     if (throwWith case final e?) throw e;
     return rows;
   }
+
+  (String, int)? applied;
+
+  @override
+  Future<int> recordApplied({
+    required String text,
+    required int categoryId,
+  }) async {
+    if (throwWith case final e?) throw e;
+    applied = (text, categoryId);
+    return 1;
+  }
 }
 
 void main() {
@@ -55,6 +67,22 @@ void main() {
       const Left<Failure, List<KeywordMatch>>(
         CacheFailure('Could not look up "x".'),
       ),
+    );
+  });
+
+  test('recordApplied passes through and returns unit', () async {
+    final result = await repository.recordApplied(text: 'RICE', categoryId: 7);
+
+    expect(result, const Right<Failure, Unit>(unit));
+    expect(local.applied, ('RICE', 7));
+  });
+
+  test('a failing count is a CacheFailure', () async {
+    local.throwWith = const CacheException('Could not count a use of "x".');
+
+    expect(
+      await repository.recordApplied(text: 'x', categoryId: 7),
+      const Left<Failure, Unit>(CacheFailure('Could not count a use of "x".')),
     );
   });
 
