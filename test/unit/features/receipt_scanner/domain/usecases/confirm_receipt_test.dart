@@ -197,6 +197,22 @@ void main() {
 
       await confirm(receipt(merchantName: '  '));
       expect(expenses.posted!.first.note, 'RICE 5KG');
+
+      // FR-RCP-010's one line is named after the merchant; no bracket.
+      await confirm(
+        receipt(
+          items: const [
+            ReviewedItem(
+              item: ReceiptLineItem(
+                name: 'KEELLS SUPER',
+                totalPriceCents: 190000,
+              ),
+              categoryId: food,
+            ),
+          ],
+        ),
+      );
+      expect(expenses.posted!.first.note, 'KEELLS SUPER');
     });
 
     test('a receipt with only a date carries no time', () async {
