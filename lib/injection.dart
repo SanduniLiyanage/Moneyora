@@ -66,6 +66,7 @@ import 'features/money_plan/domain/usecases/watch_plans.dart';
 import 'features/receipt_scanner/data/datasources/keyword_dictionary_local_datasource.dart';
 import 'features/receipt_scanner/data/datasources/ml_kit_text_recogniser.dart';
 import 'features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
+import 'features/receipt_scanner/data/datasources/receipt_image_local_datasource.dart';
 import 'features/receipt_scanner/data/datasources/receipt_scan_local_datasource.dart';
 import 'features/receipt_scanner/data/repositories/keyword_dictionary_repository_impl.dart';
 import 'features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
@@ -74,6 +75,8 @@ import 'features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'features/receipt_scanner/domain/usecases/categorise_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/confirm_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
+import 'features/receipt_scanner/domain/usecases/pick_receipt_image.dart';
+import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
@@ -640,6 +643,24 @@ final ocrLocalDataSourceProvider = Provider<OcrLocalDataSource>(
   (ref) => OcrLocalDataSourceImpl(ref.watch(textRecogniserProvider)),
 );
 
+/// The device's camera and photo library. FR-RCP-002.
+///
+/// A provider for the reason [textRecogniserProvider] is one: the native
+/// picker cannot run in a test. The datasource's own test hands it a fake;
+/// the capture screen's test overrides the use cases above it.
+final receiptImagePickerProvider = Provider<ReceiptImagePicker>(
+  (ref) => ImagePickerReceiptImagePicker(),
+);
+
+/// A bounded receipt photo from either source. Synchronous, like the
+/// recogniser: no database on this path.
+final receiptImageLocalDataSourceProvider =
+    Provider<ReceiptImageLocalDataSource>(
+      (ref) => ReceiptImageLocalDataSourceImpl(
+        ref.watch(receiptImagePickerProvider),
+      ),
+    );
+
 /// Writes scan records. The holder of SQL for `receipt_scans` and
 /// `receipt_items`; write-only until FR-RCP-013's history reads them.
 final receiptScanLocalDataSourceProvider =
@@ -656,12 +677,29 @@ final receiptRepositoryProvider = FutureProvider<ReceiptRepository>(
   (ref) async => ReceiptRepositoryImpl(
     ref.watch(ocrLocalDataSourceProvider),
     await ref.watch(receiptScanLocalDataSourceProvider.future),
+    ref.watch(receiptImageLocalDataSourceProvider),
   ),
+);
+
+/// A receipt photo's path, from the camera or the gallery. FR-RCP-002.
+final pickReceiptImageProvider = FutureProvider<PickReceiptImage>(
+  (ref) async =>
+      PickReceiptImage(await ref.watch(receiptRepositoryProvider.future)),
 );
 
 /// The lines OCR read off an image. FR-RCP-004.
 final scanReceiptProvider = FutureProvider<ScanReceipt>(
   (ref) async => ScanReceipt(await ref.watch(receiptRepositoryProvider.future)),
+);
+
+/// A photo to what the review screen opens with: scan, parse, categorise.
+/// FR-RCP-004, FR-RCP-005, FR-RCP-007.
+final readReceiptImageProvider = FutureProvider<ReadReceiptImage>(
+  (ref) async => ReadReceiptImage(
+    await ref.watch(scanReceiptProvider.future),
+    ref.watch(parseReceiptTextProvider),
+    await ref.watch(categoriseReceiptProvider.future),
+  ),
 );
 
 /// The scanner's write path into the ledger, through the port in

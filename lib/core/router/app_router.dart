@@ -22,6 +22,7 @@ import '../../features/money_plan/presentation/pages/plan_list_page.dart';
 import '../../features/money_plan/presentation/pages/plan_review_page.dart';
 import '../../features/receipt_scanner/domain/entities/scanned_receipt.dart';
 import '../../features/receipt_scanner/presentation/pages/receipt_review_page.dart';
+import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
 
@@ -167,15 +168,14 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.scanReceipt,
       name: 'scanReceipt',
-      builder: (context, state) =>
-          const _PlannedScreen(title: 'Scan Receipt', sprint: 'Sprint 6'),
+      builder: (context, state) => const ScanReceiptPage(),
     ),
     GoRoute(
       path: Routes.scanReceiptReview,
       name: 'scanReceiptReview',
       builder: (context, state) => switch (state.extra) {
         final ScannedReceipt scanned => ReceiptReviewPage(scanned: scanned),
-        _ => const _PlannedScreen(title: 'Scan Receipt', sprint: 'Sprint 6'),
+        _ => const ScanReceiptPage(),
       },
     ),
     GoRoute(

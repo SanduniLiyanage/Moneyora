@@ -1,6 +1,7 @@
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../entities/receipt_image_source.dart';
 import '../entities/receipt_scan.dart';
 import '../entities/recognised_text.dart';
 
@@ -16,6 +17,14 @@ import '../entities/recognised_text.dart';
 /// in: `image_picker` hands back an `XFile.path`, and ML Kit opens an
 /// `InputImage.fromFilePath`.
 abstract class ReceiptRepository {
+  /// Asks the device for a receipt photo from [source] and returns its
+  /// path, or null when the user backed out without choosing one.
+  /// FR-RCP-002.
+  ///
+  /// A [PermissionFailure] when the camera or the photo library was
+  /// refused; the screen says which and leaves the setting to the user.
+  Future<Either<Failure, String?>> pickImage(ReceiptImageSource source);
+
   /// Every line of text the on-device recogniser read off the image at
   /// [imagePath], in printed order.
   ///
