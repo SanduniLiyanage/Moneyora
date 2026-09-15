@@ -1,16 +1,15 @@
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../entities/receipt_scan.dart';
 import '../entities/recognised_text.dart';
 
-/// The scanner's boundary with the device: the recogniser behind it, and
-/// in later slices the scan records. FR-RCP-004.
+/// The scanner's boundary with the device and the database: the
+/// recogniser behind [scanReceipt], the scan records behind the rest.
+/// FR-RCP-004, FR-RCP-009.
 ///
-/// SDD §9.1 gives this interface three methods. `confirmScan` arrives with
-/// FR-RCP-009, when there is a `receipt_scans` row to write and per-item
-/// transactions to create under it; `getScanHistory` with FR-RCP-013's
-/// history view. Declaring them now would put two methods on `main` that
-/// nothing could implement, so each lands with the slice that can.
+/// SDD §9.1 gives this interface three methods. `getScanHistory` arrives
+/// with FR-RCP-013's history view, the slice that can implement it.
 ///
 /// The SDD's `File imageFile` is a path here. The domain then stays free
 /// of `dart:io`, and a path is what both ends of the pipeline already deal
@@ -23,4 +22,13 @@ abstract class ReceiptRepository {
   /// An [OcrFailure] when nothing legible was found or the image could not
   /// be read — FR-RCP-011's low-confidence path starts here.
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath);
+
+  /// Saves [scan] and its items as one record, returning the scan's id.
+  /// FR-RCP-009.
+  ///
+  /// The record only — the expenses it links go through `ExpenseWriter`,
+  /// the transactions feature's own write path, and [ConfirmReceipt] is
+  /// where the two are sequenced. Written with whatever [scan.status]
+  /// says; the confirm step passes `confirmed`.
+  Future<Either<Failure, int>> confirmScan(ReceiptScan scan);
 }

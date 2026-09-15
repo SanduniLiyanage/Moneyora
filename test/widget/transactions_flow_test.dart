@@ -610,6 +610,10 @@ class _FakeCategoryWriter implements CategoryWriter {
 /// screens use: it assigns ids, filters by type, and pushes a new list to
 /// every watcher after each write.
 class _FakeRepository implements TransactionRepository {
+  @override
+  Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
+      throw UnimplementedError('addAll');
+
   final List<Transaction> saved = [];
   final _changes = StreamController<void>.broadcast();
 

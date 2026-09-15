@@ -13,6 +13,7 @@ import 'core/network/network_info.dart';
 import 'core/ports/account_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
+import 'core/ports/expense_writer.dart';
 import 'core/ports/income_reader.dart';
 import 'core/ports/monthly_spending_reader.dart';
 import 'core/ports/spending_by_category_reader.dart';
@@ -65,16 +66,19 @@ import 'features/money_plan/domain/usecases/watch_plans.dart';
 import 'features/receipt_scanner/data/datasources/keyword_dictionary_local_datasource.dart';
 import 'features/receipt_scanner/data/datasources/ml_kit_text_recogniser.dart';
 import 'features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
+import 'features/receipt_scanner/data/datasources/receipt_scan_local_datasource.dart';
 import 'features/receipt_scanner/data/repositories/keyword_dictionary_repository_impl.dart';
 import 'features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
 import 'features/receipt_scanner/domain/repositories/keyword_dictionary_repository.dart';
 import 'features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'features/receipt_scanner/domain/usecases/categorise_receipt.dart';
+import 'features/receipt_scanner/domain/usecases/confirm_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
+import 'features/transactions/domain/usecases/add_expenses.dart';
 import 'features/transactions/domain/usecases/add_transaction.dart';
 import 'features/transactions/domain/usecases/delete_transaction.dart';
 import 'features/transactions/domain/usecases/make_transfer.dart';
@@ -636,14 +640,47 @@ final ocrLocalDataSourceProvider = Provider<OcrLocalDataSource>(
   (ref) => OcrLocalDataSourceImpl(ref.watch(textRecogniserProvider)),
 );
 
-/// Turns recogniser exceptions into failures. The layer boundary.
-final receiptRepositoryProvider = Provider<ReceiptRepository>(
-  (ref) => ReceiptRepositoryImpl(ref.watch(ocrLocalDataSourceProvider)),
+/// Writes scan records. The holder of SQL for `receipt_scans` and
+/// `receipt_items`; write-only until FR-RCP-013's history reads them.
+final receiptScanLocalDataSourceProvider =
+    FutureProvider<ReceiptScanLocalDataSource>(
+      (ref) async => ReceiptScanLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+      ),
+    );
+
+/// Turns recogniser and database exceptions into failures. The layer
+/// boundary. A [FutureProvider] because the scan records reach the
+/// database; the recogniser alone would not need one.
+final receiptRepositoryProvider = FutureProvider<ReceiptRepository>(
+  (ref) async => ReceiptRepositoryImpl(
+    ref.watch(ocrLocalDataSourceProvider),
+    await ref.watch(receiptScanLocalDataSourceProvider.future),
+  ),
 );
 
 /// The lines OCR read off an image. FR-RCP-004.
-final scanReceiptProvider = Provider<ScanReceipt>(
-  (ref) => ScanReceipt(ref.watch(receiptRepositoryProvider)),
+final scanReceiptProvider = FutureProvider<ScanReceipt>(
+  (ref) async => ScanReceipt(await ref.watch(receiptRepositoryProvider.future)),
+);
+
+/// The scanner's write path into the ledger, through the port in
+/// `core/ports/` — `features/receipt_scanner/` may not import
+/// `features/transactions/` (rule 4), so this is the seam between them,
+/// the role [categoryWriterProvider] plays for the entry screen. FR-RCP-009.
+final expenseWriterProvider = FutureProvider<ExpenseWriter>(
+  (ref) async =>
+      AddExpenses(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+/// Posts a reviewed receipt: the scan record, the usage counts, then one
+/// expense per item as a batch. FR-RCP-009.
+final confirmReceiptProvider = FutureProvider<ConfirmReceipt>(
+  (ref) async => ConfirmReceipt(
+    await ref.watch(receiptRepositoryProvider.future),
+    await ref.watch(keywordDictionaryRepositoryProvider.future),
+    await ref.watch(expenseWriterProvider.future),
+  ),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

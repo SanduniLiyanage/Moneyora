@@ -12,6 +12,12 @@ import 'package:moneyora/features/receipt_scanner/domain/usecases/categorise_rec
 /// Answers from a script keyed by the text looked up, and records the
 /// order of the lookups.
 class _FakeDictionary implements KeywordDictionaryRepository {
+  @override
+  Future<Either<Failure, Unit>> recordApplied({
+    required String text,
+    required int categoryId,
+  }) => throw UnimplementedError('recordApplied');
+
   Map<String, List<KeywordMatch>> script = const {};
   Failure? failWith;
   final lookups = <String>[];

@@ -326,6 +326,13 @@ class _FakeLocalDataSource implements TransactionLocalDataSource {
   }
 
   @override
+  Future<List<int>> addAll(List<TransactionModel> transactions) async {
+    _maybeThrow();
+    added.addAll(transactions);
+    return [for (var i = 0; i < transactions.length; i++) nextId + i];
+  }
+
+  @override
   Future<void> update(TransactionModel transaction) async => _maybeThrow();
 
   @override
