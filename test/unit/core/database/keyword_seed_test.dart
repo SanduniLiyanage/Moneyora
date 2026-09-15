@@ -103,6 +103,21 @@ void main() {
       expect(await rows(), defaultKeywords.length);
     });
 
+    test('a seed that has grown since the last open adds only the new '
+        'rows', () async {
+      await applyKeywordSeed(db);
+      // An install seeded from a shorter list: drop two rows.
+      await db.delete(
+        'keyword_dictionary',
+        where: 'keyword IN (?, ?) AND is_user_defined = 0',
+        whereArgs: ['casual', 'hoodie'],
+      );
+      expect(await rows(), defaultKeywords.length - 2);
+
+      expect(await applyKeywordSeed(db), 2);
+      expect(await rows(), defaultKeywords.length);
+    });
+
     test("leaves the user's own rows alone", () async {
       await applyKeywordSeed(db);
       final health = (await db.query(

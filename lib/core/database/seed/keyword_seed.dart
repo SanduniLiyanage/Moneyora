@@ -33,11 +33,16 @@
 /// ## Applying it
 ///
 /// [applyKeywordSeed] runs on every open, not only on first launch, because
-/// installs that predate Sprint 6 have the table and nothing in it. It is
-/// idempotent — one count on the fast path, `INSERT OR IGNORE` against the
-/// `UNIQUE(keyword, category_id)` constraint on the slow one — and it maps
-/// each category by its *default name*, so a keyword whose category the
-/// user has renamed or deleted is skipped rather than guessed at.
+/// installs that predate Sprint 6 have the table and nothing in it — and
+/// because the seed grows: every real receipt that meets a word it lacks
+/// adds one, and an install seeded last month must get it too. It is
+/// idempotent — one count on the fast path, taken when the table already
+/// holds at least as many seed rows as the list has, and `INSERT OR IGNORE`
+/// against the `UNIQUE(keyword, category_id)` constraint on the slow one —
+/// and it maps each category by its *default name*, so a keyword whose
+/// category the user has renamed or deleted is skipped rather than guessed
+/// at. That skip keeps the count short, so such an install takes the slow
+/// path on every open: a few hundred ignored inserts, in one batch.
 library;
 
 import 'package:sqflite_sqlcipher/sqflite.dart';
@@ -409,6 +414,38 @@ final List<SeedKeyword> defaultKeywords = List.unmodifiable(<SeedKeyword>[
   _c('slipper', 'Clothes'),
   _c('sneaker', 'Clothes'),
   _c('belt', 'Clothes'),
+  // From the first real receipt (a Colombo boutique, 2026-09): the line
+  // read "CASUAL TOP", and nothing here knew a top was clothing.
+  _c('casual', 'Clothes'),
+  _s('top', 'Clothes'),
+  _c('t-shirt', 'Clothes'),
+  _c('tshirt', 'Clothes'),
+  _s('tee', 'Clothes'),
+  _c('polo', 'Clothes'),
+  _c('hoodie', 'Clothes'),
+  _c('sweater', 'Clothes'),
+  _c('cardigan', 'Clothes'),
+  _c('blazer', 'Clothes'),
+  _c('coat', 'Clothes'),
+  _c('shorts', 'Clothes'),
+  _c('pants', 'Clothes'),
+  _c('legging', 'Clothes'),
+  _c('kurta', 'Clothes'),
+  _c('frock', 'Clothes'),
+  _c('gown', 'Clothes'),
+  _c('scarf', 'Clothes'),
+  _c('shawl', 'Clothes'),
+  _s('cap', 'Clothes'),
+  _s('hat', 'Clothes'),
+  _c('lingerie', 'Clothes'),
+  _c('vest', 'Clothes'),
+  _c('nightwear', 'Clothes'),
+  _c('pyjama', 'Clothes'),
+  _c('handbag', 'Clothes'),
+  _c('wallet', 'Clothes'),
+  _c('purse', 'Clothes'),
+  _c('boutique', 'Clothes'),
+  _c('vivente', 'Clothes'),
   _c('uniform', 'Clothes'),
   _c('tailor', 'Clothes'),
   _c('fabric', 'Clothes'),
@@ -526,7 +563,7 @@ Future<int> applyKeywordSeed(DatabaseExecutor db) async {
       0;
 
   final before = await seedRows();
-  if (before > 0) return 0;
+  if (before >= defaultKeywords.length) return 0;
 
   final categories = await db.query(
     'categories',

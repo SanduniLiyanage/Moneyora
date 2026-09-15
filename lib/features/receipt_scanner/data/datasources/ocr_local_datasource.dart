@@ -7,6 +7,7 @@ library;
 
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart'
     as mlkit;
 
@@ -71,6 +72,16 @@ class OcrLocalDataSourceImpl implements OcrLocalDataSource {
     }
 
     final text = RecognisedText(linesInReadingOrder(read));
+    assert(() {
+      // Debug builds only: the rows as the parser will see them, so a
+      // receipt the parser misread can be turned into a fixture from the
+      // console rather than guessed at from the photo. Nothing in release.
+      debugPrint('[receipt-ocr] ${text.lines.length} rows from $imagePath');
+      for (final line in text.lines) {
+        debugPrint('[receipt-ocr] | $line');
+      }
+      return true;
+    }());
     if (text.isBlank) {
       throw const OcrException('No text was found on that image.');
     }
