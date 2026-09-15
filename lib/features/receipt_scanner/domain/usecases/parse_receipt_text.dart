@@ -36,15 +36,37 @@ import '../entities/recognised_text.dart';
 /// - **The total is the *last* total-labelled line**, because a receipt
 ///   prints its sub-total before its total, never after. "Sub total",
 ///   "total items", "total qty", "total discount" and "total VAT" are not
-///   totals.
+///   totals. **When no line says total**, the last sub-total is the total,
+///   and failing that the figure on a card line — a receipt that ends
+///   `SUB TOTAL 2790.00 / MASTER CARD 2790.00` has a total, just not the
+///   word. Cash tendered is never used: it is usually more than the bill.
+/// - **A payment line ends the body.** `CASH`, `MASTER CARD`, `VISA` with
+///   a figure is the tender; what follows — change, points, "saved value"
+///   — is never an item, whether or not a total was found above it.
+/// - **A `TIME` line gives the date its time.** Some receipts print the
+///   two apart; a date found without a time takes the first time-labelled
+///   line after it.
 /// - **The tax figure is the *first* tax-labelled line** — a receipt that
 ///   breaks VAT down by rate repeats the figure, and summing would double
 ///   it. `VAT NO` and `TIN` are registration numbers, not figures.
-/// - **A line of words with no price joins the priced line beneath it**
+/// - **Lines of words with no price join the priced line beneath them**
 ///   when that line has no words of its own. ML Kit reads a two-line item
 ///   — the name, then `2 x 240.00  480.00` — as two lines, and nothing else
-///   on a receipt has that shape. A priced line with its own words drops
-///   the words above it: those were a heading, not a name.
+///   on a receipt has that shape. A boutique prints three: the name, the
+///   article code, then the price row, so *every* unpriced line since the
+///   last priced one joins, in order. A priced line with its own words
+///   drops the words above it: those were a heading, not a name. A line
+///   made only of column titles (`Ln Product Price Qty Amount`) is never
+///   part of a name.
+/// - **A line number and a leading article code are not the name.**
+///   `01 CASUAL TOP EV002` is the casual top; `1010002 M BAG` is the bag.
+///   A one- or two-digit token at the start, and any run of four or more
+///   digits after it, are stripped — a name that is *only* digits is kept
+///   as printed rather than emptied.
+/// - **The figure with the decimals is the price.** `2 x 240.00` is a
+///   quantity then a price; `2790.00 X 1` is a price then a quantity —
+///   boutiques print `PRICE X QTY` — and reading it the first way would
+///   make 2,790 of something at one cent each.
 /// - **The merchant line never joins.** A receipt with no merchant printed
 ///   reads its first item's name as the merchant; FR-RCP-008's review
 ///   screen is where that is corrected, and guessing further here would
@@ -80,13 +102,15 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     DateTime? date;
     String? receiptNumber;
     int? total;
+    int? subTotal;
+    int? cardPaid;
     int? tax;
     final items = <ReceiptLineItem>[];
 
     var band = _Band.header;
-    // The most recent line of words that carried no price; the name of a
-    // two-line item until a priced line says otherwise.
-    String? pendingWords;
+    // The lines of words since the last priced line; the name of a
+    // multi-line item until a priced line says otherwise.
+    final pending = <String>[];
 
     for (final raw in text.lines) {
       final line = _collapse(raw);
@@ -96,20 +120,27 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
         date = _dateOf(line);
         if (date != null) {
           receiptNumber ??= _receiptNumberOf(line);
-          pendingWords = null;
+          pending.clear();
+          continue;
+        }
+      } else if (date.hour == 0 && date.minute == 0) {
+        if (_timeOnLabelledLine(line) case final time?) {
+          date = DateTime(date.year, date.month, date.day, time.$1, time.$2);
+          pending.clear();
           continue;
         }
       }
       if (receiptNumber == null) {
         receiptNumber = _receiptNumberOf(line);
         if (receiptNumber != null) {
-          pendingWords = null;
+          pending.clear();
           continue;
         }
       }
       if (_noise.hasMatch(line) ||
+          _columnTitles.hasMatch(line) ||
           (band == _Band.header && _headerNoise.hasMatch(line))) {
-        pendingWords = null;
+        pending.clear();
         continue;
       }
 
@@ -118,16 +149,16 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
         if (band == _Band.header && merchant == null) {
           merchant = line;
         } else {
-          pendingWords = line;
+          pending.add(line);
         }
         continue;
       }
 
       // A wordless priced line completes the words above it.
-      final effective = priced.isWordless && pendingWords != null
-          ? _Priced.of('$pendingWords ${priced.line}')!
+      final effective = priced.isWordless && pending.isNotEmpty
+          ? _Priced.of('${pending.join(' ')} ${priced.line}')!
           : priced;
-      pendingWords = null;
+      pending.clear();
 
       if (_totalLabel.hasMatch(effective.rest) &&
           !_notTotalLabel.hasMatch(effective.rest)) {
@@ -137,6 +168,15 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
       }
       if (_taxLabel.hasMatch(effective.rest)) {
         tax ??= effective.cents;
+        continue;
+      }
+      if (_subTotalLabel.hasMatch(effective.rest)) {
+        subTotal = effective.cents;
+        continue;
+      }
+      if (band == _Band.body && _tenderLabel.hasMatch(effective.rest)) {
+        if (_cardLabel.hasMatch(effective.rest)) cardPaid ??= effective.cents;
+        band = _Band.footer;
         continue;
       }
       if (band == _Band.footer ||
@@ -155,7 +195,7 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
       merchantName: merchant,
       receiptDate: date,
       items: items,
-      totalCents: total,
+      totalCents: total ?? subTotal ?? cardPaid,
       taxCents: tax,
       receiptNumber: receiptNumber,
     );
@@ -231,6 +271,22 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     return date;
   }
 
+  static final _timeLabel = RegExp(r'^time\b', caseSensitive: false);
+
+  /// `TIME : 05:12:13 PM` → (17, 12); null for any other line.
+  static (int, int)? _timeOnLabelledLine(String line) {
+    if (!_timeLabel.hasMatch(line)) return null;
+    final t = _time.firstMatch(line);
+    if (t == null) return null;
+    var hour = int.parse(t[1]!);
+    final minute = int.parse(t[2]!);
+    final meridiem = t[3]?.toLowerCase();
+    if (meridiem == 'pm' && hour < 12) hour += 12;
+    if (meridiem == 'am' && hour == 12) hour = 0;
+    if (hour > 23 || minute > 59) return null;
+    return (hour, minute);
+  }
+
   static int _fourDigit(String year) =>
       year.length == 4 ? int.parse(year) : 2000 + int.parse(year);
 
@@ -269,6 +325,15 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     caseSensitive: false,
   );
 
+  /// A line that is nothing but column titles — three or more, so that
+  /// `TOTAL` on a line of its own is still the label it is.
+  static final _columnTitles = RegExp(
+    r'^(?:(?:ln|sn|sr|no|item|items|product|description|desc|particulars|'
+    r'price|rate|unit|qty|quantity|amount|amt|total|value|disc|discount)'
+    r'[.:#]?\s*){3,}$',
+    caseSensitive: false,
+  );
+
   static final _totalLabel = RegExp(
     r'\btotal\b|\bamount due\b|\bnet amount\b|\bbalance due\b',
     caseSensitive: false,
@@ -282,13 +347,30 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     r'\b(?:vat|tax|gst|sscl|nbt)\b',
     caseSensitive: false,
   );
+  static final _subTotalLabel = RegExp(
+    r'sub\s*-?\s*total',
+    caseSensitive: false,
+  );
+
+  /// The payment: what ends the body when no total line did.
+  static final _tenderLabel = RegExp(
+    r'\b(?:cash|card|visa|master(?:card)?|amex|debit|credit|paid|payment|'
+    r'tender(?:ed)?)\b',
+    caseSensitive: false,
+  );
+
+  /// A card payment, whose figure is the bill — cash tendered is not.
+  static final _cardLabel = RegExp(
+    r'\b(?:card|visa|master(?:card)?|amex|debit|credit)\b',
+    caseSensitive: false,
+  );
 
   /// Priced lines in the body that are not items: payment lines, the
   /// sub-total and its kin, and a count of items — which is a line that
   /// *starts* with the count label, so `EGGS 10 PCS` stays an item.
   static final _bodyNoise = RegExp(
     r'\b(?:cash|change|tender(?:ed)?|card|visa|master(?:card)?|amex|paid|'
-    r'payment|balance|discount|round(?:ing)?)\b'
+    r'payment|balance|discount|round(?:ing)?|sav(?:ed|ings?)|points?)\b'
     r'|sub\s*-?\s*total'
     r'|\btotal\s*(?:items?|qty|quantity|pcs|discount|savings?)\b'
     r'|^(?:no\.?\s*of\s*)?(?:qty|quantity|items?|pcs|pieces)\b',
@@ -324,7 +406,7 @@ class _Priced {
   static const _currency = r'(?:rs\.?|lkr)?';
 
   static final _trailing = RegExp(
-    '(?:^|[\\s:=])$_currency\\s*(-)?\\s*$_figure\\s*(?:/[-=])?\\s*\$',
+    '(?:^|[\\s:=])$_currency\\s*([-–—])?\\s*$_figure\\s*(?:/[-=])?\\s*\$',
     caseSensitive: false,
   );
 
@@ -367,6 +449,16 @@ class _Priced {
     );
   }
 
+  /// A line number (`01 `) and article codes (`1010002 `) at the start.
+  static final _leadingCodes = RegExp(r'^(?:\d{1,2}[.)]?\s+)?(?:\d{4,}\s+)*');
+
+  /// [name] without its leading line number and article codes, unless
+  /// that would leave nothing.
+  static String _withoutLeadingCodes(String name) {
+    final stripped = name.replaceFirst(_leadingCodes, '').trim();
+    return stripped.isEmpty ? name : stripped;
+  }
+
   /// [integer] and [fraction] as printed, to minor units, in integers.
   static int centsOf(
     String integer,
@@ -394,8 +486,16 @@ class _Priced {
     int? unit;
 
     if (_qtyByUnit.firstMatch(name) case final m?) {
-      quantity = double.parse(m[1]!);
-      unit = centsOf(m[2]!, m[3]);
+      final first = m[1]!;
+      if (first.contains('.') && m[3] == null) {
+        // `2790.00 X 1`: the price, then the count.
+        final parts = first.split('.');
+        unit = centsOf(parts[0], parts[1]);
+        quantity = double.parse(m[2]!.replaceAll(',', ''));
+      } else {
+        quantity = double.parse(first);
+        unit = centsOf(m[2]!, m[3]);
+      }
       name = name.substring(0, m.start);
     } else if (_trailingQty.firstMatch(name) case final m?) {
       quantity = double.parse((m[1] ?? m[2])!);
@@ -411,6 +511,7 @@ class _Priced {
     }
 
     name = name.replaceAll(RegExp(r'[\s:=.\-]+$'), '').trim();
+    name = _withoutLeadingCodes(name);
     if (name.isEmpty) return null;
     return ReceiptLineItem(
       name: name,

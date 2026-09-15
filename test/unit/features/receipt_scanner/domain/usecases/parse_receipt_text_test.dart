@@ -62,6 +62,35 @@ SERVICE CHARGE 10%      217.00
 GRAND TOTAL           2,387.00
 ''';
 
+/// The first real receipt the parser met (2026-09-16, a Colombo boutique),
+/// transcribed from the print. Three-line items — name, article code, then
+/// `PRICE X QTY AMOUNT` — a `SUB TOTAL` with no `TOTAL` after it, the card
+/// line, the time on its own line, and a "Saved Value" that is not an
+/// item. Every rule it broke is named beside the test that pins the fix.
+const boutique = '''
+La Vivente
+No:125, Srimath Anagarika Dharmapala mw
+Colombo 07
+TEL: 0112 335 773
+www.lavivente.lk
+Date : 20/08/2026 Operator: UPEKSHA
+Bill No : 00000026 Unit : 1
+Ln Product Price Qty Amount
+S/M 0142
+01 CASUAL TOP EV002
+2000167-BLK/XS
+2790.00 X 1 2790.00
+02 1010002 M BAG 12X17
+0.01 X 1 0.01
+SPECIAL DISCOUNT 50% -0.01
+SUB TOTAL 2790.00
+MASTER CARD 2790.00
+NO OF QTY SOLD : 2
+TIME : 05:12:13 PM
+Saved Value : 0.01
+Card No : 1446 BOC
+''';
+
 ParsedReceipt parse(String text) =>
     ParseReceiptText.parse(RecognisedText.fromString(text));
 
@@ -339,6 +368,76 @@ void main() {
       expect(parse('SHOP\nINV# A-0042\nA 1.00').receiptNumber, 'A-0042');
       expect(parse('SHOP\nBill 000123\nA 1.00').receiptNumber, '000123');
       expect(parse('SHOP\nTxn ID: 77\nA 1.00').receiptNumber, '77');
+    });
+  });
+
+  group('the boutique receipt — the first real one', () {
+    final receipt = parse(boutique);
+
+    test('reads the header, with the time from its own line', () {
+      expect(receipt.merchantName, 'La Vivente');
+      expect(receipt.receiptDate, DateTime(2026, 8, 20, 17, 12));
+      expect(receipt.receiptNumber, '00000026');
+    });
+
+    test('a three-line item is one item, named without its line number '
+        'and code, priced as PRICE X QTY', () {
+      expect(receipt.items.length, 2);
+      final top = receipt.items[0];
+      expect(top.name, 'CASUAL TOP EV002 2000167-BLK/XS');
+      expect(top.quantity, 1);
+      expect(top.unitPriceCents, 279000);
+      expect(top.totalPriceCents, 279000);
+
+      final bag = receipt.items[1];
+      expect(bag.name, 'M BAG 12X17');
+      expect(bag.totalPriceCents, 1);
+    });
+
+    test('SUB TOTAL is the total when nothing says TOTAL, the card line '
+        'ends the body, and Saved Value is not an item', () {
+      expect(receipt.totalCents, 279000);
+      expect(receipt.taxCents, isNull);
+      expect(receipt.items.map((i) => i.name), isNot(contains('Saved Value')));
+    });
+
+    test('the discount is dropped whether or not OCR kept its minus', () {
+      final lostMinus = parse(boutique.replaceFirst('-0.01', '0.01'));
+      expect(lostMinus.items.map((i) => i.name), [
+        'CASUAL TOP EV002 2000167-BLK/XS',
+        'M BAG 12X17',
+      ]);
+
+      final dash = parse(boutique.replaceFirst('-0.01', '–0.01'));
+      expect(dash.items.length, 2);
+    });
+
+    test('the card figure is the total when there is no sub-total either, '
+        'but cash tendered never is', () {
+      final cardOnly = parse(boutique.replaceFirst('SUB TOTAL 2790.00\n', ''));
+      expect(cardOnly.totalCents, 279000);
+
+      final cash = parse(
+        boutique
+            .replaceFirst('SUB TOTAL 2790.00\n', '')
+            .replaceFirst('MASTER CARD 2790.00', 'CASH 3000.00'),
+      );
+      expect(cash.totalCents, isNull);
+      expect(cash.items.length, 2);
+    });
+
+    test('a column-title line never joins an item name', () {
+      final receipt = parse(
+        'SHOP\nDESCRIPTION QTY AMOUNT\nBREAD\n2 x 150.00 300.00',
+      );
+      expect(receipt.items.single.name, 'BREAD');
+      expect(receipt.items.single.quantity, 2);
+      expect(receipt.items.single.unitPriceCents, 15000);
+    });
+
+    test('a name that is only a code is kept rather than emptied', () {
+      final receipt = parse('SHOP\n1234567 450.00 X 1 450.00\nTOTAL 450.00');
+      expect(receipt.items.single.name, '1234567');
     });
   });
 
