@@ -3,9 +3,11 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
+import 'package:moneyora/features/receipt_scanner/data/datasources/receipt_image_local_datasource.dart';
 import 'package:moneyora/features/receipt_scanner/data/datasources/receipt_scan_local_datasource.dart';
 import 'package:moneyora/features/receipt_scanner/data/models/receipt_scan_model.dart';
 import 'package:moneyora/features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_image_source.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_scan.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/recognised_text.dart';
@@ -35,15 +37,61 @@ class _FakeScans implements ReceiptScanLocalDataSource {
   }
 }
 
+class _FakeImages implements ReceiptImageLocalDataSource {
+  String? path;
+  AppException? throwWith;
+  ReceiptImageSource? askedFor;
+
+  @override
+  Future<String?> pick(ReceiptImageSource source) async {
+    askedFor = source;
+    if (throwWith case final e?) throw e;
+    return path;
+  }
+}
+
 void main() {
   late _FakeOcr ocr;
   late _FakeScans scans;
+  late _FakeImages images;
   late ReceiptRepositoryImpl repository;
 
   setUp(() {
     ocr = _FakeOcr();
     scans = _FakeScans();
-    repository = ReceiptRepositoryImpl(ocr, scans);
+    images = _FakeImages();
+    repository = ReceiptRepositoryImpl(ocr, scans, images);
+  });
+
+  group('pickImage', () {
+    test('returns the path the picker gave, for the source asked', () async {
+      images.path = '/cache/receipt.jpg';
+
+      final result = await repository.pickImage(ReceiptImageSource.gallery);
+
+      expect(result, const Right<Failure, String?>('/cache/receipt.jpg'));
+      expect(images.askedFor, ReceiptImageSource.gallery);
+    });
+
+    test('a cancelled pick is Right(null), not a failure', () async {
+      final result = await repository.pickImage(ReceiptImageSource.camera);
+
+      expect(result, const Right<Failure, String?>(null));
+    });
+
+    test(
+      'a PermissionException is a PermissionFailure, message kept',
+      () async {
+        images.throwWith = const PermissionException('camera refused');
+
+        final result = await repository.pickImage(ReceiptImageSource.camera);
+
+        expect(
+          result,
+          const Left<Failure, String?>(PermissionFailure('camera refused')),
+        );
+      },
+    );
   });
 
   test('returns what the recogniser read', () async {

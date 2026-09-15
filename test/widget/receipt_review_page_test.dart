@@ -18,6 +18,7 @@ import 'package:moneyora/features/receipt_scanner/domain/entities/categorised_re
 import 'package:moneyora/features/receipt_scanner/domain/entities/category_suggestion.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/keyword_match.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/parsed_receipt.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_image_source.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_scan.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/recognised_text.dart';
@@ -32,6 +33,10 @@ import 'package:moneyora/injection.dart';
 /// so what reaches the ledger is what the screen built — not what a mock
 /// was told to expect.
 class _FakeReceipts implements ReceiptRepository {
+  @override
+  Future<Either<Failure, String?>> pickImage(ReceiptImageSource source) =>
+      throw UnimplementedError();
+
   ReceiptScan? saved;
   Either<Failure, int> result = const Right(42);
 

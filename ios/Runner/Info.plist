@@ -47,6 +47,10 @@
 				</array>
 			</dict>
 		</dict>
+		<key>NSCameraUsageDescription</key>
+		<string>Moneyora photographs a receipt to read its items. The photo is processed on this device and never uploaded.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Moneyora reads a receipt photo you choose. The photo is processed on this device and never uploaded.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>

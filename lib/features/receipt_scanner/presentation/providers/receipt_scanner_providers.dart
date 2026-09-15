@@ -14,7 +14,9 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../injection.dart';
+import '../../domain/entities/receipt_image_source.dart';
 import '../../domain/entities/reviewed_receipt.dart';
+import '../../domain/entities/scanned_receipt.dart';
 import '../../domain/usecases/confirm_receipt.dart';
 
 /// The expense categories the review screen offers per line, kept live.
@@ -57,6 +59,59 @@ final receiptAccountsProvider = StreamProvider<List<AccountOption>>((ref) {
         ),
       );
 });
+
+/// Gets a photo and reads it, exposing the attempt as an [AsyncValue].
+/// FR-RCP-002, FR-RCP-004 — `PickReceiptImage` and `ReadReceiptImage`'s
+/// first caller from a screen.
+///
+/// The same shape as [ConfirmReceiptController]: the screen renders the
+/// wait, the failure and the result from one value. Returns what was
+/// read so the screen can open the review with it, or null when the
+/// user backed out of the picker — which is not a failure, and leaves
+/// [state] as it was.
+class ScanReceiptController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Picks from [source] and runs the pipeline; the failure — a refused
+  /// permission, an unreadable photo — is left in [state] for the screen
+  /// to show.
+  Future<ScannedReceipt?> scan(ReceiptImageSource source) async {
+    state = const AsyncValue<void>.loading();
+    final pick = await ref.read(pickReceiptImageProvider.future);
+    final picked = await pick(source);
+    final String path;
+    switch (picked) {
+      case Left(value: final failure):
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return null;
+      case Right(value: null):
+        state = const AsyncValue<void>.data(null);
+        return null;
+      case Right(value: final chosen?):
+        path = chosen;
+    }
+
+    final read = await ref.read(readReceiptImageProvider.future);
+    final result = await read(path);
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return null;
+      },
+      (scanned) {
+        state = const AsyncValue<void>.data(null);
+        return scanned;
+      },
+    );
+  }
+}
+
+/// Controller for the capture screen's two buttons.
+final scanReceiptControllerProvider =
+    AutoDisposeAsyncNotifierProvider<ScanReceiptController, void>(
+      ScanReceiptController.new,
+    );
 
 /// Posts a reviewed receipt, exposing the attempt as an [AsyncValue].
 /// FR-RCP-009 — `ConfirmReceipt`'s first caller from a screen.

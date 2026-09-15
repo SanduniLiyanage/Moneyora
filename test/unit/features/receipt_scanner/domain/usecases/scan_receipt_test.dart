@@ -1,12 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_image_source.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_scan.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/recognised_text.dart';
 import 'package:moneyora/features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/scan_receipt.dart';
 
 class _FakeRepository implements ReceiptRepository {
+  @override
+  Future<Either<Failure, String?>> pickImage(ReceiptImageSource source) =>
+      throw UnimplementedError();
+
   @override
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
       throw UnimplementedError('confirmScan');

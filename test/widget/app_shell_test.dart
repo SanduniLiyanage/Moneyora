@@ -256,18 +256,20 @@ void main() {
       expect(theme.useMaterial3, isTrue);
     });
 
-    testWidgets('navigates to a planned screen, which names its sprint', (
+    testWidgets('reaches the receipt scanner from the home screen', (
       tester,
     ) async {
+      // FR-RCP-001: "Scan Receipt" from the main screen. The screen only
+      // asks the device for a photo on a tap, so opening it touches no
+      // platform channel.
       await pumpReady(tester);
       await scrollComingNextIntoView(tester);
 
       await tester.tap(find.text('Scan Receipt'));
       await tester.pumpAndSettle();
 
-      // Stating the sprint makes an unbuilt screen read as planned work
-      // rather than as a bug.
-      expect(find.text('Arrives in Sprint 6.'), findsOneWidget);
+      expect(find.text('Take a photo'), findsOneWidget);
+      expect(find.text('Choose from gallery'), findsOneWidget);
     });
 
     testWidgets('reaches the money plan wizard from the home screen', (

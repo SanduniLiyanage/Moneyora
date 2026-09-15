@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_expression.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -162,6 +164,17 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           (false, TransactionType.income) => 'New income',
           (false, _) => 'New expense',
         }),
+        actions: [
+          // FR-RCP-001: the scanner from the add-expense flow as well as
+          // the main screen. A new expense only — a receipt is never an
+          // income, and an edit is a row that already exists.
+          if (!_isEditing && _type == TransactionType.expense)
+            IconButton(
+              tooltip: 'Scan Receipt',
+              icon: const Icon(Icons.document_scanner_outlined),
+              onPressed: () => context.push(Routes.scanReceipt),
+            ),
+        ],
       ),
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/expense_writer.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/keyword_match.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_image_source.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_scan.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/recognised_text.dart';
@@ -19,6 +20,10 @@ class _Log {
 }
 
 class _FakeReceipts implements ReceiptRepository {
+  @override
+  Future<Either<Failure, String?>> pickImage(ReceiptImageSource source) =>
+      throw UnimplementedError();
+
   _FakeReceipts(this._log);
 
   final _Log _log;
