@@ -16,7 +16,7 @@ import '../../domain/usecases/confirm_receipt.dart';
 import '../providers/receipt_scanner_providers.dart';
 
 /// Review & Confirm: the scan as read, corrected by hand, and posted.
-/// FR-RCP-008, FR-RCP-009, FR-RCP-011; the SDD's SCR-014.
+/// FR-RCP-008, FR-RCP-009, FR-RCP-010, FR-RCP-011; the SDD's SCR-014.
 ///
 /// Opens with a [ScannedReceipt] and holds one [ReceiptReviewDraft], which
 /// every edit replaces — a line renamed, repriced or recategorised,
@@ -26,6 +26,10 @@ import '../providers/receipt_scanner_providers.dart';
 /// reasons that use case would refuse it: the draft's own two gaps, then
 /// `ConfirmReceipt.validate` on the receipt it would send. The reason is
 /// printed above the button rather than discovered on tapping it.
+///
+/// FR-RCP-010's single-category mode is a switch above the lines: on, the
+/// lines fold away and one picker names the category the whole total
+/// posts under; off, every line is back as it was. The draft keeps both.
 ///
 /// Categories and accounts arrive through the `core/ports` readers, live,
 /// the same way the entry screen gets them (E-27). A suggestion the
@@ -165,39 +169,65 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                           onChanged: (day) => _edit((d) => d.withPostedOn(day)),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          'Items · ${_draft.items.length} · '
-                          '${formatCents(_draft.itemsSumCents)}',
-                          style: theme.textTheme.titleSmall,
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(
+                            'One category for the whole receipt',
+                          ),
+                          subtitle: Text(
+                            _draft.isSingleCategory
+                                ? '${formatCents(_draft.singleAmountCents)} '
+                                      'as one expense.'
+                                : 'Instead of one expense per line.',
+                          ),
+                          value: _draft.isSingleCategory,
+                          onChanged: (on) =>
+                              _edit((d) => d.withSingleCategory(on: on)),
                         ),
-                        if (_draft.items.isEmpty)
-                          // E-22: say what belongs here.
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              'No items kept. Discard the receipt, or go '
-                              'back and scan it again.',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                        for (final item in _draft.items)
-                          _ItemCard(
-                            key: ValueKey(item.key),
-                            item: item,
+                        if (_draft.isSingleCategory)
+                          _SingleCategoryPicker(
                             categories: categories,
+                            selectedId: _draft.singleCategoryId,
                             merchantCategoryName: _draft.merchantCategoryName,
-                            canMerge: _draft.canMergeWithNext(item.key),
-                            onRename: (name) =>
-                                _edit((d) => d.rename(item.key, name)),
-                            onReprice: (cents) =>
-                                _edit((d) => d.reprice(item.key, cents)),
-                            onCategory: (id) =>
-                                _edit((d) => d.recategorise(item.key, id)),
-                            onDiscard: () => _edit((d) => d.discard(item.key)),
-                            onMerge: () =>
-                                _edit((d) => d.mergeWithNext(item.key)),
-                            onSplit: () => _split(item),
+                            onSelected: (id) =>
+                                _edit((d) => d.withSingleCategoryId(id)),
+                          )
+                        else ...[
+                          Text(
+                            'Items · ${_draft.items.length} · '
+                            '${formatCents(_draft.itemsSumCents)}',
+                            style: theme.textTheme.titleSmall,
                           ),
+                          if (_draft.items.isEmpty)
+                            // E-22: say what belongs here.
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Text(
+                                'No items kept. Discard the receipt, or go '
+                                'back and scan it again.',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          for (final item in _draft.items)
+                            _ItemCard(
+                              key: ValueKey(item.key),
+                              item: item,
+                              categories: categories,
+                              merchantCategoryName: _draft.merchantCategoryName,
+                              canMerge: _draft.canMergeWithNext(item.key),
+                              onRename: (name) =>
+                                  _edit((d) => d.rename(item.key, name)),
+                              onReprice: (cents) =>
+                                  _edit((d) => d.reprice(item.key, cents)),
+                              onCategory: (id) =>
+                                  _edit((d) => d.recategorise(item.key, id)),
+                              onDiscard: () =>
+                                  _edit((d) => d.discard(item.key)),
+                              onMerge: () =>
+                                  _edit((d) => d.mergeWithNext(item.key)),
+                              onSplit: () => _split(item),
+                            ),
+                        ],
                       ],
                     ),
                   ),
@@ -626,6 +656,60 @@ class _SplitDialogState extends State<_SplitDialog> {
       FilledButton(onPressed: _submit, child: const Text('Split')),
     ],
   );
+}
+
+/// FR-RCP-010: the one category the whole receipt posts under.
+class _SingleCategoryPicker extends StatelessWidget {
+  const _SingleCategoryPicker({
+    required this.categories,
+    required this.selectedId,
+    required this.merchantCategoryName,
+    required this.onSelected,
+  });
+
+  final List<CategoryOption> categories;
+  final int? selectedId;
+  final String? merchantCategoryName;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final selected = categories.any((c) => c.id == selectedId)
+        ? selectedId
+        : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<int>(
+            initialValue: selected,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Category for the receipt',
+            ),
+            hint: const Text('Choose a category'),
+            items: [
+              for (final c in categories)
+                DropdownMenuItem(value: c.id, child: Text(c.name)),
+            ],
+            onChanged: (id) {
+              if (id != null) onSelected(id);
+            },
+          ),
+          if (merchantCategoryName case final name?)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'The shop is $name.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// The account the money left, as chips — the entry screen's picker.

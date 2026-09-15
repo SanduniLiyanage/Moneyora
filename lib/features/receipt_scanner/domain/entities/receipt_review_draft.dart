@@ -49,7 +49,8 @@ class ReviewDraftItem extends Equatable {
   List<Object?> get props => [key, item, suggestion, categoryId];
 }
 
-/// The review screen's working copy of a scan. FR-RCP-008, FR-RCP-011.
+/// The review screen's working copy of a scan. FR-RCP-008, FR-RCP-010,
+/// FR-RCP-011.
 ///
 /// Every edit the SRS lists — a field changed, a line discarded, two
 /// merged, one split — is a method returning a new draft, so the screen
@@ -71,6 +72,13 @@ class ReviewDraftItem extends Equatable {
 ///   name, the suggestion and the category, and the user renames or
 ///   recategorises the one that differs. A split at zero or at the whole
 ///   amount is not a split.
+/// - **Single-category mode is a view over the same draft.** Switching it
+///   on hides the lines and posts one expense for the printed total (or
+///   the lines' sum when no total was read) under one category; switching
+///   it off brings every line back as it was, edits included. The one
+///   line is named after the merchant and its suggestion is the
+///   merchant's own category, so confirming it under something else
+///   teaches the dictionary the merchant, not the word "receipt".
 /// - **Low confidence is below 50.** `CategoriseReceipt` scores a seed
 ///   match at 65 or more and a merchant-only lead at 20, so the line
 ///   badges exactly the lines the dictionary had no word for.
@@ -86,7 +94,10 @@ class ReceiptReviewDraft extends Equatable {
     this.totalCents,
     this.taxCents,
     this.receiptNumber,
+    this.merchantCategoryId,
     this.merchantCategoryName,
+    this.isSingleCategory = false,
+    this.singleCategoryId,
     this.nextKey = 0,
   });
 
@@ -116,6 +127,7 @@ class ReceiptReviewDraft extends Equatable {
       totalCents: parsed.totalCents,
       taxCents: parsed.taxCents,
       receiptNumber: parsed.receiptNumber,
+      merchantCategoryId: receipt.merchantCategoryId,
       merchantCategoryName: receipt.merchantCategoryName,
       nextKey: receipt.items.length,
     );
@@ -155,6 +167,17 @@ class ReceiptReviewDraft extends Equatable {
   /// why a line was biased. Null when its name matched nothing.
   final String? merchantCategoryName;
 
+  /// The category the dictionary gave the merchant, the suggestion for
+  /// the single line in single-category mode. Null when its name matched
+  /// nothing.
+  final int? merchantCategoryId;
+
+  /// FR-RCP-010: true when the whole receipt posts as one expense.
+  final bool isSingleCategory;
+
+  /// The category that one expense carries; null until chosen.
+  final int? singleCategoryId;
+
   /// The next [ReviewDraftItem.key] to hand out.
   final int nextKey;
 
@@ -182,6 +205,22 @@ class ReceiptReviewDraft extends Equatable {
   /// How many kept lines still have no category.
   int get uncategorisedCount => items.where((i) => i.categoryId == null).length;
 
+  /// What single-category mode posts: the printed total, or the lines'
+  /// sum when none was read.
+  int get singleAmountCents => totalCents ?? itemsSumCents;
+
+  /// The one line single-category mode posts, categorised as the draft
+  /// stands. Named after the merchant, with the merchant's category as
+  /// its suggestion.
+  ReviewedItem _singleLine(int categoryId) => ReviewedItem(
+    item: ReceiptLineItem(
+      name: merchantName ?? 'Receipt total',
+      totalPriceCents: singleAmountCents,
+    ),
+    categoryId: categoryId,
+    suggestedCategoryId: merchantCategoryId,
+  );
+
   /// Why [toReviewed] returns null, or null when it does not.
   ///
   /// Only the two gaps the draft itself can have; everything else that
@@ -189,6 +228,10 @@ class ReceiptReviewDraft extends Equatable {
   /// `ConfirmReceipt.validate`'s to say, on the receipt this builds.
   String? get unfinished {
     if (accountId == null) return 'Choose an account.';
+    if (isSingleCategory) {
+      if (singleCategoryId == null) return 'Choose a category for the receipt.';
+      return null;
+    }
     if (uncategorisedCount > 0) return 'Choose a category for every item.';
     return null;
   }
@@ -196,20 +239,22 @@ class ReceiptReviewDraft extends Equatable {
   /// The receipt to confirm, or null while [unfinished] says why not.
   ReviewedReceipt? toReviewed() {
     final account = accountId;
-    if (account == null || uncategorisedCount > 0) return null;
+    if (account == null || unfinished != null) return null;
     return ReviewedReceipt(
       imagePath: imagePath,
       accountId: account,
       postedOn: postedOn,
-      items: [
-        for (final i in items)
-          ReviewedItem(
-            item: i.item,
-            categoryId: i.categoryId!,
-            suggestedCategoryId: i.suggestion.categoryId,
-            confidence: i.suggestion.confidence,
-          ),
-      ],
+      items: isSingleCategory
+          ? [_singleLine(singleCategoryId!)]
+          : [
+              for (final i in items)
+                ReviewedItem(
+                  item: i.item,
+                  categoryId: i.categoryId!,
+                  suggestedCategoryId: i.suggestion.categoryId,
+                  confidence: i.suggestion.confidence,
+                ),
+            ],
       merchantName: merchantName,
       receiptDate: receiptDate,
       totalCents: totalCents,
@@ -229,6 +274,15 @@ class ReceiptReviewDraft extends Equatable {
   /// The account the money left.
   ReceiptReviewDraft withAccount(int accountId) =>
       _with(accountId: () => accountId);
+
+  /// Single-category mode on or off. FR-RCP-010. The lines are kept either
+  /// way; switching off shows them again as they were.
+  ReceiptReviewDraft withSingleCategory({required bool on}) =>
+      _with(isSingleCategory: on);
+
+  /// The category the whole receipt posts under.
+  ReceiptReviewDraft withSingleCategoryId(int categoryId) =>
+      _with(singleCategoryId: () => categoryId);
 
   /// The day to record the expenses on; the time is dropped.
   ReceiptReviewDraft withPostedOn(DateTime day) =>
@@ -276,9 +330,12 @@ class ReceiptReviewDraft extends Equatable {
   /// foreign key would refuse. The suggestion is kept as it was made.
   ReceiptReviewDraft keepingCategories(Iterable<int> ids) {
     final known = ids.toSet();
-    if (items.every(
-      (i) => i.categoryId == null || known.contains(i.categoryId),
-    )) {
+    final singleKnown =
+        singleCategoryId == null || known.contains(singleCategoryId);
+    if (singleKnown &&
+        items.every(
+          (i) => i.categoryId == null || known.contains(i.categoryId),
+        )) {
       return this;
     }
     return _with(
@@ -289,6 +346,7 @@ class ReceiptReviewDraft extends Equatable {
           else
             ReviewDraftItem(key: i.key, item: i.item, suggestion: i.suggestion),
       ],
+      singleCategoryId: singleKnown ? null : () => null,
     );
   }
 
@@ -370,6 +428,8 @@ class ReceiptReviewDraft extends Equatable {
     DateTime? postedOn,
     List<ReviewDraftItem>? items,
     String? Function()? merchantName,
+    bool? isSingleCategory,
+    int? Function()? singleCategoryId,
     int? nextKey,
   }) => ReceiptReviewDraft(
     imagePath: imagePath,
@@ -381,7 +441,12 @@ class ReceiptReviewDraft extends Equatable {
     totalCents: totalCents,
     taxCents: taxCents,
     receiptNumber: receiptNumber,
+    merchantCategoryId: merchantCategoryId,
     merchantCategoryName: merchantCategoryName,
+    isSingleCategory: isSingleCategory ?? this.isSingleCategory,
+    singleCategoryId: singleCategoryId == null
+        ? this.singleCategoryId
+        : singleCategoryId(),
     nextKey: nextKey ?? this.nextKey,
   );
 
@@ -396,7 +461,10 @@ class ReceiptReviewDraft extends Equatable {
     totalCents,
     taxCents,
     receiptNumber,
+    merchantCategoryId,
     merchantCategoryName,
+    isSingleCategory,
+    singleCategoryId,
     nextKey,
   ];
 }

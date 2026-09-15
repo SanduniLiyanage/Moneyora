@@ -276,6 +276,86 @@ void main() {
     });
   });
 
+  group('single-category mode (FR-RCP-010)', () {
+    test('is off to start, and the merchant category is carried for it', () {
+      expect(draft().isSingleCategory, isFalse);
+      expect(draft().singleCategoryId, isNull);
+      expect(draft().merchantCategoryId, health);
+    });
+
+    test('posts one line for the printed total, named after the merchant, '
+        'with the merchant category as its suggestion', () {
+      final reviewed = draft()
+          .withAccount(1)
+          .withSingleCategory(on: true)
+          .withSingleCategoryId(food)
+          .toReviewed()!;
+
+      expect(reviewed.items.length, 1);
+      final line = reviewed.items.single;
+      expect(line.item.name, 'KEELLS SUPER');
+      expect(line.item.totalPriceCents, 170000);
+      expect(line.categoryId, food);
+      expect(line.suggestedCategoryId, health);
+      expect(line.needsLearning, isTrue);
+      expect(reviewed.totalCents, 170000);
+    });
+
+    test("falls back to the lines' sum when no total was read, and to "
+        '"Receipt total" when no merchant was', () {
+      final d = draft(totalCents: null)
+          .withMerchant(null)
+          .withAccount(1)
+          .withSingleCategory(on: true)
+          .withSingleCategoryId(food);
+
+      expect(d.singleAmountCents, 170000);
+      final line = d.toReviewed()!.items.single;
+      expect(line.item.name, 'Receipt total');
+      expect(line.item.totalPriceCents, 170000);
+    });
+
+    test("asks for the one category, and ignores the lines' gaps", () {
+      final gap = ReceiptReviewDraft.fromScanned(
+        scanned(
+          items: const [
+            CategorisedItem(item: bread, suggestion: CategorySuggestion.none),
+          ],
+        ),
+        today: today,
+      ).withAccount(1);
+      expect(gap.unfinished, 'Choose a category for every item.');
+
+      final single = gap.withSingleCategory(on: true);
+      expect(single.unfinished, 'Choose a category for the receipt.');
+      expect(single.toReviewed(), isNull);
+
+      expect(single.withSingleCategoryId(food).unfinished, isNull);
+    });
+
+    test('switching off brings every line back, edits included', () {
+      final d = draft()
+          .withAccount(1)
+          .rename(0, 'Basmati')
+          .withSingleCategory(on: true)
+          .withSingleCategoryId(food)
+          .withSingleCategory(on: false);
+
+      expect(d.toReviewed()!.items.length, 3);
+      expect(d.items[0].item.name, 'Basmati');
+      expect(d.singleCategoryId, food);
+    });
+
+    test('a single category the catalogue no longer has is unset too', () {
+      final d = draft()
+          .withSingleCategory(on: true)
+          .withSingleCategoryId(health)
+          .keepingCategories([food]);
+      expect(d.singleCategoryId, isNull);
+      expect(d.items[2].categoryId, isNull);
+    });
+  });
+
   group('handing over', () {
     test('is refused without an account, then without a category', () {
       final noAccount = ReceiptReviewDraft.fromScanned(

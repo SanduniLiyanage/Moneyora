@@ -169,7 +169,9 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
   ///
   /// The note is the item's name, with the merchant in brackets when one
   /// is known: the transaction list shows the note and nothing else from
-  /// the receipt, and "BREAD" alone does not say where.
+  /// the receipt, and "BREAD" alone does not say where. A line that *is*
+  /// the merchant — FR-RCP-010's single expense for the whole receipt —
+  /// gets no bracket; "KEELLS (KEELLS)" says it twice.
   static List<ExpenseToRecord> toExpenses(
     ReviewedReceipt receipt, {
     required int scanId,
@@ -184,7 +186,10 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
           amountCents: reviewed.item.totalPriceCents,
           date: receipt.postedOn,
           time: time,
-          note: merchant == null || merchant.isEmpty
+          note:
+              merchant == null ||
+                  merchant.isEmpty ||
+                  reviewed.item.name.trim() == merchant
               ? reviewed.item.name
               : '${reviewed.item.name} ($merchant)',
           receiptScanId: scanId,

@@ -506,6 +506,57 @@ void main() {
     expect(find.text('transactions'), findsNothing);
   });
 
+  group('single-category mode (FR-RCP-010)', () {
+    Finder toggle() => find.byType(SwitchListTile);
+
+    testWidgets('folds the lines away, asks for one category, and posts '
+        'the total as one expense named after the shop', (tester) async {
+      await open(tester);
+
+      expect(find.text('Instead of one expense per line.'), findsOneWidget);
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rs1,700.00 as one expense.'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'RICE 5KG'), findsNothing);
+      expect(find.text('Items · 3 · Rs1,700.00'), findsNothing);
+      expect(find.text('The shop is Health.'), findsOneWidget);
+      expect(find.text('Choose a category for the receipt.'), findsOneWidget);
+      expect(confirmEnabled(tester), isFalse);
+
+      await tester.tap(find.byType(DropdownButtonFormField<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Food').last);
+      await tester.pumpAndSettle();
+      expect(confirmEnabled(tester), isTrue);
+
+      await tester.tap(confirmButton());
+      await tester.pumpAndSettle();
+
+      final posted = expenses.posted!;
+      expect(posted.length, 1);
+      expect(posted.single.amountCents, 170000);
+      expect(posted.single.categoryId, 7);
+      expect(posted.single.note, 'KEELLS SUPER');
+      expect(receipts.saved!.items.single.suggestedCategoryId, 9);
+      expect(dictionary.learnt, [('KEELLS SUPER', 7)]);
+      expect(find.text('Saved 1 expense.'), findsOneWidget);
+    });
+
+    testWidgets('switching back shows every line again', (tester) async {
+      await open(tester);
+
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, 'RICE 5KG'), findsOneWidget);
+      expect(find.text('Items · 3 · Rs1,700.00'), findsOneWidget);
+      expect(confirmEnabled(tester), isTrue);
+    });
+  });
+
   testWidgets('Discard leaves without writing anything', (tester) async {
     await open(tester);
 
