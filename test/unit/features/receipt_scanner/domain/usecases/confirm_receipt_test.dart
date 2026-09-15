@@ -42,7 +42,19 @@ class _FakeDictionary implements KeywordDictionaryRepository {
 
   final _Log _log;
   final List<(String, int)> applied = [];
+  final List<(String, int)> learnt = [];
   Either<Failure, Unit> result = const Right(unit);
+  Either<Failure, Unit> learnResult = const Right(unit);
+
+  @override
+  Future<Either<Failure, Unit>> learn({
+    required String text,
+    required int categoryId,
+  }) async {
+    _log.calls.add('learn');
+    learnt.add((text, categoryId));
+    return learnResult;
+  }
 
   @override
   Future<Either<Failure, Unit>> recordApplied({
@@ -200,10 +212,33 @@ void main() {
       });
     });
 
-    test('writes the record, then the counts, then the expenses', () async {
+    test(
+      'teaches the dictionary every line the user categorised differently',
+      () async {
+        // Rice kept the suggestion: nothing to learn. Shampoo was corrected
+        // from Food to Toiletry: learnt. A line with no suggestion at all,
+        // categorised by hand, is learnt too — it is a change from nothing.
+        const unsuggested = ReviewedItem(
+          item: ReceiptLineItem(name: 'GIFT WRAP', totalPriceCents: 30000),
+          categoryId: 11,
+        );
+
+        await confirm(receipt(items: const [rice, shampoo, unsuggested]));
+
+        expect(dictionary.learnt, [
+          ('SHAMPOO 200ML', toiletry),
+          ('GIFT WRAP', 11),
+        ]);
+      },
+    );
+
+    test('writes the record, then per line the lesson and the count, then '
+        'the expenses', () async {
       await confirm(receipt());
 
-      expect(log.calls, ['scan', 'count', 'count', 'post']);
+      // rice: count only. shampoo: learn, then count — so the correction
+      // is counted as applied on the line that taught it.
+      expect(log.calls, ['scan', 'count', 'learn', 'count', 'post']);
     });
   });
 
@@ -286,6 +321,16 @@ void main() {
       expect(expenses.posted, isNull);
     });
 
+    test('a lesson failing posts nothing', () async {
+      dictionary.learnResult = const Left(CacheFailure());
+
+      final result = await confirm(receipt());
+
+      expect(result, const Left<Failure, ReceiptConfirmation>(CacheFailure()));
+      expect(log.calls, ['scan', 'count', 'learn']);
+      expect(expenses.posted, isNull);
+    });
+
     test('a count failing posts nothing', () async {
       // Money has not moved yet, so the failure is returned and a retry
       // costs a stray scan record, never a second set of expenses.
@@ -306,8 +351,20 @@ void main() {
       final result = await confirm(receipt());
 
       expect(result.isLeft(), isTrue);
-      expect(log.calls, ['scan', 'count', 'count', 'post']);
+      expect(log.calls, ['scan', 'count', 'learn', 'count', 'post']);
     });
+  });
+
+  test('needsLearning: a kept suggestion is not news, anything else is', () {
+    expect(rice.needsLearning, isFalse);
+    expect(shampoo.needsLearning, isTrue);
+    expect(
+      const ReviewedItem(
+        item: ReceiptLineItem(name: 'X', totalPriceCents: 1),
+        categoryId: 1,
+      ).needsLearning,
+      isTrue,
+    );
   });
 
   test('the mean confidence rounds and reads 0 for nothing', () {

@@ -27,12 +27,13 @@ class ReceiptConfirmation extends Equatable {
   List<Object?> get props => [scanId, transactionIds];
 }
 
-/// Posts a reviewed receipt to the ledger. FR-RCP-009.
+/// Posts a reviewed receipt to the ledger. FR-RCP-009, FR-RCP-015.
 ///
 /// The seventh stage of the pipeline (SDD §7.2), after the review screen:
 /// one expense per kept item, every one linked to a single scan record —
-/// the "Receipt Batch" the SRS asks for — and one more use counted on
-/// every dictionary mapping the user just agreed with.
+/// the "Receipt Batch" the SRS asks for — the dictionary taught every
+/// line the user categorised differently from the suggestion, and one
+/// more use counted on every mapping the user ended up agreeing with.
 ///
 /// ## Three writes, in an order chosen for what a retry does
 ///
@@ -44,7 +45,9 @@ class ReceiptConfirmation extends Equatable {
 ///
 /// 1. the scan and its items, as `confirmed` — a `transactions` row
 ///    needs the scan's id for its foreign key, so this goes first;
-/// 2. the usage counts;
+/// 2. per line, the lesson when there is one (FR-RCP-015), then the
+///    usage count — in that order, so a correction is counted as applied
+///    on the very line that taught it;
 /// 3. the expenses, as one batch — all rows or none.
 ///
 /// A failure at any step returns its failure and the user confirms again.
@@ -86,6 +89,13 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
     }
 
     for (final item in params.items) {
+      if (item.needsLearning) {
+        final learnt = await _dictionary.learn(
+          text: item.item.name,
+          categoryId: item.categoryId,
+        );
+        if (learnt case Left(value: final failure)) return Left(failure);
+      }
       final counted = await _dictionary.recordApplied(
         text: item.item.name,
         categoryId: item.categoryId,

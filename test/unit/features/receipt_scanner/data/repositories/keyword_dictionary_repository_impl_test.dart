@@ -18,6 +18,14 @@ class _FakeLocal implements KeywordDictionaryLocalDataSource {
   }
 
   (String, int)? applied;
+  (String, int)? learnt;
+
+  @override
+  Future<String?> learn({required String text, required int categoryId}) async {
+    if (throwWith case final e?) throw e;
+    learnt = (text, categoryId);
+    return text.toLowerCase();
+  }
 
   @override
   Future<int> recordApplied({
@@ -75,6 +83,22 @@ void main() {
 
     expect(result, const Right<Failure, Unit>(unit));
     expect(local.applied, ('RICE', 7));
+  });
+
+  test('learn passes through and returns unit', () async {
+    final result = await repository.learn(text: 'SHAMPOO 200ML', categoryId: 9);
+
+    expect(result, const Right<Failure, Unit>(unit));
+    expect(local.learnt, ('SHAMPOO 200ML', 9));
+  });
+
+  test('a failing lesson is a CacheFailure', () async {
+    local.throwWith = const CacheException('Could not learn "x".');
+
+    expect(
+      await repository.learn(text: 'x', categoryId: 9),
+      const Left<Failure, Unit>(CacheFailure('Could not learn "x".')),
+    );
   });
 
   test('a failing count is a CacheFailure', () async {
