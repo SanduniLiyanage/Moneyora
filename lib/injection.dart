@@ -63,10 +63,15 @@ import 'features/money_plan/domain/usecases/update_allocation.dart';
 import 'features/money_plan/domain/usecases/watch_active_plan.dart';
 import 'features/money_plan/domain/usecases/watch_plans.dart';
 import 'features/receipt_scanner/data/datasources/keyword_dictionary_local_datasource.dart';
+import 'features/receipt_scanner/data/datasources/ml_kit_text_recogniser.dart';
+import 'features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
 import 'features/receipt_scanner/data/repositories/keyword_dictionary_repository_impl.dart';
+import 'features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
 import 'features/receipt_scanner/domain/repositories/keyword_dictionary_repository.dart';
+import 'features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'features/receipt_scanner/domain/usecases/categorise_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
+import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -576,7 +581,8 @@ final recomputePlanSpendingProvider = FutureProvider<RecomputePlanSpending>(
 // Receipt scanner
 //
 // Sprint 6, stage by stage: the parser and the categoriser first, because
-// they are the stages a test can prove without a camera.
+// they are the stages a test can prove without a camera; then the
+// recogniser, behind a seam a test can fake.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Reads the keyword dictionary. The only holder of SQL for the feature so
@@ -609,6 +615,35 @@ final categoriseReceiptProvider = FutureProvider<CategoriseReceipt>(
   (ref) async => CategoriseReceipt(
     await ref.watch(keywordDictionaryRepositoryProvider.future),
   ),
+);
+
+/// ML Kit's on-device recogniser. FR-RCP-004.
+///
+/// One instance for the app rather than one per scan: the first call loads
+/// the model, and that is the slow part. Closed on dispose so a hot restart
+/// releases the native one. Overridden with a fake in tests, which is the
+/// reason this is a provider and not a constructor call inside
+/// [ocrLocalDataSourceProvider].
+final textRecogniserProvider = Provider<TextRecogniser>((ref) {
+  final recogniser = MlKitTextRecogniser();
+  ref.onDispose(recogniser.close);
+  return recogniser;
+});
+
+/// Reads the text off a receipt image and puts its rows back in printed
+/// order. Synchronous, unlike the dictionary: no database on this path.
+final ocrLocalDataSourceProvider = Provider<OcrLocalDataSource>(
+  (ref) => OcrLocalDataSourceImpl(ref.watch(textRecogniserProvider)),
+);
+
+/// Turns recogniser exceptions into failures. The layer boundary.
+final receiptRepositoryProvider = Provider<ReceiptRepository>(
+  (ref) => ReceiptRepositoryImpl(ref.watch(ocrLocalDataSourceProvider)),
+);
+
+/// The lines OCR read off an image. FR-RCP-004.
+final scanReceiptProvider = Provider<ScanReceipt>(
+  (ref) => ScanReceipt(ref.watch(receiptRepositoryProvider)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
