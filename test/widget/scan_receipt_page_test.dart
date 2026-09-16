@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,14 @@ class _FakeDevice implements ReceiptRepository {
     askedFor = source;
     return picked;
   }
+
+  @override
+  Future<Either<Failure, String>> keepImage(String imagePath) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath) =>
+      throw UnimplementedError();
 
   @override
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) async {

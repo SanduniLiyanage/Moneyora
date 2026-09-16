@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
@@ -6,10 +8,13 @@ import '../entities/receipt_scan.dart';
 import '../entities/recognised_text.dart';
 
 /// The scanner's boundary with the device and the database: the
-/// recogniser behind [scanReceipt], the scan records behind the rest.
-/// FR-RCP-004, FR-RCP-009, FR-RCP-013.
+/// recogniser behind [scanReceipt], the kept photo behind [keepImage] and
+/// [loadImage], the scan records behind the rest. FR-RCP-004, FR-RCP-009,
+/// FR-RCP-012, FR-RCP-013.
 ///
-/// SDD §9.1's three methods, plus the picker the SDD leaves to the screen.
+/// SDD §9.1's three methods, plus the picker the SDD leaves to the screen
+/// and the two the photo needs once it is stored encrypted (FR-RCP-012):
+/// a path alone no longer opens it.
 ///
 /// The SDD's `File imageFile` is a path here. The domain then stays free
 /// of `dart:io`, and a path is what both ends of the pipeline already deal
@@ -30,6 +35,27 @@ abstract class ReceiptRepository {
   /// An [OcrFailure] when nothing legible was found or the image could not
   /// be read — FR-RCP-011's low-confidence path starts here.
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath);
+
+  /// Copies the photo at [imagePath] — the picker's, in a cache the
+  /// platform is free to clear — into the app's own storage, encrypted,
+  /// and returns where it now lives. FR-RCP-012, NFR-SEC-002.
+  ///
+  /// The returned path is what a scan record and its expenses keep. The
+  /// file it names is readable only through [loadImage]; [scanReceipt]
+  /// knows to open one too, which is what FR-RCP-014's re-scan needs.
+  /// An [EncryptionFailure] when the key could not be had or the copy
+  /// could not be written.
+  Future<Either<Failure, String>> keepImage(String imagePath);
+
+  /// The photo at [imagePath], as the bytes of an image a screen can
+  /// draw: decrypted when it is one [keepImage] wrote, read as it is when
+  /// it is not — the review screen shows the picker's file before it is
+  /// kept. Null when there is no file there any more.
+  ///
+  /// An [EncryptionFailure] when a kept file could not be decrypted, which
+  /// is a file that was altered or a key that is not the one it was
+  /// written under.
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath);
 
   /// Saves [scan] and its items as one record, returning the scan's id.
   /// FR-RCP-009.

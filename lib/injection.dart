@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import 'core/database/database_change_bus.dart';
@@ -67,6 +68,7 @@ import 'features/receipt_scanner/data/datasources/keyword_dictionary_local_datas
 import 'features/receipt_scanner/data/datasources/ml_kit_text_recogniser.dart';
 import 'features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
 import 'features/receipt_scanner/data/datasources/receipt_image_local_datasource.dart';
+import 'features/receipt_scanner/data/datasources/receipt_image_vault.dart';
 import 'features/receipt_scanner/data/datasources/receipt_scan_local_datasource.dart';
 import 'features/receipt_scanner/data/repositories/keyword_dictionary_repository_impl.dart';
 import 'features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
@@ -75,6 +77,7 @@ import 'features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'features/receipt_scanner/domain/usecases/categorise_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/confirm_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/get_scan_history.dart';
+import 'features/receipt_scanner/domain/usecases/load_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'features/receipt_scanner/domain/usecases/pick_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
@@ -662,6 +665,21 @@ final receiptImageLocalDataSourceProvider =
       ),
     );
 
+/// Where a confirmed receipt's photo is kept, encrypted under a key
+/// derived from the database's. FR-RCP-012, NFR-SEC-002.
+///
+/// Over the same [encryptionKeyStoreProvider] the database opens with, so
+/// a test's [InMemoryKeyStore] covers both. The directories are
+/// `path_provider`'s, asked for on first use; the vault's own test hands
+/// it temporary ones.
+final receiptImageVaultProvider = Provider<ReceiptImageVault>(
+  (ref) => EncryptedReceiptImageVault(
+    keyStore: ref.watch(encryptionKeyStoreProvider),
+    documents: getApplicationDocumentsDirectory,
+    temporary: getTemporaryDirectory,
+  ),
+);
+
 /// Reads and writes scan records. The holder of SQL for `receipt_scans`
 /// and `receipt_items`.
 final receiptScanLocalDataSourceProvider =
@@ -679,6 +697,7 @@ final receiptRepositoryProvider = FutureProvider<ReceiptRepository>(
     ref.watch(ocrLocalDataSourceProvider),
     await ref.watch(receiptScanLocalDataSourceProvider.future),
     ref.watch(receiptImageLocalDataSourceProvider),
+    ref.watch(receiptImageVaultProvider),
   ),
 );
 
@@ -720,6 +739,13 @@ final confirmReceiptProvider = FutureProvider<ConfirmReceipt>(
     await ref.watch(keywordDictionaryRepositoryProvider.future),
     await ref.watch(expenseWriterProvider.future),
   ),
+);
+
+/// A receipt photo as bytes a screen can draw — decrypted when it is a
+/// kept one. FR-RCP-012.
+final loadReceiptImageProvider = FutureProvider<LoadReceiptImage>(
+  (ref) async =>
+      LoadReceiptImage(await ref.watch(receiptRepositoryProvider.future)),
 );
 
 /// Every receipt scanned so far, newest first, narrowed by a search.

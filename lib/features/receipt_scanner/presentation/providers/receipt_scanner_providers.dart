@@ -6,6 +6,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
@@ -184,6 +185,21 @@ final confirmReceiptControllerProvider =
     AutoDisposeAsyncNotifierProvider<ConfirmReceiptController, void>(
       ConfirmReceiptController.new,
     );
+
+/// The photo at a path, as bytes to draw — decrypted when it is a kept
+/// one. FR-RCP-012 — `LoadReceiptImage`'s caller from a screen.
+///
+/// A family on the path, disposed with its last watcher: a thumbnail
+/// scrolled off the history gives its bytes back rather than every photo
+/// ever scanned staying decrypted in memory. Null is a photo that is
+/// gone; a `Left` is the future's error, so the viewer can say why a
+/// photo would not open.
+final receiptImageProvider = FutureProvider.autoDispose
+    .family<Uint8List?, String>((ref, path) async {
+      final load = await ref.watch(loadReceiptImageProvider.future);
+      final result = await load(path);
+      return result.match(Future<Uint8List?>.error, Future<Uint8List?>.value);
+    });
 
 /// The receipts scanned so far, narrowed by what was typed into the
 /// search field. FR-RCP-013 — `GetScanHistory`'s caller from a screen.

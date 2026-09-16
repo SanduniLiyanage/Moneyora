@@ -27,22 +27,27 @@ class ReceiptConfirmation extends Equatable {
   List<Object?> get props => [scanId, transactionIds];
 }
 
-/// Posts a reviewed receipt to the ledger. FR-RCP-009, FR-RCP-015.
+/// Posts a reviewed receipt to the ledger. FR-RCP-009, FR-RCP-012,
+/// FR-RCP-015.
 ///
 /// The seventh stage of the pipeline (SDD §7.2), after the review screen:
-/// one expense per kept item, every one linked to a single scan record —
-/// the "Receipt Batch" the SRS asks for — the dictionary taught every
-/// line the user categorised differently from the suggestion, and one
-/// more use counted on every mapping the user ended up agreeing with.
+/// the photo kept, encrypted, in the app's own storage; one expense per
+/// kept item, every one linked to a single scan record — the "Receipt
+/// Batch" the SRS asks for — and to that photo; the dictionary taught
+/// every line the user categorised differently from the suggestion, and
+/// one more use counted on every mapping the user ended up agreeing with.
 ///
-/// ## Three writes, in an order chosen for what a retry does
+/// ## Four writes, in an order chosen for what a retry does
 ///
-/// The scan record, the usage counts and the expenses live in two
-/// features, and `features/receipt_scanner/` reaches the ledger only
-/// through the [ExpenseWriter] port — so they cannot share one database
-/// transaction. What can be chosen is the order, and it is chosen so that
-/// **money is never recorded twice**:
+/// The photo, the scan record, the usage counts and the expenses live in
+/// two features and on two media, and `features/receipt_scanner/`
+/// reaches the ledger only through the [ExpenseWriter] port — so they
+/// cannot share one database transaction. What can be chosen is the
+/// order, and it is chosen so that **money is never recorded twice**:
 ///
+/// 0. the photo, copied out of the picker's cache and encrypted
+///    (FR-RCP-012) — the record and the expenses both keep the path it
+///    ends up at, so it has to exist before either is written;
 /// 1. the scan and its items, as `confirmed` — a `transactions` row
 ///    needs the scan's id for its foreign key, so this goes first;
 /// 2. per line, the lesson when there is one (FR-RCP-015), then the
@@ -52,10 +57,11 @@ class ReceiptConfirmation extends Equatable {
 ///
 /// A failure at any step returns its failure and the user confirms again.
 /// Before step 3 nothing has reached the ledger, so a retry costs a stray
-/// scan record at most. A failure *in* step 3 leaves a confirmed scan with
-/// no expenses under it: visible in FR-RCP-013's history, re-processed by
-/// FR-RCP-014, and still nothing in the ledger. The reverse order would
-/// leave expenses with no record, and a retry would post them again.
+/// scan record, or a stray encrypted file, at most. A failure *in* step 3
+/// leaves a confirmed scan with no expenses under it: visible in
+/// FR-RCP-013's history, re-processed by FR-RCP-014, and still nothing in
+/// the ledger. The reverse order would leave expenses with no record, and
+/// a retry would post them again.
 ///
 /// Every line is checked before step 1 — a blank name, a zero amount, a
 /// date in the future — because the expense writer runs the same checks
@@ -79,7 +85,17 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
   ) async {
     if (validate(params) case final failure?) return Left(failure);
 
-    final saved = await _receipts.confirmScan(toScan(params));
+    final String imagePath;
+    switch (await _receipts.keepImage(params.imagePath)) {
+      case Left(value: final failure):
+        return Left(failure);
+      case Right(value: final kept):
+        imagePath = kept;
+    }
+
+    final saved = await _receipts.confirmScan(
+      toScan(params, imagePath: imagePath),
+    );
     final int scanId;
     switch (saved) {
       case Left(value: final failure):
@@ -103,7 +119,9 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
       if (counted case Left(value: final failure)) return Left(failure);
     }
 
-    final posted = await _expenses(toExpenses(params, scanId: scanId));
+    final posted = await _expenses(
+      toExpenses(params, scanId: scanId, imagePath: imagePath),
+    );
     return posted.map(
       (ids) => ReceiptConfirmation(scanId: scanId, transactionIds: ids),
     );
@@ -144,9 +162,14 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
     return null;
   }
 
-  /// The record to store for [receipt], status `confirmed`.
-  static ReceiptScan toScan(ReviewedReceipt receipt) => ReceiptScan(
-    imagePath: receipt.imagePath,
+  /// The record to store for [receipt], status `confirmed`, pointing at
+  /// [imagePath] — where the photo was kept — rather than at the
+  /// picker's file the review was done over.
+  static ReceiptScan toScan(
+    ReviewedReceipt receipt, {
+    required String imagePath,
+  }) => ReceiptScan(
+    imagePath: imagePath,
     status: ReceiptScanStatus.confirmed,
     merchantName: receipt.merchantName,
     receiptDate: receipt.receiptDate,
@@ -165,7 +188,8 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
     ],
   );
 
-  /// One expense per kept item, linked to [scanId].
+  /// One expense per kept item, linked to [scanId] and to the kept photo
+  /// at [imagePath].
   ///
   /// The note is the item's name, with the merchant in brackets when one
   /// is known: the transaction list shows the note and nothing else from
@@ -175,6 +199,7 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
   static List<ExpenseToRecord> toExpenses(
     ReviewedReceipt receipt, {
     required int scanId,
+    required String imagePath,
   }) {
     final merchant = receipt.merchantName?.trim();
     final time = timeOf(receipt.receiptDate);
@@ -193,7 +218,7 @@ class ConfirmReceipt implements UseCase<ReceiptConfirmation, ReviewedReceipt> {
               ? reviewed.item.name
               : '${reviewed.item.name} ($merchant)',
           receiptScanId: scanId,
-          receiptImagePath: receipt.imagePath,
+          receiptImagePath: imagePath,
         ),
     ];
   }
