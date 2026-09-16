@@ -175,26 +175,35 @@ class _ReceiptRow extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: ReceiptThumbnail(path: scan.imagePath, width: 48, height: 64),
+        // The total is a third line, not the trailing slot and not beside
+        // the name: between the thumbnail and the button a 320px-wide
+        // phone leaves the text about 112px, and a figure there squeezed
+        // "La Viventey" to one syllable per line.
         title: Text(
           merchant == null || merchant.isEmpty ? 'Unknown store' : merchant,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          '${dateLabel(scan)} · $count item${count == 1 ? '' : 's'}'
-          '${status == null ? '' : ' · $status'}',
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              '${dateLabel(scan)} · $count item${count == 1 ? '' : 's'}'
+              '${status == null ? '' : ' · $status'}',
+            ),
             Text(
               total == null ? '—' : formatCents(total),
               style: theme.textTheme.titleMedium,
-            ),
-            IconButton(
-              tooltip: 'Re-scan',
-              icon: const Icon(Icons.document_scanner_outlined),
-              onPressed: onRescan == null ? null : () => onRescan!(scan),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
+        ),
+        isThreeLine: true,
+        trailing: IconButton(
+          tooltip: 'Re-scan',
+          icon: const Icon(Icons.document_scanner_outlined),
+          onPressed: onRescan == null ? null : () => onRescan!(scan),
         ),
         onTap: () => Navigator.of(context).push<void>(
           MaterialPageRoute(builder: (_) => _ReceiptPhotoPage(scan: scan)),

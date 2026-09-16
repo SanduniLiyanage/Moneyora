@@ -213,6 +213,29 @@ void main() {
       );
     });
 
+    testWidgets('on a narrow phone the store name keeps one line, with the '
+        'total under the date and the button beside', (tester) async {
+      // 320 logical pixels: the emulator width that wrapped "La Viventey"
+      // one syllable per line while the total sat in the trailing slot.
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(boot(_FakeReceipts(Right([_keells]))));
+      await tester.pumpAndSettle();
+
+      final title = tester.getRect(find.text('KEELLS SUPER'));
+      final date = tester.getRect(find.text('Sep 12, 2026 · 2 items'));
+      final total = tester.getRect(find.text('Rs1,900.00'));
+      final button = tester.getRect(find.byType(IconButton));
+      expect(title.height, lessThanOrEqualTo(date.height + 4)); // one line
+      expect(date.top, greaterThanOrEqualTo(title.bottom));
+      expect(total.top, greaterThanOrEqualTo(date.bottom));
+      expect(total.left, title.left);
+      expect(title.right, lessThanOrEqualTo(button.left));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a receipt with no store, printed date or total is placed '
         'by when it was scanned', (tester) async {
       await tester.pumpWidget(boot(_FakeReceipts(Right([_bare]))));
