@@ -206,6 +206,7 @@ void main() {
         AccountModel.fromEntity(
           account(id: 2, name: 'Bank').copyWith(
             icon: 'bank',
+            type: AccountType.bank,
             currentBalanceCents: -125000,
             currency: 'USD',
           ),
@@ -217,6 +218,7 @@ void main() {
       expect(rows.single.id, 2);
       expect(rows.single.name, 'Bank');
       expect(rows.single.icon, 'bank');
+      expect(rows.single.type, AccountType.bank);
       expect(rows.single.balanceCents, -125000);
       expect(rows.single.currency, 'USD');
     });

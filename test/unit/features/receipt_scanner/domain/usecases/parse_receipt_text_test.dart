@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/parsed_receipt.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/payment_method.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/recognised_text.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
@@ -152,6 +153,10 @@ void main() {
       expect(receipt.taxCents, 37650);
     });
 
+    test('the cash tendered after the total says it was paid in cash', () {
+      expect(receipt.paymentMethod, PaymentMethod.cash);
+    });
+
     test('the items add up to the sub-total, not to the total with VAT', () {
       expect(receipt.itemsSumCents, 251000);
       expect(receipt.itemsMatchTotal, isFalse);
@@ -192,6 +197,7 @@ void main() {
       expect(receipt.totalCents, 70500);
       expect(receipt.taxCents, isNull);
       expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.paymentMethod, PaymentMethod.card);
     });
   });
 
@@ -225,6 +231,52 @@ void main() {
     test('GRAND TOTAL is the total and the items add up to it', () {
       expect(receipt.totalCents, 238700);
       expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('nothing says how it was paid', () {
+      expect(receipt.paymentMethod, isNull);
+    });
+  });
+
+  group('the payment method', () {
+    test('is read from an unpriced line that starts by saying so', () {
+      expect(
+        parse('SHOP\nTEA 100.00\nTOTAL 100.00\nPaid by: VISA').paymentMethod,
+        PaymentMethod.card,
+      );
+      expect(
+        parse('SHOP\nTEA 100.00\nPAYMENT MODE CASH').paymentMethod,
+        PaymentMethod.cash,
+      );
+      expect(
+        parse('SHOP\nTEA 100.00\nTender: Debit Card').paymentMethod,
+        PaymentMethod.card,
+      );
+    });
+
+    test('a line that merely mentions cash or a card is not the method', () {
+      expect(parse('CASH BILL\nSHOP\nTEA 100.00').paymentMethod, isNull);
+      expect(
+        parse('SHOP\nTEA 100.00\nTOTAL 100.00\nCard No : 1446').paymentMethod,
+        isNull,
+      );
+      expect(parse('SHOP\nCASHEW NUTS 100.00').paymentMethod, isNull);
+    });
+
+    test('PAID with no method named is not a method, and the first line '
+        'that names one wins', () {
+      expect(parse('SHOP\nTEA 100.00\nPAID 100.00').paymentMethod, isNull);
+      expect(
+        parse('SHOP\nTEA 100.00\nVISA 100.00\nCHANGE 0.00\nCASH 0.00')
+            .paymentMethod,
+        PaymentMethod.card,
+      );
+    });
+
+    test('an unpriced payment line never joins the item beneath it', () {
+      final receipt = parse('SHOP\nTEA 100.00\nPaid by cash\n50.00');
+      expect(receipt.items.map((i) => i.name), ['TEA']);
+      expect(receipt.paymentMethod, PaymentMethod.cash);
     });
   });
 
@@ -502,6 +554,7 @@ void main() {
         'ends the body, and Saved Value is not an item', () {
       expect(receipt.totalCents, 279000);
       expect(receipt.taxCents, isNull);
+      expect(receipt.paymentMethod, PaymentMethod.card);
       expect(receipt.items.map((i) => i.name), isNot(contains('Saved Value')));
     });
 
@@ -578,6 +631,7 @@ void main() {
       ]);
       expect(receipt.totalCents, 279000);
       expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.paymentMethod, PaymentMethod.card);
     });
 
     test('a lost quantity after PRICE X is not part of the name', () {

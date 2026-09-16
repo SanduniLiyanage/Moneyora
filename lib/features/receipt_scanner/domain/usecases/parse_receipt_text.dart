@@ -5,11 +5,12 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../entities/parsed_receipt.dart';
+import '../entities/payment_method.dart';
 import '../entities/receipt_line_item.dart';
 import '../entities/recognised_text.dart';
 
-/// Merchant, date, line items, total, tax and receipt number, from the
-/// lines OCR read. FR-RCP-005, FR-RCP-006, E-31.
+/// Merchant, date, line items, total, tax, receipt number and how it was
+/// paid, from the lines OCR read. FR-RCP-005, FR-RCP-006, E-31.
 ///
 /// The fourth stage of the pipeline (SDD §7.2): after ML Kit, before the
 /// categoriser. Pure text — nothing here knows an image existed, which is
@@ -45,6 +46,14 @@ import '../entities/recognised_text.dart';
 /// - **A payment line ends the body.** `CASH`, `MASTER CARD`, `VISA` with
 ///   a figure is the tender; what follows — change, points, "saved value"
 ///   — is never an item, whether or not a total was found above it.
+/// - **The payment method is the first line that names one**: a priced
+///   tender line in the body or after the total (`CASH 3,000.00`,
+///   `MASTER CARD 2790.00`), or an unpriced line that *starts* with a
+///   payment label (`PAID BY VISA`, `Payment mode: Cash`). Cash or card,
+///   never a brand — the app knows which accounts are cards, not which
+///   card is a Visa. `Card No : 1446` says nothing on its own, and a line
+///   that merely contains the word — `GIFT CARD 500.00` in the body — is
+///   the tender rule's problem, not this one's.
 /// - **A `TIME` line gives the date its time.** Some receipts print the
 ///   two apart; a date found without a time takes the first time-labelled
 ///   line after it.
@@ -120,6 +129,7 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     int? subTotal;
     int? cardPaid;
     int? tax;
+    PaymentMethod? paidBy;
     final items = <ReceiptLineItem>[];
 
     var band = _Band.header;
@@ -161,6 +171,11 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
 
       final priced = _Priced.of(line);
       if (priced == null) {
+        if (band != _Band.header && _paymentPrefix.hasMatch(line)) {
+          paidBy ??= _methodOf(line);
+          pending.clear();
+          continue;
+        }
         if (band == _Band.header && merchant == null) {
           merchant = line;
         } else {
@@ -191,10 +206,16 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
       }
       if (band == _Band.body && _tenderLabel.hasMatch(effective.rest)) {
         if (_cardLabel.hasMatch(effective.rest)) cardPaid ??= effective.cents;
+        paidBy ??= _methodOf(effective.rest);
         band = _Band.footer;
         continue;
       }
-      if (band == _Band.footer) continue;
+      if (band == _Band.footer) {
+        if (_tenderLabel.hasMatch(effective.rest)) {
+          paidBy ??= _methodOf(effective.rest);
+        }
+        continue;
+      }
       if (band == _Band.body &&
           (effective.cents < 0 || _discountLabel.hasMatch(effective.rest)) &&
           !_discountSummary.hasMatch(effective.rest)) {
@@ -218,6 +239,7 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
       totalCents: total ?? subTotal ?? cardPaid,
       taxCents: tax,
       receiptNumber: receiptNumber,
+      paymentMethod: paidBy,
     );
   }
 
@@ -445,6 +467,32 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     r'\b(?:card|visa|master(?:card)?|amex|debit|credit)\b',
     caseSensitive: false,
   );
+
+  static final _cashLabel = RegExp(r'\bcash\b', caseSensitive: false);
+
+  /// An unpriced line that says how the bill was paid — one that starts
+  /// with the saying, so `CASH BILL` and `Card No` do not.
+  static final _paymentPrefix = RegExp(
+    r'^(?:paid\s+(?:by|via|in|with|using)|payment(?:\s+(?:mode|method|type|by))?|'
+    r'pay\s+(?:mode|method|type)|tender(?:ed)?(?:\s+by)?|mode\s+of\s+payment)'
+    r'\s*[:\-]?\s*(?:cash|card|visa|master(?:card)?|amex|debit|credit)\b',
+    caseSensitive: false,
+  );
+
+  /// `Card No : 1446`, `CARD # 4521` — the card's number, not a payment.
+  static final _cardNumber = RegExp(
+    r'\bcard\s*(?:no|number|num|#)\b',
+    caseSensitive: false,
+  );
+
+  /// Card or cash, from a line the tender rules matched; null when it
+  /// names neither (`PAID 705.00`) or only the card's number.
+  static PaymentMethod? _methodOf(String text) {
+    if (_cardNumber.hasMatch(text)) return null;
+    if (_cardLabel.hasMatch(text)) return PaymentMethod.card;
+    if (_cashLabel.hasMatch(text)) return PaymentMethod.cash;
+    return null;
+  }
 
   /// Priced lines in the body that are not items: payment lines, the
   /// sub-total and its kin, and a count of items — which is a line that

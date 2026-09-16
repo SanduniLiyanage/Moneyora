@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/ports/account_reader.dart';
 import 'category_suggestion.dart';
+import 'payment_method.dart';
 import 'receipt_line_item.dart';
 import 'reviewed_receipt.dart';
 import 'scanned_receipt.dart';
@@ -82,6 +84,11 @@ class ReviewDraftItem extends Equatable {
 /// - **Low confidence is below 50.** `CategoriseReceipt` scores a seed
 ///   match at 65 or more and a merchant-only lead at 20, so the line
 ///   badges exactly the lines the dictionary had no word for.
+/// - **The account follows the receipt.** [defaultAccount] is the first
+///   account of the kind the receipt says it was paid from — a card
+///   receipt opens on the card, a cash receipt on cash — and the first
+///   account in the list when the receipt did not say or no account
+///   matches. A default, not a decision: the picker stays.
 class ReceiptReviewDraft extends Equatable {
   /// Creates a draft. Screens use [ReceiptReviewDraft.fromScanned].
   const ReceiptReviewDraft({
@@ -94,6 +101,7 @@ class ReceiptReviewDraft extends Equatable {
     this.totalCents,
     this.taxCents,
     this.receiptNumber,
+    this.paymentMethod,
     this.merchantCategoryId,
     this.merchantCategoryName,
     this.isSingleCategory = false,
@@ -127,6 +135,7 @@ class ReceiptReviewDraft extends Equatable {
       totalCents: parsed.totalCents,
       taxCents: parsed.taxCents,
       receiptNumber: parsed.receiptNumber,
+      paymentMethod: parsed.paymentMethod,
       merchantCategoryId: receipt.merchantCategoryId,
       merchantCategoryName: receipt.merchantCategoryName,
       nextKey: receipt.items.length,
@@ -162,6 +171,9 @@ class ReceiptReviewDraft extends Equatable {
 
   /// The receipt's own printed identifier (E-31).
   final String? receiptNumber;
+
+  /// How the receipt says it was paid; null when no line said.
+  final PaymentMethod? paymentMethod;
 
   /// The category the dictionary gave the merchant, for the screen to say
   /// why a line was biased. Null when its name matched nothing.
@@ -274,6 +286,11 @@ class ReceiptReviewDraft extends Equatable {
   /// The account the money left.
   ReceiptReviewDraft withAccount(int accountId) =>
       _with(accountId: () => accountId);
+
+  /// The account to open on: the first of [accounts] that matches
+  /// [paymentMethod], else the first of [accounts], else null. FR-RCP-008.
+  int? defaultAccount(List<AccountOption> accounts) =>
+      paymentMethod?.defaultAccount(accounts) ?? accounts.firstOrNull?.id;
 
   /// Single-category mode on or off. FR-RCP-010. The lines are kept either
   /// way; switching off shows them again as they were.
@@ -441,6 +458,7 @@ class ReceiptReviewDraft extends Equatable {
     totalCents: totalCents,
     taxCents: taxCents,
     receiptNumber: receiptNumber,
+    paymentMethod: paymentMethod,
     merchantCategoryId: merchantCategoryId,
     merchantCategoryName: merchantCategoryName,
     isSingleCategory: isSingleCategory ?? this.isSingleCategory,
@@ -461,6 +479,7 @@ class ReceiptReviewDraft extends Equatable {
     totalCents,
     taxCents,
     receiptNumber,
+    paymentMethod,
     merchantCategoryId,
     merchantCategoryName,
     isSingleCategory,

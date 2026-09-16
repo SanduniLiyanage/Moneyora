@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/categorised_receipt.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/category_suggestion.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/parsed_receipt.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/payment_method.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_review_draft.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/scanned_receipt.dart';
@@ -48,6 +50,7 @@ void main() {
     ],
     DateTime? receiptDate,
     int? totalCents = 170000,
+    PaymentMethod? paymentMethod,
   }) => ScannedReceipt(
     imagePath: '/receipts/keells.jpg',
     receipt: CategorisedReceipt(
@@ -58,6 +61,7 @@ void main() {
         totalCents: totalCents,
         taxCents: 12000,
         receiptNumber: 'INV-0042',
+        paymentMethod: paymentMethod,
       ),
       items: items,
       merchantCategoryId: health,
@@ -353,6 +357,48 @@ void main() {
           .keepingCategories([food]);
       expect(d.singleCategoryId, isNull);
       expect(d.items[2].categoryId, isNull);
+    });
+  });
+
+  group('the default account (FR-RCP-008)', () {
+    const cash = AccountOption(id: 1, name: 'Cash', balanceCents: 0);
+    const card = AccountOption(
+      id: 2,
+      name: 'Card',
+      type: AccountType.creditCard,
+      balanceCents: 0,
+    );
+
+    ReceiptReviewDraft paidBy(PaymentMethod? method) =>
+        ReceiptReviewDraft.fromScanned(
+          scanned(paymentMethod: method),
+          today: today,
+        );
+
+    test('carries the payment method and opens on no account', () {
+      expect(paidBy(PaymentMethod.card).paymentMethod, PaymentMethod.card);
+      expect(paidBy(PaymentMethod.card).accountId, isNull);
+      expect(draft().paymentMethod, isNull);
+    });
+
+    test('a card receipt opens on the card, a cash receipt on cash, '
+        'whichever is listed first', () {
+      expect(paidBy(PaymentMethod.card).defaultAccount([cash, card]), 2);
+      expect(paidBy(PaymentMethod.cash).defaultAccount([card, cash]), 1);
+    });
+
+    test('the first account when the receipt did not say or nothing '
+        'matches, and null with no accounts', () {
+      expect(paidBy(null).defaultAccount([card, cash]), 2);
+      expect(paidBy(PaymentMethod.card).defaultAccount([cash]), 1);
+      expect(paidBy(PaymentMethod.card).defaultAccount([]), isNull);
+    });
+
+    test('an edit keeps the payment method', () {
+      expect(
+        paidBy(PaymentMethod.card).withAccount(1).rename(0, 'X').paymentMethod,
+        PaymentMethod.card,
+      );
     });
   });
 

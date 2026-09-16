@@ -1,40 +1,8 @@
 import 'package:equatable/equatable.dart';
 
-/// What kind of place money sits in. FR-ACC-001.
-///
-/// The distinction is presentational — every type behaves identically in the
-/// ledger — but it is what lets a person recognise their own accounts at a
-/// glance, and later lets the plan generator treat a credit card differently
-/// from cash if it ever needs to.
-enum AccountType {
-  /// Notes and coins.
-  cash('cash'),
+import '../../../../core/ports/account_type.dart';
 
-  /// A current or savings account.
-  bank('bank'),
-
-  /// Money owed rather than held. Its balance is normally negative.
-  creditCard('credit_card'),
-
-  /// eZ Cash, FriMi, a mobile wallet.
-  digitalWallet('digital_wallet'),
-
-  /// Held in a cryptocurrency.
-  crypto('crypto'),
-
-  /// Anything the list above does not describe.
-  custom('custom');
-
-  const AccountType(this.storageValue);
-
-  /// The exact string the schema's `CHECK` constraint permits.
-  ///
-  /// Written out rather than derived from `name`, because `creditCard.name` is
-  /// `creditCard` and the column accepts only `credit_card`. The same trap as
-  /// `TransferDirection.incoming` against `'in'` (E-16), and it is worth
-  /// spelling out twice rather than discovering twice.
-  final String storageValue;
-}
+export '../../../../core/ports/account_type.dart';
 
 /// A place money sits: Cash, a payment card, a bank account. FR-ACC-001.
 ///
