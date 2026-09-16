@@ -39,6 +39,10 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
       _attempt(() => _scans.insert(ReceiptScanModel.fromEntity(scan)));
 
+  @override
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory() =>
+      _attempt(_scans.listAll);
+
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {
       return Right(await body());

@@ -30,6 +30,10 @@ class _FakeReceipts implements ReceiptRepository {
   @override
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory() =>
+      throw UnimplementedError();
 }
 
 /// One keyword — rice is Food — so a suggestion can be seen to arrive.

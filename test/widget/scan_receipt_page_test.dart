@@ -55,6 +55,10 @@ class _FakeDevice implements ReceiptRepository {
   @override
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory() =>
+      throw UnimplementedError();
 }
 
 class _NoDictionary implements KeywordDictionaryRepository {
@@ -111,6 +115,11 @@ void main() {
               ),
             ),
           ),
+          GoRoute(
+            path: Routes.receiptHistory,
+            builder: (context, state) =>
+                const Scaffold(body: Text('the history')),
+          ),
         ],
       ),
     ),
@@ -133,6 +142,16 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('the app bar opens the receipt history', (tester) async {
+    await tester.pumpWidget(boot());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Receipt history'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('the history'), findsOneWidget);
   });
 
   testWidgets('a photo taken is read and opened for review (FR-RCP-002, '

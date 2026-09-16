@@ -16,6 +16,10 @@ class _FakeRepository implements ReceiptRepository {
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
       throw UnimplementedError('confirmScan');
 
+  @override
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory() =>
+      throw UnimplementedError();
+
   Either<Failure, RecognisedText> result = const Right(RecognisedText([]));
   String? askedFor;
 

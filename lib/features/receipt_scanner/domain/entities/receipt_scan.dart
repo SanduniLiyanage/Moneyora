@@ -59,12 +59,18 @@ class ReceiptScanItem extends Equatable {
 /// is one lookup and "what did this receipt buy" is one query. The header
 /// fields mirror [ParsedReceipt]'s and are nullable for the same reason —
 /// the review screen may leave what the parser could not read.
+///
+/// [scannedAt] is the one field the receipt itself does not carry: when
+/// the record was written. FR-RCP-013's history is ordered by it and
+/// shows it when [receiptDate] was not read — a receipt with no date on
+/// the list is one the user cannot place.
 class ReceiptScan extends Equatable {
   /// Creates a scan record.
   const ReceiptScan({
     required this.imagePath,
     required this.status,
     this.id,
+    this.scannedAt,
     this.merchantName,
     this.receiptDate,
     this.totalCents,
@@ -76,6 +82,9 @@ class ReceiptScan extends Equatable {
 
   /// Row id, null before it is saved.
   final int? id;
+
+  /// When the record was written; null before it is saved.
+  final DateTime? scannedAt;
 
   /// Where the photo lives on disk. FR-RCP-012's encryption at rest is a
   /// later slice; the path is what links the photo either way.
@@ -108,6 +117,7 @@ class ReceiptScan extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    scannedAt,
     imagePath,
     merchantName,
     receiptDate,

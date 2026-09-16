@@ -22,6 +22,10 @@ class _FakeRepository implements ReceiptRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory() =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) =>
       throw UnimplementedError();
 }

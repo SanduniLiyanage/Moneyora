@@ -9,7 +9,8 @@ import '../providers/receipt_scanner_providers.dart';
 
 /// Scan Receipt: a photo from the camera or the gallery, read on device,
 /// and handed to the review screen. FR-RCP-001, FR-RCP-002, FR-RCP-004;
-/// the SDD's SCR-013.
+/// the SDD's SCR-013. The receipts already scanned (FR-RCP-013) are one
+/// tap away on the app bar, the way a camera keeps its roll.
 ///
 /// Two buttons and a wait. The SDD's "camera viewfinder" is the
 /// platform's own camera app, opened by `image_picker` — a viewfinder of
@@ -47,7 +48,16 @@ class ScanReceiptPage extends ConsumerWidget {
     final error = attempt.error;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan Receipt')),
+      appBar: AppBar(
+        title: const Text('Scan Receipt'),
+        actions: [
+          IconButton(
+            tooltip: 'Receipt history',
+            icon: const Icon(Icons.history),
+            onPressed: () => context.push(Routes.receiptHistory),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
