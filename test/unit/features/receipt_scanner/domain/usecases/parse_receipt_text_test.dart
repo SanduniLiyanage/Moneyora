@@ -91,6 +91,35 @@ Saved Value : 0.01
 Card No : 1446 BOC
 ''';
 
+/// The same receipt as ML Kit actually read it (bill1.jpg on the emulator,
+/// 2026-09-16, the `[receipt-ocr]` rows verbatim): the merchant misread,
+/// `Bill` as `Bil|`, the bag's quantity lost (`0.01 X 0.01`) and its
+/// "Saved Value" label lost too. The transcription above pins the rules;
+/// this pins that the rules survive what OCR does to the print.
+const boutiqueAsRead = '''
+La Viventey
+No:125, Srimath Anagar ika Dha rmapa la mw
+Colombo 07
+TEL: 0112 335 773
+WWw.lavivente. Ik
+Date : 20/08/2026 Operator: UPEKSHA
+Bil| No: 00000026 Unit 1
+Ln Product Price Qty Amount
+S/M 0142
+01 CASUAL TOP EVO02
+2000167-BLK/XS
+2790.00 X 1 2790.00
+02 1010002 M BAG 12X17
+0.01 X 0.01
+SPECIAL DISCOUNT 50% -0.01
+SUB TOTAL 2790.00
+MASTER CARD 2790.00
+NO OF QTY sOLD : 2
+TIME : 05:12:13 PM
+0.01
+Card No : 1446 BOC
+''';
+
 ParsedReceipt parse(String text) =>
     ParseReceiptText.parse(RecognisedText.fromString(text));
 
@@ -104,7 +133,7 @@ void main() {
       expect(receipt.receiptNumber, '4521');
     });
 
-    test('reads every item and nothing else', () {
+    test('reads every item and nothing else, the discount off the last', () {
       expect(receipt.items, const [
         ReceiptLineItem(name: 'RICE 5KG', totalPriceCents: 125000),
         ReceiptLineItem(
@@ -114,7 +143,7 @@ void main() {
           totalPriceCents: 48000,
         ),
         ReceiptLineItem(name: 'BREAD', totalPriceCents: 18000),
-        ReceiptLineItem(name: 'SHAMPOO 200ML', totalPriceCents: 65000),
+        ReceiptLineItem(name: 'SHAMPOO 200ML', totalPriceCents: 60000),
       ]);
     });
 
@@ -123,8 +152,8 @@ void main() {
       expect(receipt.taxCents, 37650);
     });
 
-    test('knows the items do not account for the total', () {
-      expect(receipt.itemsSumCents, 256000);
+    test('the items add up to the sub-total, not to the total with VAT', () {
+      expect(receipt.itemsSumCents, 251000);
       expect(receipt.itemsMatchTotal, isFalse);
     });
   });
@@ -214,12 +243,85 @@ void main() {
       expect(receipt.items.last.totalPriceCents, 18000);
     });
 
-    test('a negative line is not an item', () {
+    test('a negative line is a discount on the item above it, not an item', () {
       final receipt = parse(
         'SHOP\nRICE 1250.00\nLOYALTY -125.00\nTOTAL 1125.00',
       );
 
+      expect(receipt.items, const [
+        ReceiptLineItem(name: 'RICE', totalPriceCents: 112500),
+      ]);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+  });
+
+  group('discounts', () {
+    test('a discount label without the minus is still a discount', () {
+      final receipt = parse('SHOP\nRICE 1250.00\nDISCOUNT 10% 125.00');
+
+      expect(receipt.items.single.totalPriceCents, 112500);
+    });
+
+    test('a discount equal to the item above it cancels the item', () {
+      final receipt = parse(
+        'SHOP\nRICE 1250.00\nBAG 0.01\nSPECIAL DISCOUNT 50% -0.01\n'
+        'TOTAL 1250.00',
+      );
+
       expect(receipt.items.map((i) => i.name), ['RICE']);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('the unit price follows the discount when it still divides', () {
+      final divides = parse('SHOP\nMILK 2 x 240.00 480.00\nDISC -80.00');
+      expect(divides.items.single.quantity, 2);
+      expect(divides.items.single.unitPriceCents, 20000);
+      expect(divides.items.single.totalPriceCents, 40000);
+
+      final odd = parse('SHOP\nMILK 2 x 240.00 480.00\nDISC -75.01');
+      expect(odd.items.single.unitPriceCents, isNull);
+      expect(odd.items.single.totalPriceCents, 40499);
+    });
+
+    test('a discount larger than the item above it is spread over every '
+        'item in proportion, to the cent', () {
+      final receipt = parse(
+        'SHOP\nRICE 1000.00\nBREAD 100.00\nMILK 50.00\nPROMO -230.00\n'
+        'TOTAL 920.00',
+      );
+
+      // 1000 : 100 : 50 of 230.00 is 200.00 : 20.00 : 10.00 exactly.
+      expect(receipt.items.map((i) => i.totalPriceCents), [80000, 8000, 4000]);
+      expect(receipt.itemsMatchTotal, isTrue);
+
+      final uneven = parse(
+        'SHOP\nA 10.00\nB 10.00\nC 10.00\nOFF -20.01\nTOTAL 9.99',
+      );
+      expect(uneven.itemsSumCents, 999);
+    });
+
+    test('a bill-wide discount that covers everything leaves no items', () {
+      final receipt = parse('SHOP\nA 10.00\nB 5.00\nVOUCHER -15.00');
+
+      expect(receipt.items, isEmpty);
+    });
+
+    test('TOTAL DISCOUNT and SAVED VALUE are summaries, never applied', () {
+      final receipt = parse(
+        'SHOP\nRICE 1250.00\nDISCOUNT -125.00\nTOTAL DISCOUNT 125.00\n'
+        'SUB TOTAL 1125.00\nYOU SAVED 125.00\nTOTAL 1125.00',
+      );
+
+      expect(receipt.items.single.totalPriceCents, 112500);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('a discount before any item, or after the total, changes nothing', () {
+      final before = parse('SHOP\nDISCOUNT -50.00\nRICE 1250.00');
+      expect(before.items.single.totalPriceCents, 125000);
+
+      final after = parse('SHOP\nRICE 1250.00\nTOTAL 1250.00\nDISCOUNT -50.00');
+      expect(after.items.single.totalPriceCents, 125000);
     });
   });
 
@@ -382,16 +484,18 @@ void main() {
 
     test('a three-line item is one item, named without its line number '
         'and code, priced as PRICE X QTY', () {
-      expect(receipt.items.length, 2);
-      final top = receipt.items[0];
+      final top = receipt.items.single;
       expect(top.name, 'CASUAL TOP EV002 2000167-BLK/XS');
       expect(top.quantity, 1);
       expect(top.unitPriceCents, 279000);
       expect(top.totalPriceCents, 279000);
+    });
 
-      final bag = receipt.items[1];
-      expect(bag.name, 'M BAG 12X17');
-      expect(bag.totalPriceCents, 1);
+    test('the 50% discount cancels the one-cent bag, so the items add up '
+        'to the sub-total', () {
+      expect(receipt.items.map((i) => i.name), isNot(contains('M BAG 12X17')));
+      expect(receipt.itemsSumCents, 279000);
+      expect(receipt.itemsMatchTotal, isTrue);
     });
 
     test('SUB TOTAL is the total when nothing says TOTAL, the card line '
@@ -401,15 +505,27 @@ void main() {
       expect(receipt.items.map((i) => i.name), isNot(contains('Saved Value')));
     });
 
-    test('the discount is dropped whether or not OCR kept its minus', () {
+    test('the discount cancels the bag whether or not OCR kept its minus', () {
       final lostMinus = parse(boutique.replaceFirst('-0.01', '0.01'));
       expect(lostMinus.items.map((i) => i.name), [
         'CASUAL TOP EV002 2000167-BLK/XS',
-        'M BAG 12X17',
       ]);
 
       final dash = parse(boutique.replaceFirst('-0.01', '–0.01'));
-      expect(dash.items.length, 2);
+      expect(dash.items.length, 1);
+    });
+
+    test('without the discount line the bag is an item and the sum is off '
+        'by a cent, which the review screen is there to show', () {
+      final undiscounted = parse(
+        boutique.replaceFirst('SPECIAL DISCOUNT 50% -0.01\n', ''),
+      );
+
+      expect(undiscounted.items.map((i) => i.name), [
+        'CASUAL TOP EV002 2000167-BLK/XS',
+        'M BAG 12X17',
+      ]);
+      expect(undiscounted.itemsMatchTotal, isFalse);
     });
 
     test('the card figure is the total when there is no sub-total either, '
@@ -423,7 +539,7 @@ void main() {
             .replaceFirst('MASTER CARD 2790.00', 'CASH 3000.00'),
       );
       expect(cash.totalCents, isNull);
-      expect(cash.items.length, 2);
+      expect(cash.items.length, 1);
     });
 
     test('a column-title line never joins an item name', () {
@@ -438,6 +554,54 @@ void main() {
     test('a name that is only a code is kept rather than emptied', () {
       final receipt = parse('SHOP\n1234567 450.00 X 1 450.00\nTOTAL 450.00');
       expect(receipt.items.single.name, '1234567');
+    });
+  });
+
+  group('the boutique receipt — as ML Kit read it', () {
+    final receipt = parse(boutiqueAsRead);
+
+    test('the header survives Bil| and a misread merchant', () {
+      // The merchant is what OCR read; FR-RCP-008's review screen is where
+      // a misread name is corrected, not the parser.
+      expect(receipt.merchantName, 'La Viventey');
+      expect(receipt.receiptDate, DateTime(2026, 8, 20, 17, 12));
+      expect(receipt.receiptNumber, '00000026');
+    });
+
+    test('one item, the bag cancelled, and the items add up to the total', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'CASUAL TOP EVO02 2000167-BLK/XS',
+          unitPriceCents: 279000,
+          totalPriceCents: 279000,
+        ),
+      ]);
+      expect(receipt.totalCents, 279000);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('a lost quantity after PRICE X is not part of the name', () {
+      final undiscounted = parse(
+        boutiqueAsRead.replaceFirst('SPECIAL DISCOUNT 50% -0.01\n', ''),
+      );
+
+      expect(
+        undiscounted.items.last,
+        const ReceiptLineItem(
+          name: 'M BAG 12X17',
+          unitPriceCents: 1,
+          totalPriceCents: 1,
+        ),
+      );
+
+      final two = parse('SHOP\nBREAD\n150.00 X 300.00\nTOTAL 300.00');
+      expect(two.items.single.quantity, 2);
+      expect(two.items.single.unitPriceCents, 15000);
+
+      final inexact = parse('SHOP\nBREAD\n140.00 X 300.00\nTOTAL 300.00');
+      expect(inexact.items.single.name, 'BREAD');
+      expect(inexact.items.single.quantity, 1);
+      expect(inexact.items.single.unitPriceCents, isNull);
     });
   });
 

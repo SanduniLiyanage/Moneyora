@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
@@ -71,8 +73,21 @@ import '../entities/recognised_text.dart';
 ///   reads its first item's name as the merchant; FR-RCP-008's review
 ///   screen is where that is corrected, and guessing further here would
 ///   mis-name real merchants to fix an unusual receipt.
-/// - **Negative lines are not items.** A discount subtracts from the
-///   total; FR-RCP-009 makes an expense of every item.
+/// - **A discount reduces the item above it.** A boutique prints
+///   `SPECIAL DISCOUNT 50% -0.01` under the line it discounts, a
+///   supermarket prints `DISCOUNT -50.00` under the last item; either way
+///   the figure comes off the line above, and a line taken to nothing is
+///   dropped — a cancelled item is not an expense (FR-RCP-009 makes one
+///   of every item). A discount larger than the item above it is the
+///   bill's, and is spread across every item in proportion so the items
+///   still add up to what was paid. A line is a discount when its label
+///   says so, with or without the minus — OCR loses one as often as it
+///   keeps it — or when it is negative. `TOTAL DISCOUNT` and `SAVED
+///   VALUE` are summaries of discounts already printed and are never
+///   applied.
+/// - **`PRICE X` with no count is a lost quantity.** ML Kit read the bag
+///   as `0.01 X 0.01`; the figure before the `X` is the unit price and
+///   the count is derived when the total divides by it exactly.
 /// - **A unit price is stated or exact.** Read from `qty x price` when
 ///   printed; derived as `total ÷ qty` only when the division is exact;
 ///   null otherwise, rather than a rounded figure the receipt never showed.
@@ -179,9 +194,14 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
         band = _Band.footer;
         continue;
       }
-      if (band == _Band.footer ||
-          effective.cents < 0 ||
-          _bodyNoise.hasMatch(effective.rest)) {
+      if (band == _Band.footer) continue;
+      if (band == _Band.body &&
+          (effective.cents < 0 || _discountLabel.hasMatch(effective.rest)) &&
+          !_discountSummary.hasMatch(effective.rest)) {
+        _applyDiscount(items, effective.cents.abs());
+        continue;
+      }
+      if (effective.cents < 0 || _bodyNoise.hasMatch(effective.rest)) {
         continue;
       }
       if (band == _Band.header && !effective.startsBody) continue;
@@ -204,6 +224,66 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
   /// Whitespace collapsed to single spaces, ends trimmed.
   static String _collapse(String line) =>
       line.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  // -- Discounts ----------------------------------------------------------
+
+  /// Takes [amount] off the last of [items], or off all of them in
+  /// proportion when it is more than the last one cost. Items reduced to
+  /// nothing are removed. A discount with no item above it is ignored.
+  static void _applyDiscount(List<ReceiptLineItem> items, int amount) {
+    if (items.isEmpty || amount == 0) return;
+    final last = items.last;
+    if (amount <= last.totalPriceCents) {
+      items.removeLast();
+      final reduced = _less(last, amount);
+      if (reduced != null) items.add(reduced);
+      return;
+    }
+    final sum = items.fold(0, (s, i) => s + i.totalPriceCents);
+    if (sum <= 0) return;
+    final off = min(amount, sum);
+    // Largest-remainder so the shares add up to the discount exactly.
+    final shares = <int>[];
+    final remainders = <(int, int)>[];
+    var given = 0;
+    for (final (index, item) in items.indexed) {
+      final exact = off * item.totalPriceCents;
+      final share = exact ~/ sum;
+      shares.add(share);
+      remainders.add((index, exact - share * sum));
+      given += share;
+    }
+    remainders.sort((a, b) => b.$2.compareTo(a.$2));
+    for (var i = 0; i < off - given; i++) {
+      shares[remainders[i].$1]++;
+    }
+    final reduced = [
+      for (final (index, item) in items.indexed) _less(item, shares[index]),
+    ];
+    items
+      ..clear()
+      ..addAll(reduced.nonNulls);
+  }
+
+  /// [item] with [amount] off its total, or null when nothing is left. A
+  /// unit price the receipt printed is re-derived from what was paid, and
+  /// dropped when that no longer divides; a line that had none gets none.
+  static ReceiptLineItem? _less(ReceiptLineItem item, int amount) {
+    if (amount == 0) return item;
+    final total = item.totalPriceCents - amount;
+    if (total <= 0) return null;
+    final count = item.quantity;
+    final whole = count >= 1 && count == count.roundToDouble();
+    return ReceiptLineItem(
+      name: item.name,
+      quantity: item.quantity,
+      unitPriceCents:
+          item.unitPriceCents != null && whole && total % count.round() == 0
+          ? total ~/ count.round()
+          : null,
+      totalPriceCents: total,
+    );
+  }
 
   // -- Dates --------------------------------------------------------------
 
@@ -293,9 +373,10 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
   // -- Receipt number -----------------------------------------------------
 
   /// `Receipt No: 4521`, `INV# A-0042`, `Bill 000123`. The token must hold
-  /// a digit, so `INVOICE TOTAL` captures nothing.
+  /// a digit, so `INVOICE TOTAL` captures nothing. `Bil|` is how ML Kit
+  /// read `Bill` on the first real receipt.
   static final _receiptNumber = RegExp(
-    r'\b(?:receipt|invoice|inv|bill|rcpt|txn|trans(?:action)?)\s*'
+    r'\b(?:receipt|invoice|inv|bil[l|1i]?|rcpt|txn|trans(?:action)?)\s*'
     r'(?:no|number|num|id|#)?\.?\s*[:#-]?\s*'
     r'((?=[A-Z0-9/-]*\d)[A-Z0-9][A-Z0-9/-]*)',
     caseSensitive: false,
@@ -376,6 +457,20 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
     r'|^(?:no\.?\s*of\s*)?(?:qty|quantity|items?|pcs|pieces)\b',
     caseSensitive: false,
   );
+
+  /// A priced line in the body that takes money off the item above it,
+  /// whether or not OCR kept its minus sign.
+  static final _discountLabel = RegExp(
+    r'\b(?:discount|disc|off|promo(?:tion)?|rebate|coupon|voucher)\b',
+    caseSensitive: false,
+  );
+
+  /// A summary of discounts already printed line by line, never applied
+  /// again.
+  static final _discountSummary = RegExp(
+    r'\btotal\s*(?:discount|savings?)\b|\bsav(?:ed|ings?)\b',
+    caseSensitive: false,
+  );
 }
 
 enum _Band { header, body, footer }
@@ -414,6 +509,12 @@ class _Priced {
   static final _qtyByUnit = RegExp(
     '(\\d+(?:\\.\\d+)?)\\s*(?:kg|g|l|ml|pcs?)?\\s*[x×@*]\\s*$_currency\\s*'
     '$_figure\\s*=?\\s*\$',
+    caseSensitive: false,
+  );
+
+  /// `0.01 X` at the end of [rest]: a unit price whose count OCR lost.
+  static final _priceByLostQty = RegExp(
+    '$_currency\\s*$_figure\\s*[x×@*]\\s*\$',
     caseSensitive: false,
   );
 
@@ -495,6 +596,14 @@ class _Priced {
       } else {
         quantity = double.parse(first);
         unit = centsOf(m[2]!, m[3]);
+      }
+      name = name.substring(0, m.start);
+    } else if (_priceByLostQty.firstMatch(name) case final m?
+        when m[2] != null) {
+      final price = centsOf(m[1]!, m[2]);
+      if (price > 0 && cents % price == 0) {
+        unit = price;
+        quantity = (cents ~/ price).toDouble();
       }
       name = name.substring(0, m.start);
     } else if (_trailingQty.firstMatch(name) case final m?) {
