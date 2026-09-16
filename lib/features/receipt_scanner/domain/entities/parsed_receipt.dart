@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import 'payment_method.dart';
 import 'receipt_line_item.dart';
 
 /// What the parser found on a receipt. FR-RCP-005, FR-RCP-006.
@@ -19,6 +20,7 @@ class ParsedReceipt extends Equatable {
     this.totalCents,
     this.taxCents,
     this.receiptNumber,
+    this.paymentMethod,
   });
 
   /// The store's name, as printed at the top.
@@ -40,6 +42,9 @@ class ParsedReceipt extends Equatable {
   /// The receipt's own printed identifier (E-31).
   final String? receiptNumber;
 
+  /// How the receipt says it was paid, or null when no line said.
+  final PaymentMethod? paymentMethod;
+
   /// What the item lines add up to.
   int get itemsSumCents =>
       items.fold(0, (sum, item) => sum + item.totalPriceCents);
@@ -58,5 +63,6 @@ class ParsedReceipt extends Equatable {
     totalCents,
     taxCents,
     receiptNumber,
+    paymentMethod,
   ];
 }

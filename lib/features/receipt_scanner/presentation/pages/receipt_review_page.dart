@@ -126,12 +126,14 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _CatalogError(error: error),
           data: (accounts) {
-            // Default to the first account rather than making the user
-            // choose on a fresh install where there is only one — the
-            // entry screen's rule, and the one place the draft is changed
-            // outside an edit.
-            if (_draft.accountId == null && accounts.isNotEmpty) {
-              _draft = _draft.withAccount(accounts.first.id);
+            // Default to the account the receipt was paid from, or the
+            // first one, rather than making the user choose on a fresh
+            // install where there is only one — the entry screen's rule,
+            // and the one place the draft is changed outside an edit.
+            if (_draft.accountId == null) {
+              if (_draft.defaultAccount(accounts) case final id?) {
+                _draft = _draft.withAccount(id);
+              }
             }
             _draft = _draft.keepingCategories([
               for (final c in categories) c.id,

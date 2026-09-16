@@ -18,6 +18,7 @@ import 'package:moneyora/features/receipt_scanner/domain/entities/categorised_re
 import 'package:moneyora/features/receipt_scanner/domain/entities/category_suggestion.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/keyword_match.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/parsed_receipt.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/payment_method.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_image_source.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_scan.dart';
@@ -129,7 +130,12 @@ const _salary = CategoryOption(
   isExpense: false,
 );
 const _cash = AccountOption(id: 1, name: 'Cash', balanceCents: 500000);
-const _card = AccountOption(id: 2, name: 'Card', balanceCents: 1500000);
+const _card = AccountOption(
+  id: 2,
+  name: 'Card',
+  type: AccountType.creditCard,
+  balanceCents: 1500000,
+);
 
 const _rice = ReceiptLineItem(
   name: 'RICE 5KG',
@@ -160,6 +166,7 @@ ScannedReceipt _scanned({
     CategorisedItem(item: _panadol, suggestion: _byMerchant),
   ],
   int? totalCents = 170000,
+  PaymentMethod? paymentMethod,
 }) => ScannedReceipt(
   imagePath: '/no/such/keells.jpg',
   receipt: CategorisedReceipt(
@@ -170,6 +177,7 @@ ScannedReceipt _scanned({
       totalCents: totalCents,
       taxCents: 12000,
       receiptNumber: 'INV-0042',
+      paymentMethod: paymentMethod,
     ),
     items: items,
     merchantCategoryId: 9,
@@ -383,6 +391,38 @@ void main() {
     await chooseCategory(tester, 1, 'Food');
     expect(find.text('Choose a category for every item.'), findsNothing);
     expect(confirmEnabled(tester), isTrue);
+  });
+
+  testWidgets('a receipt paid by card opens on the card account, and the '
+      'user can still change it', (tester) async {
+    await open(tester, scanned: _scanned(paymentMethod: PaymentMethod.card));
+
+    bool selected(String name) => tester
+        .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, name))
+        .selected;
+    expect(selected('Card'), isTrue);
+    expect(selected('Cash'), isFalse);
+    expect(confirmEnabled(tester), isTrue);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Cash'));
+    await tester.pumpAndSettle();
+    expect(selected('Cash'), isTrue);
+  });
+
+  testWidgets('a receipt paid by card with no card account opens on the '
+      'first account', (tester) async {
+    await open(
+      tester,
+      scanned: _scanned(paymentMethod: PaymentMethod.card),
+      accounts: const [_cash],
+    );
+
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Cash'))
+          .selected,
+      isTrue,
+    );
   });
 
   testWidgets('with no accounts, says so and holds Confirm', (tester) async {

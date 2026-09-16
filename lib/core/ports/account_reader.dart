@@ -2,19 +2,25 @@ import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../errors/failures.dart';
+import 'account_type.dart';
+
+export 'account_type.dart';
 
 /// One account money can sit in, seen from outside `features/accounts/`.
 /// FR-ACC-001.
 ///
-/// Deliberately narrower than the `Account` entity — no type, no initial
-/// balance, no archived flag — because a consumer outside the accounts
-/// feature only ever renders a picker, never edits the row.
+/// Deliberately narrower than the `Account` entity — no initial balance,
+/// no archived flag — because a consumer outside the accounts feature only
+/// ever renders a picker, never edits the row. The [type] is there for one
+/// consumer: the receipt scanner defaults its picker to a card account when
+/// the receipt says it was paid by card (FR-RCP-008).
 class AccountOption extends Equatable {
   /// Creates an account option.
   const AccountOption({
     required this.id,
     required this.name,
     required this.balanceCents,
+    this.type = AccountType.cash,
     this.icon = 'wallet',
     this.currency = 'LKR',
   });
@@ -24,6 +30,11 @@ class AccountOption extends Equatable {
 
   /// What the user calls it — Cash, Payment card.
   final String name;
+
+  /// What kind of account it is, from `accounts.type`. Defaults to cash,
+  /// which is also the `Account` entity's default and the seed's one
+  /// account.
+  final AccountType type;
 
   /// The cached balance (E-18), for display only.
   final int balanceCents;
@@ -39,7 +50,7 @@ class AccountOption extends Equatable {
   final String currency;
 
   @override
-  List<Object?> get props => [id, name, balanceCents, icon, currency];
+  List<Object?> get props => [id, name, type, balanceCents, icon, currency];
 }
 
 /// Reads the account list from outside `features/accounts/`. E-27.

@@ -114,6 +114,7 @@ class AccountRepositoryImpl implements AccountRepository, AccountReader {
           AccountOption(
             id: account.id!,
             name: account.name,
+            type: account.type,
             balanceCents: account.currentBalanceCents,
             icon: account.icon,
             currency: account.currency,
