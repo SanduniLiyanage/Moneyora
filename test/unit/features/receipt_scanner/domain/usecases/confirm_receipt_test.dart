@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
@@ -33,6 +35,21 @@ class _FakeReceipts implements ReceiptRepository {
   final _Log _log;
   ReceiptScan? saved;
   Either<Failure, int> result = const Right(42);
+  String? kept;
+  Either<Failure, String> keepResult = const Right(
+    '/documents/receipts/a1b2.jpg.enc',
+  );
+
+  @override
+  Future<Either<Failure, String>> keepImage(String imagePath) async {
+    _log.calls.add('keep');
+    kept = imagePath;
+    return keepResult;
+  }
+
+  @override
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath) =>
+      throw UnimplementedError();
 
   @override
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) async {
@@ -159,12 +176,19 @@ void main() {
       );
     });
 
+    test('keeps the photo, and the scan points at the kept copy, not the '
+        "picker's file (FR-RCP-012)", () async {
+      await confirm(receipt());
+
+      expect(receipts.kept, '/receipts/keells.jpg');
+      expect(receipts.saved!.imagePath, '/documents/receipts/a1b2.jpg.enc');
+    });
+
     test('stores the scan as confirmed, with every kept line', () async {
       await confirm(receipt());
 
       final scan = receipts.saved!;
       expect(scan.status, ReceiptScanStatus.confirmed);
-      expect(scan.imagePath, '/receipts/keells.jpg');
       expect(scan.merchantName, 'KEELLS SUPER');
       expect(scan.receiptDate, DateTime(2026, 4, 3, 14, 32));
       expect(scan.totalCents, 190000);
@@ -188,7 +212,7 @@ void main() {
         expect(e.date, postedOn);
         expect(e.time, '14:32');
         expect(e.receiptScanId, 42);
-        expect(e.receiptImagePath, '/receipts/keells.jpg');
+        expect(e.receiptImagePath, '/documents/receipts/a1b2.jpg.enc');
       }
     });
 
@@ -257,13 +281,13 @@ void main() {
       },
     );
 
-    test('writes the record, then per line the lesson and the count, then '
-        'the expenses', () async {
+    test('keeps the photo, writes the record, then per line the lesson '
+        'and the count, then the expenses', () async {
       await confirm(receipt());
 
       // rice: count only. shampoo: learn, then count — so the correction
       // is counted as applied on the line that taught it.
-      expect(log.calls, ['scan', 'count', 'learn', 'count', 'post']);
+      expect(log.calls, ['keep', 'scan', 'count', 'learn', 'count', 'post']);
     });
   });
 
@@ -336,13 +360,27 @@ void main() {
   });
 
   group('what fails midway', () {
+    test('the photo failing to be kept writes nothing', () async {
+      receipts.keepResult = const Left(EncryptionFailure('no key'));
+
+      final result = await confirm(receipt());
+
+      expect(
+        result,
+        const Left<Failure, ReceiptConfirmation>(EncryptionFailure('no key')),
+      );
+      expect(log.calls, ['keep']);
+      expect(receipts.saved, isNull);
+      expect(expenses.posted, isNull);
+    });
+
     test('the record failing posts nothing', () async {
       receipts.result = const Left(CacheFailure());
 
       final result = await confirm(receipt());
 
       expect(result, const Left<Failure, ReceiptConfirmation>(CacheFailure()));
-      expect(log.calls, ['scan']);
+      expect(log.calls, ['keep', 'scan']);
       expect(expenses.posted, isNull);
     });
 
@@ -352,7 +390,7 @@ void main() {
       final result = await confirm(receipt());
 
       expect(result, const Left<Failure, ReceiptConfirmation>(CacheFailure()));
-      expect(log.calls, ['scan', 'count', 'learn']);
+      expect(log.calls, ['keep', 'scan', 'count', 'learn']);
       expect(expenses.posted, isNull);
     });
 
@@ -364,7 +402,7 @@ void main() {
       final result = await confirm(receipt());
 
       expect(result, const Left<Failure, ReceiptConfirmation>(CacheFailure()));
-      expect(log.calls, ['scan', 'count']);
+      expect(log.calls, ['keep', 'scan', 'count']);
       expect(expenses.posted, isNull);
     });
 
@@ -376,7 +414,7 @@ void main() {
       final result = await confirm(receipt());
 
       expect(result.isLeft(), isTrue);
-      expect(log.calls, ['scan', 'count', 'learn', 'count', 'post']);
+      expect(log.calls, ['keep', 'scan', 'count', 'learn', 'count', 'post']);
     });
   });
 

@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +28,7 @@ import 'package:moneyora/features/receipt_scanner/domain/entities/scanned_receip
 import 'package:moneyora/features/receipt_scanner/domain/repositories/keyword_dictionary_repository.dart';
 import 'package:moneyora/features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/confirm_receipt.dart';
+import 'package:moneyora/features/receipt_scanner/domain/usecases/load_receipt_image.dart';
 import 'package:moneyora/features/receipt_scanner/presentation/pages/receipt_review_page.dart';
 import 'package:moneyora/injection.dart';
 
@@ -49,6 +51,23 @@ class _FakeReceipts implements ReceiptRepository {
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) async {
     saved = scan;
     return result;
+  }
+
+  Either<Failure, Uint8List?> image = const Right(null);
+  String? imageAskedFor;
+
+  String? kept;
+
+  @override
+  Future<Either<Failure, String>> keepImage(String imagePath) async {
+    kept = imagePath;
+    return Right('$imagePath.enc');
+  }
+
+  @override
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath) async {
+    imageAskedFor = imagePath;
+    return image;
   }
 
   @override
@@ -215,6 +234,9 @@ void main() {
       confirmReceiptProvider.overrideWith(
         (ref) async => ConfirmReceipt(receipts, dictionary, expenses),
       ),
+      loadReceiptImageProvider.overrideWith(
+        (ref) async => LoadReceiptImage(receipts),
+      ),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light,
@@ -355,7 +377,10 @@ void main() {
 
     final scan = receipts.saved!;
     expect(scan.status, ReceiptScanStatus.confirmed);
-    expect(scan.imagePath, '/no/such/keells.jpg');
+    // The picker's file was kept first (FR-RCP-012); the record points
+    // at the kept copy.
+    expect(receipts.kept, '/no/such/keells.jpg');
+    expect(scan.imagePath, '/no/such/keells.jpg.enc');
     expect(scan.merchantName, 'KEELLS SUPER');
     expect(scan.items.length, 3);
     expect(scan.items[2].suggestedCategoryId, 9);

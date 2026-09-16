@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
@@ -22,6 +24,14 @@ class _FakeRepository implements ReceiptRepository {
 
   Either<Failure, RecognisedText> result = const Right(RecognisedText([]));
   String? askedFor;
+
+  @override
+  Future<Either<Failure, String>> keepImage(String imagePath) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath) =>
+      throw UnimplementedError();
 
   @override
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) async {

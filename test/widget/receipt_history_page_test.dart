@@ -2,7 +2,9 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +24,7 @@ import 'package:moneyora/features/receipt_scanner/domain/repositories/keyword_di
 import 'package:moneyora/features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/categorise_receipt.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/get_scan_history.dart';
+import 'package:moneyora/features/receipt_scanner/domain/usecases/load_receipt_image.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/read_receipt_image.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/scan_receipt.dart';
@@ -51,6 +54,19 @@ class _FakeReceipts implements ReceiptRepository {
   @override
   Future<Either<Failure, String?>> pickImage(ReceiptImageSource source) =>
       throw UnimplementedError();
+
+  Either<Failure, Uint8List?> image = const Right(null);
+  String? imageAskedFor;
+
+  @override
+  Future<Either<Failure, String>> keepImage(String imagePath) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath) async {
+    imageAskedFor = imagePath;
+    return image;
+  }
 
   @override
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) async {
@@ -118,6 +134,15 @@ final _bare = ReceiptScan(
   ],
 );
 
+/// A one-pixel PNG: enough for `Image.memory` to build over, and nothing
+/// here asserts on pixels.
+final _png = Uint8List.fromList(
+  base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB'
+    '0C8AAAAASUVORK5CYII=',
+  ),
+);
+
 final _pending = ReceiptScan(
   id: 3,
   scannedAt: DateTime(2026, 9, 15),
@@ -139,6 +164,9 @@ void main() {
           const ParseReceiptText(),
           CategoriseReceipt(_NoDictionary()),
         ),
+      ),
+      loadReceiptImageProvider.overrideWith(
+        (ref) async => LoadReceiptImage(receipts),
       ),
     ],
     child: MaterialApp.router(
@@ -195,12 +223,38 @@ void main() {
       expect(find.text('—'), findsOneWidget);
     });
 
-    testWidgets('a photo no longer on disk shows a placeholder, not an '
-        'error', (tester) async {
-      await tester.pumpWidget(boot(_FakeReceipts(Right([_keells]))));
+    testWidgets('a photo that is gone shows a placeholder, not an error', (
+      tester,
+    ) async {
+      final receipts = _FakeReceipts(Right([_keells]));
+      await tester.pumpWidget(boot(receipts));
       await tester.pumpAndSettle();
 
+      expect(receipts.imageAskedFor, '/no/such/keells.jpg');
       expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a kept photo is drawn from the bytes the repository '
+        'unlocks (FR-RCP-012)', (tester) async {
+      final receipts = _FakeReceipts(Right([_keells]))..image = Right(_png);
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byIcon(Icons.receipt_long_outlined), findsNothing);
+    });
+
+    testWidgets('a photo that will not unlock shows a lock, and the row '
+        'still stands', (tester) async {
+      final receipts = _FakeReceipts(Right([_keells]))
+        ..image = const Left(EncryptionFailure('altered'));
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+      expect(find.text('KEELLS SUPER'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -280,18 +334,54 @@ void main() {
     });
   });
 
-  testWidgets('tapping a receipt opens its photo, or says it is gone', (
-    tester,
-  ) async {
-    await tester.pumpWidget(boot(_FakeReceipts(Right([_keells]))));
-    await tester.pumpAndSettle();
+  group('the viewer', () {
+    testWidgets('opens the photo from the bytes the repository unlocks', (
+      tester,
+    ) async {
+      final receipts = _FakeReceipts(Right([_keells]))..image = Right(_png);
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('KEELLS SUPER'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('KEELLS SUPER'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(ReceiptHistoryPage), findsNothing);
-    expect(find.text('KEELLS SUPER'), findsOneWidget); // the app bar
-    expect(find.text('The photo is no longer on this phone.'), findsOneWidget);
+      expect(find.byType(ReceiptHistoryPage), findsNothing);
+      expect(find.text('KEELLS SUPER'), findsOneWidget); // the app bar
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
+    });
+
+    testWidgets('says when the photo is gone', (tester) async {
+      await tester.pumpWidget(boot(_FakeReceipts(Right([_keells]))));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('KEELLS SUPER'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InteractiveViewer), findsNothing);
+      expect(
+        find.text('The photo is no longer on this phone.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('says why a photo would not unlock, in the failure\'s '
+        'words', (tester) async {
+      final receipts = _FakeReceipts(Right([_keells]))
+        ..image = const Left(
+          EncryptionFailure('The receipt photo could not be unlocked.'),
+        );
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('KEELLS SUPER'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('The receipt photo could not be unlocked.'),
+        findsOneWidget,
+      );
+    });
   });
 
   group('re-scan (FR-RCP-014)', () {

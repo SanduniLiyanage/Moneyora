@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
 import 'package:moneyora/features/receipt_scanner/data/datasources/receipt_image_local_datasource.dart';
+import 'package:moneyora/features/receipt_scanner/data/datasources/receipt_image_vault.dart';
 import 'package:moneyora/features/receipt_scanner/data/datasources/receipt_scan_local_datasource.dart';
 import 'package:moneyora/features/receipt_scanner/data/models/receipt_scan_model.dart';
 import 'package:moneyora/features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
@@ -57,17 +60,61 @@ class _FakeImages implements ReceiptImageLocalDataSource {
   }
 }
 
+/// A vault that "holds" every `.enc` path and hands the recogniser a
+/// plain copy at a known path, so the test can see which path was read.
+class _FakeVault implements ReceiptImageVault {
+  AppException? throwWith;
+  String? kept;
+  String? readPath;
+  Uint8List? bytes = Uint8List.fromList([1, 2, 3]);
+  final List<String> copies = [];
+  bool copyDeleted = false;
+
+  @override
+  bool holds(String path) => path.endsWith('.enc');
+
+  @override
+  Future<String> keep(String sourcePath) async {
+    if (throwWith case final e?) throw e;
+    kept = sourcePath;
+    return '/documents/receipts/abcd.jpg.enc';
+  }
+
+  @override
+  Future<Uint8List?> read(String path) async {
+    if (throwWith case final e?) throw e;
+    readPath = path;
+    return bytes;
+  }
+
+  @override
+  Future<T> withPlainCopy<T>(
+    String path,
+    Future<T> Function(String plainPath) body,
+  ) async {
+    if (throwWith case final e?) throw e;
+    copies.add(path);
+    try {
+      return await body('/tmp/plain-copy.jpg');
+    } finally {
+      copyDeleted = true;
+    }
+  }
+}
+
 void main() {
   late _FakeOcr ocr;
   late _FakeScans scans;
   late _FakeImages images;
+  late _FakeVault vault;
   late ReceiptRepositoryImpl repository;
 
   setUp(() {
     ocr = _FakeOcr();
     scans = _FakeScans();
     images = _FakeImages();
-    repository = ReceiptRepositoryImpl(ocr, scans, images);
+    vault = _FakeVault();
+    repository = ReceiptRepositoryImpl(ocr, scans, images, vault);
   });
 
   group('pickImage', () {
@@ -113,6 +160,39 @@ void main() {
     ]);
   });
 
+  test('a kept photo is read through a plain copy, which is gone after '
+      '(FR-RCP-012, FR-RCP-014)', () async {
+    ocr.text = RecognisedText.fromString('KEELLS SUPER');
+
+    final result = await repository.scanReceipt(
+      '/documents/receipts/abcd.jpg.enc',
+    );
+
+    expect(vault.copies, ['/documents/receipts/abcd.jpg.enc']);
+    expect(ocr.askedFor, '/tmp/plain-copy.jpg');
+    expect(vault.copyDeleted, isTrue);
+    expect(result.getOrElse((f) => fail('$f')).lines, ['KEELLS SUPER']);
+  });
+
+  test('the picker\'s file is handed to the recogniser as it is', () async {
+    await repository.scanReceipt('/cache/receipt.jpg');
+
+    expect(vault.copies, isEmpty);
+    expect(ocr.askedFor, '/cache/receipt.jpg');
+  });
+
+  test('a kept photo that will not open is an EncryptionFailure, '
+      'message kept', () async {
+    vault.throwWith = const EncryptionException('could not unlock');
+
+    expect(
+      await repository.scanReceipt('/documents/receipts/abcd.jpg.enc'),
+      const Left<Failure, RecognisedText>(
+        EncryptionFailure('could not unlock'),
+      ),
+    );
+  });
+
   test('an OcrException is an OcrFailure, message kept', () async {
     // The datasource's message tells the photo apart from the parse; losing
     // it would leave FR-RCP-011's badge with nothing to say.
@@ -135,6 +215,67 @@ void main() {
         PermissionFailure('Camera access was denied.'),
       ),
     );
+  });
+
+  group('keepImage', () {
+    test('returns where the vault put it', () async {
+      final result = await repository.keepImage('/cache/receipt.jpg');
+
+      expect(vault.kept, '/cache/receipt.jpg');
+      expect(
+        result,
+        const Right<Failure, String>('/documents/receipts/abcd.jpg.enc'),
+      );
+    });
+
+    test('a source that is gone is a CacheFailure, message kept', () async {
+      vault.throwWith = const CacheException('The photo is no longer here.');
+
+      expect(
+        await repository.keepImage('/cache/gone.jpg'),
+        const Left<Failure, String>(
+          CacheFailure('The photo is no longer here.'),
+        ),
+      );
+    });
+
+    test('a key that could not be had is an EncryptionFailure', () async {
+      vault.throwWith = const EncryptionException('no keychain');
+
+      expect(
+        await repository.keepImage('/cache/receipt.jpg'),
+        const Left<Failure, String>(EncryptionFailure('no keychain')),
+      );
+    });
+  });
+
+  group('loadImage', () {
+    test(
+      'returns the vault\'s bytes, or null for a photo that is gone',
+      () async {
+        expect(
+          (await repository.loadImage('/documents/receipts/abcd.jpg.enc'))
+              .getOrElse((f) => fail('$f')),
+          [1, 2, 3],
+        );
+        expect(vault.readPath, '/documents/receipts/abcd.jpg.enc');
+
+        vault.bytes = null;
+        expect(
+          await repository.loadImage('/documents/receipts/gone.jpg.enc'),
+          const Right<Failure, Uint8List?>(null),
+        );
+      },
+    );
+
+    test('a photo that will not open is an EncryptionFailure', () async {
+      vault.throwWith = const EncryptionException('altered');
+
+      expect(
+        await repository.loadImage('/documents/receipts/abcd.jpg.enc'),
+        const Left<Failure, Uint8List?>(EncryptionFailure('altered')),
+      );
+    });
   });
 
   group('confirmScan', () {

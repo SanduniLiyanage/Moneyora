@@ -37,9 +37,11 @@ import '../widgets/receipt_thumbnail.dart';
 /// receipt as a whole does when the mean is low.
 ///
 /// Discard leaves without writing anything. A rejected scan record would
-/// be the honest thing to keep for FR-RCP-013's history, but until
-/// FR-RCP-012 stores the image the record would point at a photo the
-/// picker's cache is free to delete.
+/// be the honest thing to keep for FR-RCP-013's history, but the photo is
+/// kept on Confirm alone (FR-RCP-012), so the record would point at a
+/// file in the picker's cache, which the platform is free to delete. The
+/// thumbnail here is that cache file, drawn through the same provider the
+/// history uses for a kept one.
 class ReceiptReviewPage extends ConsumerStatefulWidget {
   /// Creates the screen for [scanned]. [now] is the clock, injectable for
   /// tests.

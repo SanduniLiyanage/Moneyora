@@ -22,7 +22,9 @@ import '../widgets/receipt_thumbnail.dart';
 /// so a keystroke never blanks the page.
 ///
 /// Tapping a row opens the photo: FR-RCP-012 keeps it "for future
-/// reference", and this is the reference. Re-scan on the row is
+/// reference", encrypted, and this is the reference — drawn from the
+/// bytes [receiptImageProvider] unlocks, since the file on disk is not an
+/// image any more. Re-scan on the row is
 /// FR-RCP-014: the kept photo goes back through the same pipeline the
 /// capture screen runs, past the picker, and opens a fresh review. A
 /// re-scan confirmed is a new record beside the old one — it edits
@@ -222,27 +224,34 @@ class _ReceiptRow extends StatelessWidget {
 }
 
 /// The photo, full size, pinch-to-zoom. FR-RCP-012's "future reference".
-class _ReceiptPhotoPage extends StatelessWidget {
+class _ReceiptPhotoPage extends ConsumerWidget {
   const _ReceiptPhotoPage({required this.scan});
 
   final ReceiptScan scan;
 
   @override
-  Widget build(BuildContext context) {
-    final file = File(scan.imagePath);
+  Widget build(BuildContext context, WidgetRef ref) {
     final merchant = scan.merchantName?.trim();
+    final image = ref.watch(receiptImageProvider(scan.imagePath));
     return Scaffold(
       appBar: AppBar(
         title: Text(
           merchant == null || merchant.isEmpty ? 'Receipt' : merchant,
         ),
       ),
-      body: file.existsSync()
-          ? InteractiveViewer(
-              maxScale: 5,
-              child: Center(child: Image.file(file, fit: BoxFit.contain)),
-            )
-          : const _Message(_ReceiptHistoryPageState.photoGone),
+      body: switch (image) {
+        AsyncData(value: final bytes?) => InteractiveViewer(
+          maxScale: 5,
+          child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
+        ),
+        AsyncData() => const _Message(_ReceiptHistoryPageState.photoGone),
+        AsyncError(:final error) => _Message(
+          error is Failure
+              ? error.message
+              : 'The receipt photo could not be opened.',
+        ),
+        _ => const Center(child: CircularProgressIndicator()),
+      },
     );
   }
 }

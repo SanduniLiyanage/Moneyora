@@ -3,6 +3,8 @@
 /// `KeywordDictionaryRepositoryImpl` does it.
 library;
 
+import 'dart:typed_data';
+
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
@@ -13,19 +15,32 @@ import '../../domain/entities/recognised_text.dart';
 import '../../domain/repositories/receipt_repository.dart';
 import '../datasources/ocr_local_datasource.dart';
 import '../datasources/receipt_image_local_datasource.dart';
+import '../datasources/receipt_image_vault.dart';
 import '../datasources/receipt_scan_local_datasource.dart';
 import '../models/receipt_scan_model.dart';
 
 /// Fulfils [ReceiptRepository] against the device's picker, the on-device
-/// recogniser and the local encrypted database.
+/// recogniser, the local encrypted database and the vault the photos are
+/// kept in.
+///
+/// The one piece of sequencing of its own is in [scanReceipt]: a kept
+/// photo is encrypted (FR-RCP-012) and the recogniser opens paths, so a
+/// re-scan (FR-RCP-014) runs over a plain copy the vault writes for the
+/// call and deletes after. The picker's file is handed over as it is.
 class ReceiptRepositoryImpl implements ReceiptRepository {
-  /// Creates a repository over [ocr] for reading, [scans] for keeping and
-  /// [images] for the photo itself.
-  const ReceiptRepositoryImpl(this._ocr, this._scans, this._images);
+  /// Creates a repository over [ocr] for reading, [scans] for keeping the
+  /// record, [images] for getting the photo and [vault] for keeping it.
+  const ReceiptRepositoryImpl(
+    this._ocr,
+    this._scans,
+    this._images,
+    this._vault,
+  );
 
   final OcrLocalDataSource _ocr;
   final ReceiptScanLocalDataSource _scans;
   final ReceiptImageLocalDataSource _images;
+  final ReceiptImageVault _vault;
 
   @override
   Future<Either<Failure, String?>> pickImage(ReceiptImageSource source) =>
@@ -33,7 +48,19 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
 
   @override
   Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) =>
-      _attempt(() => _ocr.recognise(imagePath));
+      _attempt(
+        () => _vault.holds(imagePath)
+            ? _vault.withPlainCopy(imagePath, _ocr.recognise)
+            : _ocr.recognise(imagePath),
+      );
+
+  @override
+  Future<Either<Failure, String>> keepImage(String imagePath) =>
+      _attempt(() => _vault.keep(imagePath));
+
+  @override
+  Future<Either<Failure, Uint8List?>> loadImage(String imagePath) =>
+      _attempt(() => _vault.read(imagePath));
 
   @override
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
