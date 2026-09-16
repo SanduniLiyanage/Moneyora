@@ -12,6 +12,10 @@ import 'scan_receipt.dart';
 /// A receipt photo to what the review screen opens with: recognised,
 /// parsed, and categorised. FR-RCP-004, FR-RCP-005, FR-RCP-007.
 ///
+/// The path in is any file on the phone: the one the picker just wrote,
+/// or one a past scan kept — FR-RCP-014's re-scan is this use case run
+/// again on a stored path, and needs nothing of its own.
+///
 /// Stages three to five of the pipeline (SDD §7.2), run in order, the
 /// first failure returned as it is: [ScanReceipt]'s `OcrFailure` for an
 /// unreadable photo, [ParseReceiptText]'s for text with no items and no
