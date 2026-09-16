@@ -62,38 +62,11 @@ final receiptAccountsProvider = StreamProvider<List<AccountOption>>((ref) {
       );
 });
 
-/// Gets a photo and reads it, exposing the attempt as an [AsyncValue].
-/// FR-RCP-002, FR-RCP-004 — `PickReceiptImage` and `ReadReceiptImage`'s
-/// first caller from a screen.
-///
-/// The same shape as [ConfirmReceiptController]: the screen renders the
-/// wait, the failure and the result from one value. Returns what was
-/// read so the screen can open the review with it, or null when the
-/// user backed out of the picker — which is not a failure, and leaves
-/// [state] as it was.
-class ScanReceiptController extends AutoDisposeAsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
-  /// Picks from [source] and runs the pipeline; the failure — a refused
-  /// permission, an unreadable photo — is left in [state] for the screen
-  /// to show.
-  Future<ScannedReceipt?> scan(ReceiptImageSource source) async {
-    state = const AsyncValue<void>.loading();
-    final pick = await ref.read(pickReceiptImageProvider.future);
-    final picked = await pick(source);
-    final String path;
-    switch (picked) {
-      case Left(value: final failure):
-        state = AsyncValue<void>.error(failure, StackTrace.current);
-        return null;
-      case Right(value: null):
-        state = const AsyncValue<void>.data(null);
-        return null;
-      case Right(value: final chosen?):
-        path = chosen;
-    }
-
+/// The read stage both scanning controllers end in: the path through
+/// `ReadReceiptImage`, the failure left in [state] for the screen to
+/// show, the result returned so the screen can open the review with it.
+mixin _ReadsReceiptImage on AutoDisposeAsyncNotifier<void> {
+  Future<ScannedReceipt?> readImage(String path) async {
     final read = await ref.read(readReceiptImageProvider.future);
     final result = await read(path);
     return result.match(
@@ -109,10 +82,71 @@ class ScanReceiptController extends AutoDisposeAsyncNotifier<void> {
   }
 }
 
+/// Gets a photo and reads it, exposing the attempt as an [AsyncValue].
+/// FR-RCP-002, FR-RCP-004 — `PickReceiptImage` and `ReadReceiptImage`'s
+/// first caller from a screen.
+///
+/// The same shape as [ConfirmReceiptController]: the screen renders the
+/// wait, the failure and the result from one value. Returns what was
+/// read so the screen can open the review with it, or null when the
+/// user backed out of the picker — which is not a failure, and leaves
+/// [state] as it was.
+class ScanReceiptController extends AutoDisposeAsyncNotifier<void>
+    with _ReadsReceiptImage {
+  @override
+  Future<void> build() async {}
+
+  /// Picks from [source] and runs the pipeline; the failure — a refused
+  /// permission, an unreadable photo — is left in [state] for the screen
+  /// to show.
+  Future<ScannedReceipt?> scan(ReceiptImageSource source) async {
+    state = const AsyncValue<void>.loading();
+    final pick = await ref.read(pickReceiptImageProvider.future);
+    final picked = await pick(source);
+    switch (picked) {
+      case Left(value: final failure):
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return null;
+      case Right(value: null):
+        state = const AsyncValue<void>.data(null);
+        return null;
+      case Right(value: final chosen?):
+        return readImage(chosen);
+    }
+  }
+}
+
 /// Controller for the capture screen's two buttons.
 final scanReceiptControllerProvider =
     AutoDisposeAsyncNotifierProvider<ScanReceiptController, void>(
       ScanReceiptController.new,
+    );
+
+/// Reads a photo already on the phone again, exposing the attempt as an
+/// [AsyncValue]. FR-RCP-014 — the history's Re-scan.
+///
+/// The same pipeline as [ScanReceiptController] from the picker onward,
+/// and its own state on purpose: the capture screen sits under the
+/// history in the stack watching [scanReceiptControllerProvider], and a
+/// re-scan that failed there would print its message under the capture
+/// screen's buttons when the user came back to them.
+class RescanReceiptController extends AutoDisposeAsyncNotifier<void>
+    with _ReadsReceiptImage {
+  @override
+  Future<void> build() async {}
+
+  /// Runs the pipeline on [imagePath]; an unreadable photo is left in
+  /// [state] for the screen to show.
+  Future<ScannedReceipt?> rescan(String imagePath) {
+    state = const AsyncValue<void>.loading();
+    return readImage(imagePath);
+  }
+}
+
+/// Controller for the history's Re-scan action.
+final rescanReceiptControllerProvider =
+    AutoDisposeAsyncNotifierProvider<RescanReceiptController, void>(
+      RescanReceiptController.new,
     );
 
 /// Posts a reviewed receipt, exposing the attempt as an [AsyncValue].

@@ -1,6 +1,9 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,22 +12,38 @@ import 'package:go_router/go_router.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/keyword_match.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_image_source.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_line_item.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/receipt_scan.dart';
 import 'package:moneyora/features/receipt_scanner/domain/entities/recognised_text.dart';
+import 'package:moneyora/features/receipt_scanner/domain/entities/scanned_receipt.dart';
+import 'package:moneyora/features/receipt_scanner/domain/repositories/keyword_dictionary_repository.dart';
 import 'package:moneyora/features/receipt_scanner/domain/repositories/receipt_repository.dart';
+import 'package:moneyora/features/receipt_scanner/domain/usecases/categorise_receipt.dart';
 import 'package:moneyora/features/receipt_scanner/domain/usecases/get_scan_history.dart';
+import 'package:moneyora/features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
+import 'package:moneyora/features/receipt_scanner/domain/usecases/read_receipt_image.dart';
+import 'package:moneyora/features/receipt_scanner/domain/usecases/scan_receipt.dart';
 import 'package:moneyora/features/receipt_scanner/presentation/pages/receipt_history_page.dart';
 import 'package:moneyora/injection.dart';
 
-/// The history over the real use case and a scripted repository: the
+/// The history over the real use cases and a scripted repository: the
 /// search is `GetScanHistory`'s, so what the screen shows for "keells"
-/// is what the use case returns for it.
+/// is what the use case returns for it; a re-scan runs the real pipeline
+/// over what the recogniser is scripted to read. The picker is never
+/// asked — FR-RCP-014 starts past it.
 class _FakeReceipts implements ReceiptRepository {
   _FakeReceipts(this.history);
 
   Either<Failure, List<ReceiptScan>> history;
+  Either<Failure, RecognisedText> read = Right(
+    RecognisedText.fromString(
+      'KEELLS SUPER\nRICE 5KG 1,250.00\nTOTAL 1,250.00',
+    ),
+  );
+  Completer<void>? hold;
+  String? scannedPath;
 
   @override
   Future<Either<Failure, List<ReceiptScan>>> getScanHistory() async => history;
@@ -34,12 +53,33 @@ class _FakeReceipts implements ReceiptRepository {
       throw UnimplementedError();
 
   @override
-  Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) =>
-      throw UnimplementedError();
+  Future<Either<Failure, RecognisedText>> scanReceipt(String imagePath) async {
+    scannedPath = imagePath;
+    if (hold != null) await hold!.future;
+    return read;
+  }
 
   @override
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan) =>
       throw UnimplementedError();
+}
+
+class _NoDictionary implements KeywordDictionaryRepository {
+  @override
+  Future<Either<Failure, List<KeywordMatch>>> matchesFor(String text) async =>
+      const Right([]);
+
+  @override
+  Future<Either<Failure, Unit>> learn({
+    required String text,
+    required int categoryId,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> recordApplied({
+    required String text,
+    required int categoryId,
+  }) => throw UnimplementedError();
 }
 
 final _keells = ReceiptScan(
@@ -93,6 +133,13 @@ void main() {
       getScanHistoryProvider.overrideWith(
         (ref) async => GetScanHistory(receipts),
       ),
+      readReceiptImageProvider.overrideWith(
+        (ref) async => ReadReceiptImage(
+          ScanReceipt(receipts),
+          const ParseReceiptText(),
+          CategoriseReceipt(_NoDictionary()),
+        ),
+      ),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light,
@@ -107,6 +154,15 @@ void main() {
             path: Routes.scanReceipt,
             builder: (context, state) =>
                 const Scaffold(body: Text('the scanner')),
+          ),
+          GoRoute(
+            path: Routes.scanReceiptReview,
+            builder: (context, state) => Scaffold(
+              body: Text(
+                'review ${(state.extra! as ScannedReceipt).imagePath} '
+                '${(state.extra! as ScannedReceipt).receipt.receipt.merchantName}',
+              ),
+            ),
           ),
         ],
       ),
@@ -236,5 +292,106 @@ void main() {
     expect(find.byType(ReceiptHistoryPage), findsNothing);
     expect(find.text('KEELLS SUPER'), findsOneWidget); // the app bar
     expect(find.text('The photo is no longer on this phone.'), findsOneWidget);
+  });
+
+  group('re-scan (FR-RCP-014)', () {
+    // The row checks the disk before the recogniser is asked, so the
+    // photo that is "kept" has to be a real file.
+    late Directory dir;
+    late ReceiptScan kept;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('moneyora_rescan');
+      final file = File('${dir.path}${Platform.pathSeparator}keells.jpg')
+        ..writeAsBytesSync(const [0xFF, 0xD8, 0xFF, 0xD9]);
+      kept = ReceiptScan(
+        id: 4,
+        scannedAt: DateTime(2026, 9, 14),
+        imagePath: file.path,
+        status: ReceiptScanStatus.confirmed,
+        merchantName: 'KEELLS SUPER',
+        totalCents: 125000,
+      );
+    });
+
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    Finder rescan() =>
+        find.widgetWithIcon(IconButton, Icons.document_scanner_outlined);
+
+    testWidgets('reads the kept photo again, past the picker, and opens '
+        'the review on it', (tester) async {
+      final receipts = _FakeReceipts(Right([kept]));
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      await tester.tap(rescan());
+      await tester.pumpAndSettle();
+
+      expect(receipts.scannedPath, kept.imagePath);
+      expect(
+        find.text('review ${kept.imagePath} KEELLS SUPER'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('while reading, every row waits', (tester) async {
+      final receipts = _FakeReceipts(Right([kept, _keells]))
+        ..hold = Completer<void>();
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      await tester.tap(rescan().first);
+      await tester.pump();
+
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      for (final button in tester.widgetList<IconButton>(rescan())) {
+        expect(button.onPressed, isNull);
+      }
+
+      receipts.hold!.complete();
+      await tester.pumpAndSettle();
+      expect(find.textContaining('review '), findsOneWidget);
+    });
+
+    testWidgets('a photo no longer on disk is said so, and nothing is '
+        'read', (tester) async {
+      final receipts = _FakeReceipts(Right([_keells]));
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      await tester.tap(rescan());
+      await tester.pumpAndSettle();
+
+      expect(receipts.scannedPath, isNull);
+      expect(
+        find.text('The photo is no longer on this phone.'),
+        findsOneWidget,
+      );
+      expect(find.byType(ReceiptHistoryPage), findsOneWidget);
+      expect(tester.widget<IconButton>(rescan()).onPressed, isNotNull);
+    });
+
+    testWidgets('a photo that cannot be read says so over the list, and '
+        'allows another go', (tester) async {
+      final receipts = _FakeReceipts(Right([kept]))
+        ..read = const Left(OcrFailure('No text was found on that image.'));
+      await tester.pumpWidget(boot(receipts));
+      await tester.pumpAndSettle();
+
+      await tester.tap(rescan());
+      await tester.pumpAndSettle();
+
+      expect(find.text('No text was found on that image.'), findsOneWidget);
+      expect(find.byType(ReceiptHistoryPage), findsOneWidget);
+      expect(find.textContaining('review '), findsNothing);
+
+      receipts.read = Right(
+        RecognisedText.fromString('SHOP\nMILK 450.00\nTOTAL 450.00'),
+      );
+      await tester.tap(rescan());
+      await tester.pumpAndSettle();
+      expect(find.text('review ${kept.imagePath} SHOP'), findsOneWidget);
+    });
   });
 }

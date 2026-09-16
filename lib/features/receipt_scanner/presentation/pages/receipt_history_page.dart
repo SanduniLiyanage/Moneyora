@@ -22,8 +22,15 @@ import '../widgets/receipt_thumbnail.dart';
 /// so a keystroke never blanks the page.
 ///
 /// Tapping a row opens the photo: FR-RCP-012 keeps it "for future
-/// reference", and this is the reference. Re-scanning from here is
-/// FR-RCP-014's, not built yet.
+/// reference", and this is the reference. Re-scan on the row is
+/// FR-RCP-014: the kept photo goes back through the same pipeline the
+/// capture screen runs, past the picker, and opens a fresh review. A
+/// re-scan confirmed is a new record beside the old one — it edits
+/// nothing the first pass wrote, because the expenses it posted are in
+/// the ledger already, where a wrong one is deleted with Undo (E-23).
+/// The photo is checked for before the recogniser is asked, so a file
+/// the phone has since cleaned up gets this screen's own sentence
+/// rather than ML Kit's.
 class ReceiptHistoryPage extends ConsumerStatefulWidget {
   /// Creates the screen.
   const ReceiptHistoryPage({super.key});
@@ -43,11 +50,41 @@ class _ReceiptHistoryPageState extends ConsumerState<ReceiptHistoryPage> {
     super.dispose();
   }
 
+  /// The sentence for a photo that is not where the scan said it was.
+  static const String photoGone = 'The photo is no longer on this phone.';
+
+  Future<void> _rescan(ReceiptScan scan) async {
+    if (!File(scan.imagePath).existsSync()) {
+      _say(photoGone);
+      return;
+    }
+    final scanned = await ref
+        .read(rescanReceiptControllerProvider.notifier)
+        .rescan(scan.imagePath);
+    if (scanned == null || !mounted) return;
+    await context.push<void>(Routes.scanReceiptReview, extra: scanned);
+  }
+
+  void _say(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(receiptHistoryProvider(_query));
     if (history case AsyncData(value: final scans)) _shown = scans;
     final shown = _shown;
+
+    // A re-scan that could not be read is said once, when it fails: the
+    // list is still the thing on screen, so the message rides over it.
+    ref.listen(rescanReceiptControllerProvider, (_, attempt) {
+      if (attempt case AsyncError(:final error) when !attempt.isLoading) {
+        _say(error is Failure ? error.message : 'Could not read the receipt.');
+      }
+    });
+    final rescanning = ref.watch(rescanReceiptControllerProvider).isLoading;
 
     final Widget body;
     if (history case AsyncError(:final error)) {
@@ -57,7 +94,7 @@ class _ReceiptHistoryPageState extends ConsumerState<ReceiptHistoryPage> {
     } else if (shown != null && shown.isNotEmpty) {
       // Also while a new search loads: the last list stays up rather
       // than a spinner flashing between keystrokes.
-      body = _ReceiptList(scans: shown);
+      body = _ReceiptList(scans: shown, onRescan: rescanning ? null : _rescan);
     } else if (history.isLoading) {
       body = const Center(child: CircularProgressIndicator());
     } else if (_query.trim().isNotEmpty) {
@@ -92,6 +129,10 @@ class _ReceiptHistoryPageState extends ConsumerState<ReceiptHistoryPage> {
               ),
             ),
           ),
+          if (rescanning)
+            const LinearProgressIndicator(
+              semanticsLabel: 'Reading the receipt',
+            ),
           Expanded(child: body),
         ],
       ),
@@ -100,21 +141,27 @@ class _ReceiptHistoryPageState extends ConsumerState<ReceiptHistoryPage> {
 }
 
 class _ReceiptList extends StatelessWidget {
-  const _ReceiptList({required this.scans});
+  const _ReceiptList({required this.scans, required this.onRescan});
 
   final List<ReceiptScan> scans;
+
+  /// Null while a re-scan is running, which disables every row's button.
+  final ValueChanged<ReceiptScan>? onRescan;
 
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-    children: [for (final scan in scans) _ReceiptRow(scan: scan)],
+    children: [
+      for (final scan in scans) _ReceiptRow(scan: scan, onRescan: onRescan),
+    ],
   );
 }
 
 class _ReceiptRow extends StatelessWidget {
-  const _ReceiptRow({required this.scan});
+  const _ReceiptRow({required this.scan, required this.onRescan});
 
   final ReceiptScan scan;
+  final ValueChanged<ReceiptScan>? onRescan;
 
   @override
   Widget build(BuildContext context) {
@@ -133,9 +180,19 @@ class _ReceiptRow extends StatelessWidget {
           '${dateLabel(scan)} · $count item${count == 1 ? '' : 's'}'
           '${status == null ? '' : ' · $status'}',
         ),
-        trailing: Text(
-          total == null ? '—' : formatCents(total),
-          style: theme.textTheme.titleMedium,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              total == null ? '—' : formatCents(total),
+              style: theme.textTheme.titleMedium,
+            ),
+            IconButton(
+              tooltip: 'Re-scan',
+              icon: const Icon(Icons.document_scanner_outlined),
+              onPressed: onRescan == null ? null : () => onRescan!(scan),
+            ),
+          ],
         ),
         onTap: () => Navigator.of(context).push<void>(
           MaterialPageRoute(builder: (_) => _ReceiptPhotoPage(scan: scan)),
@@ -185,7 +242,7 @@ class _ReceiptPhotoPage extends StatelessWidget {
               maxScale: 5,
               child: Center(child: Image.file(file, fit: BoxFit.contain)),
             )
-          : const _Message('The photo is no longer on this phone.'),
+          : const _Message(_ReceiptHistoryPageState.photoGone),
     );
   }
 }
