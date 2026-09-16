@@ -60,10 +60,13 @@ void main() {
   ReceiptScanModel scan({
     List<ReceiptScanItemModel>? items,
     ReceiptScanStatus status = ReceiptScanStatus.confirmed,
+    DateTime? scannedAt,
+    String merchantName = 'KEELLS SUPER',
   }) => ReceiptScanModel(
     imagePath: '/receipts/keells.jpg',
     status: status,
-    merchantName: 'KEELLS SUPER',
+    scannedAt: scannedAt,
+    merchantName: merchantName,
     receiptDate: DateTime(2026, 4, 3, 14, 32),
     totalCents: 190000,
     taxCents: 0,
@@ -219,5 +222,91 @@ void main() {
     await db.close();
 
     expect(() => scans.insert(scan()), throwsA(isA<CacheException>()));
+    expect(() => scans.listAll(), throwsA(isA<CacheException>()));
+  });
+
+  group('listAll', () {
+    test('is empty before anything was scanned', () async {
+      expect(await scans.listAll(), isEmpty);
+    });
+
+    test('returns every scan newest first, each with its items in printed '
+        'order', () async {
+      final older = await scans.insert(
+        scan(
+          merchantName: 'Cargills',
+          scannedAt: DateTime(2026, 9, 1, 10),
+          items: const [
+            ReceiptScanItemModel(
+              item: ReceiptLineItem(name: 'Bread', totalPriceCents: 45000),
+              confidence: 80,
+            ),
+          ],
+        ),
+      );
+      final newer = await scans.insert(
+        scan(merchantName: 'Keells', scannedAt: DateTime(2026, 9, 14, 18)),
+      );
+      final bare = await scans.insert(
+        scan(
+          merchantName: 'Arpico',
+          scannedAt: DateTime(2026, 9, 7),
+          items: const [],
+        ),
+      );
+
+      final all = await scans.listAll();
+
+      expect(all.map((s) => s.id), [newer, bare, older]);
+      expect(all.map((s) => s.merchantName), ['Keells', 'Arpico', 'Cargills']);
+      expect(all.first.items.map((i) => i.item.name), ['RICE 5KG', 'PANADOL']);
+      expect(all[1].items, isEmpty);
+      expect(all.last.items.single.item.name, 'Bread');
+      expect(all.last.items.single.confirmedCategoryId, isNull);
+    });
+
+    test('two scans in the same second come back in the order they were '
+        'saved', () async {
+      final at = DateTime(2026, 9, 14, 18, 30);
+      final first = await scans.insert(scan(scannedAt: at));
+      final second = await scans.insert(scan(scannedAt: at));
+
+      expect((await scans.listAll()).map((s) => s.id), [second, first]);
+    });
+
+    test('scannedAt is when the row was written', () async {
+      final before = DateTime.now();
+      await scans.insert(scan());
+
+      final read = (await scans.listAll()).single;
+
+      expect(read.scannedAt, isNotNull);
+      expect(read.scannedAt!.isBefore(before), isFalse);
+      expect(read.scannedAt!.isAfter(DateTime.now()), isFalse);
+    });
+
+    test('every column reads back as it was written', () async {
+      final written = scan(scannedAt: DateTime(2026, 9, 14, 18, 30, 5));
+      final id = await scans.insert(written);
+
+      final read = (await scans.listAll()).single;
+
+      expect(read.id, id);
+      expect(read.scannedAt, written.scannedAt);
+      expect(read.imagePath, written.imagePath);
+      expect(read.status, written.status);
+      expect(read.merchantName, written.merchantName);
+      expect(read.receiptDate, written.receiptDate);
+      expect(read.totalCents, written.totalCents);
+      expect(read.taxCents, written.taxCents);
+      expect(read.receiptNumber, written.receiptNumber);
+      expect(read.confidence, written.confidence);
+      expect(read.userId, 1);
+      final panadol = read.items.last;
+      expect(panadol.item, written.items.last.item);
+      expect(panadol.suggestedCategoryId, isNull);
+      expect(panadol.confirmedCategoryId, health);
+      expect(panadol.confidence, 20);
+    });
   });
 }

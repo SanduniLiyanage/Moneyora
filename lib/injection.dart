@@ -74,6 +74,7 @@ import 'features/receipt_scanner/domain/repositories/keyword_dictionary_reposito
 import 'features/receipt_scanner/domain/repositories/receipt_repository.dart';
 import 'features/receipt_scanner/domain/usecases/categorise_receipt.dart';
 import 'features/receipt_scanner/domain/usecases/confirm_receipt.dart';
+import 'features/receipt_scanner/domain/usecases/get_scan_history.dart';
 import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'features/receipt_scanner/domain/usecases/pick_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
@@ -661,8 +662,8 @@ final receiptImageLocalDataSourceProvider =
       ),
     );
 
-/// Writes scan records. The holder of SQL for `receipt_scans` and
-/// `receipt_items`; write-only until FR-RCP-013's history reads them.
+/// Reads and writes scan records. The holder of SQL for `receipt_scans`
+/// and `receipt_items`.
 final receiptScanLocalDataSourceProvider =
     FutureProvider<ReceiptScanLocalDataSource>(
       (ref) async => ReceiptScanLocalDataSourceImpl(
@@ -719,6 +720,13 @@ final confirmReceiptProvider = FutureProvider<ConfirmReceipt>(
     await ref.watch(keywordDictionaryRepositoryProvider.future),
     await ref.watch(expenseWriterProvider.future),
   ),
+);
+
+/// Every receipt scanned so far, newest first, narrowed by a search.
+/// FR-RCP-013.
+final getScanHistoryProvider = FutureProvider<GetScanHistory>(
+  (ref) async =>
+      GetScanHistory(await ref.watch(receiptRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

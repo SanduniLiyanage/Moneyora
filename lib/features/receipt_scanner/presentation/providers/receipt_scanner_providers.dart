@@ -15,9 +15,11 @@ import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/receipt_image_source.dart';
+import '../../domain/entities/receipt_scan.dart';
 import '../../domain/entities/reviewed_receipt.dart';
 import '../../domain/entities/scanned_receipt.dart';
 import '../../domain/usecases/confirm_receipt.dart';
+import '../../domain/usecases/get_scan_history.dart';
 
 /// The expense categories the review screen offers per line, kept live.
 /// FR-RCP-008.
@@ -148,3 +150,20 @@ final confirmReceiptControllerProvider =
     AutoDisposeAsyncNotifierProvider<ConfirmReceiptController, void>(
       ConfirmReceiptController.new,
     );
+
+/// The receipts scanned so far, narrowed by what was typed into the
+/// search field. FR-RCP-013 — `GetScanHistory`'s caller from a screen.
+///
+/// A family on the search text, the shape `planComparisonProvider` uses:
+/// each distinct search is its own value, the previous one is kept while
+/// the next loads, and leaving the screen drops them all. A `Left` is the
+/// future's error so the screen shows the failure's own sentence.
+final receiptHistoryProvider = FutureProvider.autoDispose
+    .family<List<ReceiptScan>, String>((ref, search) async {
+      final getHistory = await ref.watch(getScanHistoryProvider.future);
+      final result = await getHistory(ReceiptHistoryQuery(search: search));
+      return result.match(
+        Future<List<ReceiptScan>>.error,
+        Future<List<ReceiptScan>>.value,
+      );
+    });

@@ -21,6 +21,7 @@ import '../../features/money_plan/presentation/pages/money_plan_page.dart';
 import '../../features/money_plan/presentation/pages/plan_list_page.dart';
 import '../../features/money_plan/presentation/pages/plan_review_page.dart';
 import '../../features/receipt_scanner/domain/entities/scanned_receipt.dart';
+import '../../features/receipt_scanner/presentation/pages/receipt_history_page.dart';
 import '../../features/receipt_scanner/presentation/pages/receipt_review_page.dart';
 import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
@@ -68,6 +69,9 @@ abstract final class Routes {
   /// link — it opens the scanner instead, which is the only honest answer
   /// to "review what?".
   static const String scanReceiptReview = '/scan/review';
+
+  /// SCR-015 — every receipt scanned so far, searchable. FR-RCP-013.
+  static const String receiptHistory = '/scan/history';
 
   /// SCR-016 — settings.
   static const String settings = '/settings';
@@ -177,6 +181,11 @@ GoRouter buildRouter() => GoRouter(
         final ScannedReceipt scanned => ReceiptReviewPage(scanned: scanned),
         _ => const ScanReceiptPage(),
       },
+    ),
+    GoRoute(
+      path: Routes.receiptHistory,
+      name: 'receiptHistory',
+      builder: (context, state) => const ReceiptHistoryPage(),
     ),
     GoRoute(
       path: Routes.settings,

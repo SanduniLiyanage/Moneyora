@@ -27,6 +27,7 @@ class _FakeOcr implements OcrLocalDataSource {
 
 class _FakeScans implements ReceiptScanLocalDataSource {
   ReceiptScanModel? inserted;
+  List<ReceiptScanModel> stored = const [];
   AppException? throwWith;
 
   @override
@@ -34,6 +35,12 @@ class _FakeScans implements ReceiptScanLocalDataSource {
     if (throwWith case final e?) throw e;
     inserted = scan;
     return 42;
+  }
+
+  @override
+  Future<List<ReceiptScanModel>> listAll() async {
+    if (throwWith case final e?) throw e;
+    return stored;
   }
 }
 
@@ -165,6 +172,56 @@ void main() {
       expect(
         await repository.confirmScan(scan),
         const Left<Failure, int>(CacheFailure('Could not save the receipt.')),
+      );
+    });
+  });
+
+  group('getScanHistory', () {
+    test('returns what the datasource read, as entities', () async {
+      scans.stored = [
+        ReceiptScanModel(
+          id: 2,
+          scannedAt: DateTime(2026, 9, 14),
+          imagePath: '/receipts/keells.jpg',
+          status: ReceiptScanStatus.confirmed,
+          merchantName: 'KEELLS SUPER',
+          totalCents: 190000,
+          items: const [
+            ReceiptScanItemModel(
+              item: ReceiptLineItem(name: 'RICE 5KG', totalPriceCents: 125000),
+              confirmedCategoryId: 7,
+              confidence: 90,
+            ),
+          ],
+        ),
+        ReceiptScanModel(
+          id: 1,
+          scannedAt: DateTime(2026, 9, 1),
+          imagePath: '/receipts/cargills.jpg',
+          status: ReceiptScanStatus.confirmed,
+          items: const [],
+        ),
+      ];
+
+      final result = await repository.getScanHistory();
+
+      final history = result.getOrElse((f) => fail('$f'));
+      expect(history.map((s) => s.id), [2, 1]);
+      expect(history.first.merchantName, 'KEELLS SUPER');
+      expect(history.first.scannedAt, DateTime(2026, 9, 14));
+      expect(history.first.items.single.item.name, 'RICE 5KG');
+      expect(history.first.items.single.confirmedCategoryId, 7);
+      expect(history.last.items, isEmpty);
+    });
+
+    test('a CacheException is a CacheFailure', () async {
+      scans.throwWith = const CacheException('Could not read the receipts.');
+
+      expect(
+        await repository.getScanHistory(),
+        const Left<Failure, List<ReceiptScan>>(
+          CacheFailure('Could not read the receipts.'),
+        ),
       );
     });
   });

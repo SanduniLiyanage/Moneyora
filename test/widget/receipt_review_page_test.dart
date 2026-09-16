@@ -35,6 +35,10 @@ import 'package:moneyora/injection.dart';
 /// was told to expect.
 class _FakeReceipts implements ReceiptRepository {
   @override
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory() =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, String?>> pickImage(ReceiptImageSource source) =>
       throw UnimplementedError();
 

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +12,7 @@ import '../../domain/entities/receipt_review_draft.dart';
 import '../../domain/entities/scanned_receipt.dart';
 import '../../domain/usecases/confirm_receipt.dart';
 import '../providers/receipt_scanner_providers.dart';
+import '../widgets/receipt_thumbnail.dart';
 
 /// Review & Confirm: the scan as read, corrected by hand, and posted.
 /// FR-RCP-008, FR-RCP-009, FR-RCP-010, FR-RCP-011; the SDD's SCR-014.
@@ -307,7 +306,7 @@ class _Header extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Thumbnail(path: draft.imagePath),
+            ReceiptThumbnail(path: draft.imagePath),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -360,37 +359,6 @@ class _Header extends StatelessWidget {
   }
 
   static String _two(int n) => n.toString().padLeft(2, '0');
-}
-
-/// The photo, when it is still on disk; a placeholder when not, rather
-/// than an image error — the path is what matters and it is kept either
-/// way.
-class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.path});
-
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    final file = File(path);
-    final theme = Theme.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 72,
-        height: 96,
-        child: file.existsSync()
-            ? Image.file(file, fit: BoxFit.cover)
-            : ColoredBox(
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: Icon(
-                  Icons.receipt_long_outlined,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-      ),
-    );
-  }
 }
 
 /// FR-RCP-011's badge.

@@ -50,13 +50,14 @@ class ReceiptScanItemModel extends ReceiptScanItem {
   };
 }
 
-/// Persistence mapping for [ReceiptScan]. FR-RCP-009, E-31.
+/// Persistence mapping for [ReceiptScan]. FR-RCP-009, FR-RCP-013, E-31.
 ///
-/// `created_at` and `user_id` are bookkeeping and live here, not on the
-/// entity, as `MoneyPlanModel` does it. `merchant_type` — a column v1 has
-/// and the entity does not — is left null: the categoriser's merchant
-/// context (FR-RCP-007's Layer 3) is a category, not a type, and no
-/// requirement reads a type back.
+/// `user_id` is bookkeeping and lives here, not on the entity, as
+/// `MoneyPlanModel` does it; `created_at` is the entity's `scannedAt`,
+/// because the history shows it. `merchant_type` — a column v1 has and
+/// the entity does not — is left null: the categoriser's merchant context
+/// (FR-RCP-007's Layer 3) is a category, not a type, and no requirement
+/// reads a type back.
 class ReceiptScanModel extends ReceiptScan {
   /// Creates a model directly. Prefer [fromEntity] or [fromMap].
   const ReceiptScanModel({
@@ -64,6 +65,7 @@ class ReceiptScanModel extends ReceiptScan {
     required super.status,
     required List<ReceiptScanItemModel> super.items,
     super.id,
+    super.scannedAt,
     super.merchantName,
     super.receiptDate,
     super.totalCents,
@@ -71,28 +73,24 @@ class ReceiptScanModel extends ReceiptScan {
     super.receiptNumber,
     super.confidence,
     this.userId = 1,
-    this.createdAt,
   });
 
   /// Wraps an entity so it can be written.
-  factory ReceiptScanModel.fromEntity(
-    ReceiptScan scan, {
-    int userId = 1,
-    DateTime? createdAt,
-  }) => ReceiptScanModel(
-    id: scan.id,
-    imagePath: scan.imagePath,
-    status: scan.status,
-    merchantName: scan.merchantName,
-    receiptDate: scan.receiptDate,
-    totalCents: scan.totalCents,
-    taxCents: scan.taxCents,
-    receiptNumber: scan.receiptNumber,
-    confidence: scan.confidence,
-    items: [for (final i in scan.items) ReceiptScanItemModel.fromEntity(i)],
-    userId: userId,
-    createdAt: createdAt,
-  );
+  factory ReceiptScanModel.fromEntity(ReceiptScan scan, {int userId = 1}) =>
+      ReceiptScanModel(
+        id: scan.id,
+        scannedAt: scan.scannedAt,
+        imagePath: scan.imagePath,
+        status: scan.status,
+        merchantName: scan.merchantName,
+        receiptDate: scan.receiptDate,
+        totalCents: scan.totalCents,
+        taxCents: scan.taxCents,
+        receiptNumber: scan.receiptNumber,
+        confidence: scan.confidence,
+        items: [for (final i in scan.items) ReceiptScanItemModel.fromEntity(i)],
+        userId: userId,
+      );
 
   /// Rebuilds a model from a `receipt_scans` row and its item rows.
   factory ReceiptScanModel.fromMap(
@@ -100,6 +98,10 @@ class ReceiptScanModel extends ReceiptScan {
     List<Map<String, Object?>> itemRows,
   ) => ReceiptScanModel(
     id: map['id'] as int?,
+    scannedAt: switch (map['created_at']) {
+      final String s => DateTime.parse(s),
+      _ => null,
+    },
     imagePath: map['image_path']! as String,
     status: decodeStatus(map['status']! as String),
     merchantName: map['merchant_name'] as String?,
@@ -113,23 +115,17 @@ class ReceiptScanModel extends ReceiptScan {
     confidence: map['confidence_score'] as int? ?? 0,
     items: itemRows.map(ReceiptScanItemModel.fromMap).toList(),
     userId: map['user_id'] as int? ?? 1,
-    createdAt: switch (map['created_at']) {
-      final String s => DateTime.parse(s),
-      _ => null,
-    },
   );
 
   /// Owner, always 1 until multi-user exists.
   final int userId;
 
-  /// When the row was written.
-  final DateTime? createdAt;
-
   /// The items, typed as models.
   List<ReceiptScanItemModel> get itemModels =>
       items.cast<ReceiptScanItemModel>();
 
-  /// The `receipt_scans` row.
+  /// The `receipt_scans` row, written at [now] unless the entity already
+  /// carries when it was scanned.
   Map<String, Object?> toMap({required DateTime now}) => {
     'user_id': userId,
     'image_path': imagePath,
@@ -140,7 +136,7 @@ class ReceiptScanModel extends ReceiptScan {
     'receipt_number': receiptNumber,
     'confidence_score': confidence,
     'status': encodeStatus(status),
-    'created_at': (createdAt ?? now).toIso8601String(),
+    'created_at': (scannedAt ?? now).toIso8601String(),
   };
 
   /// `status`'s stored form — the check constraint's spelling.

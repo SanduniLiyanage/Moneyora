@@ -7,10 +7,9 @@ import '../entities/recognised_text.dart';
 
 /// The scanner's boundary with the device and the database: the
 /// recogniser behind [scanReceipt], the scan records behind the rest.
-/// FR-RCP-004, FR-RCP-009.
+/// FR-RCP-004, FR-RCP-009, FR-RCP-013.
 ///
-/// SDD §9.1 gives this interface three methods. `getScanHistory` arrives
-/// with FR-RCP-013's history view, the slice that can implement it.
+/// SDD §9.1's three methods, plus the picker the SDD leaves to the screen.
 ///
 /// The SDD's `File imageFile` is a path here. The domain then stays free
 /// of `dart:io`, and a path is what both ends of the pipeline already deal
@@ -40,4 +39,13 @@ abstract class ReceiptRepository {
   /// where the two are sequenced. Written with whatever [scan.status]
   /// says; the confirm step passes `confirmed`.
   Future<Either<Failure, int>> confirmScan(ReceiptScan scan);
+
+  /// Every scan record with its items, newest first. FR-RCP-013.
+  ///
+  /// All of them, unfiltered: the history is searchable, but the search
+  /// is the use case's ([GetScanHistory]) so its rules are pure Dart and
+  /// a match on an item name needs no join. A `Future` rather than a
+  /// stream, as the SDD has it — nothing writes a scan while the history
+  /// is on screen, and the screen re-reads on open.
+  Future<Either<Failure, List<ReceiptScan>>> getScanHistory();
 }
