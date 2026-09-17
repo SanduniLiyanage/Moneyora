@@ -534,6 +534,25 @@ and that arrives with the restore in Sprint 8 — see the
 placeholder in the router; the settings screen is a shell whose sections
 arrive with the requirements that fill them.
 
+### The theme toggle (FR-SET-001) — done ([PR #105](https://github.com/SanduniLiyanage/Moneyora/pull/105))
+
+The first preference, and the pattern every later one reuses. The settings
+feature now has its full vertical slice: `UserSettings` is the `users` row as
+a value (every preference column; the two lock-screen columns are excluded on
+purpose — see the entity), `SettingsRepository` is three methods (`get`,
+`save`, `watch`) however many preferences arrive, and a setting is one use
+case that reads the row, changes one field and saves it back. `SetTheme` is
+the first; FR-SET-003's currency, FR-SET-004's first weekday, FR-SET-008's
+savings target and FR-SET-012's lookback each add a use case and a row on
+the screen, not a repository method or a column.
+
+The app root reads `themeModeProvider` and nothing else changed above the
+providers: the settings screen writes, the `MaterialApp` above it follows,
+and the widget test asserts on the brightness actually drawn. The
+datasource shares the `DatabaseChangeBus` for a reason that is one slice
+ahead — FR-ACC-005's base currency lives in the same row, and every summed
+balance on screen has to follow a change to it.
+
 ## Sprint 8 — Backup, export, sync (Week 13)
 
 Encrypted `.mb` backups, CSV/PDF export, optional Drive/Dropbox.

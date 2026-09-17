@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/settings/presentation/providers/settings_providers.dart';
 
 /// The root widget: theming plus routing, and nothing else.
 ///
-/// `themeMode` follows the system for now. FR-SET-001 requires a user toggle,
-/// which arrives in Sprint 7 with the rest of Settings and will read from the
-/// `users.theme` column the schema already carries.
-class MoneyoraApp extends StatefulWidget {
+/// `themeMode` is the user's choice, read live from the `users.theme` column
+/// through `themeModeProvider` (FR-SET-001), so a change made on the settings
+/// screen is drawn by every screen beneath it without a restart. Until the
+/// stored choice is known it follows the device.
+class MoneyoraApp extends ConsumerStatefulWidget {
   /// Creates the app.
   const MoneyoraApp({super.key});
 
   @override
-  State<MoneyoraApp> createState() => _MoneyoraAppState();
+  ConsumerState<MoneyoraApp> createState() => _MoneyoraAppState();
 }
 
-class _MoneyoraAppState extends State<MoneyoraApp> {
+class _MoneyoraAppState extends ConsumerState<MoneyoraApp> {
   // Built once and held. GoRouter owns navigation history, so rebuilding it
   // on every widget rebuild would silently reset the back stack.
   late final GoRouter _router = buildRouter();
@@ -29,7 +32,7 @@ class _MoneyoraAppState extends State<MoneyoraApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: _router,
     );
   }
