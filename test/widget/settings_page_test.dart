@@ -11,7 +11,9 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/domain/repositories/account_repository.dart';
+import 'package:moneyora/features/settings/domain/entities/exchange_rate.dart';
 import 'package:moneyora/features/settings/domain/entities/user_settings.dart';
+import 'package:moneyora/features/settings/domain/repositories/exchange_rate_repository.dart';
 import 'package:moneyora/features/settings/domain/repositories/settings_repository.dart';
 import 'package:moneyora/features/settings/presentation/pages/settings_page.dart';
 import 'package:moneyora/features/settings/presentation/providers/settings_providers.dart';
@@ -60,6 +62,24 @@ class _FakeSettingsRepository implements SettingsRepository {
       yield await get();
     }
   }
+}
+
+class _FakeRatesRepository implements ExchangeRateRepository {
+  List<ExchangeRate> stored = const [];
+
+  @override
+  Stream<Either<Failure, List<ExchangeRate>>> watch() =>
+      Stream.value(Right(stored));
+
+  @override
+  Future<Either<Failure, Unit>> set(ExchangeRate rate) async =>
+      const Right(unit);
+
+  @override
+  Future<Either<Failure, Unit>> remove({
+    required String fromCurrency,
+    required String toCurrency,
+  }) async => const Right(unit);
 }
 
 class _FakeRepository implements AccountRepository {
@@ -119,10 +139,12 @@ class _FakeRepository implements AccountRepository {
 void main() {
   late _FakeRepository repository;
   late _FakeSettingsRepository settings;
+  late _FakeRatesRepository rates;
 
   setUp(() {
     repository = _FakeRepository();
     settings = _FakeSettingsRepository();
+    rates = _FakeRatesRepository();
   });
 
   tearDown(() => settings.dispose());
@@ -133,6 +155,7 @@ void main() {
     overrides: [
       accountRepositoryProvider.overrideWith((ref) async => repository),
       settingsRepositoryProvider.overrideWith((ref) async => settings),
+      exchangeRateRepositoryProvider.overrideWith((ref) async => rates),
     ],
     child: Consumer(
       builder: (context, ref, _) => MaterialApp(
@@ -208,6 +231,83 @@ void main() {
         find.text('The settings row has not been seeded.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('the base currency', () {
+    testWidgets('shows the stored code', (tester) async {
+      settings.stored = const UserSettings(currency: 'USD');
+      await open(tester);
+
+      expect(find.textContaining('USD — the currency'), findsOneWidget);
+    });
+
+    testWidgets('writes a new code, normalised', (tester) async {
+      await open(tester);
+
+      await tester.tap(find.text('Base currency'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'usd');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved, [const UserSettings(currency: 'USD')]);
+      expect(find.textContaining('USD — the currency'), findsOneWidget);
+    });
+
+    testWidgets('refuses a bad code in the use case\'s words, and writes '
+        'nothing', (tester) async {
+      await open(tester);
+
+      await tester.tap(find.text('Base currency'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Rs');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Enter a three-letter currency code, like LKR.'),
+        findsOneWidget,
+      );
+      expect(settings.saved, isEmpty);
+    });
+
+    testWidgets('cancelling writes nothing', (tester) async {
+      await open(tester);
+
+      await tester.tap(find.text('Base currency'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'USD');
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved, isEmpty);
+    });
+  });
+
+  group('the exchange-rates row', () {
+    testWidgets('says how many rates there are', (tester) async {
+      await open(tester);
+      expect(find.textContaining('None yet.'), findsOneWidget);
+    });
+
+    testWidgets('counts them', (tester) async {
+      rates.stored = [
+        ExchangeRate(
+          fromCurrency: 'USD',
+          toCurrency: 'LKR',
+          rateMicros: 300000000,
+          updatedAt: DateTime(2026),
+        ),
+        ExchangeRate(
+          fromCurrency: 'EUR',
+          toCurrency: 'LKR',
+          rateMicros: 330000000,
+          updatedAt: DateTime(2026),
+        ),
+      ];
+      await open(tester);
+      expect(find.text('2 rates.'), findsOneWidget);
     });
   });
 

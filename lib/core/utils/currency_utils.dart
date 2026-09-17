@@ -165,6 +165,42 @@ int? parseToCents(
   return (value * currency.minorUnitsPerMajor).round();
 }
 
+/// Turns a typed exchange rate into micros. FR-SET-003, E-34.
+///
+/// ```dart
+/// parseRateMicros('300.25')   // 300250000
+/// parseRateMicros('0.003331') // 3331
+/// parseRateMicros('')         // null
+/// ```
+///
+/// The rate's sibling of [parseToCents], for the same reason: a rate is the
+/// thing money is multiplied by, so it is an integer everywhere except on
+/// this boundary. Six decimal places is the scale `ExchangeRate` fixes;
+/// anything finer the user types is rounded to it.
+int? parseRateMicros(String input) {
+  final cleaned = input.replaceAll(',', '').replaceAll(' ', '').trim();
+  if (cleaned.isEmpty) return null;
+
+  final value = double.tryParse(cleaned);
+  if (value == null) return null;
+
+  return (value * 1000000).round();
+}
+
+/// Turns micros back into the rate a person reads, trailing zeros trimmed.
+///
+/// ```dart
+/// formatRateMicros(300250000) // '300.25'
+/// formatRateMicros(3331)      // '0.003331'
+/// formatRateMicros(1000000)   // '1'
+/// ```
+String formatRateMicros(int micros) {
+  final whole = micros ~/ 1000000;
+  final fraction = (micros % 1000000).toString().padLeft(6, '0');
+  final trimmed = fraction.replaceFirst(RegExp(r'0+$'), '');
+  return trimmed.isEmpty ? '$whole' : '$whole.$trimmed';
+}
+
 /// Inserts thousands separators: `1234567` -> `1,234,567`.
 String _groupThousands(int value) {
   final digits = value.toString();

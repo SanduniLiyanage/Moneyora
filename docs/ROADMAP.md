@@ -553,6 +553,23 @@ datasource shares the `DatabaseChangeBus` for a reason that is one slice
 ahead — FR-ACC-005's base currency lives in the same row, and every summed
 balance on screen has to follow a change to it.
 
+### Exchange rates and the base currency (FR-SET-003, E-34) — done ([PR #106](https://github.com/SanduniLiyanage/Moneyora/pull/106))
+
+The plumbing half of FR-ACC-005, landed first because it changes no
+behaviour anywhere: schema v4 (`exchange_rates`, and
+`transfers.credited_amount_cents` backfilled from `amount_cents`), the
+`ExchangeRate` value in `core/ports/` with the conversion arithmetic on it —
+nearest cent, halves away from zero, over `BigInt` — the rate use cases,
+`SetBaseCurrency`, and two settings rows: *Base currency* and *Exchange
+rates*, the latter its own screen. [E-34](SPEC_ERRATA.md) records why the
+DBD had none of this and how the rate is stored.
+
+Nothing converts yet. The Total Balance still sums base-currency accounts
+only and still says what it left out; `MakeTransfer` still refuses two
+currencies. The next PR adds conversion to `AccountTotals`, the credited
+amount to transfers, and **deletes all three E-25 interim rules in a single
+commit**, as E-25 requires.
+
 ## Sprint 8 — Backup, export, sync (Week 13)
 
 Encrypted `.mb` backups, CSV/PDF export, optional Drive/Dropbox.

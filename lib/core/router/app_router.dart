@@ -24,6 +24,7 @@ import '../../features/receipt_scanner/domain/entities/scanned_receipt.dart';
 import '../../features/receipt_scanner/presentation/pages/receipt_history_page.dart';
 import '../../features/receipt_scanner/presentation/pages/receipt_review_page.dart';
 import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
+import '../../features/settings/presentation/pages/exchange_rates_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
@@ -76,6 +77,9 @@ abstract final class Routes {
 
   /// SCR-016 — settings.
   static const String settings = '/settings';
+
+  /// The exchange-rate table, under settings. FR-SET-003, E-34.
+  static const String exchangeRates = '/settings/rates';
 
   /// The AI Copilot. Not in the SDD's screen inventory — it is a later
   /// addition, specified in `SRS_Copilot.md` §5.1.
@@ -193,6 +197,11 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.settings,
       name: 'settings',
       builder: (context, state) => const SettingsPage(),
+    ),
+    GoRoute(
+      path: Routes.exchangeRates,
+      name: 'exchangeRates',
+      builder: (context, state) => const ExchangeRatesPage(),
     ),
     // One route, and nothing else in the app reaches into the feature. Taking
     // the Copilot out again is deleting this entry (NFR-REL-004).
