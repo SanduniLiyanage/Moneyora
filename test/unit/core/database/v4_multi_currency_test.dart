@@ -77,16 +77,19 @@ void main() {
 
   tearDown(() => db.close());
 
-  test('backfills credited_amount_cents from amount_cents, rows intact', () async {
-    await DatabaseHelper.migrate(db);
+  test(
+    'backfills credited_amount_cents from amount_cents, rows intact',
+    () async {
+      await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4});
-    final rows = await db.query('transfers');
-    expect(rows, hasLength(1));
-    expect(rows.single['amount_cents'], 250000, reason: 'intact');
-    // E-34: nullable in the DDL, never null after the migration.
-    expect(rows.single['credited_amount_cents'], 250000);
-  });
+      expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4});
+      final rows = await db.query('transfers');
+      expect(rows, hasLength(1));
+      expect(rows.single['amount_cents'], 250000, reason: 'intact');
+      // E-34: nullable in the DDL, never null after the migration.
+      expect(rows.single['credited_amount_cents'], 250000);
+    },
+  );
 
   test('is additive: v3 has no such column, v4 does', () async {
     Future<Set<String>> columns() async => {
