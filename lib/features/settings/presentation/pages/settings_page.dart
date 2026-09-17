@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/failures.dart';
+import '../../domain/entities/user_settings.dart';
 import '../providers/settings_providers.dart';
 
 /// The settings screen. SDD SCR-016.
 ///
-/// Sections arrive with the requirements that fill them: this is the shell,
-/// and the rows it draws are the ones whose use cases exist. A section for a
-/// feature that is not built yet would be furniture rather than information,
-/// so none is drawn ahead of its slice.
+/// Sections arrive with the requirements that fill them: the rows it draws
+/// are the ones whose use cases exist. A section for a feature that is not
+/// built yet would be furniture rather than information, so none is drawn
+/// ahead of its slice.
 ///
-/// The first row is not a preference at all. "Recalculate account balances"
+/// *Appearance* holds FR-SET-001's theme choice. The three options are the
+/// three values `users.theme` can hold, and choosing one is drawn by the app
+/// root the moment it is stored — this screen writes and never sets a theme
+/// itself.
+///
+/// *Data*'s row is not a preference at all. "Recalculate account balances"
 /// is E-18's reconciliation, reachable from here and from nowhere else:
 /// `RecomputeAllAccountBalances` re-derives every cached balance from
 /// history, which repairs drift that arrived from outside the app's own
@@ -21,6 +28,21 @@ import '../providers/settings_providers.dart';
 class SettingsPage extends ConsumerWidget {
   /// Creates the settings screen.
   const SettingsPage({super.key});
+
+  /// Stores [mode], and shows the failure if it could not be. FR-SET-001.
+  ///
+  /// Nothing to confirm and nothing to say on success: the screen changing
+  /// colour is the confirmation.
+  Future<void> _setTheme(
+    BuildContext context,
+    WidgetRef ref,
+    AppThemeMode mode,
+  ) async {
+    final failure = await ref.read(themeControllerProvider.notifier).set(mode);
+    if (failure == null || !context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(failure.message)));
+  }
 
   /// Asks first, then runs the sweep and reports how it went. E-18.
   ///
@@ -69,12 +91,52 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(recalculateBalancesControllerProvider).isLoading;
+    final settings = ref.watch(settingsProvider);
+    final theme = settings.asData?.value.theme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
         child: ListView(
           children: [
+            const _SectionHeader('Appearance'),
+            ListTile(
+              leading: const Icon(Icons.brightness_6_outlined),
+              title: const Text('Theme'),
+              // The stored choice, or its failure's own sentence while there
+              // is no choice to show. Loading shows neither: the row is not
+              // interactive until the value it would be changing is known.
+              subtitle: switch (settings) {
+                AsyncError(:final Failure error) => Text(error.message),
+                _ => null,
+              },
+            ),
+            if (theme != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: SegmentedButton<AppThemeMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: AppThemeMode.system,
+                      label: Text('System'),
+                      icon: Icon(Icons.phone_android_outlined),
+                    ),
+                    ButtonSegment(
+                      value: AppThemeMode.light,
+                      label: Text('Light'),
+                      icon: Icon(Icons.light_mode_outlined),
+                    ),
+                    ButtonSegment(
+                      value: AppThemeMode.dark,
+                      label: Text('Dark'),
+                      icon: Icon(Icons.dark_mode_outlined),
+                    ),
+                  ],
+                  selected: {theme},
+                  onSelectionChanged: (chosen) =>
+                      _setTheme(context, ref, chosen.single),
+                ),
+              ),
             const _SectionHeader('Data'),
             ListTile(
               enabled: !busy,

@@ -83,6 +83,11 @@ import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'features/receipt_scanner/domain/usecases/pick_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
+import 'features/settings/data/datasources/settings_local_datasource.dart';
+import 'features/settings/data/repositories/settings_repository_impl.dart';
+import 'features/settings/domain/repositories/settings_repository.dart';
+import 'features/settings/domain/usecases/set_theme.dart';
+import 'features/settings/domain/usecases/watch_settings.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
@@ -765,6 +770,45 @@ final loadReceiptImageProvider = FutureProvider<LoadReceiptImage>(
 final getScanHistoryProvider = FutureProvider<GetScanHistory>(
   (ref) async =>
       GetScanHistory(await ref.watch(receiptRepositoryProvider.future)),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reads and writes the single `users` row. The only holder of SQL for the
+/// feature.
+///
+/// On the shared [DatabaseChangeBus], unlike categories: FR-ACC-005's base
+/// currency lives in this row, and every summed balance on screen has to
+/// follow a change to it the way it follows a transaction write.
+final settingsLocalDataSourceProvider = FutureProvider<SettingsLocalDataSource>(
+  (ref) async {
+    final source = SettingsLocalDataSourceImpl(
+      await ref.watch(databaseProvider.future),
+      changeBus: ref.watch(databaseChangeBusProvider),
+    );
+    ref.onDispose(source.dispose);
+    return source;
+  },
+);
+
+/// Turns data-layer exceptions into failures. The layer boundary.
+final settingsRepositoryProvider = FutureProvider<SettingsRepository>(
+  (ref) async => SettingsRepositoryImpl(
+    await ref.watch(settingsLocalDataSourceProvider.future),
+  ),
+);
+
+/// The user's preferences, kept live. SRS §3.8.
+final watchSettingsProvider = FutureProvider<WatchSettings>(
+  (ref) async =>
+      WatchSettings(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// Chooses the theme. FR-SET-001.
+final setThemeProvider = FutureProvider<SetTheme>(
+  (ref) async => SetTheme(await ref.watch(settingsRepositoryProvider.future)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
