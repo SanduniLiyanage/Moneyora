@@ -14,7 +14,9 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
+import '../../domain/entities/exchange_rate.dart';
 import '../../domain/entities/user_settings.dart';
+import '../../domain/usecases/remove_exchange_rate.dart';
 
 /// The user's preferences, kept live. SRS §3.8.
 ///
@@ -83,6 +85,91 @@ class ThemeController extends AutoDisposeAsyncNotifier<void> {
 final themeControllerProvider =
     AutoDisposeAsyncNotifierProvider<ThemeController, void>(
       ThemeController.new,
+    );
+
+/// Choosing the base currency. FR-SET-003.
+class BaseCurrencyController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Stores [code]. Returns the failure, for its sentence.
+  Future<Failure?> set(String code) async {
+    state = const AsyncValue<void>.loading();
+    final setBaseCurrency = await ref.read(setBaseCurrencyProvider.future);
+    return _settle(await setBaseCurrency(code));
+  }
+
+  Failure? _settle(Either<Failure, Unit> result) => result.match(
+    (failure) {
+      state = AsyncValue<void>.error(failure, StackTrace.current);
+      return failure;
+    },
+    (_) {
+      state = const AsyncValue<void>.data(null);
+      return null;
+    },
+  );
+}
+
+/// Controller for the base-currency choice.
+final baseCurrencyControllerProvider =
+    AutoDisposeAsyncNotifierProvider<BaseCurrencyController, void>(
+      BaseCurrencyController.new,
+    );
+
+/// Every stored exchange rate, kept live. FR-SET-003.
+final exchangeRatesProvider = StreamProvider<List<ExchangeRate>>((ref) {
+  return Stream.fromFuture(ref.watch(watchExchangeRatesProvider.future))
+      .asyncExpand((watchRates) => watchRates(const NoParams()))
+      .transform(
+        StreamTransformer<
+          Either<Failure, List<ExchangeRate>>,
+          List<ExchangeRate>
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
+
+/// Storing and forgetting exchange rates. FR-SET-003, E-34.
+///
+/// Both refusals are the use case's — a code that is not three letters, a
+/// currency against itself, a rate of nothing — and are shown, never
+/// swallowed.
+class ExchangeRateController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Stores [rate], replacing any held for the same pair.
+  Future<Failure?> set(ExchangeRate rate) async {
+    state = const AsyncValue<void>.loading();
+    final setRate = await ref.read(setExchangeRateProvider.future);
+    return _settle(await setRate(rate));
+  }
+
+  /// Forgets the rate for [pair].
+  Future<Failure?> remove(CurrencyPair pair) async {
+    state = const AsyncValue<void>.loading();
+    final removeRate = await ref.read(removeExchangeRateProvider.future);
+    return _settle(await removeRate(pair));
+  }
+
+  Failure? _settle(Either<Failure, Unit> result) => result.match(
+    (failure) {
+      state = AsyncValue<void>.error(failure, StackTrace.current);
+      return failure;
+    },
+    (_) {
+      state = const AsyncValue<void>.data(null);
+      return null;
+    },
+  );
+}
+
+/// Controller for the rate edits.
+final exchangeRateControllerProvider =
+    AutoDisposeAsyncNotifierProvider<ExchangeRateController, void>(
+      ExchangeRateController.new,
     );
 
 /// Recalculating every account balance from history. E-18.

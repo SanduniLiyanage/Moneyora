@@ -54,7 +54,7 @@ void main() {
   test('adds receipt_number, null, and keeps every scan', () async {
     await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3});
+    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4});
     final rows = await db.query('receipt_scans');
     expect(rows, hasLength(1));
     expect(rows.single['total_amount_cents'], 70500, reason: 'intact');
@@ -119,7 +119,8 @@ void main() {
     expect(indexes.map((i) => i['name']), contains('idx_keyword_dict_keyword'));
   });
 
-  test('v3 is the latest version', () {
-    expect(latestSchemaVersion, v3SchemaVersion);
+  test('v3 is a version, no longer the latest', () {
+    expect(schemaMigrations[v3SchemaVersion], v3Statements);
+    expect(latestSchemaVersion, greaterThan(v3SchemaVersion));
   });
 }

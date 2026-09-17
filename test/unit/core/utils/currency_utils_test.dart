@@ -123,6 +123,40 @@ void main() {
     });
   });
 
+  group('parseRateMicros', () {
+    test('scales by a million', () {
+      expect(parseRateMicros('300.25'), 300250000);
+      expect(parseRateMicros('1'), 1000000);
+      expect(parseRateMicros('0.003331'), 3331);
+    });
+
+    test('tolerates separators and rounds past six places', () {
+      expect(parseRateMicros(' 1,234.5 '), 1234500000);
+      expect(parseRateMicros('0.0000005'), 1);
+      expect(parseRateMicros('0.0000004'), 0);
+    });
+
+    test('null for nothing or nonsense', () {
+      expect(parseRateMicros(''), isNull);
+      expect(parseRateMicros('abc'), isNull);
+    });
+  });
+
+  group('formatRateMicros', () {
+    test('trims trailing zeros and keeps the leading one', () {
+      expect(formatRateMicros(300250000), '300.25');
+      expect(formatRateMicros(3331), '0.003331');
+      expect(formatRateMicros(1000000), '1');
+      expect(formatRateMicros(100000), '0.1');
+    });
+
+    test('round-trips what parse produced', () {
+      for (final typed in ['300.25', '0.003331', '42', '1.5']) {
+        expect(formatRateMicros(parseRateMicros(typed)!), typed);
+      }
+    });
+  });
+
   group('CurrencyFormat', () {
     test('LKR has two decimal places', () {
       expect(CurrencyFormat.lkr.code, 'LKR');

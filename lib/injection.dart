@@ -83,10 +83,17 @@ import 'features/receipt_scanner/domain/usecases/parse_receipt_text.dart';
 import 'features/receipt_scanner/domain/usecases/pick_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
+import 'features/settings/data/datasources/exchange_rate_local_datasource.dart';
 import 'features/settings/data/datasources/settings_local_datasource.dart';
+import 'features/settings/data/repositories/exchange_rate_repository_impl.dart';
 import 'features/settings/data/repositories/settings_repository_impl.dart';
+import 'features/settings/domain/repositories/exchange_rate_repository.dart';
 import 'features/settings/domain/repositories/settings_repository.dart';
+import 'features/settings/domain/usecases/remove_exchange_rate.dart';
+import 'features/settings/domain/usecases/set_base_currency.dart';
+import 'features/settings/domain/usecases/set_exchange_rate.dart';
 import 'features/settings/domain/usecases/set_theme.dart';
+import 'features/settings/domain/usecases/watch_exchange_rates.dart';
 import 'features/settings/domain/usecases/watch_settings.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
@@ -809,6 +816,53 @@ final watchSettingsProvider = FutureProvider<WatchSettings>(
 /// Chooses the theme. FR-SET-001.
 final setThemeProvider = FutureProvider<SetTheme>(
   (ref) async => SetTheme(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// Chooses the currency totals are expressed in. FR-SET-003.
+final setBaseCurrencyProvider = FutureProvider<SetBaseCurrency>(
+  (ref) async =>
+      SetBaseCurrency(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// Reads and writes `exchange_rates`. The only holder of SQL for the table.
+///
+/// On the shared [DatabaseChangeBus]: a rate is what converts every foreign
+/// balance on screen (FR-ACC-005), so a total has to follow a rate change.
+final exchangeRateLocalDataSourceProvider =
+    FutureProvider<ExchangeRateLocalDataSource>((ref) async {
+      final source = ExchangeRateLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+        changeBus: ref.watch(databaseChangeBusProvider),
+      );
+      ref.onDispose(source.dispose);
+      return source;
+    });
+
+/// Turns data-layer exceptions into failures. The layer boundary.
+final exchangeRateRepositoryProvider = FutureProvider<ExchangeRateRepository>(
+  (ref) async => ExchangeRateRepositoryImpl(
+    await ref.watch(exchangeRateLocalDataSourceProvider.future),
+  ),
+);
+
+/// Every stored rate, kept live. FR-SET-003.
+final watchExchangeRatesProvider = FutureProvider<WatchExchangeRates>(
+  (ref) async => WatchExchangeRates(
+    await ref.watch(exchangeRateRepositoryProvider.future),
+  ),
+);
+
+/// Stores a user-entered rate. FR-SET-003, E-34.
+final setExchangeRateProvider = FutureProvider<SetExchangeRate>(
+  (ref) async =>
+      SetExchangeRate(await ref.watch(exchangeRateRepositoryProvider.future)),
+);
+
+/// Forgets a rate. FR-SET-003.
+final removeExchangeRateProvider = FutureProvider<RemoveExchangeRate>(
+  (ref) async => RemoveExchangeRate(
+    await ref.watch(exchangeRateRepositoryProvider.future),
+  ),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -49,6 +49,7 @@ follows the Resolution sections.
 | [E-31](#e-31) | Three DBD schema gaps that will bite a specific sprint | Resolved | — |
 | [E-32](#e-32) | The plan tables as built depart from the DBD in four places | Clarified | FR-PLN-001, FR-PLN-002, FR-PLN-004, FR-PLN-008, FR-PLN-010 |
 | [E-33](#e-33) | FR-PLN-014's Carry Over has nowhere to live in the schema | Resolved | FR-PLN-014 |
+| [E-34](#e-34) | FR-ACC-005 has no schema: no rates table, and a transfer header that cannot carry two amounts | Resolved | FR-ACC-005, FR-SET-003, FR-TRF-001 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -1911,6 +1912,79 @@ proportionally"*, not a departure from it.
 The DBD v1.1 that E-32 anticipates should carry this column.
 
 ---
+
+---
+
+<a id="e-34"></a>
+
+## E-34 — FR-ACC-005 has no schema: no rates table, and a transfer header that cannot carry two amounts
+
+**Severity:** Medium · **Affects:** DBD §3.2, §3.5 · **Requirement:** FR-ACC-005,
+FR-SET-003, FR-TRF-001
+
+Raised 2026-09-17, at the start of Sprint 7. Two gaps the DBD's own
+annotations name and never resolve, both inert until this sprint and both
+blocking the moment FR-ACC-005 starts.
+
+**1. Nothing stores an exchange rate.** `accounts.currency` exists per
+account (§3.2) and FR-SET-003 requires "exchange rate configuration", but no
+table holds a rate. E-25's three interim rules — the LKR constant, the
+same-currency transfer guard, the Total Balance's exclusion — exist because
+there was nothing to convert with.
+
+*Resolution:* schema v4 adds
+`exchange_rates(from_currency, to_currency, rate_micros, updated_at)`,
+primary key on the pair, `CHECK(rate_micros > 0)`,
+`CHECK(from_currency <> to_currency)`. A rate is an integer scaled by 10⁶ —
+the money-is-integer-minor-units rule (E-06) extended to the thing money is
+multiplied by — and conversion is `cents × rate_micros ÷ 10⁶`, rounded to
+the nearest cent, computed over `BigInt` so a large balance at a large rate
+cannot overflow silently. Rates are keyed by *pair*, not by "foreign
+currency against the base", so changing the base currency (FR-SET-003) does
+not silently change what every stored rate means; it means rates against the
+new base have to be entered, which is the honest consequence. Rates are
+user-entered only (SRS: "user-configurable"); no fetch exists and none is
+scheduled.
+
+A currency with no rate to the base is not an error. The account is shown in
+its own currency and left out of the Total Balance with the E-25 note —
+E-25's interim rule survives as the no-rate fallback, and the note stays
+until a rate exists.
+
+**2. The transfer header holds one amount.** `transfers.amount_cents` is the
+debited figure. Once the same-currency guard goes, a transfer from a USD
+account to an LKR one debits dollars and credits rupees: two amounts, one
+column. E-16 already lets each `transactions` half carry its own
+`amount_cents`, so the *ledger* can represent this; the *header* cannot, and
+it is what the transfer screen reads back for display and editing.
+
+*Resolution:* v4 adds `transfers.credited_amount_cents INTEGER`, nullable in
+the DDL because `ALTER TABLE ADD COLUMN` can declare `NOT NULL` only with a
+constant default and there is no true constant here (v2's
+`carry_over_cents` could default to zero because zero was the true value;
+the credited amount of an existing transfer is its debited amount, a value
+per row). The CHECK is therefore
+`CHECK(credited_amount_cents IS NULL OR credited_amount_cents > 0)`, and the
+very next statement in the migration body is
+`UPDATE transfers SET credited_amount_cents = amount_cents`, so that after
+migration no row is null. The v4 upgrade test asserts exactly that on
+pre-existing rows; the datasource always writes the column, so a null can
+only mean a migration that did not finish, which the per-version transaction
+in `database_helper.dart` already rules out.
+
+`createTransfer` takes the credited amount, writes it to the credit half and
+to the header, and moves the destination balance by it; `MakeTransfer`
+requires it whenever the two currencies differ and derives it from
+`amount_cents` when they match, so every existing caller keeps meaning what
+it meant. The credited amount is the user's number, entered on the transfer
+screen beside the debited one — not a conversion at the stored rate, because
+the rate a bank actually applied is on the statement, not in this table; the
+stored rate pre-fills the field and nothing more.
+
+Landing both removes E-25's three interim rules in the same commit that adds
+conversion, as that entry requires. The rates plumbing (this entry's schema,
+the rate and base-currency settings) lands first and changes no behaviour
+elsewhere; conversion and the three deletions land second.
 
 ---
 

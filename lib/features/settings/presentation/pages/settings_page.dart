@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/router/app_router.dart';
 import '../../domain/entities/user_settings.dart';
+import '../../domain/usecases/set_base_currency.dart';
 import '../providers/settings_providers.dart';
 
 /// The settings screen. SDD SCR-016.
@@ -16,6 +19,10 @@ import '../providers/settings_providers.dart';
 /// three values `users.theme` can hold, and choosing one is drawn by the app
 /// root the moment it is stored — this screen writes and never sets a theme
 /// itself.
+///
+/// *Currency* holds FR-SET-003: the base currency totals are expressed in,
+/// and the rate table (its own screen). Neither converts anything by itself
+/// — conversion is FR-ACC-005's, and lands beside the totals it changes.
 ///
 /// *Data*'s row is not a preference at all. "Recalculate account balances"
 /// is E-18's reconciliation, reachable from here and from nowhere else:
@@ -39,6 +46,27 @@ class SettingsPage extends ConsumerWidget {
     AppThemeMode mode,
   ) async {
     final failure = await ref.read(themeControllerProvider.notifier).set(mode);
+    if (failure == null || !context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(failure.message)));
+  }
+
+  /// Asks for a three-letter code, stores it, shows the failure if any.
+  /// FR-SET-003.
+  Future<void> _setBaseCurrency(
+    BuildContext context,
+    WidgetRef ref,
+    String current,
+  ) async {
+    final code = await showDialog<String>(
+      context: context,
+      builder: (context) => _BaseCurrencyDialog(initial: current),
+    );
+    if (code == null || !context.mounted) return;
+
+    final failure = await ref
+        .read(baseCurrencyControllerProvider.notifier)
+        .set(code);
     if (failure == null || !context.mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(failure.message)));
@@ -93,6 +121,8 @@ class SettingsPage extends ConsumerWidget {
     final busy = ref.watch(recalculateBalancesControllerProvider).isLoading;
     final settings = ref.watch(settingsProvider);
     final theme = settings.asData?.value.theme;
+    final baseCurrency = settings.asData?.value.currency;
+    final rateCount = ref.watch(exchangeRatesProvider).asData?.value.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -137,6 +167,37 @@ class SettingsPage extends ConsumerWidget {
                       _setTheme(context, ref, chosen.single),
                 ),
               ),
+            const _SectionHeader('Currency'),
+            ListTile(
+              leading: const Icon(Icons.currency_exchange_outlined),
+              title: const Text('Base currency'),
+              subtitle: Text(
+                baseCurrency == null
+                    ? 'The currency your total balance is shown in.'
+                    : '$baseCurrency — the currency your total balance is '
+                          'shown in.',
+              ),
+              enabled: baseCurrency != null,
+              onTap: baseCurrency == null
+                  ? null
+                  : () => _setBaseCurrency(context, ref, baseCurrency),
+            ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz_outlined),
+              title: const Text('Exchange rates'),
+              subtitle: Text(switch (rateCount) {
+                null =>
+                  'The rates used to count other currencies in your '
+                      'total.',
+                0 =>
+                  'None yet. Add one to count an account held in another '
+                      'currency.',
+                1 => 'One rate.',
+                final n => '$n rates.',
+              }),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(Routes.exchangeRates),
+            ),
             const _SectionHeader('Data'),
             ListTile(
               enabled: !busy,
@@ -179,4 +240,82 @@ class _SectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Asking for the base currency. Returns the code, or null on cancel.
+class _BaseCurrencyDialog extends StatefulWidget {
+  const _BaseCurrencyDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_BaseCurrencyDialog> createState() => _BaseCurrencyDialogState();
+}
+
+class _BaseCurrencyDialogState extends State<_BaseCurrencyDialog> {
+  late final TextEditingController _code = TextEditingController(
+    text: widget.initial,
+  );
+  bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _code.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  /// The use case's own verdict, shown as the user types once they have
+  /// tried to save.
+  String? get _error =>
+      _submitted ? SetBaseCurrency.validate(_code.text)?.message : null;
+
+  void _save() {
+    setState(() => _submitted = true);
+    if (SetBaseCurrency.validate(_code.text) != null) return;
+    Navigator.of(context).pop(_code.text.trim().toUpperCase());
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Base currency'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _code,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 3,
+          decoration: InputDecoration(
+            labelText: 'Currency code',
+            hintText: 'LKR',
+            counterText: '',
+            errorText: _error,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          // E-34: rates are per pair, so a new base means the rates to it
+          // may not exist yet. Said here, where the choice is made.
+          'Accounts in other currencies count towards your total only '
+          'once a rate to this currency is entered under Exchange rates.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      TextButton(onPressed: _save, child: const Text('Save')),
+    ],
+  );
 }
