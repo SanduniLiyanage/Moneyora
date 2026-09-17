@@ -24,6 +24,7 @@ import '../../features/receipt_scanner/domain/entities/scanned_receipt.dart';
 import '../../features/receipt_scanner/presentation/pages/receipt_history_page.dart';
 import '../../features/receipt_scanner/presentation/pages/receipt_review_page.dart';
 import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
+import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
 
@@ -102,10 +103,11 @@ abstract final class Routes {
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
 ///
-/// Home and transactions have real screens. The rest are declared now, as
-/// placeholders, because the shape of the navigation graph is a design
-/// decision worth settling before five features each invent their own — and
-/// because a route that exists is a route a deep link can already reach.
+/// Every route here has a screen behind it. They were declared before their
+/// screens existed, as placeholders, because the shape of the navigation
+/// graph is a design decision worth settling before five features each invent
+/// their own — and because a route that exists is a route a deep link can
+/// already reach. The last placeholder went with Sprint 7's settings screen.
 GoRouter buildRouter() => GoRouter(
   initialLocation: Routes.home,
   routes: <RouteBase>[
@@ -190,8 +192,7 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.settings,
       name: 'settings',
-      builder: (context, state) =>
-          const _PlannedScreen(title: 'Settings', sprint: 'Sprint 7'),
+      builder: (context, state) => const SettingsPage(),
     ),
     // One route, and nothing else in the app reaches into the feature. Taking
     // the Copilot out again is deleting this entry (NFR-REL-004).
@@ -236,43 +237,6 @@ GoRouter buildRouter() => GoRouter(
   ],
   errorBuilder: (context, state) => _RouteNotFound(location: state.uri.path),
 );
-
-/// Placeholder for a route whose screen is not built yet.
-///
-/// Deliberately states which sprint owns it, so an unfinished screen reads as
-/// planned work rather than as something broken.
-class _PlannedScreen extends StatelessWidget {
-  const _PlannedScreen({required this.title, required this.sprint});
-
-  final String title;
-  final String sprint;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 8),
-              Text(
-                'Arrives in $sprint.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// Shown for a path with no route.
 ///

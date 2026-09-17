@@ -1,21 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/usecases/usecase.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/domain/repositories/account_repository.dart';
 import 'package:moneyora/features/accounts/domain/usecases/add_account.dart';
 import 'package:moneyora/features/accounts/domain/usecases/archive_account.dart';
 import 'package:moneyora/features/accounts/domain/usecases/delete_account.dart';
 import 'package:moneyora/features/accounts/domain/usecases/recompute_account_balance.dart';
+import 'package:moneyora/features/accounts/domain/usecases/recompute_all_account_balances.dart';
 import 'package:moneyora/features/accounts/domain/usecases/update_account.dart';
 import 'package:moneyora/features/accounts/domain/usecases/watch_accounts.dart';
 
-/// The six account use cases share one collaborator, and the fake below is
+/// The seven account use cases share one collaborator, and the fake below is
 /// most of the code either way.
 ///
-/// `ARCHITECTURE.md` §4 says a test file mirrors its source, and six files here
-/// would mean six copies of that fake — which is exactly the thing most likely
-/// to drift out of step with the interface. One file, six groups, one fake.
+/// `ARCHITECTURE.md` §4 says a test file mirrors its source, and seven files
+/// here would mean seven copies of that fake — which is exactly the thing most
+/// likely to drift out of step with the interface. One file, seven groups, one
+/// fake.
 void main() {
   late _FakeRepository repository;
 
@@ -211,22 +214,43 @@ void main() {
       expect(repository.recomputedId, 1);
     });
 
-    test('null recomputes every account', () async {
-      // What a restore needs: every balance re-derived, with no single number
-      // to report back.
-      final result = await RecomputeAccountBalance(repository)(null);
-
-      expect(result, const Right<Failure, int>(0));
-      expect(repository.recomputedAll, isTrue);
-      expect(repository.recomputedId, isNull);
-    });
-
     test('surfaces a failure rather than throwing', () async {
       repository.failWith = const CacheFailure('database is locked');
 
       final result = await RecomputeAccountBalance(repository)(1);
 
       expect(result.isLeft(), isTrue);
+    });
+  });
+
+  group('RecomputeAllAccountBalances', () {
+    test(
+      'asks the repository for the sweep, not one account at a time',
+      () async {
+        // What a restore, or the Settings action, needs: every balance
+        // re-derived in one transaction, with no single number to report back.
+        final result = await RecomputeAllAccountBalances(repository)(
+          const NoParams(),
+        );
+
+        expect(result, const Right<Failure, Unit>(unit));
+        expect(repository.recomputedAll, isTrue);
+        expect(repository.recomputedId, isNull);
+      },
+    );
+
+    test('surfaces a failure rather than throwing', () async {
+      repository.failWith = const CacheFailure('database is locked');
+
+      final result = await RecomputeAllAccountBalances(repository)(
+        const NoParams(),
+      );
+
+      expect(
+        result,
+        const Left<Failure, Unit>(CacheFailure('database is locked')),
+      );
+      expect(repository.recomputedAll, isFalse);
     });
   });
 

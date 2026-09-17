@@ -500,9 +500,13 @@ PIN + biometrics + lockout backoff, dark theme toggle, recurring reminders,
 budget alerts at 80% / 100%.
 
 **Plus FR-ACC-005, deferred here from Sprint 3.** Multi-currency accounts with
-user-configurable exchange rates: a `exchange_rates` table behind a **v2
-migration**, a base-currency setting, and conversion applied wherever balances
-are summed. It lands here because the rate table is user-editable and its
+user-configurable exchange rates: a `exchange_rates` table behind a **v4
+migration** (this said v2 until Sprint 6 closed; v2 and v3 were spent on E-33
+and E-31 in the meantime, and v4 follows the same additive pattern with the
+same upgrade-with-rows-intact test), a base-currency setting, and conversion
+applied wherever balances are summed. The settings themselves need no new
+table: the DBD's single-row `users` table has carried the theme, currency,
+first-weekday and lookback columns since v1. It lands here because the rate table is user-editable and its
 screen is a settings screen, and because a migration is safer in a sprint that
 is not also shipping five new pages.
 
@@ -512,17 +516,23 @@ in `MakeTransfer.validate`, and the Total Balance's exclusion of
 foreign-currency accounts. Delete all three in the same commit that adds
 conversion, or the app will refuse transfers it is now capable of making.
 
-Also here: E-18's reconciliation behind a Settings action.
-`RecomputeAccountBalance` is built, tested and wired into `injection.dart`, and
-**nothing in the application calls it** — not on app start, not from any screen.
-This file previously said it "has no caller outside app start", which described
-a narrower gap than the real one.
+### The settings shell and E-18's Settings action — done ([PR #104](https://github.com/SanduniLiyanage/Moneyora/pull/104))
+
+E-18's reconciliation is reachable: Settings › Data › "Recalculate account
+balances" asks first, then runs `RecomputeAllAccountBalances`, the sweep
+that re-derives every account in one transaction. For most of Sprints 3–6
+`RecomputeAccountBalance` was built, tested, wired into `injection.dart` and
+called by **nothing** — not on app start, not from any screen — and this
+file once said it "had no caller outside app start", which described a
+narrower gap than the real one.
 
 It stays manual-only on purpose. Reconciliation is `O(all transactions)` per
 account, and putting a full-history scan on the launch path is the opposite of
-what Sprint 4 does to NFR-PER-001. Until this Settings action ships, E-18's
-repair for externally-introduced drift is built and unreachable — stated plainly
-in the [E-18 addendum](SPEC_ERRATA.md) rather than left to look finished.
+what Sprint 4 does to NFR-PER-001. The restore path is its other caller,
+and that arrives with the restore in Sprint 8 — see the
+[E-18 addendum](SPEC_ERRATA.md). The `settings` route was the last
+placeholder in the router; the settings screen is a shell whose sections
+arrive with the requirements that fill them.
 
 ## Sprint 8 — Backup, export, sync (Week 13)
 
