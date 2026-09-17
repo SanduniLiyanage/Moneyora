@@ -142,6 +142,7 @@ void main() {
         fromAccountId: 2,
         toAccountId: 1,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
         note: 'Cash withdrawal',
       );
@@ -166,6 +167,7 @@ void main() {
         fromAccountId: 1,
         toAccountId: 1,
         amountCents: 500,
+        creditedAmountCents: 500,
         date: date,
       );
 
@@ -351,6 +353,7 @@ class _FakeLocalDataSource implements TransactionLocalDataSource {
     required int fromAccountId,
     required int toAccountId,
     required int amountCents,
+    required int creditedAmountCents,
     required DateTime date,
     String? note,
   }) async {

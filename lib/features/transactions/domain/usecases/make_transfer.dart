@@ -16,6 +16,7 @@ class TransferParams extends Equatable {
     this.note,
     this.fromCurrency = defaultCurrency,
     this.toCurrency = defaultCurrency,
+    this.creditedAmountCents,
   });
 
   /// What both sides are assumed to hold unless the caller says otherwise.
@@ -47,6 +48,26 @@ class TransferParams extends Equatable {
   /// The currency the destination account holds.
   final String toCurrency;
 
+  /// What arrives, in minor units of [toCurrency]. E-34.
+  ///
+  /// Required when the two currencies differ — it is the user's number from
+  /// the statement, not a conversion at a stored rate — and ignored when
+  /// they match, where it can only be [amountCents]. See [effectiveCredit].
+  final int? creditedAmountCents;
+
+  /// Whether money changes currency on the way.
+  bool get crossesCurrency =>
+      fromCurrency.trim().toUpperCase() != toCurrency.trim().toUpperCase();
+
+  /// The amount the destination is credited with.
+  ///
+  /// [amountCents] for a same-currency transfer whatever the caller passed,
+  /// so every existing caller keeps meaning what it meant; the credited
+  /// figure otherwise. Null only when one was needed and not given, which
+  /// [MakeTransfer.validate] refuses before this is read.
+  int? get effectiveCredit =>
+      crossesCurrency ? creditedAmountCents : amountCents;
+
   @override
   List<Object?> get props => [
     fromAccountId,
@@ -56,6 +77,7 @@ class TransferParams extends Equatable {
     note,
     fromCurrency,
     toCurrency,
+    creditedAmountCents,
   ];
 }
 
@@ -87,6 +109,9 @@ class MakeTransfer implements UseCase<int, TransferParams> {
       fromAccountId: params.fromAccountId,
       toAccountId: params.toAccountId,
       amountCents: params.amountCents,
+      // Never null here: validate has already refused the case where a
+      // credited amount was needed and not given.
+      creditedAmountCents: params.effectiveCredit!,
       date: params.date,
       note: params.note,
     );
@@ -133,6 +158,22 @@ class MakeTransfer implements UseCase<int, TransferParams> {
         'accounts.',
         field: 'toAccount',
       );
+    }
+
+    if (params.crossesCurrency) {
+      final credited = params.creditedAmountCents;
+      if (credited == null || credited <= 0) {
+        // E-34: the credited amount is the user's number, not a conversion
+        // at a stored rate — the rate a bank actually applied is on the
+        // statement. Without it a cross-currency transfer would credit the
+        // debited figure in the wrong currency, which is the wrong number
+        // E-25 refused for.
+        return ValidationFailure(
+          'Enter the amount that arrives in '
+          '${params.toCurrency.trim().toUpperCase()}.',
+          field: 'creditedAmount',
+        );
+      }
     }
 
     if (params.date.isAfter(DateTime.now().add(const Duration(days: 1)))) {

@@ -67,6 +67,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
     required int fromAccountId,
     required int toAccountId,
     required int amountCents,
+    required int creditedAmountCents,
     required DateTime date,
     String? note,
   }) => _attempt(
@@ -74,6 +75,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
       fromAccountId: fromAccountId,
       toAccountId: toAccountId,
       amountCents: amountCents,
+      creditedAmountCents: creditedAmountCents,
       date: date,
       note: note,
     ),

@@ -5,7 +5,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/database_change_bus.dart';
-import 'package:moneyora/core/database/migrations/v1_initial.dart';
+import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/features/accounts/data/datasources/account_local_datasource.dart';
 import 'package:moneyora/features/accounts/data/models/account_model.dart';
@@ -45,12 +45,16 @@ void main() {
         onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
         onCreate: (d, _) async {
           final batch = d.batch();
-          for (final statement in v1Statements) {
-            batch.execute(statement);
+          // Every version, not v1 alone: a datasource writes the columns the
+          // latest schema has, and a test over v1 would refuse them.
+          for (final version in schemaMigrations.keys.toList()..sort()) {
+            for (final statement in schemaMigrations[version]!) {
+              batch.execute(statement);
+            }
           }
           await batch.commit(noResult: true);
         },
-        version: v1SchemaVersion,
+        version: latestSchemaVersion,
       ),
     );
 
@@ -278,6 +282,7 @@ void main() {
           fromAccountId: card,
           toAccountId: cash,
           amountCents: 800000,
+          creditedAmountCents: 800000,
           date: date,
         );
 
@@ -350,11 +355,15 @@ void main() {
               ),
             );
           case 2:
+            // Debit and credit drawn separately, as a cross-currency
+            // transfer has them (E-34): the oracle must hold when the two
+            // halves carry different numbers, not only when they match.
             final from = random.nextBool() ? cash : card;
             await transactions.createTransfer(
               fromAccountId: from,
               toAccountId: from == cash ? card : cash,
               amountCents: 1000 + random.nextInt(40000),
+              creditedAmountCents: 1000 + random.nextInt(40000),
               date: date,
             );
           case 3:
@@ -450,6 +459,7 @@ void main() {
         fromAccountId: cash,
         toAccountId: card,
         amountCents: 25000,
+        creditedAmountCents: 25000,
         date: DateTime.utc(2026, 3, 4),
       );
       await Future<void>.delayed(Duration.zero);
@@ -470,6 +480,7 @@ void main() {
           fromAccountId: cash,
           toAccountId: 9999,
           amountCents: 25000,
+          creditedAmountCents: 25000,
           date: DateTime.utc(2026, 3, 4),
         ),
         throwsA(isA<CacheException>()),

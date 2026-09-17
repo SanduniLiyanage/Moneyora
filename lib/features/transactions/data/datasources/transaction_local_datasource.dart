@@ -67,10 +67,15 @@ abstract interface class TransactionLocalDataSource {
   ///
   /// Returns the `transfers` row id, not either transaction id — the header is
   /// what the UI edits and deletes.
+  ///
+  /// [amountCents] leaves the source in its currency; [creditedAmountCents]
+  /// arrives at the destination in its own (E-34). The same number for a
+  /// same-currency transfer.
   Future<int> createTransfer({
     required int fromAccountId,
     required int toAccountId,
     required int amountCents,
+    required int creditedAmountCents,
     required DateTime date,
     String? note,
   });
@@ -239,6 +244,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
     required int fromAccountId,
     required int toAccountId,
     required int amountCents,
+    required int creditedAmountCents,
     required DateTime date,
     String? note,
   }) async {
@@ -263,11 +269,14 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
           ).toMap(now: now),
         );
 
+        // The credit half carries the credited figure (E-34): E-16 made each
+        // half's amount its own, so a balance recomputed from history reads
+        // the right number on each side without joining the header.
         final toTxId = await txn.insert(
           'transactions',
           TransactionModel(
             accountId: toAccountId,
-            amountCents: amountCents,
+            amountCents: creditedAmountCents,
             type: TransactionType.transfer,
             transferDirection: TransferDirection.incoming,
             date: date,
@@ -279,6 +288,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
           'from_account_id': fromAccountId,
           'to_account_id': toAccountId,
           'amount_cents': amountCents,
+          'credited_amount_cents': creditedAmountCents,
           'date': TransactionModel.encodeDate(date),
           'note': note,
           'from_tx_id': fromTxId,
@@ -287,7 +297,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
         });
 
         await _applyBalance(txn, fromAccountId, -amountCents);
-        await _applyBalance(txn, toAccountId, amountCents);
+        await _applyBalance(txn, toAccountId, creditedAmountCents);
 
         return transferId;
       });

@@ -24,6 +24,7 @@ void main() {
     String? note,
     String fromCurrency = 'LKR',
     String toCurrency = 'LKR',
+    int? creditedAmountCents,
   }) => TransferParams(
     fromAccountId: from,
     toAccountId: to,
@@ -32,6 +33,7 @@ void main() {
     note: note,
     fromCurrency: fromCurrency,
     toCurrency: toCurrency,
+    creditedAmountCents: creditedAmountCents,
   );
 
   setUp(() {
@@ -49,9 +51,18 @@ void main() {
         from: 2,
         to: 1,
         amount: 800000,
+        // Same currency both sides: the credit is the debit, whatever the
+        // caller did or did not pass (E-34).
+        credited: 800000,
         date: date,
         note: 'Cash withdrawal',
       ));
+    });
+
+    test('a same-currency transfer ignores any credited amount given', () {
+      final p = params(creditedAmountCents: 5);
+      expect(p.crossesCurrency, isFalse);
+      expect(p.effectiveCredit, 800000);
     });
 
     test('surfaces a repository failure rather than throwing', () async {
@@ -167,7 +178,8 @@ class _FakeRepository implements TransactionRepository {
   Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
       throw UnimplementedError('addAll');
 
-  ({int from, int to, int amount, DateTime date, String? note})? received;
+  ({int from, int to, int amount, int credited, DateTime date, String? note})?
+  received;
   Failure? failWith;
 
   @override
@@ -175,6 +187,7 @@ class _FakeRepository implements TransactionRepository {
     required int fromAccountId,
     required int toAccountId,
     required int amountCents,
+    required int creditedAmountCents,
     required DateTime date,
     String? note,
   }) async {
@@ -183,6 +196,7 @@ class _FakeRepository implements TransactionRepository {
       from: fromAccountId,
       to: toAccountId,
       amount: amountCents,
+      credited: creditedAmountCents,
       date: date,
       note: note,
     );

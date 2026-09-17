@@ -2,7 +2,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:moneyora/core/database/migrations/v1_initial.dart';
+import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/database/seed/default_seed.dart';
 import 'package:moneyora/core/database/seed/dev_seed.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
@@ -39,12 +39,16 @@ void main() {
         onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
         onCreate: (d, _) async {
           final batch = d.batch();
-          for (final statement in v1Statements) {
-            batch.execute(statement);
+          // Every version, not v1 alone: a datasource writes the columns the
+          // latest schema has, and a test over v1 would refuse them.
+          for (final version in schemaMigrations.keys.toList()..sort()) {
+            for (final statement in schemaMigrations[version]!) {
+              batch.execute(statement);
+            }
           }
           await batch.commit(noResult: true);
         },
-        version: v1SchemaVersion,
+        version: latestSchemaVersion,
       ),
     );
     await applyDefaultSeed(db);
