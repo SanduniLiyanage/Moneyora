@@ -167,7 +167,16 @@ void main() {
     ),
   );
 
+  /// Pumps the page with the whole of it on screen.
+  ///
+  /// The default 800x600 is shorter than the settings list now, and a
+  /// `ListView` builds lazily — the Data section below the fold would not
+  /// exist to be tapped.
   Future<void> open(WidgetTester tester) async {
+    tester.view
+      ..physicalSize = const Size(1200, 2400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(boot());
     await tester.pumpAndSettle();
   }
@@ -308,6 +317,85 @@ void main() {
       ];
       await open(tester);
       expect(find.text('2 rates.'), findsOneWidget);
+    });
+  });
+
+  group('the calendar', () {
+    testWidgets('shows the stored week start and writes a new one', (
+      tester,
+    ) async {
+      await open(tester);
+
+      final button = tester.widget<SegmentedButton<int>>(
+        find.byType(SegmentedButton<int>),
+      );
+      // The seeded default is Sunday (FR-SET-004, DBD §3.1).
+      expect(button.selected, {DateTime.sunday});
+
+      await tester.tap(find.text('Monday'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved, [
+        const UserSettings(firstDayOfWeek: DateTime.monday),
+      ]);
+    });
+
+    testWidgets('writes the first day of the month, and says what it means', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.text('Day 1 — the calendar month.'), findsOneWidget);
+
+      await tester.tap(find.text('Month starts on day'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '25');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved, [const UserSettings(firstDayOfMonth: 25)]);
+      expect(
+        find.textContaining('Day 25 — a month runs from the 25th'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('refuses a day every month does not have, in the use '
+        'case\'s words', (tester) async {
+      await open(tester);
+
+      await tester.tap(find.text('Month starts on day'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '31');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Choose a day from 1 to 28, so every month has it.'),
+        findsOneWidget,
+      );
+      expect(settings.saved, isEmpty);
+    });
+
+    testWidgets('writes the lookback within 1–24 and refuses outside', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.text('6 months of spending.'), findsOneWidget);
+
+      await tester.tap(find.text('Money Plan looks back'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '25');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Choose between 1 and 24 months.'), findsOneWidget);
+      expect(settings.saved, isEmpty);
+
+      await tester.enterText(find.byType(TextField), '12');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved, [const UserSettings(planAnalysisMonths: 12)]);
+      expect(find.text('12 months of spending.'), findsOneWidget);
     });
   });
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:moneyora/core/ports/calendar_settings.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/money_plan/domain/entities/allocation_request.dart';
@@ -12,6 +13,7 @@ import 'package:moneyora/features/money_plan/domain/entities/budget_mode.dart';
 import 'package:moneyora/features/money_plan/domain/entities/lookback_window.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/money_plan_page.dart';
+import 'package:moneyora/injection.dart';
 
 /// The wizard's first step: what it builds, what it refuses, where it goes.
 ///
@@ -20,7 +22,15 @@ import 'package:moneyora/features/money_plan/presentation/pages/money_plan_page.
 void main() {
   final now = DateTime(2026, 9, 13);
 
-  Widget boot(List<AllocationRequest> handedOn) => ProviderScope(
+  Widget boot(
+    List<AllocationRequest> handedOn, {
+    CalendarSettings calendar = CalendarSettings.defaults,
+  }) => ProviderScope(
+    overrides: [
+      // FR-SET-004 and FR-SET-012: how periods are cut and how far back the
+      // plan looks, both read from Settings.
+      calendarSettingsProvider.overrideWith((ref) => Stream.value(calendar)),
+    ],
     child: MaterialApp.router(
       theme: AppTheme.light,
       routerConfig: GoRouter(
@@ -53,7 +63,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('opens on next month, from history, over the default lookback', (
+  testWidgets('opens on next month, from history, over the stored lookback', (
     tester,
   ) async {
     final handedOn = <AllocationRequest>[];
@@ -62,8 +72,13 @@ void main() {
 
     expect(find.text('Create Money Plan'), findsOneWidget);
     expect(find.text('October 2026 · 31 days'), findsOneWidget);
+    // FR-PLN-003, FR-SET-012: stated, with where to change it, and not
+    // changeable here.
     expect(
-      find.text('Based on the last 6 months of spending.'),
+      find.text(
+        'Based on the last 6 months of spending — change this under '
+        'Settings › Calendar.',
+      ),
       findsOneWidget,
     );
 
@@ -78,6 +93,46 @@ void main() {
       ),
     );
     expect(handedOn.single.lookback.months, LookbackWindow.defaultMonths);
+  });
+
+  testWidgets('reads the lookback from Settings and says so', (tester) async {
+    final handedOn = <AllocationRequest>[];
+    await tester.pumpWidget(
+      boot(handedOn, calendar: const CalendarSettings(planAnalysisMonths: 12)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Based on the last 12 months of spending'),
+      findsOneWidget,
+    );
+
+    await generate(tester);
+
+    expect(handedOn.single.lookback, LookbackWindow.before(now, months: 12));
+  });
+
+  testWidgets('cuts a week and a month where Settings says', (tester) async {
+    final handedOn = <AllocationRequest>[];
+    await tester.pumpWidget(
+      boot(
+        handedOn,
+        calendar: const CalendarSettings(
+          firstWeekday: DateTime.monday,
+          firstDayOfMonth: 25,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Next month's first day is 1 October, which falls before a 25th
+    // start: the month that began on 25 September.
+    expect(find.text('Sep 25 – Oct 24, 2026 · 30 days'), findsOneWidget);
+
+    await tester.tap(find.text('Week'));
+    await tester.pumpAndSettle();
+    // 1 October 2026 is a Thursday: Monday the 28th to Sunday the 4th.
+    expect(find.text('Sep 28 – Oct 4, 2026 · 7 days'), findsOneWidget);
   });
 
   testWidgets('a number of days is counted from the start date', (
@@ -108,8 +163,9 @@ void main() {
 
     await tester.tap(find.text('Week'));
     await tester.pumpAndSettle();
-    // 1 October 2026 is a Thursday: Monday the 28th to Sunday the 4th.
-    expect(find.text('Sep 28 – Oct 4, 2026 · 7 days'), findsOneWidget);
+    // 1 October 2026 is a Thursday. Under the stored default the week
+    // starts on Sunday: the 27th to Saturday the 3rd.
+    expect(find.text('Sep 27 – Oct 3, 2026 · 7 days'), findsOneWidget);
 
     await tester.tap(find.text('Year'));
     await tester.pumpAndSettle();

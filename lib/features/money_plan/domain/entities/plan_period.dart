@@ -75,9 +75,8 @@ class PlanPeriod extends Equatable {
   factory PlanPeriod.day(DateTime date) =>
       PlanPeriod(from: date, to: date, type: PlanPeriodType.day);
 
-  /// The whole week [date] falls in, starting on [firstWeekday] (a
-  /// `DateTime` weekday constant, Monday until FR-SET-004 makes it a
-  /// setting in Sprint 7). FR-PLN-002's "Week".
+  /// The whole week [date] falls in, starting on [firstWeekday] — a
+  /// `DateTime` weekday constant, FR-SET-004's setting. FR-PLN-002's "Week".
   factory PlanPeriod.week(DateTime date, {int firstWeekday = DateTime.monday}) {
     final start = DateTime(date.year, date.month, date.day);
     final offset = (start.weekday - firstWeekday + 7) % 7;
@@ -95,6 +94,19 @@ class PlanPeriod extends Equatable {
     to: DateTime(year, month + 1, 0),
     type: PlanPeriodType.month,
   );
+
+  /// The "month" [date] falls in when months start on [firstDay] —
+  /// FR-SET-004's setting, the same cut `DateRange.monthOf` makes so a plan
+  /// and the analytics behind it agree on what a month is.
+  factory PlanPeriod.monthOf(DateTime date, {int firstDay = 1}) {
+    final startMonth = date.day >= firstDay ? date.month : date.month - 1;
+    final from = DateTime(date.year, startMonth, firstDay);
+    return PlanPeriod(
+      from: from,
+      to: DateTime(from.year, from.month + 1, firstDay - 1),
+      type: PlanPeriodType.month,
+    );
+  }
 
   /// The whole of one calendar year. FR-PLN-002's "Year".
   factory PlanPeriod.year(int year) => PlanPeriod(

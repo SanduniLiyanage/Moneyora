@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/calendar_settings.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
@@ -71,11 +72,14 @@ void main() {
     _ScriptedRepository repository, {
     PeriodSelection? selection,
     int transactionsEver = 1,
+    CalendarSettings calendar = CalendarSettings.defaults,
   }) => ProviderScope(
     overrides: [
       analyticsPeriodProvider.overrideWith(
         (ref) => selection ?? PeriodSelection.monthOf(anchor),
       ),
+      // FR-SET-004: which column the grid starts on.
+      calendarSettingsProvider.overrideWith((ref) => Stream.value(calendar)),
       getSpendingCalendarProvider.overrideWith(
         (ref) async => GetSpendingCalendar(repository),
       ),
@@ -117,6 +121,32 @@ void main() {
       expect(find.text('31'), findsNothing);
       expect(find.text('Mon'), findsOneWidget);
       expect(find.text('Sun'), findsOneWidget);
+    });
+
+    testWidgets('starts its columns on Sunday under the stored default', (
+      tester,
+    ) async {
+      // FR-SET-004, DBD §3.1: the seeded row says Sunday.
+      await tester.pumpWidget(boot(_ScriptedRepository(days: [day(3, 100)])));
+      await tester.pumpAndSettle();
+
+      expect(_headerLabels(tester).first, 'Sun');
+      expect(_headerLabels(tester).last, 'Sat');
+    });
+
+    testWidgets('starts its columns on Monday when the setting says so', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(
+          _ScriptedRepository(days: [day(3, 100)]),
+          calendar: const CalendarSettings(firstWeekday: DateTime.monday),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_headerLabels(tester).first, 'Mon');
+      expect(_headerLabels(tester).last, 'Sun');
     });
 
     testWidgets('shades the busiest day darkest and a quiet day neutral', (
@@ -289,4 +319,16 @@ void main() {
       expect(find.text('Mon'), findsNothing);
     });
   });
+}
+
+/// The seven weekday labels across the top of the grid, in column order.
+List<String> _headerLabels(WidgetTester tester) {
+  const names = {'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'};
+  final texts = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((t) => t.data)
+      .whereType<String>()
+      .where(names.contains)
+      .toList();
+  return texts;
 }

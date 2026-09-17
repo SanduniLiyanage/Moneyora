@@ -6,6 +6,8 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/router/app_router.dart';
 import '../../domain/entities/user_settings.dart';
 import '../../domain/usecases/set_base_currency.dart';
+import '../../domain/usecases/set_first_day_of_month.dart';
+import '../../domain/usecases/set_plan_analysis_months.dart';
 import '../providers/settings_providers.dart';
 
 /// The settings screen. SDD SCR-016.
@@ -23,6 +25,11 @@ import '../providers/settings_providers.dart';
 /// *Currency* holds FR-SET-003: the base currency totals are expressed in,
 /// and the rate table (its own screen). Neither converts anything by itself
 /// — conversion is FR-ACC-005's, and lands beside the totals it changes.
+///
+/// *Calendar* holds FR-SET-004's first day of the week and of the month,
+/// and FR-SET-012's lookback. The week and the month cut every analytics
+/// period and every plan period; the lookback is read by the Money Plan
+/// wizard, which says where to change it and does not offer to.
 ///
 /// *Data*'s row is not a preference at all. "Recalculate account balances"
 /// is E-18's reconciliation, reachable from here and from nowhere else:
@@ -71,6 +78,32 @@ class SettingsPage extends ConsumerWidget {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(failure.message)));
   }
+
+  /// Shows a failure from any calendar write. FR-SET-004, FR-SET-012.
+  void _report(BuildContext context, Failure? failure) {
+    if (failure == null) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(failure.message)));
+  }
+
+  /// Asks for a whole number in a range, or null on cancel.
+  Future<int?> _askNumber(
+    BuildContext context, {
+    required String title,
+    required String label,
+    required int initial,
+    required ValidationFailure? Function(int) validate,
+    String? help,
+  }) => showDialog<int>(
+    context: context,
+    builder: (context) => _NumberDialog(
+      title: title,
+      label: label,
+      initial: initial,
+      validate: validate,
+      help: help,
+    ),
+  );
 
   /// Asks first, then runs the sweep and reports how it went. E-18.
   ///
@@ -122,6 +155,7 @@ class SettingsPage extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final theme = settings.asData?.value.theme;
     final baseCurrency = settings.asData?.value.currency;
+    final calendar = settings.asData?.value;
     final rateCount = ref.watch(exchangeRatesProvider).asData?.value.length;
 
     return Scaffold(
@@ -197,6 +231,102 @@ class SettingsPage extends ConsumerWidget {
               }),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(Routes.exchangeRates),
+            ),
+            const _SectionHeader('Calendar'),
+            const ListTile(
+              leading: Icon(Icons.view_week_outlined),
+              title: Text('Week starts on'),
+              subtitle: Text(
+                'Where a week begins in every weekly total and plan.',
+              ),
+            ),
+            if (calendar != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(
+                      value: DateTime.sunday,
+                      label: Text('Sunday'),
+                    ),
+                    ButtonSegment(
+                      value: DateTime.monday,
+                      label: Text('Monday'),
+                    ),
+                  ],
+                  selected: {calendar.firstDayOfWeek},
+                  onSelectionChanged: (chosen) async {
+                    final failure = await ref
+                        .read(calendarControllerProvider.notifier)
+                        .setFirstDayOfWeek(chosen.single);
+                    if (context.mounted) _report(context, failure);
+                  },
+                ),
+              ),
+            ListTile(
+              leading: const Icon(Icons.calendar_view_month_outlined),
+              title: const Text('Month starts on day'),
+              subtitle: Text(
+                calendar == null
+                    ? 'Where a month begins — the 25th, if that is payday.'
+                    : calendar.firstDayOfMonth == 1
+                    ? 'Day 1 — the calendar month.'
+                    : 'Day ${calendar.firstDayOfMonth} — a month runs from '
+                          'the ${_ordinal(calendar.firstDayOfMonth)} to the '
+                          'day before it.',
+              ),
+              enabled: calendar != null,
+              onTap: calendar == null
+                  ? null
+                  : () async {
+                      final day = await _askNumber(
+                        context,
+                        title: 'Month starts on day',
+                        label: 'Day of the month',
+                        initial: calendar.firstDayOfMonth,
+                        validate: SetFirstDayOfMonth.validate,
+                        help:
+                            '1 to 28, so every month has it. Analytics and '
+                            'plans that cover a month run from this day to the '
+                            'day before it next month.',
+                      );
+                      if (day == null || !context.mounted) return;
+                      final failure = await ref
+                          .read(calendarControllerProvider.notifier)
+                          .setFirstDayOfMonth(day);
+                      if (context.mounted) _report(context, failure);
+                    },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_outlined),
+              title: const Text('Money Plan looks back'),
+              subtitle: Text(
+                calendar == null
+                    ? 'How many months of spending a new plan learns from.'
+                    : calendar.planAnalysisMonths == 1
+                    ? 'One month of spending.'
+                    : '${calendar.planAnalysisMonths} months of spending.',
+              ),
+              enabled: calendar != null,
+              onTap: calendar == null
+                  ? null
+                  : () async {
+                      final months = await _askNumber(
+                        context,
+                        title: 'Money Plan looks back',
+                        label: 'Months',
+                        initial: calendar.planAnalysisMonths,
+                        validate: SetPlanAnalysisMonths.validate,
+                        help:
+                            '1 to 24. Seasonal patterns need a year or '
+                            'more of history to show up.',
+                      );
+                      if (months == null || !context.mounted) return;
+                      final failure = await ref
+                          .read(calendarControllerProvider.notifier)
+                          .setPlanAnalysisMonths(months);
+                      if (context.mounted) _report(context, failure);
+                    },
             ),
             const _SectionHeader('Data'),
             ListTile(
@@ -309,6 +439,95 @@ class _BaseCurrencyDialogState extends State<_BaseCurrencyDialog> {
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      TextButton(onPressed: _save, child: const Text('Save')),
+    ],
+  );
+}
+
+/// "1st", "2nd", "23rd", "28th".
+String _ordinal(int day) {
+  if (day >= 11 && day <= 13) return '${day}th';
+  return switch (day % 10) {
+    1 => '${day}st',
+    2 => '${day}nd',
+    3 => '${day}rd',
+    _ => '${day}th',
+  };
+}
+
+/// Asking for a whole number. Returns it, or null on cancel.
+///
+/// The rule shown is the use case's own [validate], run as the user types
+/// once they have tried to save — the same pattern as the base-currency
+/// dialog, for the same reason.
+class _NumberDialog extends StatefulWidget {
+  const _NumberDialog({
+    required this.title,
+    required this.label,
+    required this.initial,
+    required this.validate,
+    this.help,
+  });
+
+  final String title;
+  final String label;
+  final int initial;
+  final ValidationFailure? Function(int) validate;
+  final String? help;
+
+  @override
+  State<_NumberDialog> createState() => _NumberDialogState();
+}
+
+class _NumberDialogState extends State<_NumberDialog> {
+  late final TextEditingController _value = TextEditingController(
+    text: '${widget.initial}',
+  );
+  bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _value.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _value.dispose();
+    super.dispose();
+  }
+
+  /// The typed number, or a value the use case will refuse when it is not
+  /// a number at all — so the refusal is the use case's sentence either way.
+  int get _number => int.tryParse(_value.text.trim()) ?? -1;
+
+  String? get _error => _submitted ? widget.validate(_number)?.message : null;
+
+  void _save() {
+    setState(() => _submitted = true);
+    if (widget.validate(_number) != null) return;
+    Navigator.of(context).pop(_number);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: TextField(
+      controller: _value,
+      autofocus: true,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        helperText: widget.help,
+        helperMaxLines: 3,
+        errorText: _error,
+      ),
     ),
     actions: [
       TextButton(

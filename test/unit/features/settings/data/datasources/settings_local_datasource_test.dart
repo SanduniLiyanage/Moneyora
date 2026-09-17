@@ -73,7 +73,7 @@ void main() {
         theme: AppThemeMode.dark,
         language: 'si',
         currency: 'USD',
-        firstDayOfWeek: 1,
+        firstDayOfWeek: DateTime.monday,
         firstDayOfMonth: 25,
         savingsTargetPct: 12.5,
         planAnalysisMonths: 18,
@@ -82,6 +82,19 @@ void main() {
       await settings.write(changed);
 
       expect((await settings.read()).toEntity(), changed.toEntity());
+    });
+
+    test('stores Sunday as the column zero and reads it back', () async {
+      // DBD numbers the week from Sunday at zero, Dart from Monday at one.
+      await seedUser();
+
+      await settings.write(
+        const UserSettingsModel(firstDayOfWeek: DateTime.sunday),
+      );
+
+      final row = (await db.query('users')).single;
+      expect(row['first_day_week'], 0);
+      expect((await settings.read()).firstDayOfWeek, DateTime.sunday);
     });
 
     test('leaves the lock-screen columns alone', () async {

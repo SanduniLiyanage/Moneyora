@@ -5,6 +5,8 @@ void main() {
   group('PlanPeriod', () {
     test('a whole month covers that month once, fully', () {
       final september = PlanPeriod.month(2026, 9);
+      // monthOf with day 1 is the same calendar month, whatever the date.
+      expect(PlanPeriod.monthOf(DateTime(2026, 9, 17)), september);
 
       expect(september.from, DateTime(2026, 9));
       expect(september.to, DateTime(2026, 9, 30));
@@ -80,6 +82,10 @@ void main() {
       expect(PlanPeriod.day(DateTime(2026, 9, 9)).type, PlanPeriodType.day);
       expect(PlanPeriod.week(DateTime(2026, 9, 9)).type, PlanPeriodType.week);
       expect(PlanPeriod.month(2026, 9).type, PlanPeriodType.month);
+      expect(
+        PlanPeriod.monthOf(DateTime(2026, 9, 9)).type,
+        PlanPeriodType.month,
+      );
       expect(PlanPeriod.year(2026).type, PlanPeriodType.year);
       expect(
         PlanPeriod.days(DateTime(2026, 9, 9), 15).type,

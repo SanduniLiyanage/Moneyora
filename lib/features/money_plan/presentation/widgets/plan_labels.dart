@@ -16,9 +16,17 @@ import '../../domain/entities/confidence_score.dart';
 import '../../domain/entities/plan_period.dart';
 
 /// One line for [period]: `September 2026`, `7 – 13 Sep 2026`, `2027`.
+///
+/// A month is named as a month only when it *is* one: under FR-SET-004 a
+/// month can start on the 25th, and "September 2026" for 25 September to
+/// 24 October would be a wrong label that looks right, so that reads as a
+/// span.
 String planPeriodLabel(PlanPeriod period) => switch (period.type) {
   PlanPeriodType.day => DateFormat.yMMMMd().format(period.from),
-  PlanPeriodType.month => DateFormat.yMMMM().format(period.from),
+  PlanPeriodType.month when period.from.day == 1 => DateFormat.yMMMM().format(
+    period.from,
+  ),
+  PlanPeriodType.month => _span(period.from, period.to),
   PlanPeriodType.year => DateFormat.y().format(period.from),
   PlanPeriodType.week ||
   PlanPeriodType.customDays ||

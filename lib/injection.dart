@@ -16,6 +16,7 @@ import 'core/errors/failures.dart';
 import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
 import 'core/ports/account_reader.dart';
+import 'core/ports/calendar_settings_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
 import 'core/ports/conversion_reader.dart';
@@ -90,6 +91,7 @@ import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
 import 'features/settings/data/datasources/exchange_rate_local_datasource.dart';
 import 'features/settings/data/datasources/settings_local_datasource.dart';
+import 'features/settings/data/repositories/calendar_settings_reader_impl.dart';
 import 'features/settings/data/repositories/conversion_reader_impl.dart';
 import 'features/settings/data/repositories/exchange_rate_repository_impl.dart';
 import 'features/settings/data/repositories/settings_repository_impl.dart';
@@ -98,6 +100,9 @@ import 'features/settings/domain/repositories/settings_repository.dart';
 import 'features/settings/domain/usecases/remove_exchange_rate.dart';
 import 'features/settings/domain/usecases/set_base_currency.dart';
 import 'features/settings/domain/usecases/set_exchange_rate.dart';
+import 'features/settings/domain/usecases/set_first_day_of_month.dart';
+import 'features/settings/domain/usecases/set_first_day_of_week.dart';
+import 'features/settings/domain/usecases/set_plan_analysis_months.dart';
 import 'features/settings/domain/usecases/set_theme.dart';
 import 'features/settings/domain/usecases/watch_exchange_rates.dart';
 import 'features/settings/domain/usecases/watch_settings.dart';
@@ -829,6 +834,50 @@ final setBaseCurrencyProvider = FutureProvider<SetBaseCurrency>(
   (ref) async =>
       SetBaseCurrency(await ref.watch(settingsRepositoryProvider.future)),
 );
+
+/// Chooses the day a week starts on. FR-SET-004.
+final setFirstDayOfWeekProvider = FutureProvider<SetFirstDayOfWeek>(
+  (ref) async =>
+      SetFirstDayOfWeek(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// Chooses the day a month starts on. FR-SET-004.
+final setFirstDayOfMonthProvider = FutureProvider<SetFirstDayOfMonth>(
+  (ref) async =>
+      SetFirstDayOfMonth(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// Chooses how far back the Money Plan looks. FR-SET-012, FR-PLN-003.
+final setPlanAnalysisMonthsProvider = FutureProvider<SetPlanAnalysisMonths>(
+  (ref) async =>
+      SetPlanAnalysisMonths(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// The calendar settings, for features outside settings. FR-SET-004,
+/// FR-SET-012.
+final calendarSettingsReaderProvider = FutureProvider<CalendarSettingsReader>(
+  (ref) async => CalendarSettingsReaderImpl(
+    await ref.watch(settingsRepositoryProvider.future),
+  ),
+);
+
+/// [CalendarSettings], kept live, for every period that has to be cut where
+/// the user said and the Money Plan's lookback.
+///
+/// Here rather than in one feature's providers because analytics and the
+/// Money Plan both read it, and this file is the one place both may name.
+final calendarSettingsProvider = StreamProvider<CalendarSettings>((ref) {
+  return Stream.fromFuture(ref.watch(calendarSettingsReaderProvider.future))
+      .asyncExpand((reader) => reader.watch())
+      .transform(
+        StreamTransformer<
+          Either<Failure, CalendarSettings>,
+          CalendarSettings
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
 
 /// Reads and writes `exchange_rates`. The only holder of SQL for the table.
 ///

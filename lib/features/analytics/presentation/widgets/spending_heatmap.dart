@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/calendar_settings.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../injection.dart';
@@ -26,10 +27,6 @@ import '../providers/analytics_providers.dart';
 
 /// Height of every non-grid state, so the card does not jump as data resolves.
 const double _placeholderHeight = 200;
-
-/// Monday-first, matching `DateRange.week`'s default; FR-SET-004 makes this
-/// configurable in Sprint 7 and this is where that setting would land.
-const int _firstWeekday = DateTime.monday;
 
 /// One calendar month of daily spending, shaded by intensity. FR-RPT-009.
 class SpendingHeatmap extends ConsumerWidget {
@@ -41,6 +38,12 @@ class SpendingHeatmap extends ConsumerWidget {
     final theme = Theme.of(context);
     final query = ref.watch(spendingCalendarQueryProvider);
     final calendar = ref.watch(spendingCalendarProvider(query));
+    // FR-SET-004's first weekday, for the column the grid starts on. The
+    // month itself stays the calendar month: a grid of days is a calendar,
+    // and a pay-cycle "month" is a period, not a page.
+    final firstWeekday =
+        ref.watch(calendarSettingsProvider).asData?.value.firstWeekday ??
+        CalendarSettings.defaults.firstWeekday;
     final monthName = DateFormat.yMMMM().format(
       DateTime(query.year, query.month),
     );
@@ -62,7 +65,10 @@ class SpendingHeatmap extends ConsumerWidget {
             const SizedBox(height: 16),
             switch (calendar) {
               AsyncError(:final error) => _Problem(error: error),
-              AsyncData(:final value) => _Month(calendar: value),
+              AsyncData(:final value) => _Month(
+                calendar: value,
+                firstWeekday: firstWeekday,
+              ),
               _ => const SizedBox(
                 height: _placeholderHeight,
                 child: Center(child: CircularProgressIndicator()),
@@ -84,9 +90,10 @@ Color cellColorFor(BuildContext context, int level) {
 }
 
 class _Month extends StatelessWidget {
-  const _Month({required this.calendar});
+  const _Month({required this.calendar, required this.firstWeekday});
 
   final SpendingCalendar calendar;
+  final int firstWeekday;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +101,7 @@ class _Month extends StatelessWidget {
 
     return Column(
       children: [
-        _Grid(calendar: calendar),
+        _Grid(calendar: calendar, firstWeekday: firstWeekday),
         const SizedBox(height: 12),
         _Summary(calendar: calendar),
         const SizedBox(height: 8),
@@ -105,9 +112,12 @@ class _Month extends StatelessWidget {
 }
 
 class _Grid extends StatelessWidget {
-  const _Grid({required this.calendar});
+  const _Grid({required this.calendar, required this.firstWeekday});
 
   final SpendingCalendar calendar;
+
+  /// A `DateTime` weekday constant: the grid's first column. FR-SET-004.
+  final int firstWeekday;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +126,7 @@ class _Grid extends StatelessWidget {
       color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
     );
     final first = DateTime(calendar.year, calendar.month);
-    final leading = (first.weekday - _firstWeekday + 7) % 7;
+    final leading = (first.weekday - firstWeekday + 7) % 7;
     final slots = leading + calendar.dayCount;
     final rows = (slots / 7).ceil();
 
@@ -127,8 +137,11 @@ class _Grid extends StatelessWidget {
             for (var i = 0; i < 7; i++)
               Expanded(
                 child: Text(
-                  // Any Monday will do as the origin for weekday names.
-                  DateFormat.E().format(DateTime(2026, 9, 7 + i)),
+                  // 6 September 2026 is a Sunday, so 6 + weekday is a date
+                  // on that weekday; any such week serves as the origin.
+                  DateFormat.E().format(
+                    DateTime(2026, 9, 6 + firstWeekday + i),
+                  ),
                   textAlign: TextAlign.center,
                   style: labelStyle,
                 ),

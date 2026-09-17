@@ -10,6 +10,7 @@ library;
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/ports/calendar_settings.dart';
 import '../repositories/analytics_repository.dart';
 
 /// The shape of an analytics period. FR-RPT-002.
@@ -67,7 +68,8 @@ class PeriodSelection extends Equatable {
   /// case [range] falls back to the day [anchor] falls on.
   final DateRange? customRange;
 
-  /// The period as a [DateRange] the analytics use cases can take.
+  /// The period as a [DateRange] the analytics use cases can take, with
+  /// weeks and months cut where [calendar] says (FR-SET-004).
   ///
   /// The one place a filter becomes a query parameter. An inverted
   /// [customRange] is *not* corrected here — it is passed through so that
@@ -75,14 +77,23 @@ class PeriodSelection extends Equatable {
   /// refusal, which is the existing convention for a bad range and the only
   /// one that tells the user anything. Silently swapping the ends would turn
   /// a mistake into a plausible-looking answer.
-  DateRange get range => switch (period) {
+  DateRange rangeWith(CalendarSettings calendar) => switch (period) {
     AnalyticsPeriod.day => DateRange.day(anchor),
-    AnalyticsPeriod.week => DateRange.week(anchor),
-    AnalyticsPeriod.month => DateRange.month(anchor.year, anchor.month),
+    AnalyticsPeriod.week => DateRange.week(
+      anchor,
+      firstWeekday: calendar.firstWeekday,
+    ),
+    AnalyticsPeriod.month => DateRange.monthOf(
+      anchor,
+      firstDay: calendar.firstDayOfMonth,
+    ),
     AnalyticsPeriod.year => DateRange.year(anchor.year),
     AnalyticsPeriod.all => DateRange.allTime(),
     AnalyticsPeriod.custom => customRange ?? DateRange.day(anchor),
   };
+
+  /// [rangeWith] under the schema's default calendar.
+  DateRange get range => rangeWith(CalendarSettings.defaults);
 
   /// This selection with [period] chosen, keeping the anchor and any custom
   /// interval already picked — switching to Week and back to Month must

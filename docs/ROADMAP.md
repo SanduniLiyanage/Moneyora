@@ -584,9 +584,29 @@ addendum lists them. Editing a transfer stays out of scope: there is no
 transfer-edit path today (`UpdateTransaction` refuses one half), and delete
 already removes both halves by their own amounts.
 
-FR-ACC-005 and FR-SET-003 are complete. Still open in Sprint 7: FR-SET-004
-(first weekday), FR-SET-012 / FR-PLN-003 (lookback), FR-SET-005 / NFR-SEC-003
-(PIN and biometrics), FR-SET-006 and FR-SET-007 (notifications).
+FR-ACC-005 and FR-SET-003 are complete.
+
+### The calendar: first weekday, first day of month, lookback (FR-SET-004, FR-SET-012) — done ([PR #108](https://github.com/SanduniLiyanage/Moneyora/pull/108))
+
+Three rows under Settings › Calendar, on the #105 pattern, and the
+consumers HANDOFF named: `DateRange.week` and `PlanPeriod.week` take the
+first weekday, the heatmap's first column follows it, and `DateRange.monthOf`
+/ `PlanPeriod.monthOf` cut a "month" from the chosen day to the day before
+it next month — the 25th to the 24th, for someone paid on the 25th. A month
+that does not start on day 1 is labelled as a span, not named as a month.
+The Money Plan wizard reads the lookback from the stored row and says where
+to change it; it does not offer to. `CalendarSettings` in `core/ports/` is
+the seam, as `ConversionTable` was.
+
+**Two behaviours changed for existing installs, on purpose.** The stored
+default for the first weekday is Sunday (`first_day_week DEFAULT 0`, DBD
+§3.1), while the code had hard-coded Monday "until FR-SET-004"; honouring
+the row means a Sunday-first week until the user picks Monday. And the
+entity's `firstDayOfWeek` now speaks Dart's weekday constants, with the
+column's Sunday-at-zero mapped in the model.
+
+Still open in Sprint 7: FR-SET-005 / NFR-SEC-003 (PIN and biometrics),
+FR-SET-006 and FR-SET-007 (notifications).
 
 ## Sprint 8 — Backup, export, sync (Week 13)
 

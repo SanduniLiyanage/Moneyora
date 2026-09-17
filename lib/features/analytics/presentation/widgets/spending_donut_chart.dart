@@ -49,6 +49,7 @@ class SpendingDonutChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final selection = ref.watch(analyticsPeriodProvider);
+    final range = ref.watch(analyticsRangeProvider);
     final query = ref.watch(analyticsQueryProvider);
     final totals = ref.watch(spendingByCategoryTotalsProvider(query));
     final categories = ref.watch(categoryOptionsProvider);
@@ -62,7 +63,7 @@ class SpendingDonutChart extends ConsumerWidget {
             Text('Spending by category', style: theme.textTheme.titleMedium),
             const SizedBox(height: 2),
             Text(
-              periodLabel(selection),
+              periodLabel(selection, range),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),

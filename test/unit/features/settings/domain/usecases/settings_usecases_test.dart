@@ -19,7 +19,7 @@ void main() {
     test('changes the theme and nothing else', () async {
       repository.stored = const UserSettings(
         currency: 'USD',
-        firstDayOfWeek: 1,
+        firstDayOfWeek: DateTime.monday,
         planAnalysisMonths: 12,
       );
 
@@ -31,7 +31,7 @@ void main() {
         const UserSettings(
           theme: AppThemeMode.dark,
           currency: 'USD',
-          firstDayOfWeek: 1,
+          firstDayOfWeek: DateTime.monday,
           planAnalysisMonths: 12,
         ),
       );

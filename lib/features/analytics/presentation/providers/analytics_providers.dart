@@ -12,6 +12,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/account_reader.dart';
+import '../../../../core/ports/calendar_settings.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/analytics_query.dart';
@@ -37,14 +38,22 @@ final analyticsPeriodProvider = StateProvider<PeriodSelection>(
   (ref) => PeriodSelection.monthOf(DateTime.now()),
 );
 
-/// The selected period as the [DateRange] the use cases take. FR-RPT-002.
+/// The selected period as the [DateRange] the use cases take, cut where
+/// the calendar settings say. FR-RPT-002, FR-SET-004.
 ///
 /// A derived [Provider] rather than something each widget computes: it keeps
 /// the query key identical across every surface watching the same period, so
 /// the `family` below is not asked for two ranges that mean one thing.
-final analyticsRangeProvider = Provider<DateRange>(
-  (ref) => ref.watch(analyticsPeriodProvider).range,
-);
+///
+/// Until the stored calendar is known it uses the schema's defaults, which
+/// is what the stored row holds on any install that never chose — so the
+/// first query is the right one and nothing re-runs on a default install.
+final analyticsRangeProvider = Provider<DateRange>((ref) {
+  final calendar =
+      ref.watch(calendarSettingsProvider).asData?.value ??
+      CalendarSettings.defaults;
+  return ref.watch(analyticsPeriodProvider).rangeWith(calendar);
+});
 
 /// Which account the analytics surfaces count, or null for **All Accounts**.
 /// FR-RPT-003.

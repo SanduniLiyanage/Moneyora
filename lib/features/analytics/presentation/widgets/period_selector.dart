@@ -26,11 +26,19 @@ final DateTime _pickerFloor = DateTime(2000);
 /// Here rather than on [PeriodSelection] because it is a formatting concern:
 /// `domain/` holds the dates, and how a date reads in a given locale is
 /// `intl`'s business and presentation's.
-String periodLabel(PeriodSelection selection) {
-  final range = selection.range;
+String periodLabel(PeriodSelection selection, DateRange range) {
+  // The range is handed in rather than derived here so the caption agrees
+  // with the query: both come from `analyticsRangeProvider`, cut where the
+  // calendar settings say (FR-SET-004).
   return switch (selection.period) {
     AnalyticsPeriod.day => DateFormat.yMMMMd().format(range.from),
-    AnalyticsPeriod.month => DateFormat.yMMMM().format(range.from),
+    // A month is named as a month only when it is one: under FR-SET-004 it
+    // can start on the 25th, and "September 2026" for 25 September to 24
+    // October would be a wrong label that looks right.
+    AnalyticsPeriod.month when range.from.day == 1 => DateFormat.yMMMM().format(
+      range.from,
+    ),
+    AnalyticsPeriod.month => _spanLabel(range.from, range.to),
     AnalyticsPeriod.year => DateFormat.y().format(range.from),
     AnalyticsPeriod.all => 'All time',
     // A week and a custom interval are both two dates, and the year is worth

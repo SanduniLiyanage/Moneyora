@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/calendar_settings.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
@@ -84,11 +85,14 @@ void main() {
     Either<Failure, List<CategoryTotal>>? spendingResult,
     int transactionsEver = 5,
     Completer<void>? hold,
+    CalendarSettings calendar = CalendarSettings.defaults,
   }) => ProviderScope(
     overrides: [
       analyticsPeriodProvider.overrideWith(
         (ref) => PeriodSelection.monthOf(anchor),
       ),
+      // FR-SET-004: where weeks and months are cut.
+      calendarSettingsProvider.overrideWith((ref) => Stream.value(calendar)),
       databaseSummaryProvider.overrideWith(
         (ref) async => DatabaseSummary(
           schemaVersion: 1,
@@ -164,17 +168,46 @@ void main() {
       expect(find.text('September 9, 2026'), findsOneWidget);
     });
 
-    testWidgets('Week queries Monday to Sunday around the anchor', (
+    testWidgets('Week queries Sunday to Saturday under the stored default', (
       tester,
     ) async {
+      // The seeded row says weeks start on Sunday (FR-SET-004's default).
       await tester.pumpWidget(boot());
       await tester.pumpAndSettle();
       await tapChip(tester, 'Week');
 
-      expect(repository.asked.last, DateRange.week(anchor));
+      expect(
+        repository.asked.last,
+        DateRange(from: DateTime(2026, 9, 6), to: DateTime(2026, 9, 12)),
+      );
+    });
+
+    testWidgets('Week is cut where the calendar setting says', (tester) async {
+      await tester.pumpWidget(
+        boot(calendar: const CalendarSettings(firstWeekday: DateTime.monday)),
+      );
+      await tester.pumpAndSettle();
+      await tapChip(tester, 'Week');
+
       expect(
         repository.asked.last,
         DateRange(from: DateTime(2026, 9, 7), to: DateTime(2026, 9, 13)),
+      );
+    });
+
+    testWidgets('Month starts on the day the calendar setting says', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(calendar: const CalendarSettings(firstDayOfMonth: 25)),
+      );
+      await tester.pumpAndSettle();
+      await tapChip(tester, 'Month');
+
+      // The anchor is before the 25th, so its month began on 25 August.
+      expect(
+        repository.asked.last,
+        DateRange(from: DateTime(2026, 8, 25), to: DateTime(2026, 9, 24)),
       );
     });
 
@@ -428,8 +461,15 @@ void main() {
     });
 
     test('a week inside one year states that year once', () {
+      final selection = PeriodSelection(
+        period: AnalyticsPeriod.week,
+        anchor: anchor,
+      );
       final label = periodLabel(
-        PeriodSelection(period: AnalyticsPeriod.week, anchor: anchor),
+        selection,
+        selection.rangeWith(
+          const CalendarSettings(firstWeekday: DateTime.monday),
+        ),
       );
 
       expect(label, 'Sep 7 – Sep 13, 2026');
