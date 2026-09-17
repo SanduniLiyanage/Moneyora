@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
@@ -9,11 +12,13 @@ import 'core/database/database_summary.dart';
 import 'core/database/encryption_key_store.dart';
 import 'core/database/seed/default_seed.dart';
 import 'core/database/seed/keyword_seed.dart';
+import 'core/errors/failures.dart';
 import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
 import 'core/ports/account_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
+import 'core/ports/conversion_reader.dart';
 import 'core/ports/expense_writer.dart';
 import 'core/ports/income_reader.dart';
 import 'core/ports/monthly_spending_reader.dart';
@@ -85,6 +90,7 @@ import 'features/receipt_scanner/domain/usecases/read_receipt_image.dart';
 import 'features/receipt_scanner/domain/usecases/scan_receipt.dart';
 import 'features/settings/data/datasources/exchange_rate_local_datasource.dart';
 import 'features/settings/data/datasources/settings_local_datasource.dart';
+import 'features/settings/data/repositories/conversion_reader_impl.dart';
 import 'features/settings/data/repositories/exchange_rate_repository_impl.dart';
 import 'features/settings/data/repositories/settings_repository_impl.dart';
 import 'features/settings/domain/repositories/exchange_rate_repository.dart';
@@ -864,6 +870,36 @@ final removeExchangeRateProvider = FutureProvider<RemoveExchangeRate>(
     await ref.watch(exchangeRateRepositoryProvider.future),
   ),
 );
+
+/// The base currency and every rate, for features outside settings.
+/// FR-ACC-005.
+///
+/// The seam the accounts feature converts through and the transfer screen
+/// pre-fills from, so neither imports `features/settings/` (rule 4).
+final conversionReaderProvider = FutureProvider<ConversionReader>(
+  (ref) async => ConversionReaderImpl(
+    await ref.watch(settingsRepositoryProvider.future),
+    await ref.watch(exchangeRateRepositoryProvider.future),
+  ),
+);
+
+/// The [ConversionTable], kept live, for any screen that sums or converts.
+///
+/// Here rather than in one feature's providers because two features read it
+/// — the accounts panel (totals) and the transfer screen (the credited
+/// amount's pre-fill) — and this file is the one place both may name.
+final conversionTableProvider = StreamProvider<ConversionTable>((ref) {
+  return Stream.fromFuture(ref.watch(conversionReaderProvider.future))
+      .asyncExpand((reader) => reader.watch())
+      .transform(
+        StreamTransformer<
+          Either<Failure, ConversionTable>,
+          ConversionTable
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Copilot
