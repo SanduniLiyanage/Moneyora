@@ -16,13 +16,17 @@ class TransferParams extends Equatable {
     this.note,
     this.fromCurrency = defaultCurrency,
     this.toCurrency = defaultCurrency,
+    this.creditedAmountCents,
   });
 
   /// What both sides are assumed to hold unless the caller says otherwise.
   ///
-  /// LKR, matching `Account.currency`'s default and what `default_seed.dart`
-  /// creates. Defaulted rather than required so every existing caller and test
-  /// keeps meaning what it meant: a transfer between two rupee accounts.
+  /// The two currencies matter only for whether they *differ* — a
+  /// cross-currency transfer needs [creditedAmountCents] — so a caller that
+  /// passes neither gets a same-currency transfer, which is what every
+  /// existing caller and test means. The literal is `Account.currency`'s
+  /// default; it is not a base currency, which is the user's setting
+  /// (FR-SET-003) and is read nowhere in this use case.
   static const String defaultCurrency = 'LKR';
 
   /// Where the money leaves.
@@ -47,6 +51,26 @@ class TransferParams extends Equatable {
   /// The currency the destination account holds.
   final String toCurrency;
 
+  /// What arrives, in minor units of [toCurrency]. E-34.
+  ///
+  /// Required when the two currencies differ — it is the user's number from
+  /// the statement, not a conversion at a stored rate — and ignored when
+  /// they match, where it can only be [amountCents]. See [effectiveCredit].
+  final int? creditedAmountCents;
+
+  /// Whether money changes currency on the way.
+  bool get crossesCurrency =>
+      fromCurrency.trim().toUpperCase() != toCurrency.trim().toUpperCase();
+
+  /// The amount the destination is credited with.
+  ///
+  /// [amountCents] for a same-currency transfer whatever the caller passed,
+  /// so every existing caller keeps meaning what it meant; the credited
+  /// figure otherwise. Null only when one was needed and not given, which
+  /// [MakeTransfer.validate] refuses before this is read.
+  int? get effectiveCredit =>
+      crossesCurrency ? creditedAmountCents : amountCents;
+
   @override
   List<Object?> get props => [
     fromAccountId,
@@ -56,6 +80,7 @@ class TransferParams extends Equatable {
     note,
     fromCurrency,
     toCurrency,
+    creditedAmountCents,
   ];
 }
 
@@ -87,6 +112,9 @@ class MakeTransfer implements UseCase<int, TransferParams> {
       fromAccountId: params.fromAccountId,
       toAccountId: params.toAccountId,
       amountCents: params.amountCents,
+      // Never null here: validate has already refused the case where a
+      // credited amount was needed and not given.
+      creditedAmountCents: params.effectiveCredit!,
       date: params.date,
       note: params.note,
     );
@@ -115,24 +143,23 @@ class MakeTransfer implements UseCase<int, TransferParams> {
       );
     }
 
-    if (params.fromCurrency.trim().toUpperCase() !=
-        params.toCurrency.trim().toUpperCase()) {
-      // E-25's interim rule. FR-TRF-001 permits a transfer between any two
-      // active accounts, and FR-ACC-005 — the conversion that would make a
-      // cross-currency one meaningful — is deferred to Sprint 7. Until it
-      // lands there is no rate to convert at, and moving 100 from a USD
-      // account to an LKR one would credit 100 rupees: a number that is
-      // wrong by a factor of three hundred and looks entirely plausible.
-      //
-      // Refusing with a sentence is the honest answer. Delete this rule in
-      // the same commit that adds conversion, or the app will keep refusing
-      // transfers it has become capable of making.
-      return ValidationFailure(
-        'Moneyora cannot convert between currencies yet, so a transfer has '
-        'to be between two ${params.fromCurrency.trim().toUpperCase()} '
-        'accounts.',
-        field: 'toAccount',
-      );
+    if (params.crossesCurrency) {
+      // FR-TRF-001 permits a transfer between any two active accounts, and
+      // E-25's interim refusal of two currencies is gone: the ledger can
+      // carry a debit in one currency and a credit in another (E-34). What
+      // it cannot do is invent the credit. The credited amount is the
+      // user's number, not a conversion at a stored rate — the rate a bank
+      // actually applied is on the statement. Without it a cross-currency
+      // transfer would credit the debited figure in the wrong currency,
+      // which is exactly the wrong number E-25 refused for.
+      final credited = params.creditedAmountCents;
+      if (credited == null || credited <= 0) {
+        return ValidationFailure(
+          'Enter the amount that arrives in '
+          '${params.toCurrency.trim().toUpperCase()}.',
+          field: 'creditedAmount',
+        );
+      }
     }
 
     if (params.date.isAfter(DateTime.now().add(const Duration(days: 1)))) {

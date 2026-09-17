@@ -18,12 +18,20 @@ class Account extends Equatable {
     required this.initialBalanceDate,
     this.id,
     this.type = AccountType.cash,
-    this.currency = 'LKR',
+    this.currency = defaultCurrency,
     this.initialBalanceCents = 0,
     this.currentBalanceCents = 0,
     this.includeInTotal = true,
     this.isArchived = false,
   });
+
+  /// What a new account holds unless the user says otherwise.
+  ///
+  /// The `accounts.currency` column default (DBD §3.2), which is what the
+  /// seed's Cash account is in. It is **not** the base currency: that is the
+  /// user's setting (FR-SET-003), read through `ConversionTable`, and the
+  /// two agree only on an install that never changed it.
+  static const String defaultCurrency = 'LKR';
 
   /// Row id, null before it is saved.
   final int? id;

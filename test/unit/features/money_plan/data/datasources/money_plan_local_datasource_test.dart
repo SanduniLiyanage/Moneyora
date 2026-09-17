@@ -424,6 +424,7 @@ void main() {
         fromAccountId: wallet,
         toAccountId: card,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: DateTime(2026, 9, 14),
       );
       await transactions.add(expense(food, 25000, on: DateTime(2026, 9, 30)));

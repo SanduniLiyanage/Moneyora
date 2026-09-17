@@ -155,6 +155,7 @@ class _FakeRepository implements TransactionRepository {
     required int fromAccountId,
     required int toAccountId,
     required int amountCents,
+    required int creditedAmountCents,
     required DateTime date,
     String? note,
   }) async => const Right(1);

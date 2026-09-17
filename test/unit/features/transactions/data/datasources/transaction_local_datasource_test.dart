@@ -4,7 +4,7 @@ library;
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:moneyora/core/database/migrations/v1_initial.dart';
+import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/features/transactions/data/datasources/transaction_local_datasource.dart';
 import 'package:moneyora/features/transactions/data/models/transaction_model.dart';
@@ -42,12 +42,16 @@ void main() {
         onConfigure: (d) => d.execute('PRAGMA foreign_keys = ON'),
         onCreate: (d, _) async {
           final batch = d.batch();
-          for (final statement in v1Statements) {
-            batch.execute(statement);
+          // Every version, not v1 alone: a datasource writes the columns the
+          // latest schema has, and a test over v1 would refuse them.
+          for (final version in schemaMigrations.keys.toList()..sort()) {
+            for (final statement in schemaMigrations[version]!) {
+              batch.execute(statement);
+            }
           }
           await batch.commit(noResult: true);
         },
-        version: v1SchemaVersion,
+        version: latestSchemaVersion,
       ),
     );
 
@@ -445,6 +449,7 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
       );
 
@@ -457,6 +462,7 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
       );
 
@@ -474,6 +480,7 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
       );
 
@@ -495,12 +502,38 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
       );
 
       expect(await balanceOf(card), -800000);
       expect(await balanceOf(cash), 800000);
     });
+
+    test(
+      'credits the destination with its own figure, not the debit',
+      () async {
+        // E-34: USD 10.00 leaves the card, LKR 3,002.50 arrives in cash. The
+        // credit half, the header and the destination balance all carry the
+        // credited number; the debit half and the source carry the debit.
+        await source.createTransfer(
+          fromAccountId: card,
+          toAccountId: cash,
+          amountCents: 1000,
+          creditedAmountCents: 300250,
+          date: date,
+        );
+
+        final halves = await db.query('transactions', orderBy: 'id ASC');
+        expect(halves[0]['amount_cents'], 1000);
+        expect(halves[1]['amount_cents'], 300250);
+        final header = (await db.query('transfers')).single;
+        expect(header['amount_cents'], 1000);
+        expect(header['credited_amount_cents'], 300250);
+        expect(await balanceOf(card), -1000);
+        expect(await balanceOf(cash), 300250);
+      },
+    );
 
     test('leaves nothing behind when the destination does not exist', () async {
       // The first half inserts, then the second violates its foreign key. A
@@ -511,6 +544,7 @@ void main() {
           fromAccountId: card,
           toAccountId: missingAccount,
           amountCents: 800000,
+          creditedAmountCents: 800000,
           date: date,
         ),
         throwsA(isA<CacheException>()),
@@ -526,6 +560,7 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
       );
       final halves = await db.query('transactions', orderBy: 'id ASC');
@@ -559,6 +594,7 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: DateTime(2026, 9, 4),
       );
     });
@@ -736,6 +772,9 @@ void main() {
               fromAccountId: fromAccount,
               toAccountId: fromAccount == cash ? card : cash,
               amountCents: 1000 + random.nextInt(50000),
+              // Drawn separately, as a cross-currency transfer has them
+              // (E-34), so the oracle covers halves that differ.
+              creditedAmountCents: 1000 + random.nextInt(50000),
               date: date,
             );
           case 3:
@@ -931,6 +970,7 @@ void main() {
         fromAccountId: card,
         toAccountId: cash,
         amountCents: 800000,
+        creditedAmountCents: 800000,
         date: date,
       );
 
@@ -1126,6 +1166,7 @@ void main() {
               fromAccountId: card,
               toAccountId: cash,
               amountCents: 1000 + random.nextInt(9000),
+              creditedAmountCents: 1000 + random.nextInt(9000),
               date: days[random.nextInt(days.length)],
             );
           case 4:

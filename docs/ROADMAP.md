@@ -564,11 +564,29 @@ nearest cent, halves away from zero, over `BigInt` — the rate use cases,
 rates*, the latter its own screen. [E-34](SPEC_ERRATA.md) records why the
 DBD had none of this and how the rate is stored.
 
-Nothing converts yet. The Total Balance still sums base-currency accounts
-only and still says what it left out; `MakeTransfer` still refuses two
-currencies. The next PR adds conversion to `AccountTotals`, the credited
-amount to transfers, and **deletes all three E-25 interim rules in a single
-commit**, as E-25 requires.
+### Conversion, and the three E-25 deletions (FR-ACC-005) — done ([PR #107](https://github.com/SanduniLiyanage/Moneyora/pull/107))
+
+The other half. `ConversionReader` in `core/ports/` is the seam — the
+`AccountReader` shape from E-27 — through which the accounts feature reads
+the base currency and rates without importing settings; the settings
+feature fulfils it by joining its two repositories' streams.
+`AccountTotals.from` converts at the user's rate to the base and counts
+what has no such rate; the panel's note is now that fallback, and says what
+would include the account. A transfer between two currencies carries the
+credited figure through `TransferParams`, the header column and the credit
+half, entered on the transfer screen beside the debit and pre-filled from
+the stored rate when there is one — the rate suggests, the statement
+decides.
+
+**All three E-25 interim rules were deleted in a single commit**, with the
+conversion that replaces them, as that entry required; its closing
+addendum lists them. Editing a transfer stays out of scope: there is no
+transfer-edit path today (`UpdateTransaction` refuses one half), and delete
+already removes both halves by their own amounts.
+
+FR-ACC-005 and FR-SET-003 are complete. Still open in Sprint 7: FR-SET-004
+(first weekday), FR-SET-012 / FR-PLN-003 (lookback), FR-SET-005 / NFR-SEC-003
+(PIN and biometrics), FR-SET-006 and FR-SET-007 (notifications).
 
 ## Sprint 8 — Backup, export, sync (Week 13)
 
