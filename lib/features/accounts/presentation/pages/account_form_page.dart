@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/conversion_table.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
+import '../../../../injection.dart' show conversionTableProvider;
 import '../../domain/entities/account.dart';
-import '../../domain/entities/account_totals.dart';
 import '../../domain/usecases/add_account.dart';
 import '../providers/account_providers.dart';
 
@@ -44,6 +45,11 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
   /// empty name field before they have typed in it.
   bool _submitted = false;
 
+  /// Whether the user has typed in the currency field. Until they have, a
+  /// new account's currency follows the base currency as it becomes known;
+  /// once they have, their choice is theirs.
+  bool _currencyTouched = false;
+
   bool get _isEditing => widget.initial != null;
 
   @override
@@ -53,7 +59,14 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
 
     _name = TextEditingController(text: initial?.name ?? '');
     _currency = TextEditingController(
-      text: initial?.currency ?? AccountTotals.defaultBaseCurrency,
+      // A new account starts in the base currency (FR-SET-003) when that is
+      // already known, and in the entity's default otherwise — the same
+      // literal the seed uses, so an install that never chose a base sees
+      // no change.
+      text:
+          initial?.currency ??
+          ref.read(conversionTableProvider).asData?.value.baseCurrency ??
+          Account.defaultCurrency,
     );
     _openingBalance = TextEditingController(
       text: initial == null
@@ -223,8 +236,23 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     final busy = ref.watch(accountActionsControllerProvider).isLoading;
     final archived = widget.initial?.isArchived ?? false;
     final currency = _currency.text.trim().toUpperCase();
-    final foreign =
-        currency.isNotEmpty && currency != AccountTotals.defaultBaseCurrency;
+    final table =
+        ref.watch(conversionTableProvider).asData?.value ??
+        const ConversionTable(baseCurrency: Account.defaultCurrency);
+    // The base may arrive after the first frame. A new account whose
+    // currency the user has not touched follows it (FR-SET-003).
+    ref.listen(conversionTableProvider, (_, next) {
+      final base = next.asData?.value.baseCurrency;
+      if (base != null && !_isEditing && !_currencyTouched) {
+        _currency.text = base;
+      }
+    });
+    // Worth a warning only when the total would leave it out: a foreign
+    // currency with a rate to the base is simply counted (FR-ACC-005).
+    final unconvertible =
+        currency.isNotEmpty &&
+        currency != table.baseCurrency &&
+        table.toBase(0, currency) == null;
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEditing ? 'Edit account' : 'New account')),
@@ -289,6 +317,7 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                   width: 110,
                   child: TextField(
                     controller: _currency,
+                    onChanged: (_) => _currencyTouched = true,
                     textCapitalization: TextCapitalization.characters,
                     maxLength: 3,
                     decoration: InputDecoration(
@@ -301,16 +330,17 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                 ),
               ],
             ),
-            if (foreign) ...[
+            if (unconvertible) ...[
               const SizedBox(height: 8),
               Text(
-                // E-25. Said here rather than discovered later in the panel,
-                // because choosing a currency is the moment the consequence
-                // becomes true, and a total that quietly omits an account is
-                // worse than one that explains itself.
-                'Moneyora cannot convert between currencies yet, so a $currency '
-                'account is shown on its own and left out of your total '
-                'balance.',
+                // E-34's fallback. Said here rather than discovered later in
+                // the panel, because choosing a currency is the moment the
+                // consequence becomes true, and a total that quietly omits
+                // an account is worse than one that explains itself.
+                'There is no exchange rate from $currency to '
+                '${table.baseCurrency} yet, so this account is shown on its '
+                'own and left out of your total balance until one is added '
+                'under Settings.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),

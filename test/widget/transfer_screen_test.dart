@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
+import 'package:moneyora/core/ports/conversion_table.dart';
+import 'package:moneyora/core/ports/exchange_rate.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
@@ -27,7 +29,9 @@ class _FakeRepository implements TransactionRepository {
   Future<Either<Failure, List<int>>> addAll(List<Transaction> transactions) =>
       throw UnimplementedError('addAll');
 
-  final List<({int from, int to, int amount, DateTime date, String? note})>
+  final List<
+    ({int from, int to, int amount, int credited, DateTime date, String? note})
+  >
   transfers = [];
 
   Failure? failWith;
@@ -46,6 +50,7 @@ class _FakeRepository implements TransactionRepository {
       from: fromAccountId,
       to: toAccountId,
       amount: amountCents,
+      credited: creditedAmountCents,
       date: date,
       note: note,
     ));
@@ -98,28 +103,33 @@ void main() {
     currency: 'USD',
   );
 
-  Widget boot(List<AccountOption> accounts) => ProviderScope(
-    overrides: [
-      entryAccountsProvider.overrideWith(
-        (ref) => Stream<List<AccountOption>>.value(accounts),
-      ),
-      transactionRepositoryProvider.overrideWith((ref) async => repository),
-    ],
-    child: MaterialApp(theme: AppTheme.light, home: const TransferPage()),
-  );
+  Widget boot(List<AccountOption> accounts, ConversionTable table) =>
+      ProviderScope(
+        overrides: [
+          entryAccountsProvider.overrideWith(
+            (ref) => Stream<List<AccountOption>>.value(accounts),
+          ),
+          transactionRepositoryProvider.overrideWith((ref) async => repository),
+          conversionTableProvider.overrideWith((ref) => Stream.value(table)),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const TransferPage()),
+      );
 
   Future<void> open(
     WidgetTester tester, {
     List<AccountOption> accounts = const [cash, card],
+    ConversionTable table = const ConversionTable(baseCurrency: 'LKR'),
   }) async {
     tester.view
       ..physicalSize = const Size(1200, 2000)
       ..devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(boot(accounts));
+    await tester.pumpWidget(boot(accounts, table));
     await tester.pumpAndSettle();
   }
+
+  Finder field(String label) => find.widgetWithText(TextField, label);
 
   group('recording a transfer', () {
     testWidgets('moves the amount between the two accounts', (tester) async {
@@ -199,18 +209,17 @@ void main() {
       expect(repository.transfers, isEmpty);
     });
 
-    testWidgets('two accounts that do not share a currency', (tester) async {
-      // E-25's interim rule. Without conversion, moving 100 from a USD account
-      // to an LKR one would credit 100 rupees — wrong by a factor of three
-      // hundred and entirely plausible on screen.
+    testWidgets('two currencies without saying what arrived', (tester) async {
+      // E-34. E-25's refusal of two currencies is gone; what remains is that
+      // the credit cannot be invented. The sentence is MakeTransfer's.
       await open(tester, accounts: const [cash, dollars]);
 
-      await tester.enterText(find.byType(TextField).first, '800');
+      await tester.enterText(field('Amount sent (LKR)'), '800');
       await tester.tap(find.widgetWithText(FilledButton, 'Transfer'));
       await tester.pumpAndSettle();
 
       expect(
-        find.textContaining('cannot convert between currencies yet'),
+        find.text('Enter the amount that arrives in USD.'),
         findsOneWidget,
       );
       expect(repository.transfers, isEmpty);
@@ -229,6 +238,97 @@ void main() {
       expect(find.text('The database is locked.'), findsOneWidget);
       // Still on the transfer screen, because nothing was written.
       expect(find.widgetWithText(FilledButton, 'Transfer'), findsOneWidget);
+    });
+  });
+
+  group('between two currencies', () {
+    final usdToLkr = ExchangeRate(
+      fromCurrency: 'LKR',
+      toCurrency: 'USD',
+      rateMicros: 3333,
+      updatedAt: DateTime(2026, 9, 17),
+    );
+
+    testWidgets('offers one amount when both sides share a currency', (
+      tester,
+    ) async {
+      await open(tester);
+
+      expect(field('Amount'), findsOneWidget);
+      expect(find.textContaining('Amount received'), findsNothing);
+    });
+
+    testWidgets('offers a second amount otherwise, named by currency', (
+      tester,
+    ) async {
+      await open(tester, accounts: const [cash, dollars]);
+
+      expect(field('Amount sent (LKR)'), findsOneWidget);
+      expect(field('Amount received (USD)'), findsOneWidget);
+    });
+
+    testWidgets('records both figures, each in its own currency', (
+      tester,
+    ) async {
+      // FR-TRF-001, FR-ACC-005: Rs 3,000 leaves cash, $10 arrives.
+      await open(tester, accounts: const [cash, dollars]);
+
+      await tester.enterText(field('Amount sent (LKR)'), '3000');
+      await tester.enterText(field('Amount received (USD)'), '10');
+      await tester.tap(find.widgetWithText(FilledButton, 'Transfer'));
+      await tester.pumpAndSettle();
+
+      expect(repository.transfers.single.amount, 300000);
+      expect(repository.transfers.single.credited, 1000);
+    });
+
+    testWidgets('pre-fills what arrives from the stored rate', (tester) async {
+      // E-34: the rate suggests; the statement decides. Rs 3,000 at
+      // 0.003333 USD/LKR is $10.00, to the cent.
+      await open(
+        tester,
+        accounts: const [cash, dollars],
+        table: ConversionTable(baseCurrency: 'LKR', rates: [usdToLkr]),
+      );
+
+      await tester.enterText(field('Amount sent (LKR)'), '3000');
+      await tester.pumpAndSettle();
+
+      final received = tester.widget<TextField>(field('Amount received (USD)'));
+      expect(received.controller?.text, '10.00');
+      expect(
+        find.textContaining('Suggested from your stored rate'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('keeps the number the user typed over the suggestion', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        accounts: const [cash, dollars],
+        table: ConversionTable(baseCurrency: 'LKR', rates: [usdToLkr]),
+      );
+
+      await tester.enterText(field('Amount received (USD)'), '9.75');
+      await tester.enterText(field('Amount sent (LKR)'), '3000');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Transfer'));
+      await tester.pumpAndSettle();
+
+      expect(repository.transfers.single.credited, 975);
+    });
+
+    testWidgets('without a rate, asks for the statement figure', (
+      tester,
+    ) async {
+      await open(tester, accounts: const [cash, dollars]);
+
+      expect(
+        find.textContaining('What actually arrived, from your statement.'),
+        findsOneWidget,
+      );
     });
   });
 

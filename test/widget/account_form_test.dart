@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/conversion_table.dart';
+import 'package:moneyora/core/ports/exchange_rate.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/domain/repositories/account_repository.dart';
@@ -119,9 +121,13 @@ void main() {
     includeInTotal: false,
   );
 
-  Widget boot({Account? initial}) => ProviderScope(
+  Widget boot({
+    Account? initial,
+    ConversionTable table = const ConversionTable(baseCurrency: 'LKR'),
+  }) => ProviderScope(
     overrides: [
       accountRepositoryProvider.overrideWith((ref) async => repository),
+      conversionTableProvider.overrideWith((ref) => Stream.value(table)),
     ],
     child: MaterialApp(
       theme: AppTheme.light,
@@ -130,9 +136,13 @@ void main() {
   );
 
   /// Pumps the form with the whole of it on screen.
-  Future<void> open(WidgetTester tester, {Account? initial}) async {
+  Future<void> open(
+    WidgetTester tester, {
+    Account? initial,
+    ConversionTable table = const ConversionTable(baseCurrency: 'LKR'),
+  }) async {
     useTallViewport(tester);
-    await tester.pumpWidget(boot(initial: initial));
+    await tester.pumpWidget(boot(initial: initial, table: table));
     await tester.pumpAndSettle();
   }
 
@@ -236,18 +246,22 @@ void main() {
     });
   });
 
-  group('a currency the app cannot convert', () {
+  group('a currency with no rate to the base', () {
     testWidgets('warns at the moment the choice is made', (tester) async {
-      // E-25. The consequence becomes true when the currency is chosen, and
-      // finding out later from a total that quietly omits the account is
-      // worse than being told here.
+      // E-34's fallback. The consequence becomes true when the currency is
+      // chosen, and finding out later from a total that quietly omits the
+      // account is worse than being told here.
       await open(tester);
 
-      expect(find.textContaining('cannot convert'), findsNothing);
+      expect(find.textContaining('no exchange rate'), findsNothing);
 
       await tester.enterText(find.byType(TextField).last, 'USD');
       await tester.pumpAndSettle();
 
+      expect(
+        find.textContaining('no exchange rate from USD to LKR yet'),
+        findsOneWidget,
+      );
       expect(
         find.textContaining('left out of your total balance'),
         findsOneWidget,
@@ -260,7 +274,38 @@ void main() {
       await tester.enterText(find.byType(TextField).last, 'LKR');
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('cannot convert'), findsNothing);
+      expect(find.textContaining('no exchange rate'), findsNothing);
+    });
+
+    testWidgets('stays quiet once a rate exists', (tester) async {
+      // FR-ACC-005: with a rate the account is simply counted.
+      await open(
+        tester,
+        table: ConversionTable(
+          baseCurrency: 'LKR',
+          rates: [
+            ExchangeRate(
+              fromCurrency: 'USD',
+              toCurrency: 'LKR',
+              rateMicros: 300000000,
+              updatedAt: DateTime(2026),
+            ),
+          ],
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField).last, 'USD');
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('no exchange rate'), findsNothing);
+    });
+
+    testWidgets('a new account starts in the base currency', (tester) async {
+      // FR-SET-003: the base is the user's, not a constant.
+      await open(tester, table: const ConversionTable(baseCurrency: 'USD'));
+
+      final field = tester.widget<TextField>(find.byType(TextField).last);
+      expect(field.controller?.text, 'USD');
     });
   });
 

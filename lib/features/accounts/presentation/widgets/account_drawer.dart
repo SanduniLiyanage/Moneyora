@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/conversion_table.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
+import '../../../../injection.dart' show conversionTableProvider;
 import '../../domain/entities/account.dart';
 import '../../domain/entities/account_totals.dart';
 import '../providers/account_providers.dart';
@@ -30,15 +32,23 @@ class AccountDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final showArchived = ref.watch(showArchivedAccountsProvider);
     final accounts = ref.watch(accountsProvider(showArchived));
+    // The base currency and the user's rates, from the settings feature
+    // through its port (FR-ACC-005): the total is meaningless without them,
+    // so the panel waits for both rather than drawing a figure it would
+    // then correct.
+    final table = ref.watch(conversionTableProvider);
 
     return Drawer(
       child: SafeArea(
-        child: switch (accounts) {
-          AsyncData(:final value) => _Accounts(
-            accounts: value,
-            showingArchived: showArchived,
-          ),
-          AsyncError(:final error) => _Problem(error: error),
+        child: switch ((accounts, table)) {
+          (AsyncData(value: final list), AsyncData(value: final rates)) =>
+            _Accounts(
+              accounts: list,
+              table: rates,
+              showingArchived: showArchived,
+            ),
+          (AsyncError(:final error), _) ||
+          (_, AsyncError(:final error)) => _Problem(error: error),
           _ => const Center(child: CircularProgressIndicator()),
         },
       ),
@@ -47,9 +57,16 @@ class AccountDrawer extends ConsumerWidget {
 }
 
 class _Accounts extends ConsumerWidget {
-  const _Accounts({required this.accounts, required this.showingArchived});
+  const _Accounts({
+    required this.accounts,
+    required this.table,
+    required this.showingArchived,
+  });
 
   final List<Account> accounts;
+
+  /// The base currency and every rate the user has entered.
+  final ConversionTable table;
 
   /// Whether archived accounts are currently included. FR-ACC-004.
   final bool showingArchived;
@@ -57,7 +74,7 @@ class _Accounts extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final totals = AccountTotals.from(accounts);
+    final totals = AccountTotals.from(accounts, table);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -77,8 +94,10 @@ class _Accounts extends ConsumerWidget {
               : ListView.builder(
                   padding: EdgeInsets.zero,
                   itemCount: accounts.length,
-                  itemBuilder: (context, index) =>
-                      _AccountTile(account: accounts[index]),
+                  itemBuilder: (context, index) => _AccountTile(
+                    account: accounts[index],
+                    baseCurrency: table.baseCurrency,
+                  ),
                 ),
         ),
         const Divider(height: 1),
@@ -101,20 +120,22 @@ class _Accounts extends ConsumerWidget {
           title: const Text('Show archived'),
           dense: true,
         ),
-        if (totals.hasExcludedForeign) ...[
+        if (totals.hasUnconverted) ...[
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Text(
-              // E-25. Saying what was left out, and why, rather than
-              // converting at an invented rate or adding dollars to rupees.
-              // The number above is then correct rather than approximate.
-              totals.excludedForeignCount == 1
-                  ? 'One account in another currency is not counted — Moneyora '
-                        'cannot convert between currencies yet.'
-                  : '${totals.excludedForeignCount} accounts in other '
-                        'currencies are not counted — Moneyora cannot convert '
-                        'between currencies yet.',
+              // E-34's fallback, which is E-25's rule kept for the accounts
+              // it still applies to: saying what was left out, why, and what
+              // would include it, rather than converting at an invented rate
+              // or adding dollars to rupees. The number above is then correct
+              // rather than approximate.
+              totals.unconvertedCount == 1
+                  ? 'One account is not counted — it has no exchange rate to '
+                        '${totals.baseCurrency} yet. Add one under Settings.'
+                  : '${totals.unconvertedCount} accounts are not counted — '
+                        'they have no exchange rate to ${totals.baseCurrency} '
+                        'yet. Add them under Settings.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),
@@ -167,9 +188,12 @@ class _Total extends StatelessWidget {
 }
 
 class _AccountTile extends StatelessWidget {
-  const _AccountTile({required this.account});
+  const _AccountTile({required this.account, required this.baseCurrency});
 
   final Account account;
+
+  /// The currency whose label is noise on a row, because it is assumed.
+  final String baseCurrency;
 
   @override
   Widget build(BuildContext context) {
@@ -195,13 +219,12 @@ class _AccountTile extends StatelessWidget {
       // changes what the row means — a currency label beside a closed account
       // answers a question nobody is asking.
       //
-      // Otherwise the currency, and only when it is not the assumed one:
-      // repeating "LKR" on every row on an install that has never seen
-      // another currency is noise.
+      // Otherwise the currency, and only when it is not the base: repeating
+      // "LKR" on every row on an install that has never seen another
+      // currency is noise.
       subtitle: switch (account) {
         Account(isArchived: true) => const Text('Archived'),
-        Account(:final currency)
-            when currency.toUpperCase() != AccountTotals.defaultBaseCurrency =>
+        Account(:final currency) when currency.toUpperCase() != baseCurrency =>
           Text(currency.toUpperCase()),
         _ => null,
       },

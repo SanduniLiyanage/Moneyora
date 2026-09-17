@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/conversion_table.dart';
+import 'package:moneyora/core/ports/exchange_rate.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
 import 'package:moneyora/features/accounts/presentation/widgets/account_drawer.dart';
+import 'package:moneyora/injection.dart';
 
 /// The account panel FR-ACC-003 asks for, over a scripted account list.
 ///
@@ -44,6 +47,7 @@ void main() {
     Object? failure,
     bool hold = false,
     List<Account>? archivedToo,
+    ConversionTable table = const ConversionTable(baseCurrency: 'LKR'),
   }) {
     Stream<List<Account>> streamOf(List<Account>? value) {
       if (hold) return const Stream<List<Account>>.empty();
@@ -58,6 +62,8 @@ void main() {
         // first one — the datasource is what excludes archived rows.
         accountsProvider(true)
             .overrideWith((ref) => streamOf(archivedToo ?? accounts)),
+        // The base currency and rates the panel converts with (FR-ACC-005).
+        conversionTableProvider.overrideWith((ref) => Stream.value(table)),
       ],
       child: MaterialApp(
         theme: AppTheme.light,
@@ -140,16 +146,23 @@ void main() {
       expect(find.text('Rs1,500.00'), findsOneWidget);
       // And no note about currencies: the user chose this, so there is
       // nothing about the app's limits to explain.
-      expect(find.textContaining('cannot convert'), findsNothing);
+      expect(find.textContaining('no exchange rate'), findsNothing);
     });
   });
 
-  group('a currency the app cannot convert', () {
-    testWidgets('renders the balance in its own currency, not rupees', (
+  group('other currencies', () {
+    final usdRate = ExchangeRate(
+      fromCurrency: 'USD',
+      toCurrency: 'LKR',
+      rateMicros: 300000000,
+      updatedAt: DateTime(2026, 9, 17),
+    );
+
+    testWidgets('renders each balance in its own currency, not rupees', (
       tester,
     ) async {
-      // E-25. Until FR-ACC-005 lands there is no conversion, so showing a
-      // dollar balance with an Rs in front of it would state something false.
+      // The row is the account as it is; only the total converts. A dollar
+      // balance with an Rs in front of it would state something false.
       await tester.pumpWidget(
         boot(
           accounts: [
@@ -170,8 +183,37 @@ void main() {
       expect(find.text('USD'), findsOneWidget);
     });
 
-    testWidgets('keeps it out of the total and says so', (tester) async {
-      // Two rupee accounts, so the total is distinguishable from any one row.
+    testWidgets('converts it into the total at the stored rate', (
+      tester,
+    ) async {
+      // FR-ACC-005: Rs1,250 + $300 at 300 = Rs91,250, and no note, because
+      // nothing was left out.
+      await tester.pumpWidget(
+        boot(
+          accounts: [
+            account(id: 1, balanceCents: 125000),
+            account(
+              id: 2,
+              name: 'PayPal',
+              balanceCents: 30000,
+              currency: 'USD',
+            ),
+          ],
+          table: ConversionTable(baseCurrency: 'LKR', rates: [usdRate]),
+        ),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('Rs91,250.00'), findsOneWidget);
+      expect(find.textContaining('not counted'), findsNothing);
+    });
+
+    testWidgets('keeps one without a rate out of the total and says so', (
+      tester,
+    ) async {
+      // E-34's fallback, which is E-25's rule kept for the accounts it still
+      // applies to. Two rupee accounts, so the total is distinguishable from
+      // any one row.
       await tester.pumpWidget(
         boot(
           accounts: [
@@ -191,7 +233,9 @@ void main() {
       // The rupee accounts alone, and correct rather than approximate.
       expect(find.text('Rs1,500.00'), findsOneWidget);
       expect(
-        find.textContaining('One account in another currency is not counted'),
+        find.textContaining(
+          'One account is not counted — it has no exchange rate to LKR yet',
+        ),
         findsOneWidget,
       );
     });
@@ -215,10 +259,57 @@ void main() {
       );
       await openDrawer(tester);
 
-      expect(
-        find.textContaining('2 accounts in other currencies are not counted'),
-        findsOneWidget,
+      expect(find.textContaining('2 accounts are not counted'), findsOneWidget);
+    });
+
+    testWidgets('a rate for one of two leaves only the other out', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(
+          accounts: [
+            account(id: 1, balanceCents: 125000),
+            account(
+              id: 2,
+              name: 'PayPal',
+              balanceCents: 30000,
+              currency: 'USD',
+            ),
+            account(id: 3, name: 'Wise', balanceCents: 40000, currency: 'EUR'),
+          ],
+          table: ConversionTable(baseCurrency: 'LKR', rates: [usdRate]),
+        ),
       );
+      await openDrawer(tester);
+
+      expect(find.text('Rs91,250.00'), findsOneWidget);
+      expect(find.textContaining('One account is not counted'), findsOneWidget);
+    });
+
+    testWidgets('the total is in the base the user chose', (tester) async {
+      // FR-SET-003: a USD base shows a USD total, and now the rupee account
+      // is the foreign one with no rate.
+      await tester.pumpWidget(
+        boot(
+          accounts: [
+            account(id: 1, balanceCents: 125000),
+            account(
+              id: 2,
+              name: 'PayPal',
+              balanceCents: 30000,
+              currency: 'USD',
+            ),
+          ],
+          table: const ConversionTable(baseCurrency: 'USD'),
+        ),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('USD 300.00'), findsNWidgets(2));
+      expect(find.textContaining('no exchange rate to USD'), findsOneWidget);
+      // The label is on the row that is not in the base, whichever that is.
+      expect(find.text('LKR'), findsOneWidget);
+      expect(find.text('USD'), findsNothing);
     });
 
     testWidgets('says nothing at all when every account is in rupees', (
@@ -232,7 +323,7 @@ void main() {
       );
       await openDrawer(tester);
 
-      expect(find.textContaining('cannot convert'), findsNothing);
+      expect(find.textContaining('not counted'), findsNothing);
       expect(find.text('LKR'), findsNothing);
     });
   });

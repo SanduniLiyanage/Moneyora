@@ -115,12 +115,11 @@ void main() {
       expect(result.isRight(), isTrue);
     });
 
-    test('two accounts holding different currencies', () async {
-      // E-25's interim rule. FR-ACC-005 — the conversion that would make this
-      // meaningful — is deferred to Sprint 7, so there is no rate to convert
-      // at. Moving 100 from a USD account to an LKR one would credit 100
-      // rupees: wrong by a factor of three hundred, and entirely plausible
-      // on screen.
+    test('two currencies with no credited amount', () async {
+      // E-34. E-25's refusal of two currencies is gone; what remains is that
+      // the credit cannot be invented. Moving 100 from a USD account to an
+      // LKR one without saying what arrived would credit 100 rupees: wrong
+      // by a factor of three hundred, and entirely plausible on screen.
       final result = await makeTransfer(
         params(fromCurrency: 'USD', toCurrency: 'LKR'),
       );
@@ -129,15 +128,37 @@ void main() {
       expect(repository.received, isNull);
     });
 
-    test('and says which currency it would have to be, not just "no"', () {
+    test('and names the currency that has to arrive, and the field', () {
       final failure = MakeTransfer.validate(
-        params(fromCurrency: 'USD', toCurrency: 'LKR'),
+        params(fromCurrency: 'USD', toCurrency: 'lkr'),
       );
 
-      expect(failure?.message, contains('two USD accounts'));
-      // The destination is the control the user can usefully change; the
-      // source is the account they started from.
-      expect(failure?.field, 'toAccount');
+      expect(failure?.message, 'Enter the amount that arrives in LKR.');
+      expect(failure?.field, 'creditedAmount');
+    });
+
+    test('a credited amount of nothing is the same refusal', () {
+      final failure = MakeTransfer.validate(
+        params(fromCurrency: 'USD', toCurrency: 'LKR', creditedAmountCents: 0),
+      );
+
+      expect(failure?.field, 'creditedAmount');
+    });
+
+    test('two currencies with a credited amount go through', () async {
+      // FR-TRF-001, FR-ACC-005: USD 10.00 out, LKR 3,002.50 in.
+      final result = await makeTransfer(
+        params(
+          amountCents: 1000,
+          fromCurrency: 'USD',
+          toCurrency: 'LKR',
+          creditedAmountCents: 300250,
+        ),
+      );
+
+      expect(result, const Right<Failure, int>(7));
+      expect(repository.received?.amount, 1000);
+      expect(repository.received?.credited, 300250);
     });
 
     test('but not two accounts whose codes differ only in case', () async {

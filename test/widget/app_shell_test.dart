@@ -12,6 +12,7 @@ import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
+import 'package:moneyora/core/ports/conversion_table.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
@@ -128,6 +129,11 @@ void main() {
     overrides: [
       databaseSummaryProvider.overrideWith((ref) => ready),
       ..._noChartDataOverrides,
+      // The panel converts through the settings feature's table
+      // (FR-ACC-005), which would otherwise wait on the same database.
+      conversionTableProvider.overrideWith(
+        (ref) => Stream.value(const ConversionTable(baseCurrency: 'LKR')),
+      ),
       accountsProvider(false).overrideWith(
         (ref) => Stream.value([
           Account(

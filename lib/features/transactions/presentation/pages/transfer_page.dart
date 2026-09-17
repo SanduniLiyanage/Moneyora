@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/account_reader.dart';
+import '../../../../core/ports/conversion_table.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
+import '../../../../injection.dart' show conversionTableProvider;
 import '../../domain/usecases/make_transfer.dart';
 import '../providers/transaction_providers.dart';
 
@@ -27,6 +29,15 @@ import '../providers/transaction_providers.dart';
 /// `category_id` nullable precisely so a transfer can carry none. No sign on
 /// the amount either — direction comes from the two account fields, which is
 /// why `MakeTransfer` refuses a negative one rather than interpreting it.
+///
+/// ## Two currencies
+///
+/// When the two accounts hold different currencies a second amount field
+/// appears: what arrives, in the destination's currency (FR-ACC-005, E-34).
+/// It is the user's number from the statement, not a conversion — the rate
+/// a bank actually applied is not in any table — so the stored rate, when
+/// there is one, only pre-fills it. `MakeTransfer` refuses the transfer
+/// without it.
 class TransferPage extends ConsumerStatefulWidget {
   /// Creates the transfer screen.
   const TransferPage({super.key});
@@ -37,7 +48,13 @@ class TransferPage extends ConsumerStatefulWidget {
 
 class _TransferPageState extends ConsumerState<TransferPage> {
   final TextEditingController _amount = TextEditingController();
+  final TextEditingController _credited = TextEditingController();
   final TextEditingController _note = TextEditingController();
+
+  /// Whether the user has typed in the credited field. Until they have, the
+  /// stored rate keeps pre-filling it as the debit changes; once they have,
+  /// their number is theirs.
+  bool _creditedEdited = false;
 
   int? _fromId;
   int? _toId;
@@ -51,11 +68,13 @@ class _TransferPageState extends ConsumerState<TransferPage> {
   void initState() {
     super.initState();
     _amount.addListener(() => setState(() {}));
+    _credited.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _amount.dispose();
+    _credited.dispose();
     _note.dispose();
     super.dispose();
   }
@@ -78,10 +97,31 @@ class _TransferPageState extends ConsumerState<TransferPage> {
       date: _date,
       note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       // The currencies the two accounts actually hold, so the use case can
-      // apply E-25's rule rather than the screen inventing its own version.
+      // decide whether a credited amount is needed rather than the screen
+      // inventing its own version of the rule.
       fromCurrency: from?.currency ?? TransferParams.defaultCurrency,
       toCurrency: to?.currency ?? TransferParams.defaultCurrency,
+      creditedAmountCents: parseToCents(_credited.text),
     );
+  }
+
+  /// Pre-fills the credited amount from the stored rate, until the user
+  /// types their own. E-34: the rate suggests; the statement decides.
+  void _suggestCredit(
+    AccountOption? from,
+    AccountOption? to,
+    ConversionTable? table,
+  ) {
+    if (_creditedEdited || from == null || to == null || table == null) return;
+    final debit = parseToCents(_amount.text);
+    final rate = table.rateFor(
+      fromCurrency: from.currency,
+      toCurrency: to.currency,
+    );
+    final suggested = debit == null || rate == null
+        ? ''
+        : formatCents(rate.convert(debit), showSymbol: false);
+    if (_credited.text != suggested) _credited.text = suggested;
   }
 
   Future<void> _pickDate() async {
@@ -123,6 +163,9 @@ class _TransferPageState extends ConsumerState<TransferPage> {
   Widget build(BuildContext context) {
     final accountsAsync = ref.watch(entryAccountsProvider);
     final saving = ref.watch(saveTransferControllerProvider).isLoading;
+    // Only for the pre-fill; a missing table means no suggestion, never a
+    // blocked transfer.
+    final table = ref.watch(conversionTableProvider).asData?.value;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transfer')),
@@ -137,6 +180,14 @@ class _TransferPageState extends ConsumerState<TransferPage> {
 
           _fromId ??= accounts.first.id;
           _toId ??= accounts.length > 1 ? accounts[1].id : null;
+
+          final from = _accountFrom(accounts, _fromId);
+          final to = _accountFrom(accounts, _toId);
+          final crossesCurrency =
+              from != null &&
+              to != null &&
+              from.currency.toUpperCase() != to.currency.toUpperCase();
+          if (crossesCurrency) _suggestCredit(from, to, table);
 
           final problem = _submitted
               ? MakeTransfer.validate(_build(accounts))
@@ -175,7 +226,9 @@ class _TransferPageState extends ConsumerState<TransferPage> {
                     decimal: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'Amount',
+                    labelText: crossesCurrency
+                        ? 'Amount sent (${from.currency.toUpperCase()})'
+                        : 'Amount',
                     hintText: '0.00',
                     border: const OutlineInputBorder(),
                     errorText: problem?.field == 'amount'
@@ -183,6 +236,37 @@ class _TransferPageState extends ConsumerState<TransferPage> {
                         : null,
                   ),
                 ),
+                if (crossesCurrency) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _credited,
+                    onChanged: (_) => _creditedEdited = true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText:
+                          'Amount received (${to.currency.toUpperCase()})',
+                      hintText: '0.00',
+                      // E-34: the statement's number, not the table's. The
+                      // stored rate only pre-fills.
+                      helperText:
+                          table?.rateFor(
+                                fromCurrency: from.currency,
+                                toCurrency: to.currency,
+                              ) ==
+                              null
+                          ? 'What actually arrived, from your statement.'
+                          : 'Suggested from your stored rate — change it to '
+                                'what actually arrived.',
+                      helperMaxLines: 2,
+                      border: const OutlineInputBorder(),
+                      errorText: problem?.field == 'creditedAmount'
+                          ? problem?.message
+                          : null,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -261,8 +345,8 @@ class _AccountField extends StatelessWidget {
         labelText: label,
         border: const OutlineInputBorder(),
         errorText: errorText,
-        // The refusal for a cross-currency pair is a sentence, not a word, so
-        // it needs room rather than being clipped to one line.
+        // The same-account refusal is a sentence, not a word, so it needs
+        // room rather than being clipped to one line.
         errorMaxLines: 3,
       ),
       items: [

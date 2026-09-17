@@ -1291,6 +1291,32 @@ All three are deletions when FR-ACC-005 lands, not migrations. Recorded in
 [`ROADMAP.md`](ROADMAP.md) so FR-ACC-005 keeps a place in traceability instead
 of disappearing between sprints.
 
+### Addendum, 2026-09-17 — FR-ACC-005 landed; the three rules are gone
+
+Deleted in one commit, as this entry required, with the conversion that
+replaces them (Sprint 7, PR #107; the schema and rate table landed first
+under [E-34](#e-34)):
+
+1. **The LKR constant** — `AccountTotals.defaultBaseCurrency` — is gone.
+   `AccountTotals.from` takes a `ConversionTable`, whose base currency is
+   the user's setting (FR-SET-003, the `users.currency` column). The one
+   `'LKR'` literal that remains is `Account.defaultCurrency`, the column
+   default a *new account* starts in (DBD §3.2), which the form overrides
+   with the base as soon as it is known; it is not a base currency and the
+   entity says so.
+2. **The same-currency guard** in `MakeTransfer.validate` is gone. A
+   transfer between two currencies is permitted, as FR-TRF-001 always said;
+   what the use case now requires is the credited amount in the
+   destination's currency, which E-34 explains.
+3. **The Total Balance's exclusion** is gone as a rule and kept as a
+   fallback: an account converts into the total at the user's rate to the
+   base, and only one *without such a rate* is left out — still shown in
+   its own currency, still said to be left out, and now told what would
+   include it.
+
+The interim behaviour therefore survives exactly where it is still the
+honest answer, and nowhere else.
+
 ### Addendum, 2026-09-10 — the same defect, caught automatically this time
 
 `scripts/check_citations.sh` was added the same day this addendum was written,
