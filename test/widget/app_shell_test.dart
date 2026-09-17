@@ -292,7 +292,9 @@ void main() {
       await tester.tap(find.byIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();
 
-      expect(find.text('Arrives in Sprint 7.'), findsOneWidget);
+      // The real screen, not the placeholder it replaced: the settings route
+      // was the router's last one without a page behind it.
+      expect(find.text('Recalculate account balances'), findsOneWidget);
     });
 
     testWidgets('every screen opened from home can be left again', (

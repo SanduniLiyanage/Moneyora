@@ -16,11 +16,11 @@ import '../repositories/money_plan_repository.dart';
 ///
 /// The data layer already recounts on its own when a plan becomes active,
 /// so a plan saved mid-period counts what was already in it. This use case
-/// is the reachable repair for everything else, and — like
-/// `RecomputeAccountBalance` — has no caller yet: the Settings action of
-/// Sprint 7 and the restore path of Sprint 8. Not on launch: a recount is
-/// `O(expenses in the period)`, and NFR-PER-001 is why nothing scans
-/// history on the cold-start path.
+/// is the reachable repair for everything else, called from the plan list
+/// (FR-PLN-015) and, once Sprint 8 builds one, the restore path — the same
+/// two places `RecomputeAllAccountBalances` is reached from, for the same
+/// reason. Not on launch: a recount is `O(expenses in the period)`, and
+/// NFR-PER-001 is why nothing scans history on the cold-start path.
 class RecomputePlanSpending implements UseCase<Unit, int> {
   /// Creates the use case.
   const RecomputePlanSpending(this._repository);

@@ -16,26 +16,22 @@ import '../repositories/account_repository.dart';
 /// the balance from the transactions that produced it, with nothing in the
 /// schema able to notice.
 ///
-/// Runs on app start after a restore, and behind a Settings action. The same
-/// arithmetic already serves as the oracle in the transactions datasource's
-/// property test: after a random sequence of writes, cached must equal
-/// recomputed.
-class RecomputeAccountBalance implements UseCase<int, int?> {
+/// The same arithmetic already serves as the oracle in the transactions
+/// datasource's property test: after a random sequence of writes, cached must
+/// equal recomputed.
+///
+/// This is the single-account form. The sweep every account needs after a
+/// restore, or from the Settings action, is [RecomputeAllAccountBalances] -
+/// one use case per operation, rather than a nullable parameter meaning two
+/// different things.
+class RecomputeAccountBalance implements UseCase<int, int> {
   /// Creates the use case.
   const RecomputeAccountBalance(this._repository);
 
   final AccountRepository _repository;
 
-  /// Recomputes the account [params], or every account when it is null.
-  ///
-  /// Returns the recomputed balance for a single account, and zero for the
-  /// all-accounts sweep, where there is no single number to report.
+  /// Recomputes the account [params] and returns its new balance.
   @override
-  Future<Either<Failure, int>> call(int? params) async {
-    if (params == null) {
-      final result = await _repository.recomputeAllBalances();
-      return result.map((_) => 0);
-    }
-    return _repository.recomputeBalance(params);
-  }
+  Future<Either<Failure, int>> call(int params) =>
+      _repository.recomputeBalance(params);
 }

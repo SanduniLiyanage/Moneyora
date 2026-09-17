@@ -816,7 +816,8 @@ Two things follow, and both are honest statements of an open gap rather than a
 closed one:
 
 1. **Until the Settings action ships in Sprint 7, E-18's reconciliation is built
-   and unreachable.** The cache-correctness half of E-18 *is* satisfied — every
+   and unreachable.** *(Shipped, as the first PR of Sprint 7 — see the
+   addendum below.)* The cache-correctness half of E-18 *is* satisfied — every
    balance change happens inside the writing transaction, and
    `_recomputeWithin` re-derives on edit — so the drift this entry was raised
    about cannot currently accumulate through the app's own write paths. What is
@@ -830,6 +831,20 @@ closed one:
 Point 3 should be read as: re-derives from `initial_balance_cents` plus all
 transactions; reachable from a Settings action (Sprint 7) and from the restore
 path (Sprint 8); never on an unconditional launch.
+
+### Addendum, 2026-09-17 — the Settings action exists
+
+Settings › Data › "Recalculate account balances" is the caller. It confirms
+first — the dialog says what the sweep reads and that nothing is deleted —
+then runs `RecomputeAllAccountBalances`, which delegates to the repository's
+sweep: every account re-derived inside **one** database transaction, one
+change-bus notification at the end. That use case is new; it took over the
+all-accounts half of `RecomputeAccountBalance`, which had meant two things
+depending on whether its parameter was null and now means one. Neither is
+called on launch.
+
+Of the two gaps above, the first is closed and the second is unchanged: the
+restore-path caller still arrives with the restore, in Sprint 8.
 
 ---
 

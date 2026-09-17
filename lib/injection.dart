@@ -25,6 +25,7 @@ import 'features/accounts/domain/usecases/add_account.dart';
 import 'features/accounts/domain/usecases/archive_account.dart';
 import 'features/accounts/domain/usecases/delete_account.dart';
 import 'features/accounts/domain/usecases/recompute_account_balance.dart';
+import 'features/accounts/domain/usecases/recompute_all_account_balances.dart';
 import 'features/accounts/domain/usecases/update_account.dart';
 import 'features/accounts/domain/usecases/watch_accounts.dart';
 import 'features/analytics/data/datasources/analytics_local_datasource.dart';
@@ -319,12 +320,23 @@ final watchAccountsProvider = FutureProvider<WatchAccounts>(
       WatchAccounts(await ref.watch(accountRepositoryProvider.future)),
 );
 
-/// Re-derives a cached balance from history. E-18.
+/// Re-derives one cached balance from history. E-18.
 final recomputeAccountBalanceProvider = FutureProvider<RecomputeAccountBalance>(
   (ref) async => RecomputeAccountBalance(
     await ref.watch(accountRepositoryProvider.future),
   ),
 );
+
+/// Re-derives every cached balance from history. E-18.
+///
+/// The Settings action's use case, and the restore path's once Sprint 8
+/// builds one. Never called on launch — see the E-18 addendum.
+final recomputeAllAccountBalancesProvider =
+    FutureProvider<RecomputeAllAccountBalances>(
+      (ref) async => RecomputeAllAccountBalances(
+        await ref.watch(accountRepositoryProvider.future),
+      ),
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Categories
