@@ -1,28 +1,36 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-14**, `main` at `a2104fe`, after **84
-merged pull requests** (#2–#85; #1 was closed unmerged). **Sprint 5 is
-complete**: the engine
-([PR #66](https://github.com/SanduniLiyanage/Moneyora/pull/66),
-[#68](https://github.com/SanduniLiyanage/Moneyora/pull/68),
-[#70](https://github.com/SanduniLiyanage/Moneyora/pull/70),
-[#72](https://github.com/SanduniLiyanage/Moneyora/pull/72)), the saved
-plan ([PR #74](https://github.com/SanduniLiyanage/Moneyora/pull/74)), the
-wizard ([PR #77](https://github.com/SanduniLiyanage/Moneyora/pull/77),
-[#79](https://github.com/SanduniLiyanage/Moneyora/pull/79)), live
-tracking ([PR #81](https://github.com/SanduniLiyanage/Moneyora/pull/81),
-[#83](https://github.com/SanduniLiyanage/Moneyora/pull/83)), the three
-overspend responses
-([PR #84](https://github.com/SanduniLiyanage/Moneyora/pull/84)) and the
-plan list with comparison
-([PR #85](https://github.com/SanduniLiyanage/Moneyora/pull/85)) — all
-merged during this window. Next is Sprint 6, the receipt scanner. See
-"This session" below.
+State of the project as of **2026-09-17**, `main` at `5d241e4`, after **101
+merged pull requests** (#2–#102; #1 was closed unmerged). **Sprint 6 is
+complete**: the parser
+([PR #87](https://github.com/SanduniLiyanage/Moneyora/pull/87)), the
+categoriser ([#88](https://github.com/SanduniLiyanage/Moneyora/pull/88)),
+schema v3 and the dictionary's data layer
+([#89](https://github.com/SanduniLiyanage/Moneyora/pull/89)), the ML Kit
+seam ([#90](https://github.com/SanduniLiyanage/Moneyora/pull/90)), the
+confirm and learn stages
+([#91](https://github.com/SanduniLiyanage/Moneyora/pull/91),
+[#92](https://github.com/SanduniLiyanage/Moneyora/pull/92)), the review
+and capture screens
+([#93](https://github.com/SanduniLiyanage/Moneyora/pull/93),
+[#94](https://github.com/SanduniLiyanage/Moneyora/pull/94)),
+single-category mode
+([#95](https://github.com/SanduniLiyanage/Moneyora/pull/95)), the first
+real receipt ([#96](https://github.com/SanduniLiyanage/Moneyora/pull/96),
+[#97](https://github.com/SanduniLiyanage/Moneyora/pull/97),
+[#98](https://github.com/SanduniLiyanage/Moneyora/pull/98)), the history
+([#99](https://github.com/SanduniLiyanage/Moneyora/pull/99),
+[#102](https://github.com/SanduniLiyanage/Moneyora/pull/102)), re-scan
+([#100](https://github.com/SanduniLiyanage/Moneyora/pull/100)) and the
+encrypted photo
+([#101](https://github.com/SanduniLiyanage/Moneyora/pull/101)) — all
+merged during this window. Next is Sprint 7: settings, auth,
+notifications and FR-ACC-005. See "What is next" below.
 
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `a2104fe`, with PR #85 merged.
+at `5d241e4`, with PR #102 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -31,15 +39,43 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **1267 passing** | `flutter test` |
+| Tests | **1589 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **13 tables, 11 indexes**, at version 2 (v2 adds one column, E-33) | `grep -c 'CREATE TABLE' lib/core/database/migrations/v1_initial.dart` |
-| Dart files | 155 in `lib/`, 90 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Schema | **13 tables, 11 indexes**, at version 3 (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31) | `grep -c 'CREATE TABLE' lib/core/database/migrations/*.dart` |
+| Dart files | 197 in `lib/`, 114 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 1166 at `32119e3` (PR #81, merged) plus 101 net new from
+Tests by area: 1267 at `a2104fe` (PR #85, merged) plus 322 net new from
+Sprint 6 — **297** in the scanner's own files and its migration: 62 in
+`parse_receipt_text_test.dart` (the three bands, day-first dates, the
+last total label and the first tax label, PRICE X QTY, a discount off the
+item above it, and the Colombo boutique receipt as two fixtures — the
+print, and the rows as ML Kit read them); 18 in
+`categorise_receipt_test.dart`; 32 in `receipt_review_draft_test.dart`,
+every edit as a pure method; 22 in `confirm_receipt_test.dart` (the write
+order, the lesson before the count, the merchant line's note); 10 in
+`get_scan_history_test.dart`; 13 in `receipt_image_vault_test.dart`
+against the real cipher; 12 in `ocr_local_datasource_test.dart` for rows
+from bounding boxes; 19 in `keyword_dictionary_local_datasource_test.dart`
+and 12 in `receipt_scan_local_datasource_test.dart` against real SQLite;
+18 and 8 in the two repository tests; 4 each in `payment_method_test.dart`,
+`load_receipt_image_test.dart` and `v3_receipt_scanner_test.dart` (the
+cascade and the surviving constraints); 3, 5, 3 and 6 for the pick, read
+and scan use cases and the image datasource; and 42 widget tests across
+`receipt_review_page_test.dart` (15), `scan_receipt_page_test.dart` (8)
+and `receipt_history_page_test.dart` (19, the last pumped at 320px).
+**25** outside them: 11 in `keyword_seed_test.dart`, 6 in
+`transaction_local_datasource_test.dart` for `addAll`, 5 in
+`add_expenses_test.dart`, 3 in `add_expense_scan_entry_test.dart`. Three
+cases changed shape rather than growing: the applied-versions set and the
+"latest version" case now say v3, and `app_shell_test.dart`'s "planned
+screen names its sprint" became "reaches the receipt scanner from the
+home screen", because the last planned screen is now a real one. **No
+assertion was removed.**
+
+Before that: 1166 at `32119e3` (PR #81, merged) plus 101 net new from
 the rest of Sprint 5 — **26** from the tracking screen (PR #83: 19 in
 `allocation_progress_test.dart` for every band edge, the floored
 percentage and the projection on exact days; 5 in
@@ -198,6 +234,387 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — the encrypted receipt photo ([PR #101](https://github.com/SanduniLiyanage/Moneyora/pull/101), merged as `0cf733b`; [PR #102](https://github.com/SanduniLiyanage/Moneyora/pull/102), merged as `5d241e4`)
+
+**FR-RCP-012, and the end of Sprint 6.** The picker hands back a file in
+a cache the platform is free to clear, so until this slice the scan
+record and its expenses could point at a photo gone by the next week.
+Confirm now copies the photo into the app's documents directory,
+**encrypted, before anything is written**, and both the `receipt_scans`
+row and the transactions keep that path.
+
+**Decided, and the reasoning is on `receipt_image_vault.dart`:**
+
+- **AES-256-GCM, not CBC**, because it is authenticated: a file altered,
+  truncated or written under another key refuses to open rather than
+  decoding into noise.
+- **The key is derived from the database key with HKDF**, not kept as a
+  second keychain entry. One secret still unlocks everything — which is
+  what Sprint 8's restore has to carry — and the bytes the file cipher
+  sees are not the bytes SQLCipher sees. The package is `cryptography`,
+  pure Dart, so the vault is tested on the VM against the real cipher;
+  nothing in the tree did AES before this.
+- **The recogniser opens paths, not bytes**, so a re-scan (FR-RCP-014) of
+  a kept photo runs over a plain copy in the temporary directory, deleted
+  whatever the recogniser did. Screens draw the bytes the repository
+  unlocks; a path alone no longer opens a kept photo, which is the point.
+- **Kept paths are absolute.** On iOS the container path can move across
+  updates; E-19's compile-only verification defers that until the app
+  first runs there, and the vault's comment says how to settle it.
+
+**PR #102** is the one fix after it: PR #100 had put the total beside the
+Re-scan button in the history row's trailing slot, which on the 320px
+emulator left the store name one syllable per line — the widget tests
+pump at 800px and never saw it. The total is the row's third line now,
+and a test pumps at 320px so the next trailing widget cannot do this
+quietly.
+
+---
+
+## This session — re-scan from the history ([PR #100](https://github.com/SanduniLiyanage/Moneyora/pull/100), merged as `09673c5`)
+
+**FR-RCP-014** is the pipeline run again on a path the app already has,
+so nothing new was needed below presentation: `ReadReceiptImage` takes a
+path, and the history row hands it the one the scan kept — past the
+picker — and opens a fresh review on the result.
+
+- **The re-scan has its own controller**, not a second method on the
+  capture screen's. The capture screen sits under the history in the
+  stack watching `scanReceiptControllerProvider`; a re-scan failing
+  through that provider would print its message under the capture
+  screen's buttons when the user came back to them. The read stage the
+  two share is one mixin.
+- **The row checks the disk before the recogniser is asked.** ML Kit's
+  answer for a missing file is "Could not read that image", which is
+  true and unhelpful; the history already has a sentence for a photo the
+  phone has cleaned up, and uses it here too.
+- **A re-scan confirmed is a new record beside the old one.** It edits
+  nothing the first pass wrote: those expenses are in the ledger, where a
+  wrong one is deleted with Undo (E-23). Rewriting them from here would
+  be a second delete path with no Undo of its own.
+
+---
+
+## This session — the receipt history ([PR #99](https://github.com/SanduniLiyanage/Moneyora/pull/99), merged as `8576e82`)
+
+**FR-RCP-013.** Every confirmed receipt had been written to
+`receipt_scans` since PR #91 and nothing could read one back: the SDD's
+`ReceiptRepository` had three methods and `getScanHistory` was the one
+still missing, so FR-RCP-012's "kept for future reference" had no
+reference and FR-RCP-014 had nothing to start from. `GetScanHistory`,
+`ReceiptHistoryPage` (`/scan/history`, reached from the scanner's app
+bar the way a camera keeps its roll).
+
+- **A `Future`, not a stream** — the SDD's shape; nothing writes a scan
+  while the list is on screen, and it re-reads on open.
+- **The search is the use case's, in Dart, not SQL.** The SRS says
+  "searchable" and stops, so the rule is stated once where a test can say
+  what it does: every word typed must appear in the store, the printed
+  number or an item name, as a case-insensitive substring. A match on an
+  item needs no join for a table that grows by one row per receipt.
+- `ReceiptScan` gained `scannedAt` (the row's `created_at`), because a
+  receipt whose printed date OCR missed still needs a date on the list.
+  The thumbnail the review screen drew became `ReceiptThumbnail`, shared,
+  so a photo gone from disk gets the same placeholder on both.
+
+---
+
+## This session — paid from the account the receipt names ([PR #98](https://github.com/SanduniLiyanage/Moneyora/pull/98), merged as `f540642`)
+
+**FR-RCP-005, FR-RCP-008.** The first real receipt said MASTER CARD and
+the review screen opened on Cash, because "Paid from" defaulted to the
+first account in the list and nothing carried the tender line past the
+parser, which used it only to end the body.
+
+The parser keeps what that line said as a **`PaymentMethod` — cash or
+card, never a brand**, since the app knows which accounts are cards and
+not which card is a Visa: from the priced tender line in the body or after
+the total, or an unpriced line that starts by saying so (PAID BY VISA). A
+card-number line is not a payment. `defaultAccount` picks the first credit
+card, then the first bank account, for a card receipt; the first cash
+account for a cash one; the first account in the list when the receipt
+did not say or nothing matches. **The picker stays: this is a default,
+not a decision.**
+
+`AccountOption` needed the account's type for that, so **`AccountType`
+moved from the accounts feature to `core/ports`** beside the option that
+carries it (rule 4: shared code goes to core); the `Account` entity
+re-exports it, so nothing inside the feature changed.
+
+---
+
+## This session — a discount comes off the item it discounts ([PR #97](https://github.com/SanduniLiyanage/Moneyora/pull/97), merged as `254a5ce`)
+
+**FR-RCP-005, FR-RCP-006, FR-RCP-009.** Re-scanning the first real
+receipt after PR #96 still posted a one-cent expense for a bag the shop
+had cancelled with "SPECIAL DISCOUNT 50% -0.01": the parser dropped
+negative lines and kept the item above them, so the lines added up to
+Rs 2,790.01 against a Rs 2,790.00 sub-total and FR-RCP-009 would have
+made an expense of a line nobody paid for.
+
+A discount now comes off the item printed above it, and a line taken to
+nothing is dropped. One larger than that item is the bill's and is spread
+over every item in proportion, largest-remainder, so the items still add
+up to what was paid. A label that says discount counts with or without its
+minus, since OCR loses one as often as it keeps it; TOTAL DISCOUNT and
+SAVED VALUE summaries are never applied twice.
+
+The same rows showed two more things the transcription had hidden: ML Kit
+read the bag's quantity out ("0.01 X 0.01"), which left "0.01 X" in its
+name, and read "Bill" as "Bil|", which lost the receipt number. Both get
+a rule, and **the rows as ML Kit read them are a second fixture beside
+the print** — which is the lesson of this PR: fixture what the recogniser
+returned, not what the paper says.
+
+---
+
+## This session — the first real receipt ([PR #96](https://github.com/SanduniLiyanage/Moneyora/pull/96), merged as `a43c13c`)
+
+**FR-RCP-005, FR-RCP-006, FR-RCP-007.** The parser met a real receipt for
+the first time — a Colombo boutique, 2026-09-16 — and broke four rules the
+imagined fixtures never tested. Each is fixed by the shape that broke it,
+and the receipt is a fixture so the shape stays read.
+
+- A boutique prints an item on three lines: the name, the article code,
+  then the price row. Only the line directly above the row joined, so the
+  item was named by its code; **every unpriced line since the last priced
+  one joins now, in order**, and a leading line number or article code is
+  stripped from the name.
+- The price row reads PRICE X QTY where the parser assumed QTY x PRICE,
+  which made 2,790 of something at one cent each; **the figure carrying
+  the decimals is the price**.
+- The receipt ends SUB TOTAL then MASTER CARD with no line saying TOTAL,
+  so no total was read and the body never ended — "Saved Value : 0.01"
+  became a second item. **The last sub-total is the total when nothing
+  says total**, a card figure after that; a payment line ends the body;
+  saved and points are noise. A TIME line on its own gives the date its
+  time, and a dash before a figure is a minus.
+- **The dictionary had no word for a top.** Clothing words are added, and
+  the seed re-applies whenever it has grown rather than only when the
+  table is empty — a count compared with the list's length, then the same
+  `INSERT OR IGNORE` batch — so an install seeded last month gets them.
+
+**Debug builds print the recogniser's rows to the console** as
+`[receipt-ocr]` lines, so the next misread receipt arrives as evidence
+rather than a photo to guess from.
+
+---
+
+## This session — single-category mode ([PR #95](https://github.com/SanduniLiyanage/Moneyora/pull/95), merged as `dea2b3e`)
+
+**FR-RCP-010**, as a switch on the review screen and a view over the same
+draft: on, the lines fold away and one picker names the category the
+printed total posts under; off, every line is back as it was, edits
+included. **Nothing is thrown away by toggling**, because a user who
+tries the mode and changes their mind should not have to re-edit three
+lines.
+
+The one line is named after the merchant and carries the merchant's own
+category as its suggestion, so confirming it under something else
+**teaches the dictionary the merchant** rather than the word "receipt" —
+the next scan of that shop then finds its category through Layer 3. The
+amount is the printed total, or the lines' sum when none was read.
+`ConfirmReceipt`'s note rule gained one case: a line that *is* the
+merchant gets no bracket; "KEELLS (KEELLS)" said it twice.
+
+---
+
+## This session — capture ([PR #94](https://github.com/SanduniLiyanage/Moneyora/pull/94), merged as `4242424`)
+
+**FR-RCP-001, FR-RCP-002, FR-RCP-004** — the first stage of the pipeline
+and the one that made the scanner reachable: a photo from the camera or
+the gallery, read on device, handed to the review screen.
+
+- **The SDD's viewfinder is the platform's own camera app**, opened by
+  `image_picker`. A viewfinder of our own would be a second camera to
+  prove on hardware this project sees occasionally, for a photo the
+  platform already takes better.
+- **The picker sits behind a seam the way ML Kit does**, so the datasource
+  over it is tested against a fake that answers as the platform would: a
+  file, nothing, or the exception a refused permission throws. Refusals
+  become `PermissionFailure`s whose sentence names the permission and the
+  other source. The photo comes back bounded to 1600px so the recogniser
+  spends its time on recognition rather than decoding a full camera
+  frame. Backing out of the picker is `Right(null)` — not a failure, and
+  the screen shows nothing for it.
+- `ReadReceiptImage` runs scan, parse and categorise in order and keeps
+  the path beside the result, so every later stage has what the expenses
+  will link to.
+- **FR-RCP-001's two entry points are both wired**: the home tile opens
+  the real screen, and a *new expense's* app bar offers the scanner — an
+  income never comes from a receipt, and an edit is a row that already
+  exists. iOS got the two usage strings `image_picker` needs.
+
+---
+
+## This session — review and confirm ([PR #93](https://github.com/SanduniLiyanage/Moneyora/pull/93), merged as `7a5bb2c`)
+
+**FR-RCP-008, FR-RCP-011**, and `ConfirmReceipt`'s first caller: the scan
+as read, corrected by hand, and posted. **Every edit the SRS lists — a
+line renamed, repriced or recategorised, discarded, merged with the one
+below or split in two — is a method on `ReceiptReviewDraft` that returns
+a new draft**, so the screen holds one value and each rule is stated in a
+unit test with no widget. The screen's own tests run over the real
+`ConfirmReceipt` and fakes beneath it, so what they assert reached the
+ledger is what the screen built.
+
+**Confirm is disabled for exactly the reasons the use case would refuse
+it**: the draft's own two gaps (an account, a category per line), then
+`ConfirmReceipt.validate` on the receipt it would send. The reason is
+printed above the button rather than discovered on tapping it.
+
+Decisions the SRS does not make: the posting date starts as the receipt's,
+a misread one left visible rather than replaced; a merge is one purchase,
+names joined and totals summed, the upper line's suggestion kept; a split
+keeps everything but the amount; **low confidence is under 50**, which
+badges the lines the dictionary had no word for and none it did. Discard
+writes nothing — a rejected record would point at a photo the picker's
+cache is free to delete (until FR-RCP-012, above, kept it). Categories
+and accounts arrive through the `core/ports` readers, the seam the entry
+screen already uses.
+
+---
+
+## This session — learn on confirm ([PR #92](https://github.com/SanduniLiyanage/Moneyora/pull/92), merged as `424865f`)
+
+**FR-RCP-015.** When the user confirms a line under a category other than
+the one suggested — or under any category where nothing was suggested —
+the line is written to the dictionary as the user's own keyword, priority
+10, the row Layer 2 treats as decisive. The next scan of the same line
+reads it ahead of the seed.
+
+- **The lesson is the whole line, normalised, matched exactly — not its
+  words.** A receipt line is a product name and a size, the same shop
+  prints the same line next time, and guessing which word carried the
+  meaning would teach that "5kg" means Food.
+- **A changed mind replaces the earlier lesson** for the same text, so
+  Layer 2 never tie-breaks between two of the user's own answers. The
+  seed's rows are never touched: the priority-10 row outranks them, and
+  deleting a seed row would change what every other line matched.
+- **Learning happens inside `ConfirmReceipt`**, not in a use case of its
+  own, because the SRS ties it to the moment of confirmation and the
+  confirm step already owns the dictionary's other write. Per line the
+  lesson goes before the count, so a correction is counted as applied on
+  the very line that taught it. The write order that keeps money from
+  being recorded twice is unchanged.
+
+---
+
+## This session — confirm ([PR #91](https://github.com/SanduniLiyanage/Moneyora/pull/91), merged as `2a11bd6`)
+
+**FR-RCP-009, and E-31's `receipt_scans` write.** One expense per kept
+item, every one linked to a single `receipt_scans` row, and one more use
+counted on each dictionary mapping the user agreed with.
+
+- **The scanner reaches the ledger through an `ExpenseWriter` port** in
+  `core/ports`, implemented by a new `AddExpenses` use case in the
+  transactions feature that runs `AddTransaction`'s validation on every
+  line and then `TransactionRepository.addAll` — **one database
+  transaction around every row**, so a receipt whose fourth line fails
+  leaves no lines behind. Scanned expenses stay on the same write path as
+  typed ones, which is the only path that moves
+  `accounts.current_balance_cents` (E-18) and `plan_allocations.spent_amount_cents` (FR-PLN-013).
+- **The scan record, the usage counts and the expenses cannot share a
+  transaction across two features, so `ConfirmReceipt` orders them for
+  what a retry does**: record first (the expenses' foreign key needs its
+  id), counts second, expenses last. Nothing reaches the ledger until the
+  final step, so a failure before it costs a stray scan record at most
+  and a retry never posts money twice. The reverse order would.
+- **`usage_count` moves here and nowhere else**: a suggestion the user
+  overrode was not applied, so the count goes to the rows matching the
+  item that map to the category the user kept, by the lookup's own
+  predicate.
+
+---
+
+## This session — ML Kit, behind a seam ([PR #90](https://github.com/SanduniLiyanage/Moneyora/pull/90), merged as `3c7099c`)
+
+**FR-RCP-004, E-20** — the first stage that touches the device. ML Kit's
+recogniser is a platform channel, so it sits behind a `TextRecogniser`
+interface the way the Copilot's key store does, and `OcrLocalDataSource`
+unit-tests on the VM against a fake that builds ML Kit's own result
+classes.
+
+**The datasource owns one decision: printed order.** ML Kit groups lines
+by proximity, and on a receipt that is often one block of names and one
+of prices — flattened block by block, every name would precede every
+price and the parser, which reads a price as the figure ending a line,
+would find no items. Lines are placed by bounding box, joined into rows
+where they overlap vertically by half a line, each row anchored on its
+first line so a skewed receipt cannot creep rows together. The parser
+keeps taking line order as printed order.
+
+`ReceiptRepository` declared `scanReceipt` only at this point; the SDD's
+`confirmScan` and `getScanHistory` landed with the slices that could
+implement them (#91, #99) rather than as stubs on `main`. The SDD's
+`File` parameter is a path, keeping `dart:io` out of the domain; both
+`image_picker` and ML Kit deal in paths.
+
+---
+
+## This session — schema v3, the keyword seed, the dictionary's data layer ([PR #89](https://github.com/SanduniLiyanage/Moneyora/pull/89), merged as `bf5425e`)
+
+**FR-RCP-007, E-31.** Sprint 6's migration: E-31's `receipt_number`
+column, and `keyword_dictionary` recreated with the `ON DELETE CASCADE`
+the DBD specifies and v1 left out. **That is the one `DROP TABLE` in the
+schema's history**, and it is safe for the reason the additive-only rule
+gives: the rule guards rows, and no datasource had ever written to this
+table, so every install drops an empty one. `v3_receipt_scanner_test.dart`
+proves the cascade and the surviving constraints.
+
+**The seed is the 200+ entry dictionary the DBD names in a file it never
+wrote** (`core/database/seed/keyword_seed.dart`). It runs on every open,
+not only on first launch, because installs that predate Sprint 6 have the
+table and nothing in it; one `COUNT` is the cost once seeded. Short
+keywords use starts-with so three letters do not fire inside unrelated
+words.
+
+`KeywordDictionaryLocalDataSourceImpl` is the DBD's lookup **without its
+`LIMIT 1`**, because the use case weighs every candidate, and with `instr`
+and `substr` in place of `LIKE` so a keyword the user teaches cannot
+contain a wildcard by accident. The text is lower-cased in Dart, where
+case folding reaches past ASCII.
+
+---
+
+## This session — the categoriser ([PR #88](https://github.com/SanduniLiyanage/Moneyora/pull/88), merged as `56f7051`)
+
+**FR-RCP-007.** `CategoriseReceipt` takes the parser's result and
+completes the review screen's input — every item with a category and a
+confidence, and the merchant's own category beside them so the screen can
+say why.
+
+The SRS names the three layers and the SDD names the formula; neither
+says what a match is worth, when the user's word overrides the seed's, or
+where the merchant's context comes from. Those are on the use case: **a
+match scores by its kind and its priority; a user-taught row, when any
+matches, is the only candidate**, because "reuse that mapping" is an
+instruction and not a weight; and **the merchant's category is the
+dictionary's own verdict on the merchant's name**, so the seed's
+"pharmacy → Health" *is* the merchant list and there is no second one to
+drift from it.
+
+---
+
+## This session — the parser ([PR #87](https://github.com/SanduniLiyanage/Moneyora/pull/87), merged as `448db31`)
+
+**FR-RCP-005, FR-RCP-006, E-31** — Sprint 6's first slice, and the first
+stage that can be proved without a device: `ParseReceiptText` takes the
+lines ML Kit will read and returns what the review screen needs, so every
+later stage had a domain type to build on before any camera or image
+code existed.
+
+The SRS names the fields and not the rules, so the rules are on the use
+case: three bands split at the first priced line and the total line, a
+price is a figure at the end of a line, dates are day-first, the last
+total label wins and the first tax label does, a wordless priced line
+completes the name above it, and a unit price is stated or exactly
+derived. Money never passes through a `double`. E-31's receipt number is
+parsed here so the v3 migration had something to store. The fixtures were
+hand-written; the ones a real receipt forced are PR #96's and #97's.
+
+---
 
 ## This session — the plan list and the comparison ([PR #85](https://github.com/SanduniLiyanage/Moneyora/pull/85), merged as `a2104fe`)
 
@@ -1346,6 +1763,8 @@ shape the code most:
 | E-25 | Four FR-ACC citations named the wrong requirements; **FR-ACC-007** raised for `DeleteAccount`, which had none. FR-ACC-005 deferred to Sprint 7 |
 | E-27 | `entry_catalog.dart` sat outside a feature slice on purpose — **deleted this session**, its reads moved behind `CategoryReader`/`AccountReader`, which is what stopped "interim" becoming permanent |
 | E-28 | NFR-PER-006 cannot be verified here. Emulator timings are **comparative, never conformant**; no sprint blocks on the borrowed device |
+| E-31 | `receipt_number` and `keyword_dictionary`'s cascade — schema **v3**, the one `DROP TABLE` in the schema's history, safe because nothing had ever written to the table |
+| E-33 | `carry_over_cents` on `plan_allocations` — schema **v2**; tests that build tables by hand must run every version in `schemaMigrations` |
 
 When implementing anything, check the errata for its requirement ID first.
 E-25 is the reason to check rather than copy a neighbouring file's citation:
@@ -1407,6 +1826,33 @@ into `HomePage` from `app_router.dart`. **Sprint 4 is complete.**
 NFR-PER-001's item is done — it lived in `main.dart`,
 not the feature, so it did not need the feature's own layers to exist first.
 
+**Sprint 5 — the Money Plan Generator — is complete** (PRs #66–#85). The
+four engine stages (`ComputeCategoryStatistics`, `ClassifyCategories`,
+`AllocateBudget`, `ScoreConfidence`), the saved plan and its one-active
+invariant, the wizard (`/plan`, `/plan/review`), the tracked plan
+(`/plan/active`) with live spend kept by the transactions datasource, the
+three overspend responses and schema v2's `carry_over_cents` (E-33), and
+the plan list with comparison (`/plans`, `/plans/compare`). Every FR-PLN
+requirement is built except FR-PLN-003's Settings control (Sprint 7) and
+FR-PLN-006's behavioural patterns (never scheduled). The sessions above
+carry each slice's decisions.
+
+**Sprint 6 — the receipt scanner — is complete** (PRs #87–#102), bar
+FR-RCP-003. The pipeline is camera or gallery (`image_picker`, behind a
+seam) → ML Kit (`TextRecogniser`, behind a seam, rows rebuilt from
+bounding boxes) → `ParseReceiptText` → `CategoriseReceipt` (three layers
+over `keyword_dictionary`, seeded from `keyword_seed.dart` on every open)
+→ `ReceiptReviewPage` (every edit a pure method on `ReceiptReviewDraft`;
+single-category mode as a view over the same draft) → `ConfirmReceipt`
+(record, counts, then expenses through the `ExpenseWriter` port and
+`TransactionRepository.addAll`, one transaction around every row; the
+lesson written for every corrected line) → `ReceiptHistoryPage` with
+search and re-scan, the photo kept AES-GCM-encrypted in the documents
+directory under a key derived from the database key. Schema v3 (E-31)
+added `receipt_number` and recreated `keyword_dictionary` with its
+cascade. **The real-receipt set is one receipt, as two fixtures; no
+accuracy figure is claimed** — see "What is next".
+
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
 ask screen at `/copilot`. What it has never had is a run against the live API.
@@ -1416,19 +1862,28 @@ See [`COPILOT.md`](COPILOT.md) for what it is scoped to and why.
 lib/
 ├── core/
 │   ├── database/
-│   │   ├── migrations/v1_initial.dart   13 tables, 11 indexes, errata-corrected
+│   │   ├── migrations/
+│   │   │   ├── v1_initial.dart          13 tables, 11 indexes, errata-corrected
+│   │   │   ├── v2_carry_over.dart       + plan_allocations.carry_over_cents (E-33)
+│   │   │   └── v3_receipt_scanner.dart  + receipt_number; keyword_dictionary
+│   │   │                                recreated with its cascade (E-31)
 │   │   ├── database_change_bus.dart     one "something was written" signal
 │   │   ├── database_helper.dart         SQLCipher open + migration runner
 │   │   ├── database_summary.dart        row counts (SQL lives here, not in DI)
 │   │   ├── encryption_key_store.dart    AES-256 key -> platform keychain
 │   │   └── seed/
 │   │       ├── default_seed.dart        15 expense + 3 income categories
-│   │       └── dev_seed.dart            >500 synthetic transactions, 24 months
+│   │       ├── dev_seed.dart            >500 synthetic transactions, 24 months
+│   │       └── keyword_seed.dart        200+ keyword -> category rows, re-applied
+│   │                                    on every open when it has grown
 │   ├── errors/          Failure + Exception hierarchies
 │   ├── network/         network_info.dart      — the abstract check
 │   │                    connectivity_network_info.dart — its implementation
-│   ├── ports/           contracts two features share (see ARCHITECTURE §5)
-│   ├── router/          go_router, 10 routes: 7 real screens, 3 stubs
+│   ├── ports/           contracts two features share (see ARCHITECTURE §5):
+│   │                    account_reader, account_type, category_reader,
+│   │                    category_writer, expense_writer, income_reader,
+│   │                    monthly_spending_reader, spending_by_category_reader
+│   ├── router/          go_router, 16 routes: 15 real screens, 1 stub
 │   ├── theme/           indigo/amber, contrast-verified light + dark
 │   ├── usecases/        UseCase<T, Params> base
 │   ├── utils/           currency_utils, date_utils, amount_expression
@@ -1437,30 +1892,39 @@ lib/
 │   ├── accounts/        full slice: panel, form, icons, archive, delete
 │   │                    + account_totals.dart, the entity carrying E-25's
 │   │                    "what the total left out" line
-│   ├── analytics/       domain + data for all 3 aggregates; presentation/
-│   │                    has the donut chart, its first caller. Sprint 4.
+│   ├── analytics/       full slice: 4 aggregates, both filters, 5 charts on
+│   │                    the home screen. Sprint 4.
 │   ├── categories/      full slice: list/management screen, create-and-edit
 │   │                    form with icon + colour pickers and parent dropdown
 │   ├── copilot/         all three layers. The only http in the application
 │   ├── home/            Sprint 1 proof screen, still the home route
+│   ├── money_plan/      full slice: 4 engine stages, saved plan, wizard,
+│   │                    tracking, overspend responses, list + comparison.
+│   │                    Sprint 5.
+│   ├── receipt_scanner/ full slice: picker + ML Kit seams, parser,
+│   │                    categoriser, review, confirm + learn, history,
+│   │                    re-scan, encrypted photo vault. Sprint 6.
 │   └── transactions/    full slice: keypad entry, list, filter, edit, undo
+│                        + AddExpenses, the ExpenseWriter port's implementation
 ├── app.dart          MaterialApp.router
 ├── injection.dart    Riverpod providers = the DI container
 └── main.dart         ProviderScope
 ```
 
 **Not started — scaffold directories with zero `.dart` files:** `auth/`,
-`backup/`, `money_plan/`, `receipt_scanner/`, `settings/`, plus
-`core/constants/` and `core/extensions/`. An empty directory is *not started*;
-none of these is in progress. `categories/` is now a complete slice, the same
-status as `accounts/` and `transactions/` — `presentation/widgets` is still
-empty, but that is not a gap: everything the screens need lives in
-`presentation/pages` and the `core/widgets`/`core/theme` catalogues, the same
-shape `accounts/` settled on.
+`backup/`, `settings/`, plus `core/constants/` and `core/extensions/`. An
+empty directory is *not started*; none of these is in progress. `auth/` and
+`settings/` are Sprint 7's; `backup/` is Sprint 8's. `presentation/widgets`
+is empty in most slices, and that is not a gap: everything the screens need
+lives in `presentation/pages` and the `core/widgets`/`core/theme`
+catalogues, the same shape `accounts/` settled on; `money_plan/` and
+`receipt_scanner/` each hold one shared widget there.
 
-The three routes with no screen behind them are `moneyPlan`, `scanReceipt` and
-`settings`, which are stubs. The seven real ones are `home`, `transactions`,
-`copilot`, `transfer`, `accountForm`, `categories` and `categoryForm`.
+The one route with no screen behind it is `settings`, a stub until
+Sprint 7. The fifteen real ones are `home`, `transactions`, `moneyPlan`,
+`moneyPlanReview`, `activePlan`, `plans`, `comparePlans`, `scanReceipt`,
+`scanReceiptReview`, `receiptHistory`, `copilot`, `transfer`,
+`accountForm`, `categories` and `categoryForm`.
 
 Test and coverage figures are in **the table at the top of this file**, which
 is the only place they are written down. CI runs format, analyze, the
@@ -1498,29 +1962,62 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 5 is complete.** The engine (PRs #66–#72), the saved plan
-(PR #74), the wizard (PRs #77, #79), live tracking (PRs #81, #83), the
-overspend responses (PR #84) and the plan list with comparison (PR #85)
-are merged and `main` is clean at `a2104fe`. Every FR-PLN requirement
-but FR-PLN-003's Settings control (the lookback is the six-month default
-until Sprint 7) and FR-PLN-006's behavioural patterns (never scheduled
-into a sprint; see `ROADMAP.md`) is built, and two things are worth
-knowing before Sprint 6:
+**Sprint 6 is complete.** The parser (PR #87), the categoriser (#88),
+schema v3 and the dictionary's data layer (#89), the ML Kit seam (#90),
+confirm and learn (#91, #92), the review and capture screens (#93, #94),
+single-category mode (#95), the first real receipt's fixes (#96, #97,
+#98), the history (#99, #102), re-scan (#100) and the encrypted photo
+(#101) are merged and `main` is clean at `5d241e4`. Every FR-RCP
+requirement is built except **FR-RCP-003** — preprocessing (deskew,
+contrast, binarisation, noise, perspective) — which is deferred to a
+later sprint and not placed in `ROADMAP.md` yet; it did not block the
+sprint's close. Four things are worth knowing before Sprint 7:
 
-- **The schema is at version 2.** `carry_over_cents` on
-  `plan_allocations` (E-33) is the first column added since v1, and any
-  test that builds tables by hand must run every version in
-  `schemaMigrations` — `v1Statements` alone no longer matches what the
-  plan datasource reads. Sprint 6's receipt tables, if E-31's notes lead
-  to a change, are a v3 on the same pattern.
+- **The real-receipt set is one receipt, not 20–30.** The roadmap asked
+  for 20–30 photos in the sprint's first week; what exists is the Colombo
+  boutique receipt of 2026-09-16, as two parser fixtures — the print, and
+  the rows as ML Kit read them. It broke four parser rules on first
+  contact and two more on the second (PRs #96, #97), which is the
+  argument for the other nineteen. **No accuracy figure is claimed**;
+  M5's >70% needs the set, and FR-RCP-003 should be scheduled against
+  photos that actually fail without it rather than on principle. The
+  loop that worked: `adb push` a photo to `/sdcard/Download` (drag-drop
+  onto the emulator does not), scan it, copy the `[receipt-ocr]` rows a
+  debug build prints, and fixture *those* — not a transcription of the
+  paper.
+- **The schema is at version 3.** v3 adds `receipt_number` and recreates
+  `keyword_dictionary` with its cascade (E-31). `ROADMAP.md`'s Sprint 7
+  section still says FR-ACC-005's `exchange_rates` table is "a v2
+  migration": it was written before v2 and v3 existed and means **v4**,
+  on the same additive pattern, with an upgrade-with-rows-intact test as
+  `v2_carry_over_test.dart` and `v3_receipt_scanner_test.dart` are. Any
+  test that builds tables by hand runs every version in
+  `schemaMigrations`.
+- **Kept receipt photos are absolute paths into the documents
+  directory**, encrypted under a key HKDF-derived from the database key.
+  Sprint 8's backup has to carry the files as well as the database, and
+  the derivation means one restored key unlocks both. On iOS the
+  container path can move across updates; E-19 defers that until the app
+  first runs there, and `receipt_image_vault.dart`'s comment says how to
+  settle it.
 - **Only one built use case is still called by nothing:
-  `RecomputeAccountBalance`** — its Settings action is Sprint 7's.
-  `RecomputePlanSpending` got its caller on the plan list in PR #85.
+  `RecomputeAccountBalance`** — its Settings action is Sprint 7's, below.
 
-Next is **Sprint 6, the receipt scanner** — camera → preprocess → ML Kit →
-parse → categorise → review → save → learn. Collect the 20–30 real
-receipt photos in the sprint's first week; nothing about accuracy can be
-claimed without them. Two Sprint 4 leftovers are *not* blockers for it:
+Next is **Sprint 7 — settings, auth, notifications** (`ROADMAP.md`, Week
+12): PIN and biometrics with lockout backoff, the dark-theme toggle,
+recurring reminders, budget alerts at 80% / 100%; **FR-ACC-005**'s
+multi-currency accounts — the `exchange_rates` table (v4), a
+base-currency setting, conversion wherever balances are summed, and the
+three E-25 interim rules (the LKR constant, `MakeTransfer.validate`'s
+same-currency guard, the Total Balance's exclusion) deleted in the same
+commit that adds conversion; E-18's reconciliation behind a Settings
+action, which gives `RecomputeAccountBalance` its caller; FR-PLN-003's
+lookback setting, which replaces `MoneyPlanPage`'s six-month default and
+its "Based on the last 6 months of spending." line; and FR-SET-004's
+first weekday, which lands in `DateRange.week`'s parameter and the
+heatmap's `_firstWeekday`. `settings/` and `auth/` are the two empty
+scaffolds it fills, and `settings` is the last stub route. Two Sprint 4
+leftovers are *not* blockers for it:
 
 - **FR-RPT-006's summary figures** were never scheduled as a chart and are
   still open; and `ComparePeriods` is still called by nothing — its caller is
@@ -1682,9 +2179,12 @@ hardware for no reason. Do it in the next emulator session.
 
 Until then the feature is unproven against the live API: the wire format is
 built to the documented shape and covered by tests, but no test can tell you
-Google accepts it. It does not jump ahead of Sprint 5 or Sprint 6 — two of its
-five specified tools wrap features those sprints build, which is recorded as
-[E-24](SPEC_ERRATA.md).
+Google accepts it. It never jumped ahead of Sprint 5 or Sprint 6 — two of
+its five specified tools wrap features those sprints build, which is
+recorded as [E-24](SPEC_ERRATA.md). Both sprints are built now, so those
+two tools are no longer blocked on anything but the workstream's own turn
+in the queue (`ROADMAP.md`'s Copilot table); `ComparePeriods` is still the
+aggregate waiting for its `compare_periods` tool.
 
 ## The device session — one batched checklist
 
@@ -1732,6 +2232,10 @@ only:**
 6. [ ] **General walkthrough** on real hardware: add an expense on a real
        keyboard, a transfer, archive and delete an account, scroll a long list,
        rotate the screen, and check the dark theme in real light.
+       **Scan a receipt through the real camera** — the permission prompt,
+       the platform camera app, ML Kit on a photo the phone took rather than
+       one pushed over `adb` — and keep every photo: each is one of the
+       20–30 the scanner still lacks.
 7. [ ] **Write every number straight into this file** before handing the phone
        back, with its machine attributes attached. A figure remembered is a
        figure lost.
