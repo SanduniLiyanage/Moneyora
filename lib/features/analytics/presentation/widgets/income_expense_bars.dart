@@ -45,6 +45,7 @@ class IncomeExpenseBars extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final selection = ref.watch(analyticsPeriodProvider);
+    final range = ref.watch(analyticsRangeProvider);
     final query = ref.watch(analyticsQueryProvider);
     final income = ref.watch(incomeTotalProvider(query));
     final spending = ref.watch(spendingByCategoryTotalsProvider(query));
@@ -58,7 +59,7 @@ class IncomeExpenseBars extends ConsumerWidget {
             Text('Income vs expenses', style: theme.textTheme.titleMedium),
             const SizedBox(height: 2),
             Text(
-              periodLabel(selection),
+              periodLabel(selection, range),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),

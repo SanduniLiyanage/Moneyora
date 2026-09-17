@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/ports/calendar_settings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../injection.dart' show calendarSettingsProvider;
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/budget_mode.dart';
 import '../../domain/entities/lookback_window.dart';
@@ -15,10 +18,13 @@ import '../widgets/plan_labels.dart';
 /// total. FR-PLN-001, FR-PLN-002, FR-PLN-008.
 ///
 /// Builds an [AllocationRequest] and hands it to the review screen; nothing
-/// is computed or written here. The lookback is FR-PLN-003's default until
-/// Settings makes it adjustable in Sprint 7 — stated on screen, so the
-/// period the plan learns from is never a surprise.
-class MoneyPlanPage extends StatefulWidget {
+/// is computed or written here. The lookback is FR-PLN-003's setting
+/// (FR-SET-012), read from the stored row and stated on screen with where
+/// to change it — not changed here, because two places to set one thing is
+/// one too many, and Settings is where the SRS puts it. Weeks and months
+/// are cut where FR-SET-004 says, so a plan and the analytics behind it
+/// agree on what a month is.
+class MoneyPlanPage extends ConsumerStatefulWidget {
   /// Creates the screen. [now] is the clock, injectable for tests.
   const MoneyPlanPage({super.key, this.now});
 
@@ -26,13 +32,18 @@ class MoneyPlanPage extends StatefulWidget {
   final DateTime? now;
 
   @override
-  State<MoneyPlanPage> createState() => _MoneyPlanPageState();
+  ConsumerState<MoneyPlanPage> createState() => _MoneyPlanPageState();
 }
 
 enum _Mode { history, total, suggested }
 
-class _MoneyPlanPageState extends State<MoneyPlanPage> {
+class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
   late final DateTime _now;
+
+  /// The stored calendar, or the schema's defaults until it is known.
+  CalendarSettings get _calendar =>
+      ref.watch(calendarSettingsProvider).asData?.value ??
+      CalendarSettings.defaults;
   late DateTime _anchor;
   DateTime? _rangeEnd;
   PlanPeriodType _shape = PlanPeriodType.month;
@@ -68,8 +79,14 @@ class _MoneyPlanPageState extends State<MoneyPlanPage> {
 
   PlanPeriod _period() => switch (_shape) {
     PlanPeriodType.day => PlanPeriod.day(_anchor),
-    PlanPeriodType.week => PlanPeriod.week(_anchor),
-    PlanPeriodType.month => PlanPeriod.month(_anchor.year, _anchor.month),
+    PlanPeriodType.week => PlanPeriod.week(
+      _anchor,
+      firstWeekday: _calendar.firstWeekday,
+    ),
+    PlanPeriodType.month => PlanPeriod.monthOf(
+      _anchor,
+      firstDay: _calendar.firstDayOfMonth,
+    ),
     PlanPeriodType.year => PlanPeriod.year(_anchor.year),
     PlanPeriodType.customDays => PlanPeriod.days(
       _anchor,
@@ -91,7 +108,7 @@ class _MoneyPlanPageState extends State<MoneyPlanPage> {
 
   AllocationRequest _request() => AllocationRequest(
     period: _period(),
-    lookback: LookbackWindow.before(_now),
+    lookback: LookbackWindow.before(_now, months: _calendar.planAnalysisMonths),
     mode: _budgetMode(),
   );
 
@@ -251,8 +268,13 @@ class _MoneyPlanPageState extends State<MoneyPlanPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Based on the last ${LookbackWindow.defaultMonths} months of '
-            'spending.',
+            // FR-PLN-003, FR-SET-012. Read-only here on purpose: the number
+            // is set under Settings and only there.
+            _calendar.planAnalysisMonths == 1
+                ? 'Based on the last month of spending — change this under '
+                      'Settings › Calendar.'
+                : 'Based on the last ${_calendar.planAnalysisMonths} months '
+                      'of spending — change this under Settings › Calendar.',
             style: theme.textTheme.bodySmall,
           ),
           if (problem != null) ...[

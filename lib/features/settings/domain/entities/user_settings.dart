@@ -46,7 +46,7 @@ class UserSettings extends Equatable {
     this.theme = AppThemeMode.system,
     this.language = 'en',
     this.currency = 'LKR',
-    this.firstDayOfWeek = 0,
+    this.firstDayOfWeek = DateTime.sunday,
     this.firstDayOfMonth = 1,
     this.savingsTargetPct = 0,
     this.planAnalysisMonths = 6,
@@ -61,7 +61,13 @@ class UserSettings extends Equatable {
   /// ISO 4217 code of the base currency. FR-SET-003, FR-ACC-005.
   final String currency;
 
-  /// 0 = Sunday … 6 = Saturday, as the schema's CHECK bounds it. FR-SET-004.
+  /// A `DateTime` weekday constant, [DateTime.monday] (1) to
+  /// [DateTime.sunday] (7). FR-SET-004.
+  ///
+  /// The column stores 0 = Sunday … 6 = Saturday (DBD §3.1); the model maps
+  /// between the two, the way `AccountModel` maps `AccountType`. The entity
+  /// speaks Dart's vocabulary so every consumer can hand it straight to the
+  /// week arithmetic that already takes a weekday constant.
   final int firstDayOfWeek;
 
   /// 1–28, so every month has it. FR-SET-004.

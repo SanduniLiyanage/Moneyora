@@ -25,6 +25,23 @@ class DateRange extends Equatable {
   factory DateRange.month(int year, int month) =>
       DateRange(from: DateTime(year, month), to: DateTime(year, month + 1, 0));
 
+  /// The "month" [date] falls in when months start on [firstDay].
+  /// FR-RPT-002's "Month", cut where FR-SET-004 says.
+  ///
+  /// With [firstDay] 1 this is the calendar month. With 25 it is the 25th to
+  /// the 24th — what a month means to someone paid on the 25th — and a date
+  /// before the 25th belongs to the month that *started* last month.
+  /// `DateTime` normalises `day - 1` of day 1 to the previous month's last
+  /// day, so one expression serves both.
+  factory DateRange.monthOf(DateTime date, {int firstDay = 1}) {
+    final startMonth = date.day >= firstDay ? date.month : date.month - 1;
+    final from = DateTime(date.year, startMonth, firstDay);
+    return DateRange(
+      from: from,
+      to: DateTime(from.year, from.month + 1, firstDay - 1),
+    );
+  }
+
   /// The single calendar day [date] falls on. FR-RPT-002's "Day".
   ///
   /// Both ends are the same midnight: the range is inclusive, and the
@@ -37,10 +54,9 @@ class DateRange extends Equatable {
 
   /// The whole week [date] falls in. FR-RPT-002's "Week".
   ///
-  /// [firstWeekday] is a `DateTime` weekday constant and defaults to Monday.
-  /// It is a parameter rather than a constant because FR-SET-004 makes the
-  /// first day of the week user-configurable (Sunday/Monday) in Sprint 7;
-  /// until that setting exists there is one caller and it passes the default.
+  /// [firstWeekday] is a `DateTime` weekday constant: FR-SET-004's setting,
+  /// which `PeriodSelection` passes from `CalendarSettings`. Monday when
+  /// omitted, which only tests do.
   factory DateRange.week(DateTime date, {int firstWeekday = DateTime.monday}) {
     final start = DateTime(date.year, date.month, date.day);
     // `weekday` is 1..7 Monday-first, so the offset back to the chosen first

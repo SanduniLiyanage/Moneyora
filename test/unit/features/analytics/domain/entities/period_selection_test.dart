@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneyora/core/ports/calendar_settings.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
@@ -33,6 +34,36 @@ void main() {
       expect(range.to, DateTime(2026, 9, 12));
     });
 
+    test('monthOf with day 1 is the calendar month', () {
+      expect(DateRange.monthOf(wednesday), DateRange.month(2026, 9));
+      expect(DateRange.monthOf(DateTime(2026, 9, 1)), DateRange.month(2026, 9));
+      expect(
+        DateRange.monthOf(DateTime(2026, 9, 30)),
+        DateRange.month(2026, 9),
+      );
+    });
+
+    test(
+      'monthOf with a later start runs to the day before it (FR-SET-004)',
+      () {
+        // On or after the 25th: this month's 25th to next month's 24th.
+        expect(
+          DateRange.monthOf(DateTime(2026, 9, 25), firstDay: 25),
+          DateRange(from: DateTime(2026, 9, 25), to: DateTime(2026, 10, 24)),
+        );
+        // Before the 25th: last month's 25th to this month's 24th.
+        expect(
+          DateRange.monthOf(DateTime(2026, 9, 24), firstDay: 25),
+          DateRange(from: DateTime(2026, 8, 25), to: DateTime(2026, 9, 24)),
+        );
+        // Across a year end.
+        expect(
+          DateRange.monthOf(DateTime(2027, 1, 3), firstDay: 15),
+          DateRange(from: DateTime(2026, 12, 15), to: DateTime(2027, 1, 14)),
+        );
+      },
+    );
+
     test('week containing its own first day does not step back seven', () {
       final monday = DateTime(2026, 9, 7);
 
@@ -60,12 +91,34 @@ void main() {
       expect(on(AnalyticsPeriod.day).range, DateRange.day(wednesday));
     });
 
-    test('week', () {
-      expect(on(AnalyticsPeriod.week).range, DateRange.week(wednesday));
+    test('week, Sunday-first under the schema default calendar', () {
+      // CalendarSettings.defaults is the seeded row: first_day_week = 0.
+      expect(
+        on(AnalyticsPeriod.week).range,
+        DateRange.week(wednesday, firstWeekday: DateTime.sunday),
+      );
+    });
+
+    test('week, cut where the calendar setting says (FR-SET-004)', () {
+      expect(
+        on(AnalyticsPeriod.week)
+            .rangeWith(const CalendarSettings(firstWeekday: DateTime.monday)),
+        DateRange.week(wednesday, firstWeekday: DateTime.monday),
+      );
     });
 
     test('month', () {
       expect(on(AnalyticsPeriod.month).range, DateRange.month(2026, 9));
+    });
+
+    test('month, starting on the day the calendar setting says', () {
+      // The 9th falls before a 25th-start, so it is in the month that
+      // began on 25 August.
+      expect(
+        on(AnalyticsPeriod.month)
+            .rangeWith(const CalendarSettings(firstDayOfMonth: 25)),
+        DateRange(from: DateTime(2026, 8, 25), to: DateTime(2026, 9, 24)),
+      );
     });
 
     test('year', () {
@@ -120,7 +173,7 @@ void main() {
       expect(roundTrip.range, march.range);
       expect(
         march.withPeriod(AnalyticsPeriod.week).range,
-        DateRange.week(DateTime(2026, 3, 18)),
+        DateRange.week(DateTime(2026, 3, 18), firstWeekday: DateTime.sunday),
       );
     });
 

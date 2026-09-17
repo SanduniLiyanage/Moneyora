@@ -117,6 +117,53 @@ final baseCurrencyControllerProvider =
       BaseCurrencyController.new,
     );
 
+/// The three calendar settings. FR-SET-004, FR-SET-012.
+///
+/// One controller because they are one section and one `users` row, and
+/// each write is a use case with its own refusal, shown never swallowed.
+class CalendarController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Stores the day a week starts on: [DateTime.sunday] or [DateTime.monday].
+  Future<Failure?> setFirstDayOfWeek(int weekday) async {
+    state = const AsyncValue<void>.loading();
+    final set = await ref.read(setFirstDayOfWeekProvider.future);
+    return _settle(await set(weekday));
+  }
+
+  /// Stores the day a month starts on, 1–28.
+  Future<Failure?> setFirstDayOfMonth(int day) async {
+    state = const AsyncValue<void>.loading();
+    final set = await ref.read(setFirstDayOfMonthProvider.future);
+    return _settle(await set(day));
+  }
+
+  /// Stores how many months the Money Plan learns from, 1–24.
+  Future<Failure?> setPlanAnalysisMonths(int months) async {
+    state = const AsyncValue<void>.loading();
+    final set = await ref.read(setPlanAnalysisMonthsProvider.future);
+    return _settle(await set(months));
+  }
+
+  Failure? _settle(Either<Failure, Unit> result) => result.match(
+    (failure) {
+      state = AsyncValue<void>.error(failure, StackTrace.current);
+      return failure;
+    },
+    (_) {
+      state = const AsyncValue<void>.data(null);
+      return null;
+    },
+  );
+}
+
+/// Controller for the calendar section.
+final calendarControllerProvider =
+    AutoDisposeAsyncNotifierProvider<CalendarController, void>(
+      CalendarController.new,
+    );
+
 /// Every stored exchange rate, kept live. FR-SET-003.
 final exchangeRatesProvider = StreamProvider<List<ExchangeRate>>((ref) {
   return Stream.fromFuture(ref.watch(watchExchangeRatesProvider.future))

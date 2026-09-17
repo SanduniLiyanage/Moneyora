@@ -299,8 +299,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // The real screen, not the placeholder it replaced: the settings route
-      // was the router's last one without a page behind it.
-      expect(find.text('Recalculate account balances'), findsOneWidget);
+      // was the router's last one without a page behind it. The first row,
+      // because the list is taller than the test viewport and builds lazily.
+      expect(find.text('Theme'), findsOneWidget);
     });
 
     testWidgets('every screen opened from home can be left again', (
