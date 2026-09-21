@@ -605,8 +605,52 @@ the row means a Sunday-first week until the user picks Monday. And the
 entity's `firstDayOfWeek` now speaks Dart's weekday constants, with the
 column's Sunday-at-zero mapped in the model.
 
-Still open in Sprint 7: FR-SET-005 / NFR-SEC-003 (PIN and biometrics),
-FR-SET-006 and FR-SET-007 (notifications).
+### The passcode and its lockout (FR-SET-005, NFR-SEC-003) — done ([PR #109](https://github.com/SanduniLiyanage/Moneyora/pull/109))
+
+The PIN half of FR-SET-005; biometrics (NFR-SEC-004) are the next slice, on
+the `BiometricGateway` seam this one leaves for them. Three decisions worth
+knowing, all recorded in the code they affect:
+
+- **The passcode lives in the platform keychain, not the `users` row.**
+  `AuthLocalDataSource` keeps a PHC-format record —
+  `$pbkdf2-sha256$i=100000$<salt>$<hash>` — under `auth.passcode`, and the
+  lockout state as one JSON value under `auth.lockout`, beside the database
+  key `SecureStorageKeyStore` already holds there. The DBD's `passcode_hash`
+  and `biometric_enabled` columns stay in the schema, unused: E-31 §1 records
+  why the bare SHA-256 the DBD specified would secure nothing, and the
+  keychain is readable before the database is open, which the lock screen
+  — drawn during the launch — needs. No v5 migration.
+- **PBKDF2-HMAC-SHA256 from `cryptography`, on a separate isolate.** The
+  package was already a dependency (the receipt vault's HKDF) and ships
+  Argon2id too; PBKDF2 was chosen because a pure-Dart Argon2 at a memory
+  cost that means anything is seconds on an Android 8 phone, for a search
+  space of at most a million values that the lockout already defends. The
+  iteration count is stored in the record, so raising it later invalidates
+  nothing. `Pbkdf2PinHasher` says all of this.
+- **The lock screen is an app-root gate, not a route.** `AuthGate` wraps the
+  Navigator through `MaterialApp.router`'s `builder`, so a deep link or a
+  restored route lands behind it and the router knows nothing about auth.
+  The Navigator stays in the tree offstage while locked, so every screen's
+  state survives a lock; the device back button is swallowed. The app locks
+  the moment it is paused and unlocks itself on return within a thirty-second
+  grace — the grace is there because the receipt camera pauses the app the
+  same way switching away does.
+
+`VerifyPasscode` is the one place the lockout policy is applied: the lock
+screen, the change-PIN flow and the remove-PIN flow all go through it, so a
+wrong PIN costs the same wherever it is typed and no screen is a second set
+of five attempts. `LockoutPolicy` is the arithmetic — thirty seconds after
+the fifth failure, doubling to an hour — and its test walks the whole ladder
+without a clock. Every "now" comes from `clockProvider`, added in
+`injection.dart` for this, so the widget tests serve a lockout by moving it.
+
+The Security rows are the auth feature's (`SecuritySettingsSection`) and
+reach the settings screen through a widget slot the router fills, the way the
+accounts panel reaches the home screen — the settings feature may not import
+auth (rule 4).
+
+Still open in Sprint 7: NFR-SEC-004 (biometrics, the other half of
+FR-SET-005), FR-SET-006 and FR-SET-007 (notifications).
 
 ## Sprint 8 — Backup, export, sync (Week 13)
 
