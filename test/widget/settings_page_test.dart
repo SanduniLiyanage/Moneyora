@@ -399,6 +399,40 @@ void main() {
     });
   });
 
+  group('the security slot', () {
+    testWidgets('is drawn where it is given, above Data', (tester) async {
+      // The rows themselves are the auth feature's and have their own test;
+      // what is this screen's is that a slot it is handed appears, between
+      // Calendar and Data, and that none is drawn when none is handed.
+      tester.view
+        ..physicalSize = const Size(1200, 2400)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            accountRepositoryProvider.overrideWith((ref) async => repository),
+            settingsRepositoryProvider.overrideWith((ref) async => settings),
+            exchangeRateRepositoryProvider.overrideWith((ref) async => rates),
+          ],
+          child: const MaterialApp(
+            home: SettingsPage(securitySection: Text('Security rows')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final slot = tester.getTopLeft(find.text('Security rows'));
+      expect(slot.dy, greaterThan(tester.getTopLeft(find.text('Calendar')).dy));
+      expect(slot.dy, lessThan(tester.getTopLeft(find.text('Data')).dy));
+    });
+
+    testWidgets('is absent when none is given', (tester) async {
+      await open(tester);
+      expect(find.text('Security rows'), findsNothing);
+    });
+  });
+
   group('the recalculate-balances action', () {
     testWidgets('is offered, and does nothing until tapped', (tester) async {
       await open(tester);

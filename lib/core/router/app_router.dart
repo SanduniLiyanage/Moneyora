@@ -8,6 +8,8 @@ import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
 import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
 import '../../features/analytics/presentation/widgets/spending_heatmap.dart';
 import '../../features/analytics/presentation/widgets/spending_trend_lines.dart';
+import '../../features/auth/presentation/pages/passcode_flow_page.dart';
+import '../../features/auth/presentation/widgets/security_settings_section.dart';
 import '../../features/categories/domain/entities/category.dart';
 import '../../features/categories/presentation/pages/category_form_page.dart';
 import '../../features/categories/presentation/pages/category_list_page.dart';
@@ -80,6 +82,14 @@ abstract final class Routes {
 
   /// The exchange-rate table, under settings. FR-SET-003, E-34.
   static const String exchangeRates = '/settings/rates';
+
+  /// Setting, changing or removing the passcode, under settings.
+  /// FR-SET-005.
+  ///
+  /// Which of the three travels as `extra`, a `PasscodeFlow`; reached
+  /// without one — a deep link — it offers to set a passcode, and the use
+  /// case refuses if one exists, which is the honest answer.
+  static const String passcode = '/settings/passcode';
 
   /// The AI Copilot. Not in the SDD's screen inventory — it is a later
   /// addition, specified in `SRS_Copilot.md` §5.1.
@@ -196,12 +206,25 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.settings,
       name: 'settings',
-      builder: (context, state) => const SettingsPage(),
+      // The Security rows (FR-SET-005) are the auth feature's, composed in
+      // here for the reason the home screen's panel is.
+      builder: (context, state) =>
+          const SettingsPage(securitySection: SecuritySettingsSection()),
     ),
     GoRoute(
       path: Routes.exchangeRates,
       name: 'exchangeRates',
       builder: (context, state) => const ExchangeRatesPage(),
+    ),
+    GoRoute(
+      path: Routes.passcode,
+      name: 'passcode',
+      builder: (context, state) => PasscodeFlowPage(
+        flow: switch (state.extra) {
+          final PasscodeFlow flow => flow,
+          _ => PasscodeFlow.set,
+        },
+      ),
     ),
     // One route, and nothing else in the app reaches into the feature. Taking
     // the Copilot out again is deleting this entry (NFR-REL-004).

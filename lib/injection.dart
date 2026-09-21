@@ -42,6 +42,16 @@ import 'features/analytics/domain/usecases/get_income_for_period.dart';
 import 'features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'features/analytics/domain/usecases/get_spending_trend.dart';
+import 'features/auth/data/datasources/auth_local_datasource.dart';
+import 'features/auth/data/datasources/pin_hasher.dart';
+import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/auth/domain/usecases/change_passcode.dart';
+import 'features/auth/domain/usecases/get_lockout_state.dart';
+import 'features/auth/domain/usecases/has_passcode.dart';
+import 'features/auth/domain/usecases/remove_passcode.dart';
+import 'features/auth/domain/usecases/set_passcode.dart';
+import 'features/auth/domain/usecases/verify_passcode.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
 import 'features/categories/domain/repositories/category_repository.dart';
@@ -125,6 +135,15 @@ import 'features/transactions/domain/usecases/watch_transactions.dart';
 /// Anything a test needs to replace is overridable at `ProviderScope`, which
 /// is the point of declaring them here rather than constructing objects inside
 /// widgets.
+
+/// The wall clock, as a function.
+///
+/// Anything that compares "now" against a stored moment — the passcode
+/// lockout (NFR-SEC-003), the re-lock grace after the app was in the
+/// background — reads it from here rather than calling `DateTime.now()`, so
+/// a test can serve a thirty-second lockout in no time at all by overriding
+/// this one provider.
+final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
 /// Supplies the AES-256 database key from the platform keychain.
 ///
@@ -949,6 +968,77 @@ final conversionTableProvider = StreamProvider<ConversionTable>((ref) {
         ),
       );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth
+//
+// Sprint 7. Synchronous providers throughout: the passcode lives in the
+// platform keychain, not the database, so the lock screen can be answered
+// before the database is open — which is when it is drawn.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The passcode record and the lockout state, in the platform keychain.
+/// FR-SET-005, NFR-SEC-003, E-31 §1.
+///
+/// Overridden with [InMemoryAuthDataSource] in widget tests, where a method
+/// channel never answers — the reason this is a provider rather than a
+/// constructor call inside [authRepositoryProvider].
+final authLocalDataSourceProvider = Provider<AuthLocalDataSource>(
+  (ref) => SecureStorageAuthDataSource(),
+);
+
+/// PBKDF2 over the PIN, on a separate isolate. E-31 §1.
+final pinHasherProvider = Provider<PinHasher>((ref) => Pbkdf2PinHasher());
+
+/// Turns keychain exceptions into failures. The layer boundary.
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => AuthRepositoryImpl(
+    ref.watch(authLocalDataSourceProvider),
+    ref.watch(pinHasherProvider),
+  ),
+);
+
+/// Whether the app is behind a passcode. FR-SET-005.
+final hasPasscodeProvider = Provider<HasPasscode>(
+  (ref) => HasPasscode(ref.watch(authRepositoryProvider)),
+);
+
+/// Where the gate stands before an attempt. NFR-SEC-003.
+final getLockoutStateProvider = Provider<GetLockoutState>(
+  (ref) => GetLockoutState(ref.watch(authRepositoryProvider)),
+);
+
+/// Checks a PIN and applies the lockout. NFR-SEC-003.
+///
+/// The one gate every attempt goes through; `ChangePasscode` and
+/// `RemovePasscode` below are built over this same instance.
+final verifyPasscodeProvider = Provider<VerifyPasscode>(
+  (ref) => VerifyPasscode(
+    ref.watch(authRepositoryProvider),
+    now: ref.watch(clockProvider),
+  ),
+);
+
+/// Turns the passcode on. FR-SET-005.
+final setPasscodeProvider = Provider<SetPasscode>(
+  (ref) => SetPasscode(ref.watch(authRepositoryProvider)),
+);
+
+/// Replaces the passcode, on proof of the current one. FR-SET-005.
+final changePasscodeProvider = Provider<ChangePasscode>(
+  (ref) => ChangePasscode(
+    ref.watch(authRepositoryProvider),
+    ref.watch(verifyPasscodeProvider),
+  ),
+);
+
+/// Turns the passcode off, on proof of it. FR-SET-005.
+final removePasscodeProvider = Provider<RemovePasscode>(
+  (ref) => RemovePasscode(
+    ref.watch(authRepositoryProvider),
+    ref.watch(verifyPasscodeProvider),
+  ),
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Copilot

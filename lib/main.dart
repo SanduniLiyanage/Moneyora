@@ -5,6 +5,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'features/auth/presentation/providers/auth_providers.dart';
 import 'injection.dart';
 
 /// Entry point.
@@ -30,15 +31,19 @@ void main() {
 
   final container = ProviderContainer();
   unawaited(
-    container
-        .read(databaseProvider.future)
-        .then(
-          (_) => FlutterNativeSplash.remove(),
-          // A database that fails to open is still "ready": the home screen's
-          // own `_Failed` state explains it, and that screen deserves to be seen
-          // rather than hidden behind a splash that never lifts.
-          onError: (_, _) => FlutterNativeSplash.remove(),
-        ),
+    Future.wait<void>([
+      container.read(databaseProvider.future),
+      // The keychain's answer to "is there a passcode?" (FR-SET-005) is a
+      // few milliseconds; holding the splash for it means the first frame
+      // drawn is the lock screen or the home screen, never a blank between.
+      container.read(appLockProvider.future),
+    ]).then(
+      (_) => FlutterNativeSplash.remove(),
+      // A database that fails to open is still "ready": the home screen's
+      // own `_Failed` state explains it, and that screen deserves to be seen
+      // rather than hidden behind a splash that never lifts.
+      onError: (_, _) => FlutterNativeSplash.remove(),
+    ),
   );
 
   runApp(

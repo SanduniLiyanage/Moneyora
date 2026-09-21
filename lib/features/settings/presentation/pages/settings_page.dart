@@ -31,6 +31,11 @@ import '../providers/settings_providers.dart';
 /// period and every plan period; the lookback is read by the Money Plan
 /// wizard, which says where to change it and does not offer to.
 ///
+/// *Security* is not drawn here at all. Its rows belong to the auth feature
+/// (FR-SET-005), which this screen may not import, so the router hands them
+/// in as [securitySection] — the way the accounts panel reaches the home
+/// screen — and this screen places them between Calendar and Data.
+///
 /// *Data*'s row is not a preference at all. "Recalculate account balances"
 /// is E-18's reconciliation, reachable from here and from nowhere else:
 /// `RecomputeAllAccountBalances` re-derives every cached balance from
@@ -41,7 +46,14 @@ import '../providers/settings_providers.dart';
 /// a task to schedule.
 class SettingsPage extends ConsumerWidget {
   /// Creates the settings screen.
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.securitySection});
+
+  /// The Security section's rows, if supplied.
+  ///
+  /// Passed in by `core/router/app_router.dart` rather than constructed here,
+  /// because the passcode belongs to the auth feature and a feature may not
+  /// import another (rule 4 of `scripts/check_architecture.sh`).
+  final Widget? securitySection;
 
   /// Stores [mode], and shows the failure if it could not be. FR-SET-001.
   ///
@@ -328,6 +340,7 @@ class SettingsPage extends ConsumerWidget {
                       if (context.mounted) _report(context, failure);
                     },
             ),
+            if (securitySection case final Widget section) section,
             const _SectionHeader('Data'),
             ListTile(
               enabled: !busy,

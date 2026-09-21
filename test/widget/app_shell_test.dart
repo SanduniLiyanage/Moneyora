@@ -25,6 +25,7 @@ import 'package:moneyora/features/analytics/domain/usecases/get_income_for_perio
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
+import 'package:moneyora/features/auth/data/datasources/auth_local_datasource.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/features/money_plan/presentation/providers/money_plan_providers.dart';
 import 'package:moneyora/injection.dart';
@@ -75,6 +76,11 @@ class _NoAccountReader implements AccountReader {
 }
 
 final List<Override> _noChartDataOverrides = [
+  // The gate in front of every route (FR-SET-005) asks the platform keychain
+  // whether a passcode is set, and a platform channel never answers in a
+  // widget test. No passcode, so the gate stays open; the lock screen has
+  // its own test.
+  authLocalDataSourceProvider.overrideWith((ref) => InMemoryAuthDataSource()),
   // The saved-plan screen watches the active plan the same way; with no
   // plan it shows its empty state and settles.
   activePlanProvider.overrideWith((ref) => Stream.value(null)),
