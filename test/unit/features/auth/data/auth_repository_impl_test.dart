@@ -98,6 +98,35 @@ void main() {
       const Left<Failure, Unit>(CacheFailure('keychain unavailable')),
     );
   });
+
+  group('biometrics', () {
+    test('is off until turned on', () async {
+      expect(
+        await repository.isBiometricsEnabled(),
+        const Right<Failure, bool>(false),
+      );
+
+      await repository.setBiometricsEnabled(enabled: true);
+
+      expect(
+        await repository.isBiometricsEnabled(),
+        const Right<Failure, bool>(true),
+      );
+    });
+
+    test('a store that throws is a CacheFailure in its own words', () async {
+      store.failWith = const CacheException('keychain unavailable');
+
+      expect(
+        await repository.isBiometricsEnabled(),
+        const Left<Failure, bool>(CacheFailure('keychain unavailable')),
+      );
+      expect(
+        await repository.setBiometricsEnabled(enabled: true),
+        const Left<Failure, Unit>(CacheFailure('keychain unavailable')),
+      );
+    });
+  });
 }
 
 /// The in-memory datasource, made to fail on demand.
@@ -137,6 +166,18 @@ class _Store extends InMemoryAuthDataSource {
   Future<void> deleteLockout() async {
     _check();
     lockout = null;
+  }
+
+  @override
+  Future<bool> readBiometricsEnabled() async {
+    _check();
+    return super.readBiometricsEnabled();
+  }
+
+  @override
+  Future<void> writeBiometricsEnabled({required bool enabled}) async {
+    _check();
+    return super.writeBiometricsEnabled(enabled: enabled);
   }
 }
 

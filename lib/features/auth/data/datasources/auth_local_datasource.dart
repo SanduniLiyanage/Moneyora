@@ -18,8 +18,10 @@ import '../models/passcode_record.dart';
 /// readable before the database is open — which the lock screen, drawn
 /// during the launch, needs. Decided 2026-09-17.
 ///
-/// Three entries, by name. `auth.passcode` and `auth.lockout` are this
-/// slice's; `auth.biometrics` is reserved for NFR-SEC-004's toggle.
+/// Three entries, by name. `auth.passcode` and `auth.lockout` are the
+/// passcode gate's; `auth.biometrics` is NFR-SEC-004's toggle, "1" when on
+/// and absent otherwise — there is no third value to store, so there is
+/// nothing a malformed entry could mean and no [CacheException] case for it.
 abstract class AuthLocalDataSource {
   /// The stored passcode record, or null when no passcode is set.
   Future<PasscodeRecord?> readPasscode();
@@ -38,6 +40,13 @@ abstract class AuthLocalDataSource {
 
   /// Removes the lockout state. A no-op when there is none.
   Future<void> deleteLockout();
+
+  /// Whether the biometrics entry is set. NFR-SEC-004.
+  Future<bool> readBiometricsEnabled();
+
+  /// Writes the entry when [enabled], deletes it otherwise — the same
+  /// present-or-absent shape [deleteLockout] keeps for a clean store.
+  Future<void> writeBiometricsEnabled({required bool enabled});
 }
 
 /// The production datasource, over the platform keychain / keystore.
@@ -59,6 +68,9 @@ class SecureStorageAuthDataSource implements AuthLocalDataSource {
 
   /// Keychain entry holding the [LockoutState].
   static const String lockoutKey = 'auth.lockout';
+
+  /// Keychain entry holding the biometrics toggle. NFR-SEC-004.
+  static const String biometricsKey = 'auth.biometrics';
 
   @override
   Future<PasscodeRecord?> readPasscode() => _attempt(() async {
@@ -92,6 +104,17 @@ class SecureStorageAuthDataSource implements AuthLocalDataSource {
   Future<void> deleteLockout() =>
       _attempt(() => _storage.delete(key: lockoutKey));
 
+  @override
+  Future<bool> readBiometricsEnabled() =>
+      _attempt(() async => await _storage.read(key: biometricsKey) == '1');
+
+  @override
+  Future<void> writeBiometricsEnabled({required bool enabled}) => _attempt(
+    () => enabled
+        ? _storage.write(key: biometricsKey, value: '1')
+        : _storage.delete(key: biometricsKey),
+  );
+
   Future<T> _attempt<T>(Future<T> Function() body) async {
     try {
       return await body();
@@ -111,6 +134,7 @@ class SecureStorageAuthDataSource implements AuthLocalDataSource {
 class InMemoryAuthDataSource implements AuthLocalDataSource {
   PasscodeRecord? _passcode;
   LockoutState? _lockout;
+  bool _biometricsEnabled = false;
 
   @override
   Future<PasscodeRecord?> readPasscode() async => _passcode;
@@ -129,4 +153,11 @@ class InMemoryAuthDataSource implements AuthLocalDataSource {
 
   @override
   Future<void> deleteLockout() async => _lockout = null;
+
+  @override
+  Future<bool> readBiometricsEnabled() async => _biometricsEnabled;
+
+  @override
+  Future<void> writeBiometricsEnabled({required bool enabled}) async =>
+      _biometricsEnabled = enabled;
 }

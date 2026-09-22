@@ -99,4 +99,50 @@ void main() {
       expect(await memory.readLockout(), isNull);
     });
   });
+
+  group('biometrics', () {
+    test('is off until written, then reads back', () async {
+      expect(await source.readBiometricsEnabled(), isFalse);
+
+      await source.writeBiometricsEnabled(enabled: true);
+
+      expect(await source.readBiometricsEnabled(), isTrue);
+    });
+
+    test('is stored as "1" under its named entry', () async {
+      await source.writeBiometricsEnabled(enabled: true);
+
+      expect(
+        await const FlutterSecureStorage().read(
+          key: SecureStorageAuthDataSource.biometricsKey,
+        ),
+        '1',
+      );
+    });
+
+    test('turning it off removes the entry rather than storing "0"', () async {
+      await source.writeBiometricsEnabled(enabled: true);
+
+      await source.writeBiometricsEnabled(enabled: false);
+
+      expect(
+        await const FlutterSecureStorage().read(
+          key: SecureStorageAuthDataSource.biometricsKey,
+        ),
+        isNull,
+      );
+      expect(await source.readBiometricsEnabled(), isFalse);
+    });
+
+    test('InMemoryAuthDataSource behaves the same', () async {
+      final memory = InMemoryAuthDataSource();
+      expect(await memory.readBiometricsEnabled(), isFalse);
+
+      await memory.writeBiometricsEnabled(enabled: true);
+      expect(await memory.readBiometricsEnabled(), isTrue);
+
+      await memory.writeBiometricsEnabled(enabled: false);
+      expect(await memory.readBiometricsEnabled(), isFalse);
+    });
+  });
 }
