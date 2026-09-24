@@ -50,6 +50,7 @@ follows the Resolution sections.
 | [E-32](#e-32) | The plan tables as built depart from the DBD in four places | Clarified | FR-PLN-001, FR-PLN-002, FR-PLN-004, FR-PLN-008, FR-PLN-010 |
 | [E-33](#e-33) | FR-PLN-014's Carry Over has nowhere to live in the schema | Resolved | FR-PLN-014 |
 | [E-34](#e-34) | FR-ACC-005 has no schema: no rates table, and a transfer header that cannot carry two amounts | Resolved | FR-ACC-005, FR-SET-003, FR-TRF-001 |
+| [E-35](#e-35) | FR-SET-007's budget alerts have no schema: no setting, and nothing recording an alert was sent | Resolved | FR-SET-007 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2011,6 +2012,81 @@ Landing both removes E-25's three interim rules in the same commit that adds
 conversion, as that entry requires. The rates plumbing (this entry's schema,
 the rate and base-currency settings) lands first and changes no behaviour
 elsewhere; conversion and the three deletions land second.
+
+---
+
+<a id="e-35"></a>
+
+## E-35 — FR-SET-007's budget alerts have no schema: no setting, and nothing recording an alert was sent
+
+**Severity:** Medium · **Affects:** DBD §3.1 (`users`), §3.8
+(`plan_allocations`) · **Requirement:** FR-SET-007
+
+Raised 2026-09-24, starting FR-SET-007 in Sprint 7. The requirement —
+*"warn at 80% usage and alert at 100% usage for any active plan
+category"* — describes two events, and the DBD stores neither the user's
+choice to receive them nor any trace that one happened.
+
+**1. No preference.** SRS §3.8 files budget alerts under Settings and SDD
+SCR-016 gives Settings a Notifications group, but `users` (DBD §3.1) has
+no notification column of any kind. An alert with no off switch is not a
+setting.
+
+**2. No memory of what was said.** Spend against the active plan moves on
+every expense write (FR-PLN-013), and every write re-reads the plan. A
+rule evaluated on each re-read with nothing to compare against announces
+the same 80% on every expense after the first one that crossed it — a
+warning repeated until the user turns warnings off, which is the opposite
+of what one is for. Keeping "already announced" in memory does not survive
+a restart, so it would repeat on every launch instead.
+
+### Resolution — schema v5 adds one column to each table
+
+`migrations/v5_budget_alerts.dart`, additive per SDD §5.3:
+
+```sql
+ALTER TABLE users
+  ADD COLUMN budget_alerts_enabled INTEGER NOT NULL DEFAULT 0
+  CHECK(budget_alerts_enabled IN (0, 1));
+
+ALTER TABLE plan_allocations
+  ADD COLUMN alerted_level INTEGER NOT NULL DEFAULT 0
+  CHECK(alerted_level IN (0, 80, 100));
+```
+
+`alerted_level` is the threshold last announced for the row, stored as
+the percentage it names, so a row read in a SQL shell says what it means.
+Zero on every existing row, which is true: nothing was announced before
+this version. `v5_budget_alerts_test.dart` upgrades a v4 database with a
+plan already past 80% and proves its rows intact.
+
+Decisions the SRS leaves open, made here:
+
+1. **Off by default.** Turning alerts on is where the platform's
+   notification permission is asked for (Android 13+, iOS), and a prompt
+   belongs to the moment the user chose the thing it is for. On is refused
+   with a sentence when the permission is refused, rather than stored over
+   a permission that will silently drop every alert.
+2. **The bands are FR-PLN-013's.** An alert and the tracking bar read one
+   rule (`AllocationProgress.statusOf`): yellow at exactly 80% is a
+   warning, red at exactly 100% is an alert. A single expense crossing
+   both is one alert, at 100%.
+3. **The stored level follows the spend down.** An edit or delete that
+   takes a row back under a threshold lowers `alerted_level` without a
+   word, so crossing it again is announced again — it is a new crossing.
+4. **Activation and switching alerts on both announce what is already
+   true**, once: a plan activated at 85%, or alerts turned on with a
+   category at 85%, has nothing announced yet. While alerts are off,
+   nothing is evaluated and nothing recorded.
+5. **The level is written compare-and-set, before anything is shown.**
+   The row moves only if it still holds the level the evaluation read,
+   and only the evaluation that moved it may notify. Two quick expenses
+   whose plan re-reads both land before either store therefore announce a
+   crossing once, not twice; and a store that fails shows nothing, rather
+   than an alert repeated on every write while the failure lasts. The
+   write fires no change signal — no screen draws the column.
+
+The DBD v1.1 that E-32 anticipates should carry both columns.
 
 ---
 

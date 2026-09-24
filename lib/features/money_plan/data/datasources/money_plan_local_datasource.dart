@@ -38,6 +38,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../../../../core/database/database_change_bus.dart';
 import '../../../../core/errors/exceptions.dart';
+import '../../domain/entities/budget_alert_evaluation.dart';
 import '../models/money_plan_model.dart';
 import '../models/plan_allocation_model.dart';
 
@@ -77,6 +78,14 @@ abstract interface class MoneyPlanLocalDataSource {
   /// Re-derives every `spent_amount_cents` of [planId] from history and
   /// writes it, in one transaction. FR-PLN-013, E-18.
   Future<void> recomputeSpent(int planId);
+
+  /// Moves each row of [changes] from its `from` level to its `to` level,
+  /// only where the row still holds `from`, in one transaction; returns the
+  /// ids that moved. FR-SET-007, E-35.
+  ///
+  /// Signals nothing: no screen draws `alerted_level`, and a signal would
+  /// re-read every plan watcher for it.
+  Future<Set<int>> recordAlertLevels(List<AlertLevelChange> changes);
 
   /// Fires after every successful write — by this datasource or, when the
   /// bus is shared, by any other.
@@ -118,7 +127,8 @@ class MoneyPlanLocalDataSourceImpl implements MoneyPlanLocalDataSource {
   static const String _allocationsOf = '''
 SELECT a.id, a.category_id, c.name AS category_name,
        a.allocated_amount_cents, a.spent_amount_cents, a.carry_over_cents,
-       a.confidence_level, a.expense_class, a.is_user_modified, a.notes
+       a.confidence_level, a.expense_class, a.is_user_modified, a.notes,
+       a.alerted_level
   FROM plan_allocations a
   JOIN categories c ON c.id = a.category_id
  WHERE a.plan_id = ?
@@ -254,6 +264,33 @@ SELECT a.id, a.category_id, c.name AS category_name,
 
     _notify();
   }
+
+  @override
+  Future<Set<int>> recordAlertLevels(List<AlertLevelChange> changes) => _guard(
+    'store the budget alert levels',
+    () {
+      return _db.transaction((txn) async {
+        final moved = <int>{};
+        for (final change in changes) {
+          // The `from` in the WHERE is the whole point: a change computed
+          // from a read that another evaluation has since acted on finds
+          // the row already moved, updates nothing, and so announces
+          // nothing.
+          final updated = await txn.update(
+            'plan_allocations',
+            {'alerted_level': PlanAllocationModel.encodeAlertLevel(change.to)},
+            where: 'id = ? AND alerted_level = ?',
+            whereArgs: [
+              change.allocationId,
+              PlanAllocationModel.encodeAlertLevel(change.from),
+            ],
+          );
+          if (updated > 0) moved.add(change.allocationId);
+        }
+        return moved;
+      });
+    },
+  );
 
   /// Derives every allocation's spend of [planId] from history and writes
   /// it. The recount E-18 asks for, in the shape of

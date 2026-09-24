@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/features/money_plan/data/models/money_plan_model.dart';
 import 'package:moneyora/features/money_plan/data/models/plan_allocation_model.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_level.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_classification.dart';
 import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
 import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
@@ -77,6 +78,32 @@ void main() {
         throwsFormatException,
       );
     });
+
+    // E-35: the percentage each level names, as `v5_budget_alerts.dart`'s
+    // CHECK lists them.
+    test('alerted_level', () {
+      expect(PlanAllocationModel.encodeAlertLevel(BudgetAlertLevel.none), 0);
+      expect(
+        PlanAllocationModel.encodeAlertLevel(BudgetAlertLevel.warning),
+        80,
+      );
+      expect(
+        PlanAllocationModel.encodeAlertLevel(BudgetAlertLevel.exceeded),
+        100,
+      );
+      for (final level in BudgetAlertLevel.values) {
+        expect(
+          PlanAllocationModel.decodeAlertLevel(
+            PlanAllocationModel.encodeAlertLevel(level),
+          ),
+          level,
+        );
+      }
+      expect(
+        () => PlanAllocationModel.decodeAlertLevel(50),
+        throwsFormatException,
+      );
+    });
   });
 
   group('round trips', () {
@@ -105,6 +132,7 @@ void main() {
           confidence: ConfidenceLevel.medium,
           isUserModified: true,
           notes: 'trimmed',
+          alertedLevel: BudgetAlertLevel.warning,
         ),
       ],
     );
@@ -125,6 +153,8 @@ void main() {
       expect(rows[1]['expense_class'], isNull);
       expect(rows[1]['is_user_modified'], 1);
       expect(rows[1]['carry_over_cents'], 25000);
+      expect(rows[0]['alerted_level'], 0);
+      expect(rows[1]['alerted_level'], 80);
 
       // Read back as SQLite would hand them, with the ids and the joined
       // category name the query adds.

@@ -9,6 +9,7 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../domain/entities/budget_alert_evaluation.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/plan_allocation.dart';
 import '../../domain/repositories/money_plan_repository.dart';
@@ -61,6 +62,14 @@ class MoneyPlanRepositoryImpl implements MoneyPlanRepository {
         await _local.recomputeSpent(planId);
         return unit;
       });
+
+  @override
+  Future<Either<Failure, Set<int>>> recordAlertLevels(
+    List<AlertLevelChange> changes,
+  ) => changes.isEmpty
+      // Nothing to move: no transaction opened for it.
+      ? Future.value(const Right(<int>{}))
+      : _attempt(() => _local.recordAlertLevels(changes));
 
   @override
   Stream<Either<Failure, MoneyPlan?>> watchActive() =>

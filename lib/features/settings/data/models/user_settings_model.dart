@@ -19,6 +19,7 @@ class UserSettingsModel extends UserSettings {
     super.firstDayOfMonth,
     super.savingsTargetPct,
     super.planAnalysisMonths,
+    super.budgetAlertsEnabled,
   });
 
   /// Wraps an entity so it can be written.
@@ -31,6 +32,7 @@ class UserSettingsModel extends UserSettings {
         firstDayOfMonth: settings.firstDayOfMonth,
         savingsTargetPct: settings.savingsTargetPct,
         planAnalysisMonths: settings.planAnalysisMonths,
+        budgetAlertsEnabled: settings.budgetAlertsEnabled,
       );
 
   /// Rebuilds a model from the `users` row.
@@ -43,6 +45,7 @@ class UserSettingsModel extends UserSettings {
         firstDayOfMonth: map['first_day_month']! as int,
         savingsTargetPct: (map['savings_target_pct']! as num).toDouble(),
         planAnalysisMonths: map['plan_analysis_months']! as int,
+        budgetAlertsEnabled: map['budget_alerts_enabled'] == 1,
       );
 
   /// The columns a preference change may write.
@@ -58,6 +61,7 @@ class UserSettingsModel extends UserSettings {
     'first_day_month': firstDayOfMonth,
     'savings_target_pct': savingsTargetPct,
     'plan_analysis_months': planAnalysisMonths,
+    'budget_alerts_enabled': budgetAlertsEnabled ? 1 : 0,
   };
 
   /// The column's 0 = Sunday … 6 = Saturday as Dart's 1 = Monday … 7 = Sunday.
@@ -81,5 +85,6 @@ class UserSettingsModel extends UserSettings {
     firstDayOfMonth: firstDayOfMonth,
     savingsTargetPct: savingsTargetPct,
     planAnalysisMonths: planAnalysisMonths,
+    budgetAlertsEnabled: budgetAlertsEnabled,
   );
 }

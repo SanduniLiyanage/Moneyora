@@ -13,6 +13,7 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/conversion_table.dart';
+import 'package:moneyora/core/ports/notification_taps.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
@@ -27,6 +28,8 @@ import 'package:moneyora/features/analytics/domain/usecases/get_spending_calenda
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
 import 'package:moneyora/features/auth/data/datasources/auth_local_datasource.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/check_budget_alerts.dart';
+import 'package:moneyora/features/money_plan/presentation/pages/active_plan_page.dart';
 import 'package:moneyora/features/money_plan/presentation/providers/money_plan_providers.dart';
 import 'package:moneyora/injection.dart';
 
@@ -75,7 +78,36 @@ class _NoAccountReader implements AccountReader {
       Stream.value(const Right([]));
 }
 
+/// Notifications the test taps by hand, and the one that launched the app.
+class _ScriptedTaps implements NotificationTaps {
+  _ScriptedTaps({this.launchedWith});
+
+  final String? launchedWith;
+  final StreamController<String> taps = StreamController.broadcast();
+
+  Future<void> close() => taps.close();
+
+  @override
+  Future<String?> launchPayload() async => launchedWith;
+
+  @override
+  Stream<String> get opened => taps.stream;
+}
+
+/// Nothing launched the app and nothing is ever tapped.
+class _NoTaps implements NotificationTaps {
+  @override
+  Future<String?> launchPayload() async => null;
+
+  @override
+  Stream<String> get opened => const Stream.empty();
+}
+
 final List<Override> _noChartDataOverrides = [
+  // The app root asks the notification plugin what launched it (FR-SET-007),
+  // over a platform channel that never answers in a widget test. Nothing
+  // did, and nothing is tapped; the taps have their own group below.
+  notificationTapsProvider.overrideWithValue(_NoTaps()),
   // The gate in front of every route (FR-SET-005) asks the platform keychain
   // whether a passcode is set, and a platform channel never answers in a
   // widget test. No passcode, so the gate stays open; the lock screen has
@@ -154,6 +186,56 @@ void main() {
     ],
     child: const MoneyoraApp(),
   );
+
+  group('a tapped budget alert opens the plan it is about. FR-SET-007', () {
+    Widget bootWithTaps(_ScriptedTaps taps) => ProviderScope(
+      overrides: [
+        databaseSummaryProvider.overrideWith((ref) => ready),
+        ..._noChartDataOverrides,
+        // Later overrides of the same provider win: this one replaces the
+        // silent default above.
+        notificationTapsProvider.overrideWithValue(taps),
+      ],
+      child: const MoneyoraApp(),
+    );
+
+    testWidgets('tapped while the app is open', (tester) async {
+      final taps = _ScriptedTaps();
+      addTearDown(taps.close);
+      await tester.pumpWidget(bootWithTaps(taps));
+      await tester.pumpAndSettle();
+      expect(find.byType(ActivePlanPage), findsNothing);
+
+      taps.taps.add(CheckBudgetAlerts.payload);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ActivePlanPage), findsOneWidget);
+    });
+
+    testWidgets('tapped to launch the app from cold', (tester) async {
+      final taps = _ScriptedTaps(launchedWith: CheckBudgetAlerts.payload);
+      addTearDown(taps.close);
+
+      await tester.pumpWidget(bootWithTaps(taps));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ActivePlanPage), findsOneWidget);
+    });
+
+    testWidgets('a payload the app does not know opens nothing', (
+      tester,
+    ) async {
+      final taps = _ScriptedTaps();
+      addTearDown(taps.close);
+      await tester.pumpWidget(bootWithTaps(taps));
+      await tester.pumpAndSettle();
+
+      taps.taps.add('something-else');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ActivePlanPage), findsNothing);
+    });
+  });
 
   group('home screen states', () {
     testWidgets('shows a spinner while the database opens', (tester) async {

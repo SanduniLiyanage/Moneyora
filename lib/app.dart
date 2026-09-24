@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/widgets/auth_gate.dart';
+import 'features/money_plan/domain/usecases/check_budget_alerts.dart';
 import 'features/settings/presentation/providers/settings_providers.dart';
+import 'injection.dart';
 
 /// The root widget: theming, routing and the passcode gate, and nothing
 /// else.
@@ -31,6 +35,37 @@ class _MoneyoraAppState extends ConsumerState<MoneyoraApp> {
   // Built once and held. GoRouter owns navigation history, so rebuilding it
   // on every widget rebuild would silently reset the back stack.
   late final GoRouter _router = buildRouter();
+
+  StreamSubscription<String>? _taps;
+
+  /// Opening what a tapped notification is about. FR-SET-007.
+  ///
+  /// Here because this is where the router is held. A tap while the app is
+  /// locked still pushes the route: [AuthGate] draws the lock screen over
+  /// every route, so the plan opens behind it and is there once unlocked.
+  @override
+  void initState() {
+    super.initState();
+    final taps = ref.read(notificationTapsProvider);
+    _taps = taps.opened.listen(_open);
+    unawaited(
+      taps.launchPayload().then((payload) {
+        if (payload != null && mounted) _open(payload);
+      }),
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_taps?.cancel());
+    super.dispose();
+  }
+
+  void _open(String payload) {
+    if (payload == CheckBudgetAlerts.payload) {
+      unawaited(_router.push(Routes.activePlan));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

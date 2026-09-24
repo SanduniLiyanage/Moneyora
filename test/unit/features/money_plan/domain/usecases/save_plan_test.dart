@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/budget_mode.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_classification.dart';
@@ -45,6 +46,11 @@ class _FakeRepository implements MoneyPlanRepository {
   @override
   Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Set<int>>> recordAlertLevels(
+    List<AlertLevelChange> changes,
+  ) => throw UnimplementedError();
 
   @override
   Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>

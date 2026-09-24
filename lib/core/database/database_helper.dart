@@ -5,6 +5,7 @@ import 'migrations/v1_initial.dart';
 import 'migrations/v2_carry_over.dart';
 import 'migrations/v3_receipt_scanner.dart';
 import 'migrations/v4_multi_currency.dart';
+import 'migrations/v5_budget_alerts.dart';
 
 /// Every schema version, keyed by the version it produces.
 ///
@@ -23,6 +24,7 @@ const Map<int, List<String>> schemaMigrations = <int, List<String>>{
   v2SchemaVersion: v2Statements,
   v3SchemaVersion: v3Statements,
   v4SchemaVersion: v4Statements,
+  v5SchemaVersion: v5Statements,
 };
 
 /// The version a fresh install lands on.

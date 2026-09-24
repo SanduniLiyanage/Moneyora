@@ -66,26 +66,41 @@ class AllocationProgress extends Equatable {
 
     final spent = allocation.spentCents;
     final allocated = allocation.allocatedCents;
-    final percent = allocated > 0
-        ? spent * 100 ~/ allocated
-        : (spent > 0 ? 100 : 0);
-    final status = allocated == 0
-        ? (spent > 0 ? TrackingStatus.exceeded : TrackingStatus.onTrack)
-        : spent >= allocated
-        ? TrackingStatus.exceeded
-        : spent * 100 >= allocated * 80
-        ? TrackingStatus.warning
-        : TrackingStatus.onTrack;
-
     return AllocationProgress(
       allocation: allocation,
-      percentUsed: percent,
-      status: status,
+      percentUsed: percentOf(spentCents: spent, allocatedCents: allocated),
+      status: statusOf(spentCents: spent, allocatedCents: allocated),
       elapsedDays: elapsed,
       totalDays: totalDays,
       projectedCents: elapsed == 0 ? null : spent * totalDays ~/ elapsed,
     );
   }
+
+  /// Whole percent of [allocatedCents] that [spentCents] is, floored. An
+  /// allocation of zero reads 100 once anything is spent against it, 0
+  /// otherwise.
+  static int percentOf({
+    required int spentCents,
+    required int allocatedCents,
+  }) => allocatedCents > 0
+      ? spentCents * 100 ~/ allocatedCents
+      : (spentCents > 0 ? 100 : 0);
+
+  /// FR-PLN-013's band for [spentCents] against [allocatedCents].
+  ///
+  /// Public and static so FR-SET-007's budget alerts read the same bands the
+  /// tracking bar is drawn in: a notification saying 80% and a row still
+  /// green would be two rules for one number.
+  static TrackingStatus statusOf({
+    required int spentCents,
+    required int allocatedCents,
+  }) => allocatedCents == 0
+      ? (spentCents > 0 ? TrackingStatus.exceeded : TrackingStatus.onTrack)
+      : spentCents >= allocatedCents
+      ? TrackingStatus.exceeded
+      : spentCents * 100 >= allocatedCents * 80
+      ? TrackingStatus.warning
+      : TrackingStatus.onTrack;
 
   /// The row this reads.
   final PlanAllocation allocation;

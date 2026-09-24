@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'features/auth/presentation/providers/auth_providers.dart';
+import 'features/money_plan/presentation/providers/budget_alert_watcher.dart';
 import 'injection.dart';
 
 /// Entry point.
@@ -45,6 +46,12 @@ void main() {
       onError: (_, _) => FlutterNativeSplash.remove(),
     ),
   );
+
+  // FR-SET-007: budget alerts follow every expense, whichever screen it was
+  // entered on, so the watcher lives as long as the app does. Started here
+  // rather than in `MoneyoraApp` for the reason the splash is: the app's
+  // widget tests build their own scope and have no plan to watch.
+  container.listen(budgetAlertWatcherProvider, (_, _) {});
 
   runApp(
     UncontrolledProviderScope(container: container, child: const MoneyoraApp()),

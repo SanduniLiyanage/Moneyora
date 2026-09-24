@@ -14,6 +14,7 @@ import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/money_plan/domain/entities/allocation_request.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/lookback_window.dart';
 import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
@@ -97,6 +98,11 @@ class _MemoryRepository implements MoneyPlanRepository {
   @override
   Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Set<int>>> recordAlertLevels(
+    List<AlertLevelChange> changes,
+  ) => throw UnimplementedError();
 
   @override
   Future<Either<Failure, MoneyPlan?>> getLatestEndingBefore(DateTime day) =>

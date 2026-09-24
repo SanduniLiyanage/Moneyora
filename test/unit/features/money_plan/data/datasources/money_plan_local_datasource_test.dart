@@ -11,6 +11,8 @@ import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/features/money_plan/data/datasources/money_plan_local_datasource.dart';
 import 'package:moneyora/features/money_plan/data/models/money_plan_model.dart';
 import 'package:moneyora/features/money_plan/data/models/plan_allocation_model.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_level.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_classification.dart';
 import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
@@ -655,6 +657,134 @@ void main() {
 
     test('is null with nothing before', () async {
       expect(await plans.getLatestEndingBefore('2026-09-01'), isNull);
+    });
+  });
+
+  group('recordAlertLevels', () {
+    late int planId;
+    late int billsRow;
+    late int foodRow;
+
+    setUp(() async {
+      planId = await plans.insert(plan('September'));
+      final read = (await plans.getById(planId))!;
+      billsRow = read.allocations[0].id!;
+      foodRow = read.allocations[1].id!;
+    });
+
+    Future<Map<int, BudgetAlertLevel>> stored() async => {
+      for (final a in (await plans.getById(planId))!.allocations)
+        a.id!: a.alertedLevel,
+    };
+
+    AlertLevelChange move(int id, BudgetAlertLevel from, BudgetAlertLevel to) =>
+        AlertLevelChange(allocationId: id, from: from, to: to);
+
+    test('a saved plan starts with nothing announced', () async {
+      expect(await stored(), {
+        billsRow: BudgetAlertLevel.none,
+        foodRow: BudgetAlertLevel.none,
+      });
+    });
+
+    test('moves rows that hold what was read, and reads back', () async {
+      final moved = await plans.recordAlertLevels([
+        move(billsRow, BudgetAlertLevel.none, BudgetAlertLevel.warning),
+        move(foodRow, BudgetAlertLevel.none, BudgetAlertLevel.exceeded),
+      ]);
+
+      expect(moved, {billsRow, foodRow});
+      expect(await stored(), {
+        billsRow: BudgetAlertLevel.warning,
+        foodRow: BudgetAlertLevel.exceeded,
+      });
+    });
+
+    test('the same crossing stored twice moves the row once — the second '
+        'caller announces nothing', () async {
+      final change = move(
+        billsRow,
+        BudgetAlertLevel.none,
+        BudgetAlertLevel.warning,
+      );
+
+      final first = await plans.recordAlertLevels([change]);
+      final second = await plans.recordAlertLevels([change]);
+
+      expect(first, {billsRow});
+      expect(second, isEmpty);
+      expect((await stored())[billsRow], BudgetAlertLevel.warning);
+    });
+
+    test('a change from a stale read leaves the row as it is', () async {
+      await plans.recordAlertLevels([
+        move(billsRow, BudgetAlertLevel.none, BudgetAlertLevel.exceeded),
+      ]);
+
+      // Read before the store above: thinks the row is still at none.
+      final moved = await plans.recordAlertLevels([
+        move(billsRow, BudgetAlertLevel.none, BudgetAlertLevel.warning),
+        move(foodRow, BudgetAlertLevel.none, BudgetAlertLevel.warning),
+      ]);
+
+      expect(moved, {foodRow});
+      expect(await stored(), {
+        billsRow: BudgetAlertLevel.exceeded,
+        foodRow: BudgetAlertLevel.warning,
+      });
+    });
+
+    test(
+      'a row that no longer exists moves nowhere, and is no error',
+      () async {
+        final moved = await plans.recordAlertLevels([
+          move(999999, BudgetAlertLevel.none, BudgetAlertLevel.warning),
+        ]);
+
+        expect(moved, isEmpty);
+      },
+    );
+
+    test('an allocation adjustment leaves the stored level alone — it '
+        'moves only by compare-and-set', () async {
+      await plans.recordAlertLevels([
+        move(foodRow, BudgetAlertLevel.none, BudgetAlertLevel.warning),
+      ]);
+
+      await plans.updateAllocations(planId, [
+        PlanAllocationModel(
+          categoryId: food,
+          allocatedCents: 1,
+          confidence: ConfidenceLevel.low,
+        ),
+      ]);
+
+      expect((await stored())[foodRow], BudgetAlertLevel.warning);
+    });
+
+    test('signals nothing: no screen draws the column', () async {
+      final ticks = <void>[];
+      final sub = plans.changes.listen(ticks.add);
+
+      await plans.recordAlertLevels([
+        move(billsRow, BudgetAlertLevel.none, BudgetAlertLevel.warning),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(ticks, isEmpty);
+      await sub.cancel();
+    });
+
+    test('the column refuses a level that names no threshold', () async {
+      expect(
+        () => db.update(
+          'plan_allocations',
+          {'alerted_level': 50},
+          where: 'id = ?',
+          whereArgs: [billsRow],
+        ),
+        throwsA(isA<DatabaseException>()),
+      );
     });
   });
 

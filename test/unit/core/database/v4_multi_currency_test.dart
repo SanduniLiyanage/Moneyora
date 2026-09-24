@@ -82,7 +82,7 @@ void main() {
     () async {
       await DatabaseHelper.migrate(db);
 
-      expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4});
+      expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5});
       final rows = await db.query('transfers');
       expect(rows, hasLength(1));
       expect(rows.single['amount_cents'], 250000, reason: 'intact');
@@ -168,8 +168,8 @@ void main() {
     });
   });
 
-  test('v4 is the latest version', () {
+  test('v4 is a version, no longer the latest', () {
     expect(schemaMigrations[v4SchemaVersion], v4Statements);
-    expect(latestSchemaVersion, v4SchemaVersion);
+    expect(latestSchemaVersion, greaterThan(v4SchemaVersion));
   });
 }

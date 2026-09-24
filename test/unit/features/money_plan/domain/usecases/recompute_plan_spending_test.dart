@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/repositories/money_plan_repository.dart';
@@ -17,6 +18,11 @@ class _FakeRepository implements MoneyPlanRepository {
     if (failWith case final f?) return Left(f);
     return const Right(unit);
   }
+
+  @override
+  Future<Either<Failure, Set<int>>> recordAlertLevels(
+    List<AlertLevelChange> changes,
+  ) => throw UnimplementedError();
 
   @override
   Future<Either<Failure, Unit>> activate(int id) => throw UnimplementedError();

@@ -1,17 +1,18 @@
 import 'package:equatable/equatable.dart';
 
+import 'budget_alert_level.dart';
 import 'category_classification.dart';
 import 'confidence_score.dart';
 
 /// One category's row of a saved plan. FR-PLN-007, FR-PLN-010, FR-PLN-011,
-/// FR-PLN-014.
+/// FR-PLN-014, FR-SET-007.
 ///
 /// What `plan_allocations` holds: the figure, its provenance (class and
 /// confidence, so the screen can still say why), whether the user changed
-/// it, the spend cache FR-PLN-013 maintains, and the overspend the user
-/// chose to carry into the next plan. Not the statistics — those are
-/// re-derived from history whenever a plan is generated, and a saved plan
-/// is a decision, not a dataset.
+/// it, the spend cache FR-PLN-013 maintains, the overspend the user
+/// chose to carry into the next plan, and the budget alert last announced
+/// for it. Not the statistics — those are re-derived from history whenever
+/// a plan is generated, and a saved plan is a decision, not a dataset.
 class PlanAllocation extends Equatable {
   /// Creates an allocation row.
   const PlanAllocation({
@@ -25,6 +26,7 @@ class PlanAllocation extends Equatable {
     this.expenseType,
     this.isUserModified = false,
     this.notes,
+    this.alertedLevel = BudgetAlertLevel.none,
   });
 
   /// Row id, null until saved.
@@ -60,6 +62,14 @@ class PlanAllocation extends Equatable {
   /// Free text, e.g. a suggestion note.
   final String? notes;
 
+  /// The budget alert last announced for this row. FR-SET-007, E-35.
+  ///
+  /// Kept on the row so an alert is sent once per crossing, across
+  /// restarts: the next evaluation compares against it rather than against
+  /// nothing. It follows the spend back down when an edit takes the row
+  /// under a threshold, so crossing it again is announced again.
+  final BudgetAlertLevel alertedLevel;
+
   /// What has been spent beyond the allocation; zero when within it.
   int get overspendCents =>
       spentCents > allocatedCents ? spentCents - allocatedCents : 0;
@@ -82,6 +92,7 @@ class PlanAllocation extends Equatable {
         expenseType: expenseType,
         isUserModified: isUserModified || byUser,
         notes: notes,
+        alertedLevel: alertedLevel,
       );
 
   /// This row carrying [carryOverCents] into the next plan. FR-PLN-014.
@@ -96,6 +107,7 @@ class PlanAllocation extends Equatable {
     expenseType: expenseType,
     isUserModified: isUserModified,
     notes: notes,
+    alertedLevel: alertedLevel,
   );
 
   @override
@@ -110,5 +122,6 @@ class PlanAllocation extends Equatable {
     expenseType,
     isUserModified,
     notes,
+    alertedLevel,
   ];
 }

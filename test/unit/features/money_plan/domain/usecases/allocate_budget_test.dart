@@ -4,6 +4,7 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/income_reader.dart';
 import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/features/money_plan/domain/entities/allocation_request.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/budget_mode.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_classification.dart';
 import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
@@ -76,6 +77,11 @@ class _FakePlans implements MoneyPlanRepository {
   @override
   Future<Either<Failure, Unit>> recomputeSpent(int planId) =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Set<int>>> recordAlertLevels(
+    List<AlertLevelChange> changes,
+  ) => throw UnimplementedError();
 
   @override
   Future<Either<Failure, int>> save(MoneyPlan plan) =>

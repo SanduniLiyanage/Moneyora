@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/local_notifier.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/domain/repositories/account_repository.dart';
@@ -15,6 +16,7 @@ import 'package:moneyora/features/settings/domain/entities/exchange_rate.dart';
 import 'package:moneyora/features/settings/domain/entities/user_settings.dart';
 import 'package:moneyora/features/settings/domain/repositories/exchange_rate_repository.dart';
 import 'package:moneyora/features/settings/domain/repositories/settings_repository.dart';
+import 'package:moneyora/features/settings/domain/usecases/set_budget_alerts.dart';
 import 'package:moneyora/features/settings/presentation/pages/settings_page.dart';
 import 'package:moneyora/features/settings/presentation/providers/settings_providers.dart';
 import 'package:moneyora/injection.dart';
@@ -62,6 +64,22 @@ class _FakeSettingsRepository implements SettingsRepository {
       yield await get();
     }
   }
+}
+
+/// The platform's answer to "may this app notify?", scripted.
+class _FakeNotifier implements LocalNotifier {
+  bool grant = true;
+  int asked = 0;
+
+  @override
+  Future<Either<Failure, bool>> requestPermission() async {
+    asked++;
+    return Right(grant);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> show(AppNotification notification) async =>
+      const Right(unit);
 }
 
 class _FakeRatesRepository implements ExchangeRateRepository {
@@ -140,11 +158,13 @@ void main() {
   late _FakeRepository repository;
   late _FakeSettingsRepository settings;
   late _FakeRatesRepository rates;
+  late _FakeNotifier notifier;
 
   setUp(() {
     repository = _FakeRepository();
     settings = _FakeSettingsRepository();
     rates = _FakeRatesRepository();
+    notifier = _FakeNotifier();
   });
 
   tearDown(() => settings.dispose());
@@ -156,6 +176,7 @@ void main() {
       accountRepositoryProvider.overrideWith((ref) async => repository),
       settingsRepositoryProvider.overrideWith((ref) async => settings),
       exchangeRateRepositoryProvider.overrideWith((ref) async => rates),
+      localNotifierProvider.overrideWithValue(notifier),
     ],
     child: Consumer(
       builder: (context, ref, _) => MaterialApp(
@@ -240,6 +261,59 @@ void main() {
         find.text('The settings row has not been seeded.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('budget alerts. FR-SET-007', () {
+    bool switchedOn(WidgetTester tester) => tester
+        .widget<SwitchListTile>(
+          find.widgetWithText(SwitchListTile, 'Budget alerts'),
+        )
+        .value;
+
+    testWidgets('start off, and nothing has been asked', (tester) async {
+      await open(tester);
+
+      expect(switchedOn(tester), isFalse);
+      expect(notifier.asked, 0);
+    });
+
+    testWidgets('turning on asks the platform, stores it, and the switch '
+        'follows the stored row', (tester) async {
+      await open(tester);
+
+      await tester.tap(find.text('Budget alerts'));
+      await tester.pumpAndSettle();
+
+      expect(notifier.asked, 1);
+      expect(settings.saved, [const UserSettings(budgetAlertsEnabled: true)]);
+      expect(switchedOn(tester), isTrue);
+    });
+
+    testWidgets('a refused permission stores nothing and says where to '
+        'allow it', (tester) async {
+      notifier.grant = false;
+      await open(tester);
+
+      await tester.tap(find.text('Budget alerts'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(SetBudgetAlerts.refusedMessage), findsOneWidget);
+      expect(settings.saved, isEmpty);
+      expect(switchedOn(tester), isFalse);
+    });
+
+    testWidgets('turning off asks nothing', (tester) async {
+      settings.stored = const UserSettings(budgetAlertsEnabled: true);
+      await open(tester);
+      expect(switchedOn(tester), isTrue);
+
+      await tester.tap(find.text('Budget alerts'));
+      await tester.pumpAndSettle();
+
+      expect(notifier.asked, 0);
+      expect(settings.saved, [const UserSettings()]);
+      expect(switchedOn(tester), isFalse);
     });
   });
 

@@ -15,6 +15,7 @@ import 'core/database/seed/keyword_seed.dart';
 import 'core/errors/failures.dart';
 import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
+import 'core/notifications/flutter_local_notifier.dart';
 import 'core/ports/account_reader.dart';
 import 'core/ports/calendar_settings_reader.dart';
 import 'core/ports/category_reader.dart';
@@ -22,7 +23,10 @@ import 'core/ports/category_writer.dart';
 import 'core/ports/conversion_reader.dart';
 import 'core/ports/expense_writer.dart';
 import 'core/ports/income_reader.dart';
+import 'core/ports/local_notifier.dart';
 import 'core/ports/monthly_spending_reader.dart';
+import 'core/ports/notification_settings_reader.dart';
+import 'core/ports/notification_taps.dart';
 import 'core/ports/spending_by_category_reader.dart';
 import 'features/accounts/data/datasources/account_local_datasource.dart';
 import 'features/accounts/data/repositories/account_repository_impl.dart';
@@ -79,6 +83,7 @@ import 'features/money_plan/data/repositories/money_plan_repository_impl.dart';
 import 'features/money_plan/domain/repositories/money_plan_repository.dart';
 import 'features/money_plan/domain/usecases/activate_plan.dart';
 import 'features/money_plan/domain/usecases/allocate_budget.dart';
+import 'features/money_plan/domain/usecases/check_budget_alerts.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compare_plans.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
@@ -111,11 +116,13 @@ import 'features/settings/data/datasources/settings_local_datasource.dart';
 import 'features/settings/data/repositories/calendar_settings_reader_impl.dart';
 import 'features/settings/data/repositories/conversion_reader_impl.dart';
 import 'features/settings/data/repositories/exchange_rate_repository_impl.dart';
+import 'features/settings/data/repositories/notification_settings_reader_impl.dart';
 import 'features/settings/data/repositories/settings_repository_impl.dart';
 import 'features/settings/domain/repositories/exchange_rate_repository.dart';
 import 'features/settings/domain/repositories/settings_repository.dart';
 import 'features/settings/domain/usecases/remove_exchange_rate.dart';
 import 'features/settings/domain/usecases/set_base_currency.dart';
+import 'features/settings/domain/usecases/set_budget_alerts.dart';
 import 'features/settings/domain/usecases/set_exchange_rate.dart';
 import 'features/settings/domain/usecases/set_first_day_of_month.dart';
 import 'features/settings/domain/usecases/set_first_day_of_week.dart';
@@ -649,6 +656,15 @@ final recomputePlanSpendingProvider = FutureProvider<RecomputePlanSpending>(
   ),
 );
 
+/// Announces the active plan's categories crossing 80% and 100%.
+/// FR-SET-007, E-35.
+final checkBudgetAlertsProvider = FutureProvider<CheckBudgetAlerts>(
+  (ref) async => CheckBudgetAlerts(
+    await ref.watch(moneyPlanRepositoryProvider.future),
+    ref.watch(localNotifierProvider),
+  ),
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Receipt scanner
 //
@@ -879,6 +895,42 @@ final setPlanAnalysisMonthsProvider = FutureProvider<SetPlanAnalysisMonths>(
       SetPlanAnalysisMonths(await ref.watch(settingsRepositoryProvider.future)),
 );
 
+/// Turns budget alerts on, asking the platform first, or off. FR-SET-007.
+final setBudgetAlertsProvider = FutureProvider<SetBudgetAlerts>(
+  (ref) async => SetBudgetAlerts(
+    await ref.watch(settingsRepositoryProvider.future),
+    ref.watch(localNotifierProvider),
+  ),
+);
+
+/// The notification settings, for features outside settings. FR-SET-007.
+final notificationSettingsReaderProvider =
+    FutureProvider<NotificationSettingsReader>(
+      (ref) async => NotificationSettingsReaderImpl(
+        await ref.watch(settingsRepositoryProvider.future),
+      ),
+    );
+
+/// [NotificationSettings], kept live, for the Money Plan's budget alerts.
+///
+/// Here rather than in the Money Plan's providers for the reason
+/// [calendarSettingsProvider] is: this file is the one place that may name
+/// both the feature that owns the row and the one that reads it.
+final notificationSettingsProvider = StreamProvider<NotificationSettings>((
+  ref,
+) {
+  return Stream.fromFuture(ref.watch(notificationSettingsReaderProvider.future))
+      .asyncExpand((reader) => reader.watch())
+      .transform(
+        StreamTransformer<
+          Either<Failure, NotificationSettings>,
+          NotificationSettings
+        >.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
+
 /// The calendar settings, for features outside settings. FR-SET-004,
 /// FR-SET-012.
 final calendarSettingsReaderProvider = FutureProvider<CalendarSettingsReader>(
@@ -1082,6 +1134,31 @@ final disableBiometricsProvider = Provider<DisableBiometrics>(
 /// Prompts biometric authentication, for the lock screen. NFR-SEC-004.
 final authenticateWithBiometricsProvider = Provider<AuthenticateWithBiometrics>(
   (ref) => AuthenticateWithBiometrics(ref.watch(biometricGatewayProvider)),
+);
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Notifications
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+/// The one platform notifier, behind both of its contracts.
+///
+/// Private and concretely typed, as the analytics repository's provider is,
+/// so [localNotifierProvider] and [notificationTapsProvider] hand out the
+/// same object â€” the taps it reports are of the notifications it showed.
+final _flutterLocalNotifierProvider = Provider<FlutterLocalNotifier>(
+  (ref) => FlutterLocalNotifier(),
+);
+
+/// The device's notification tray. FR-SET-007.
+///
+/// Overridden with a fake in widget tests, where a method channel never
+/// answers â€” the reason this is a provider, as [biometricGatewayProvider] is.
+final localNotifierProvider = Provider<LocalNotifier>(
+  (ref) => ref.watch(_flutterLocalNotifierProvider),
+);
+
+/// Notifications the user tapped, for the app root to open. FR-SET-007.
+final notificationTapsProvider = Provider<NotificationTaps>(
+  (ref) => ref.watch(_flutterLocalNotifierProvider),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
