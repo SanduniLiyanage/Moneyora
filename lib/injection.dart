@@ -45,10 +45,17 @@ import 'features/analytics/domain/usecases/get_spending_trend.dart';
 import 'features/auth/data/datasources/auth_local_datasource.dart';
 import 'features/auth/data/datasources/pin_hasher.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/data/repositories/local_auth_biometric_gateway.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
+import 'features/auth/domain/repositories/biometric_gateway.dart';
+import 'features/auth/domain/usecases/authenticate_with_biometrics.dart';
 import 'features/auth/domain/usecases/change_passcode.dart';
+import 'features/auth/domain/usecases/disable_biometrics.dart';
+import 'features/auth/domain/usecases/enable_biometrics.dart';
 import 'features/auth/domain/usecases/get_lockout_state.dart';
 import 'features/auth/domain/usecases/has_passcode.dart';
+import 'features/auth/domain/usecases/is_biometrics_available.dart';
+import 'features/auth/domain/usecases/is_biometrics_enabled.dart';
 import 'features/auth/domain/usecases/remove_passcode.dart';
 import 'features/auth/domain/usecases/set_passcode.dart';
 import 'features/auth/domain/usecases/verify_passcode.dart';
@@ -1038,6 +1045,43 @@ final removePasscodeProvider = Provider<RemovePasscode>(
     ref.watch(authRepositoryProvider),
     ref.watch(verifyPasscodeProvider),
   ),
+);
+
+/// The device's fingerprint / Face ID sensor, over `local_auth`. NFR-SEC-004.
+///
+/// Overridden with a fake in widget tests, where a method channel never
+/// answers — the reason this is a provider and not a constructor call
+/// inside the use cases below, the way [textRecogniserProvider] is one.
+final biometricGatewayProvider = Provider<BiometricGateway>(
+  (ref) => LocalAuthBiometricGateway(),
+);
+
+/// Whether the device can authenticate biometrically at all. NFR-SEC-004.
+final isBiometricsAvailableProvider = Provider<IsBiometricsAvailable>(
+  (ref) => IsBiometricsAvailable(ref.watch(biometricGatewayProvider)),
+);
+
+/// Whether biometric unlock is turned on. NFR-SEC-004.
+final isBiometricsEnabledProvider = Provider<IsBiometricsEnabled>(
+  (ref) => IsBiometricsEnabled(ref.watch(authRepositoryProvider)),
+);
+
+/// Turns biometric unlock on, after one successful prompt. NFR-SEC-004.
+final enableBiometricsProvider = Provider<EnableBiometrics>(
+  (ref) => EnableBiometrics(
+    ref.watch(authRepositoryProvider),
+    ref.watch(biometricGatewayProvider),
+  ),
+);
+
+/// Turns biometric unlock off. NFR-SEC-004.
+final disableBiometricsProvider = Provider<DisableBiometrics>(
+  (ref) => DisableBiometrics(ref.watch(authRepositoryProvider)),
+);
+
+/// Prompts biometric authentication, for the lock screen. NFR-SEC-004.
+final authenticateWithBiometricsProvider = Provider<AuthenticateWithBiometrics>(
+  (ref) => AuthenticateWithBiometrics(ref.watch(biometricGatewayProvider)),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────

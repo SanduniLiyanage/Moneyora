@@ -148,6 +148,20 @@ class LockScreenController extends AutoDisposeAsyncNotifier<LockoutState> {
     );
     return result;
   }
+
+  /// Attempts biometric unlock, showing [reason] on the OS prompt.
+  ///
+  /// Bypasses the lockout entirely — it is not `VerifyPasscode`, and does
+  /// not touch [LockoutState] — because the lockout defends the PIN alone;
+  /// the sensor is the OS's to rate-limit. A failed or declined prompt
+  /// leaves the screen exactly as it was, the same as a PIN not yet typed.
+  Future<void> unlockWithBiometrics(String reason) async {
+    final authenticate = ref.read(authenticateWithBiometricsProvider);
+    final result = await authenticate(reason);
+    result.match((_) {}, (ok) {
+      if (ok) ref.read(appLockProvider.notifier).unlock();
+    });
+  }
 }
 
 /// Controller for the lock screen.
@@ -217,4 +231,73 @@ class PasscodeController extends AutoDisposeAsyncNotifier<void> {
 final passcodeControllerProvider =
     AutoDisposeAsyncNotifierProvider<PasscodeController, void>(
       PasscodeController.new,
+    );
+
+/// Whether biometric unlock is turned on. NFR-SEC-004.
+///
+/// Invalidated by [BiometricsController] after every write, the way
+/// [passcodeEnabledProvider] is.
+final biometricsEnabledProvider = FutureProvider<bool>((ref) async {
+  final isEnabled = ref.watch(isBiometricsEnabledProvider);
+  final result = await isEnabled(const NoParams());
+  return result.match(Future<bool>.error, Future<bool>.value);
+});
+
+/// Whether the device has a usable biometric sensor. NFR-SEC-004.
+///
+/// Read once for the settings row: a fingerprint enrolled while the
+/// settings screen happens to be open is not a case worth watching for.
+final biometricsAvailableProvider = FutureProvider<bool>((ref) async {
+  final isAvailable = ref.watch(isBiometricsAvailableProvider);
+  final result = await isAvailable(const NoParams());
+  return result.match(Future<bool>.error, Future<bool>.value);
+});
+
+/// Turning biometric unlock on or off from Settings. NFR-SEC-004.
+class BiometricsController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Turns biometric unlock on. [reason] is shown on the OS prompt. Returns
+  /// the failure, if any, the same shape as [PasscodeController.set] — null
+  /// covers both success and a declined prompt, since neither is an error
+  /// the settings screen need show; the toggle's own state says which.
+  Future<Failure?> enable(String reason) async {
+    state = const AsyncValue<void>.loading();
+    final result = await ref.read(enableBiometricsProvider)(reason);
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return failure;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        ref.invalidate(biometricsEnabledProvider);
+        return null;
+      },
+    );
+  }
+
+  /// Turns biometric unlock off.
+  Future<Failure?> disable() async {
+    state = const AsyncValue<void>.loading();
+    final result = await ref.read(disableBiometricsProvider)(const NoParams());
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return failure;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        ref.invalidate(biometricsEnabledProvider);
+        return null;
+      },
+    );
+  }
+}
+
+/// Controller for the biometrics row on the settings screen.
+final biometricsControllerProvider =
+    AutoDisposeAsyncNotifierProvider<BiometricsController, void>(
+      BiometricsController.new,
     );

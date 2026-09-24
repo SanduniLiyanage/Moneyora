@@ -49,6 +49,8 @@
 		</dict>
 		<key>NSCameraUsageDescription</key>
 		<string>Moneyora photographs a receipt to read its items. The photo is processed on this device and never uploaded.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Moneyora uses Face ID to unlock the app instead of your PIN.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Moneyora reads a receipt photo you choose. The photo is processed on this device and never uploaded.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>

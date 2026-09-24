@@ -66,6 +66,17 @@ class AuthRepositoryImpl implements AuthRepository {
         return unit;
       });
 
+  @override
+  Future<Either<Failure, bool>> isBiometricsEnabled() =>
+      _attempt(_local.readBiometricsEnabled);
+
+  @override
+  Future<Either<Failure, Unit>> setBiometricsEnabled({required bool enabled}) =>
+      _attempt(() async {
+        await _local.writeBiometricsEnabled(enabled: enabled);
+        return unit;
+      });
+
   Future<Either<Failure, T>> _attempt<T>(Future<T> Function() body) async {
     try {
       return Right(await body());

@@ -10,6 +10,7 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/features/auth/domain/entities/lockout_state.dart';
 import 'package:moneyora/features/auth/domain/repositories/auth_repository.dart';
+import 'package:moneyora/features/auth/domain/repositories/biometric_gateway.dart';
 import 'package:moneyora/features/auth/presentation/pages/passcode_flow_page.dart';
 import 'package:moneyora/features/auth/presentation/widgets/security_settings_section.dart';
 import 'package:moneyora/injection.dart';
@@ -23,16 +24,19 @@ import 'package:moneyora/injection.dart';
 /// PIN in the clear; the use cases, the controllers and the pages are real.
 void main() {
   late _FakeRepository repository;
+  late _FakeGateway gateway;
   late DateTime now;
 
   setUp(() {
     repository = _FakeRepository();
+    gateway = _FakeGateway();
     now = DateTime(2026, 9, 21, 9);
   });
 
   Widget boot() => ProviderScope(
     overrides: [
       authRepositoryProvider.overrideWithValue(repository),
+      biometricGatewayProvider.overrideWithValue(gateway),
       clockProvider.overrideWithValue(() => now),
     ],
     child: MaterialApp.router(
@@ -263,12 +267,92 @@ void main() {
       expect(repository.pin, '1234');
     });
   });
+
+  group('biometrics', () {
+    testWidgets('no row while there is no passcode, even if available', (
+      tester,
+    ) async {
+      await open(tester);
+
+      expect(find.text('Biometric unlock'), findsNothing);
+    });
+
+    testWidgets('no row when the device has no usable sensor', (tester) async {
+      repository.pin = '1234';
+      gateway.available = false;
+      await open(tester);
+
+      expect(find.text('Biometric unlock'), findsNothing);
+    });
+
+    testWidgets('a row, off, once a passcode exists and the sensor agrees', (
+      tester,
+    ) async {
+      repository.pin = '1234';
+      await open(tester);
+
+      expect(find.text('Biometric unlock'), findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isFalse,
+      );
+    });
+
+    testWidgets('turning it on prompts once, and the switch follows', (
+      tester,
+    ) async {
+      repository.pin = '1234';
+      gateway.authenticateResult = true;
+      await open(tester);
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(gateway.authenticateCalls, [
+        'Confirm it is you to turn on biometric unlock.',
+      ]);
+      expect(repository.biometricsEnabled, isTrue);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isTrue,
+      );
+    });
+
+    testWidgets('a declined prompt leaves the switch off', (tester) async {
+      repository.pin = '1234';
+      gateway.authenticateResult = false;
+      await open(tester);
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(repository.biometricsEnabled, isFalse);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isFalse,
+      );
+    });
+
+    testWidgets('turning it off needs no prompt', (tester) async {
+      repository
+        ..pin = '1234'
+        ..biometricsEnabled = true;
+      await open(tester);
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(gateway.authenticateCalls, isEmpty);
+      expect(repository.biometricsEnabled, isFalse);
+    });
+  });
 }
 
 class _FakeRepository implements AuthRepository {
   String? pin;
   LockoutState lockout = LockoutState.none;
   Failure? failWith;
+  bool biometricsEnabled = false;
 
   @override
   Future<Either<Failure, bool>> hasPasscode() async {
@@ -309,5 +393,37 @@ class _FakeRepository implements AuthRepository {
     if (failWith case final failure?) return Left(failure);
     lockout = state;
     return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, bool>> isBiometricsEnabled() async {
+    if (failWith case final failure?) return Left(failure);
+    return Right(biometricsEnabled);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> setBiometricsEnabled({
+    required bool enabled,
+  }) async {
+    if (failWith case final failure?) return Left(failure);
+    biometricsEnabled = enabled;
+    return const Right(unit);
+  }
+}
+
+/// The biometric sensor, faked. Every prompt is recorded so a test can
+/// prove the toggle did or did not ask.
+class _FakeGateway implements BiometricGateway {
+  bool available = true;
+  bool authenticateResult = false;
+  final List<String> authenticateCalls = [];
+
+  @override
+  Future<Either<Failure, bool>> isAvailable() async => Right(available);
+
+  @override
+  Future<Either<Failure, bool>> authenticate(String reason) async {
+    authenticateCalls.add(reason);
+    return Right(authenticateResult);
   }
 }

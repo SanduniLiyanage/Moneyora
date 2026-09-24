@@ -75,6 +75,7 @@ class SecuritySettingsSection extends ConsumerWidget {
                 title: const Text('Remove passcode'),
                 onTap: () => _open(context, PasscodeFlow.remove),
               ),
+              const _BiometricsRow(),
             ],
           ),
           AsyncError(:final Failure error) => ListTile(
@@ -91,6 +92,48 @@ class SecuritySettingsSection extends ConsumerWidget {
           ),
         },
       ],
+    );
+  }
+}
+
+/// The biometrics toggle, under the passcode rows. NFR-SEC-004.
+///
+/// A widget of its own so it can read [biometricsAvailableProvider] and
+/// [biometricsEnabledProvider] without making the whole section rebuild on
+/// them, and so a device with no sensor draws nothing here at all.
+class _BiometricsRow extends ConsumerWidget {
+  const _BiometricsRow();
+
+  Future<void> _toggle(BuildContext context, WidgetRef ref, bool turnOn) async {
+    final controller = ref.read(biometricsControllerProvider.notifier);
+    final failure = turnOn
+        ? await controller.enable(
+            'Confirm it is you to turn on biometric unlock.',
+          )
+        : await controller.disable();
+    if (failure == null || !context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(failure.message)));
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final available = ref.watch(biometricsAvailableProvider);
+    if (available case AsyncData(value: false)) {
+      return const SizedBox.shrink();
+    }
+
+    final biometricsEnabled = ref.watch(biometricsEnabledProvider);
+    final busy = ref.watch(biometricsControllerProvider).isLoading;
+
+    return SwitchListTile(
+      secondary: const Icon(Icons.fingerprint),
+      title: const Text('Biometric unlock'),
+      subtitle: const Text('Use your fingerprint or face instead of the PIN.'),
+      value: biometricsEnabled.valueOrNull ?? false,
+      onChanged: busy || !biometricsEnabled.hasValue
+          ? null
+          : (turnOn) => _toggle(context, ref, turnOn),
     );
   }
 }

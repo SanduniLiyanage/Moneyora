@@ -51,6 +51,12 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     });
   }
 
+  Future<void> _useBiometrics() async {
+    await ref
+        .read(lockScreenControllerProvider.notifier)
+        .unlockWithBiometrics('Unlock Moneyora');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -113,6 +119,18 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                         )
                       : null,
                 ),
+                if (ref.watch(biometricsEnabledProvider).valueOrNull ??
+                    false) ...[
+                  const SizedBox(height: 8),
+                  // Usable even while [locked]: the lockout above defends
+                  // the PIN only, and the OS rate-limits the sensor itself.
+                  IconButton(
+                    onPressed: _checking ? null : _useBiometrics,
+                    icon: const Icon(Icons.fingerprint),
+                    iconSize: 36,
+                    tooltip: 'Use biometrics',
+                  ),
+                ],
               ],
             ),
           ),

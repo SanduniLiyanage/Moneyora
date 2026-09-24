@@ -39,4 +39,14 @@ abstract class AuthRepository {
 
   /// Stores [state]. Storing [LockoutState.none] may remove the entry.
   Future<Either<Failure, Unit>> saveLockout(LockoutState state);
+
+  /// Whether biometric unlock is turned on. False until
+  /// [setBiometricsEnabled] turns it on. NFR-SEC-004.
+  Future<Either<Failure, bool>> isBiometricsEnabled();
+
+  /// Turns biometric unlock on or off. NFR-SEC-004.
+  ///
+  /// Storage only — whether a PIN exists and whether the sensor agrees are
+  /// `EnableBiometrics`'s decisions, made before this is called.
+  Future<Either<Failure, Unit>> setBiometricsEnabled({required bool enabled});
 }

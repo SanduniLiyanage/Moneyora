@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/auth/domain/entities/lockout_state.dart';
 import 'package:moneyora/features/auth/domain/repositories/auth_repository.dart';
+import 'package:moneyora/features/auth/domain/repositories/biometric_gateway.dart';
 import 'package:moneyora/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyora/features/auth/presentation/widgets/auth_gate.dart';
 import 'package:moneyora/injection.dart';
@@ -23,18 +24,21 @@ import 'package:moneyora/injection.dart';
 /// reaches the gate before the router depends on that arrangement.
 void main() {
   late _FakeRepository repository;
+  late _FakeGateway gateway;
   late DateTime now;
 
   final t0 = DateTime(2026, 9, 21, 9);
 
   setUp(() {
     repository = _FakeRepository();
+    gateway = _FakeGateway();
     now = t0;
   });
 
   Widget boot() => ProviderScope(
     overrides: [
       authRepositoryProvider.overrideWithValue(repository),
+      biometricGatewayProvider.overrideWithValue(gateway),
       clockProvider.overrideWithValue(() => now),
     ],
     child: MaterialApp.router(
@@ -83,6 +87,14 @@ void main() {
           .widget<TextButton>(find.widgetWithText(TextButton, digit))
           .onPressed !=
       null;
+
+  /// Scrolls the fingerprint button into view and taps it — the loading
+  /// spinner's reserved space pushes it below the fold at test window size.
+  Future<void> useBiometrics(WidgetTester tester) async {
+    await tester.ensureVisible(find.byIcon(Icons.fingerprint));
+    await tester.tap(find.byIcon(Icons.fingerprint));
+    await tester.pumpAndSettle();
+  }
 
   Future<void> lifecycle(WidgetTester tester, AppLifecycleState state) async {
     tester.binding.handleAppLifecycleStateChanged(state);
@@ -311,6 +323,57 @@ void main() {
       expect(find.text('keychain unavailable'), findsOneWidget);
       expect(find.text('Enter your PIN'), findsOneWidget);
     });
+
+    group('with biometrics on', () {
+      setUp(() => repository.biometricsEnabled = true);
+
+      testWidgets('no fingerprint button when biometrics is off', (
+        tester,
+      ) async {
+        repository.biometricsEnabled = false;
+        await open(tester);
+
+        expect(find.byIcon(Icons.fingerprint), findsNothing);
+      });
+
+      testWidgets('the sensor agreeing opens the app', (tester) async {
+        gateway.authenticateResult = true;
+        await open(tester);
+
+        await useBiometrics(tester);
+
+        expect(find.text('Home'), findsOneWidget);
+        expect(gateway.authenticateCalls, ['Unlock Moneyora']);
+        // Never went near the PIN's own lockout.
+        expect(repository.lockoutWrites, isEmpty);
+      });
+
+      testWidgets('a declined prompt leaves the pad exactly as it was', (
+        tester,
+      ) async {
+        gateway.authenticateResult = false;
+        await open(tester);
+
+        await useBiometrics(tester);
+
+        expect(find.text('Enter your PIN'), findsOneWidget);
+        expect(repository.lockoutWrites, isEmpty);
+      });
+
+      testWidgets('usable while a PIN lockout is running', (tester) async {
+        gateway.authenticateResult = true;
+        await open(tester);
+
+        for (var i = 0; i < 5; i++) {
+          await enter(tester, '0000');
+        }
+        expect(keyEnabled(tester, '1'), isFalse);
+
+        await useBiometrics(tester);
+
+        expect(find.text('Home'), findsOneWidget);
+      });
+    });
   });
 }
 
@@ -318,6 +381,7 @@ class _FakeRepository implements AuthRepository {
   String? pin;
   LockoutState lockout = LockoutState.none;
   Failure? failWith;
+  bool biometricsEnabled = false;
   final List<LockoutState> lockoutWrites = [];
 
   @override
@@ -360,5 +424,37 @@ class _FakeRepository implements AuthRepository {
     lockout = state;
     lockoutWrites.add(state);
     return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, bool>> isBiometricsEnabled() async {
+    if (failWith case final failure?) return Left(failure);
+    return Right(biometricsEnabled);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> setBiometricsEnabled({
+    required bool enabled,
+  }) async {
+    if (failWith case final failure?) return Left(failure);
+    biometricsEnabled = enabled;
+    return const Right(unit);
+  }
+}
+
+/// The biometric sensor, faked. Every prompt is recorded so a test can
+/// prove the button asked for one.
+class _FakeGateway implements BiometricGateway {
+  bool available = true;
+  bool authenticateResult = false;
+  final List<String> authenticateCalls = [];
+
+  @override
+  Future<Either<Failure, bool>> isAvailable() async => Right(available);
+
+  @override
+  Future<Either<Failure, bool>> authenticate(String reason) async {
+    authenticateCalls.add(reason);
+    return Right(authenticateResult);
   }
 }
