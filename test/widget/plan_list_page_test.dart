@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
 import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
@@ -75,6 +76,11 @@ class _MemoryRepository implements MoneyPlanRepository {
     _changes.add(null);
     return const Right(unit);
   }
+
+  @override
+  Future<Either<Failure, Set<int>>> recordAlertLevels(
+    List<AlertLevelChange> changes,
+  ) => throw UnimplementedError();
 
   @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) async {

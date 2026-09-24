@@ -8,6 +8,8 @@ import 'package:moneyora/features/money_plan/data/datasources/money_plan_local_d
 import 'package:moneyora/features/money_plan/data/models/money_plan_model.dart';
 import 'package:moneyora/features/money_plan/data/models/plan_allocation_model.dart';
 import 'package:moneyora/features/money_plan/data/repositories/money_plan_repository_impl.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_evaluation.dart';
+import 'package:moneyora/features/money_plan/domain/entities/budget_alert_level.dart';
 import 'package:moneyora/features/money_plan/domain/entities/confidence_score.dart';
 import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
@@ -28,6 +30,8 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   MoneyPlanModel? previous;
   String? askedBefore;
   int reads = 0;
+  List<AlertLevelChange>? alertChanges;
+  int alertCalls = 0;
 
   void tick() => _changes.add(null);
 
@@ -90,6 +94,14 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   Future<void> recomputeSpent(int planId) async {
     if (throws case final e?) throw e;
     recomputed = planId;
+  }
+
+  @override
+  Future<Set<int>> recordAlertLevels(List<AlertLevelChange> changes) async {
+    alertCalls += 1;
+    if (throws case final e?) throw e;
+    alertChanges = changes;
+    return {for (final c in changes) c.allocationId};
   }
 }
 
@@ -166,6 +178,45 @@ void main() {
       const Right<Failure, Unit>(unit),
     );
     expect(source.recomputed, 5);
+  });
+
+  group('recordAlertLevels', () {
+    const change = AlertLevelChange(
+      allocationId: 1,
+      from: BudgetAlertLevel.none,
+      to: BudgetAlertLevel.warning,
+    );
+
+    test('passes the changes through and returns the ids that moved', () async {
+      final source = _FakeDataSource();
+      final repository = MoneyPlanRepositoryImpl(source);
+
+      final result = await repository.recordAlertLevels(const [change]);
+
+      expect(result.getOrElse((_) => fail('left')), {1});
+      expect(source.alertChanges, const [change]);
+    });
+
+    test('opens no transaction for nothing', () async {
+      final source = _FakeDataSource();
+      final repository = MoneyPlanRepositoryImpl(source);
+
+      final result = await repository.recordAlertLevels(const []);
+
+      expect(result.getOrElse((_) => fail('left')), isEmpty);
+      expect(source.alertCalls, 0);
+    });
+
+    test('turns a cache exception into a failure', () async {
+      final repository = MoneyPlanRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      expect(
+        await repository.recordAlertLevels(const [change]),
+        const Left<Failure, Set<int>>(CacheFailure('disk is full')),
+      );
+    });
   });
 
   test('turns a cache exception into a failure at this boundary', () async {

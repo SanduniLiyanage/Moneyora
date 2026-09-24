@@ -31,6 +31,10 @@ import '../providers/settings_providers.dart';
 /// period and every plan period; the lookback is read by the Money Plan
 /// wizard, which says where to change it and does not offer to.
 ///
+/// *Notifications* holds FR-SET-007's budget alerts, off until turned on
+/// here — which is where the platform's permission is asked for, so the
+/// prompt arrives with the choice it is for (E-35).
+///
 /// *Security* is not drawn here at all. Its rows belong to the auth feature
 /// (FR-SET-005), which this screen may not import, so the router hands them
 /// in as [securitySection] — the way the accounts panel reaches the home
@@ -91,7 +95,8 @@ class SettingsPage extends ConsumerWidget {
         .showSnackBar(SnackBar(content: Text(failure.message)));
   }
 
-  /// Shows a failure from any calendar write. FR-SET-004, FR-SET-012.
+  /// Shows a failure from any calendar or notification write. FR-SET-004,
+  /// FR-SET-007, FR-SET-012.
   void _report(BuildContext context, Failure? failure) {
     if (failure == null) return;
     ScaffoldMessenger.of(context)
@@ -164,6 +169,7 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(recalculateBalancesControllerProvider).isLoading;
+    final alertsBusy = ref.watch(budgetAlertsControllerProvider).isLoading;
     final settings = ref.watch(settingsProvider);
     final theme = settings.asData?.value.theme;
     final baseCurrency = settings.asData?.value.currency;
@@ -341,6 +347,26 @@ class SettingsPage extends ConsumerWidget {
                     },
             ),
             if (securitySection case final Widget section) section,
+            const _SectionHeader('Notifications'),
+            SwitchListTile(
+              secondary: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Budget alerts'),
+              subtitle: const Text(
+                'A notification when a category of your active plan reaches '
+                '80% of its budget, and again at 100%.',
+              ),
+              value: calendar?.budgetAlertsEnabled ?? false,
+              // Not interactive until the stored value is known, nor while a
+              // change — and its permission prompt — is under way.
+              onChanged: calendar == null || alertsBusy
+                  ? null
+                  : (enabled) async {
+                      final failure = await ref
+                          .read(budgetAlertsControllerProvider.notifier)
+                          .set(enabled: enabled);
+                      if (context.mounted) _report(context, failure);
+                    },
+            ),
             const _SectionHeader('Data'),
             ListTile(
               enabled: !busy,

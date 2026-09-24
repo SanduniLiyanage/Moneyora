@@ -77,11 +77,24 @@ void main() {
         firstDayOfMonth: 25,
         savingsTargetPct: 12.5,
         planAnalysisMonths: 18,
+        budgetAlertsEnabled: true,
       );
 
       await settings.write(changed);
 
       expect((await settings.read()).toEntity(), changed.toEntity());
+    });
+
+    test('stores budget alerts as the column one, and off as zero', () async {
+      // FR-SET-007, E-35.
+      await seedUser();
+
+      await settings.write(const UserSettingsModel(budgetAlertsEnabled: true));
+      expect((await db.query('users')).single['budget_alerts_enabled'], 1);
+
+      await settings.write(const UserSettingsModel());
+      expect((await db.query('users')).single['budget_alerts_enabled'], 0);
+      expect((await settings.read()).budgetAlertsEnabled, isFalse);
     });
 
     test('stores Sunday as the column zero and reads it back', () async {

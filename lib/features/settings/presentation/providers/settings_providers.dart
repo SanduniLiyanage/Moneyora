@@ -164,6 +164,37 @@ final calendarControllerProvider =
       CalendarController.new,
     );
 
+/// Turning budget alerts on or off. FR-SET-007.
+///
+/// On asks the platform for permission first; a refusal comes back as the
+/// use case's sentence, which says where the permission can be given now.
+class BudgetAlertsController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Stores [enabled]. Returns the failure, for its sentence.
+  Future<Failure?> set({required bool enabled}) async {
+    state = const AsyncValue<void>.loading();
+    final setBudgetAlerts = await ref.read(setBudgetAlertsProvider.future);
+    return (await setBudgetAlerts(enabled)).match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return failure;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return null;
+      },
+    );
+  }
+}
+
+/// Controller for the budget-alerts switch.
+final budgetAlertsControllerProvider =
+    AutoDisposeAsyncNotifierProvider<BudgetAlertsController, void>(
+      BudgetAlertsController.new,
+    );
+
 /// Every stored exchange rate, kept live. FR-SET-003.
 final exchangeRatesProvider = StreamProvider<List<ExchangeRate>>((ref) {
   return Stream.fromFuture(ref.watch(watchExchangeRatesProvider.future))

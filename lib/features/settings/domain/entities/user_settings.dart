@@ -50,6 +50,7 @@ class UserSettings extends Equatable {
     this.firstDayOfMonth = 1,
     this.savingsTargetPct = 0,
     this.planAnalysisMonths = 6,
+    this.budgetAlertsEnabled = false,
   });
 
   /// Light, dark, or the device's choice. FR-SET-001.
@@ -79,6 +80,13 @@ class UserSettings extends Equatable {
   /// 1–24 months of history for the Money Plan. FR-SET-012, FR-PLN-003.
   final int planAnalysisMonths;
 
+  /// Whether a plan category crossing 80% and 100% is announced. FR-SET-007.
+  ///
+  /// Off until the user turns it on, which is where the platform's
+  /// notification permission is asked for. The DBD's row had no column for
+  /// it; schema v5 added one (E-35).
+  final bool budgetAlertsEnabled;
+
   /// A copy with the given fields replaced.
   UserSettings copyWith({
     AppThemeMode? theme,
@@ -88,6 +96,7 @@ class UserSettings extends Equatable {
     int? firstDayOfMonth,
     double? savingsTargetPct,
     int? planAnalysisMonths,
+    bool? budgetAlertsEnabled,
   }) => UserSettings(
     theme: theme ?? this.theme,
     language: language ?? this.language,
@@ -96,6 +105,7 @@ class UserSettings extends Equatable {
     firstDayOfMonth: firstDayOfMonth ?? this.firstDayOfMonth,
     savingsTargetPct: savingsTargetPct ?? this.savingsTargetPct,
     planAnalysisMonths: planAnalysisMonths ?? this.planAnalysisMonths,
+    budgetAlertsEnabled: budgetAlertsEnabled ?? this.budgetAlertsEnabled,
   );
 
   @override
@@ -107,5 +117,6 @@ class UserSettings extends Equatable {
     firstDayOfMonth,
     savingsTargetPct,
     planAnalysisMonths,
+    budgetAlertsEnabled,
   ];
 }

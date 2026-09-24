@@ -1,8 +1,10 @@
+import '../../domain/entities/budget_alert_level.dart';
 import '../../domain/entities/category_classification.dart';
 import '../../domain/entities/confidence_score.dart';
 import '../../domain/entities/plan_allocation.dart';
 
-/// Persistence mapping for [PlanAllocation]. FR-PLN-007, FR-PLN-010.
+/// Persistence mapping for [PlanAllocation]. FR-PLN-007, FR-PLN-010,
+/// FR-SET-007.
 ///
 /// The stored strings for [ConfidenceLevel] and [ExpenseType] live here,
 /// not on the enums: what the schema calls them is the data layer's
@@ -10,6 +12,8 @@ import '../../domain/entities/plan_allocation.dart';
 /// enum names as `v1_initial.dart` wrote them — lowercase, like every other
 /// check constraint in the schema (the DBD capitalised them, and called the
 /// class column `expense_type`; the schema as built is what is mapped).
+/// [BudgetAlertLevel]'s stored form is the percentage it names (E-35), for
+/// the same reason.
 class PlanAllocationModel extends PlanAllocation {
   /// Creates a model directly. Prefer [fromEntity] or [fromMap].
   const PlanAllocationModel({
@@ -23,6 +27,7 @@ class PlanAllocationModel extends PlanAllocation {
     super.expenseType,
     super.isUserModified,
     super.notes,
+    super.alertedLevel,
   });
 
   /// Wraps an entity so it can be written.
@@ -38,6 +43,7 @@ class PlanAllocationModel extends PlanAllocation {
         expenseType: a.expenseType,
         isUserModified: a.isUserModified,
         notes: a.notes,
+        alertedLevel: a.alertedLevel,
       );
 
   /// Rebuilds a model from a `plan_allocations` row joined to `categories`
@@ -57,11 +63,14 @@ class PlanAllocationModel extends PlanAllocation {
         },
         isUserModified: map['is_user_modified'] == 1,
         notes: map['notes'] as String?,
+        alertedLevel: decodeAlertLevel(map['alerted_level']! as int),
       );
 
   /// The row to insert under [planId]. `spent_amount_cents` is written as
   /// given (0 on a fresh draft), recounted by the datasource when the plan
   /// is active, and moved by every expense write after that. FR-PLN-013.
+  /// `alerted_level` likewise — none on a fresh draft, so a plan activated
+  /// past a threshold announces it (FR-SET-007).
   Map<String, Object?> toMap(int planId) => {
     'plan_id': planId,
     'category_id': categoryId,
@@ -74,11 +83,14 @@ class PlanAllocationModel extends PlanAllocation {
         : encodeExpenseType(expenseType!),
     'is_user_modified': isUserModified ? 1 : 0,
     'notes': notes,
+    'alerted_level': encodeAlertLevel(alertedLevel),
   };
 
   /// The columns FR-PLN-011 and FR-PLN-014 rewrite. Never the spend: that
   /// is the transactions datasource's cache (FR-PLN-013), and a row read
-  /// a moment ago may already be stale on it.
+  /// a moment ago may already be stale on it. Never the alert level
+  /// either, for the same reason: that column moves only by
+  /// compare-and-set (E-35).
   Map<String, Object?> toAllocationUpdateMap() => {
     'allocated_amount_cents': allocatedCents,
     'carry_over_cents': carryOverCents,
@@ -99,6 +111,22 @@ class PlanAllocationModel extends PlanAllocation {
   static ExpenseType decodeExpenseType(String value) =>
       ExpenseType.values.byName(value);
 
+  /// `alerted_level`'s stored form: the percentage the level names.
+  static int encodeAlertLevel(BudgetAlertLevel level) => switch (level) {
+    BudgetAlertLevel.none => 0,
+    BudgetAlertLevel.warning => 80,
+    BudgetAlertLevel.exceeded => 100,
+  };
+
+  /// [BudgetAlertLevel] from its stored form, refusing anything the CHECK
+  /// would have refused.
+  static BudgetAlertLevel decodeAlertLevel(int value) => switch (value) {
+    0 => BudgetAlertLevel.none,
+    80 => BudgetAlertLevel.warning,
+    100 => BudgetAlertLevel.exceeded,
+    _ => throw FormatException('Unknown alert level', value),
+  };
+
   /// Converts back at the repository boundary: Equatable compares
   /// `runtimeType`, so a model handed upward never equals an entity.
   PlanAllocation toEntity() => PlanAllocation(
@@ -112,5 +140,6 @@ class PlanAllocationModel extends PlanAllocation {
     expenseType: expenseType,
     isUserModified: isUserModified,
     notes: notes,
+    alertedLevel: alertedLevel,
   );
 }
