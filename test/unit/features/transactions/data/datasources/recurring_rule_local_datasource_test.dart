@@ -456,6 +456,155 @@ void main() {
     });
   });
 
+  // ── the rules list: all, pause, resume, delete ────────────────────────────
+
+  group('all', () {
+    test('returns every rule, active and stopped, with its template', () async {
+      final a = await createMonthlyRent();
+      final b = await source.create(
+        first: rentOn(DateTime(2026, 1, 2), accountId: bank),
+        rule: monthlyFrom(DateTime(2026, 1, 2)),
+      );
+      await source.pause(b);
+
+      final rows = await source.all();
+
+      expect(rows.map((r) => r.rule.id), [a, b]);
+      expect(rows.map((r) => r.rule.isActive), [true, false]);
+      expect(rows.last.template!.accountId, bank);
+    });
+
+    test('is empty with no rules', () async {
+      expect(await source.all(), isEmpty);
+    });
+  });
+
+  group('pause and resume', () {
+    test('pause stops the rule and nothing else', () async {
+      final id = await createMonthlyRent();
+      await source.pause(id);
+
+      final rule = await ruleRow(id);
+      expect(rule['is_active'], 0);
+      expect(rule['next_due_date'], '2026-02-05');
+      expect(await source.due(DateTime(2026, 6)), isEmpty);
+    });
+
+    test('resume starts it again from the date given', () async {
+      final id = await createMonthlyRent();
+      await source.pause(id);
+      await source.resume(id, DateTime(2026, 7, 5));
+
+      final rule = await ruleRow(id);
+      expect(rule['is_active'], 1);
+      expect(rule['next_due_date'], '2026-07-05');
+    });
+
+    test('resume refuses a rule with no template (E-36)', () async {
+      final id = await createMonthlyRent();
+      await db.update(
+        'recurring_rules',
+        {'template_tx_id': null, 'is_active': 0},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+      await expectLater(
+        source.resume(id, DateTime(2026, 7, 5)),
+        throwsA(isA<CacheException>()),
+      );
+      expect((await ruleRow(id))['is_active'], 0);
+    });
+
+    test('a missing rule is refused, not ignored', () async {
+      await expectLater(source.pause(999), throwsA(isA<CacheException>()));
+      await expectLater(
+        source.resume(999, DateTime(2026, 7, 5)),
+        throwsA(isA<CacheException>()),
+      );
+    });
+
+    test('both fire the change signal', () async {
+      final id = await createMonthlyRent();
+      var fired = bus.changes.first;
+      await source.pause(id);
+      await expectLater(fired, completes);
+      fired = bus.changes.first;
+      await source.resume(id, DateTime(2026, 7, 5));
+      await expectLater(fired, completes);
+    });
+  });
+
+  group('delete (E-36)', () {
+    test('keeps every entry, unlinked and still marked as generated', () async {
+      final id = await createMonthlyRent();
+      await source.post(
+        ruleId: id,
+        expectedNextDueDate: DateTime(2026, 2, 5),
+        entries: [rentOn(DateTime(2026, 2, 5)).copyWithRule(id)],
+        nextDueDate: DateTime(2026, 3, 5),
+        ended: false,
+        postedAt: DateTime(2026, 2, 5),
+      );
+
+      await source.delete(id);
+
+      expect(await count('recurring_rules'), 0);
+      final rows = await db.query('transactions', orderBy: 'date ASC');
+      expect(rows, hasLength(2));
+      expect(rows.map((r) => r['recurring_rule_id']), [null, null]);
+      expect(rows.map((r) => r['is_recurring']), [1, 1]);
+      // Money that moved stays moved.
+      expect(await balance(cash), -2 * 4500000);
+    });
+
+    test('a missing rule unlinks nothing and throws', () async {
+      final id = await createMonthlyRent();
+
+      await expectLater(source.delete(999), throwsA(isA<CacheException>()));
+
+      final template = (await db.query('transactions')).single;
+      expect(template['recurring_rule_id'], id);
+    });
+
+    test('fires the change signal', () async {
+      final id = await createMonthlyRent();
+      final fired = bus.changes.first;
+      await source.delete(id);
+      await expectLater(fired, completes);
+    });
+  });
+
+  group('RecurringRuleRepositoryImpl.watchAll over this datasource', () {
+    test('emits on listen, and again after any write on the bus', () async {
+      final repository = RecurringRuleRepositoryImpl(source);
+      final seen = <List<RecurringSeries>>[];
+      final sub = repository.watchAll().listen(
+        (r) => seen.add(r.getOrElse((f) => fail('$f'))),
+      );
+      await pumpEventQueue();
+      expect(seen.single, isEmpty);
+
+      final id = await createMonthlyRent();
+      await pumpEventQueue();
+      expect(seen.last.single.rule.id, id);
+
+      // A write from elsewhere on the shared bus — a transaction edit —
+      // re-reads the list too.
+      await db.update(
+        'transactions',
+        {'amount_cents': 5000000},
+        where: 'recurring_rule_id = ?',
+        whereArgs: [id],
+      );
+      bus.notify();
+      await pumpEventQueue();
+      expect(seen.last.single.template!.amountCents, 5000000);
+
+      await sub.cancel();
+    });
+  });
+
   // ── the catch-up, end to end ──────────────────────────────────────────────
 
   group('PostDueRecurringTransactions over this datasource', () {

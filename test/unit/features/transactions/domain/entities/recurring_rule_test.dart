@@ -392,6 +392,103 @@ void main() {
     });
   });
 
+  group('nextOnOrAfter', () {
+    RecurringRule monthly(DateTime next) => rule(
+      RecurrenceFrequency.monthly,
+      start: DateTime(2026, 1, 5),
+      next: next,
+      dayOfMonth: 5,
+    );
+
+    test('steps over every date before the day', () {
+      expect(
+        monthly(DateTime(2026, 2, 5)).nextOnOrAfter(DateTime(2026, 6, 20)),
+        DateTime(2026, 7, 5),
+      );
+    });
+
+    test('keeps a date that falls on the day itself', () {
+      expect(
+        monthly(DateTime(2026, 2, 5)).nextOnOrAfter(DateTime(2026, 6, 5, 18)),
+        DateTime(2026, 6, 5),
+      );
+    });
+
+    test('keeps the next due date when it is already ahead', () {
+      expect(
+        monthly(DateTime(2026, 9, 5)).nextOnOrAfter(DateTime(2026, 6, 20)),
+        DateTime(2026, 9, 5),
+      );
+    });
+  });
+
+  group('statusOn', () {
+    final today = DateTime(2026, 6, 20, 9);
+
+    RecurringRule monthly({
+      DateTime? next,
+      DateTime? end,
+      bool active = true,
+      bool hasTemplate = true,
+    }) => RecurringRule(
+      id: 5,
+      templateTransactionId: hasTemplate ? 9 : null,
+      frequency: RecurrenceFrequency.monthly,
+      dayOfMonth: 5,
+      startDate: DateTime(2026, 1, 5),
+      nextDueDate: next ?? DateTime(2026, 7, 5),
+      endDate: end,
+      isActive: active,
+    );
+
+    test('active when the next entry is ahead', () {
+      expect(monthly().statusOn(today), RecurrenceStatus.active);
+    });
+
+    test('active, not overdue, when the next entry is today', () {
+      expect(
+        monthly(next: DateTime(2026, 6, 20)).statusOn(today),
+        RecurrenceStatus.active,
+      );
+    });
+
+    test('overdue when an active rule was left due before today', () {
+      expect(
+        monthly(next: DateTime(2026, 6, 5)).statusOn(today),
+        RecurrenceStatus.overdue,
+      );
+    });
+
+    test('paused when stopped with entries still to come', () {
+      expect(monthly(active: false).statusOn(today), RecurrenceStatus.paused);
+      // Paused long enough to have missed some: still paused, not overdue.
+      expect(
+        monthly(next: DateTime(2026, 2, 5), active: false).statusOn(today),
+        RecurrenceStatus.paused,
+      );
+    });
+
+    test('ended when the next entry is past the end, active or not', () {
+      final end = DateTime(2026, 6, 30);
+      expect(
+        monthly(end: end, active: false).statusOn(today),
+        RecurrenceStatus.ended,
+      );
+      expect(monthly(end: end).statusOn(today), RecurrenceStatus.ended);
+    });
+
+    test('no template outranks everything (E-36)', () {
+      expect(
+        monthly(
+          hasTemplate: false,
+          active: false,
+          end: DateTime(2026, 6, 30),
+        ).statusOn(today),
+        RecurrenceStatus.noTemplate,
+      );
+    });
+  });
+
   group('entryOn', () {
     test('copies what the money was from the template, and dates it', () {
       final start = DateTime(2026, 1, 5);

@@ -24,7 +24,7 @@ import '../models/transaction_model.dart';
 import 'ledger_writer.dart';
 
 /// A due rule as stored, with the template row it copies.
-typedef DueRecurringRuleRow = ({
+typedef RecurringSeriesRow = ({
   RecurringRuleModel rule,
   TransactionModel? template,
 });
@@ -40,7 +40,21 @@ abstract interface class RecurringRuleLocalDataSource {
 
   /// Every active rule due on or before [today], oldest due date first,
   /// each with its template and the template's split parts.
-  Future<List<DueRecurringRuleRow>> due(DateTime today);
+  Future<List<RecurringSeriesRow>> due(DateTime today);
+
+  /// Every rule, active and stopped, each with its template.
+  Future<List<RecurringSeriesRow>> all();
+
+  /// Stops [ruleId] posting. Throws when there is no such rule.
+  Future<void> pause(int ruleId);
+
+  /// Starts [ruleId] posting again, next due on [nextDueDate]. Throws when
+  /// there is no such rule, or it has no template to copy (E-36).
+  Future<void> resume(int ruleId, DateTime nextDueDate);
+
+  /// Unlinks [ruleId]'s entries, keeping them, and deletes the rule, in one
+  /// database transaction (E-36). Throws when there is no such rule.
+  Future<void> delete(int ruleId);
 
   /// Posts [entries] for [ruleId] and moves it on, compare-and-set on
   /// [expectedNextDueDate]. Throws, writing nothing, when the rule has
@@ -124,7 +138,7 @@ class RecurringRuleLocalDataSourceImpl implements RecurringRuleLocalDataSource {
   }
 
   @override
-  Future<List<DueRecurringRuleRow>> due(DateTime today) {
+  Future<List<RecurringSeriesRow>> due(DateTime today) {
     return _guard('read the repeating entries due', () async {
       // Served by idx_recurring_next_due: a range on its first column. On
       // most launches this returns nothing, and that must stay one query.
@@ -134,37 +148,111 @@ class RecurringRuleLocalDataSourceImpl implements RecurringRuleLocalDataSource {
         whereArgs: [encodeIsoDay(today)],
         orderBy: 'next_due_date ASC, id ASC',
       );
-      if (ruleRows.isEmpty) return const <DueRecurringRuleRow>[];
-
-      final rules = ruleRows.map(RecurringRuleModel.fromMap).toList();
-      final templateIds = {
-        for (final rule in rules)
-          if (rule.templateTransactionId != null) rule.templateTransactionId,
-      }.toList();
-
-      final templatesById = <int, TransactionModel>{};
-      if (templateIds.isNotEmpty) {
-        final placeholders = List.filled(templateIds.length, '?').join(', ');
-        final rows = await _db.query(
-          'transactions',
-          where: 'id IN ($placeholders)',
-          whereArgs: templateIds,
-        );
-        for (final row in rows) {
-          // The parts are read so a template edited into a split is seen
-          // as one, and refused, rather than copied as its parent row.
-          templatesById[row['id']! as int] = await LedgerWriter.withSplits(
-            _db,
-            row,
-          );
-        }
-      }
-
-      return [
-        for (final rule in rules)
-          (rule: rule, template: templatesById[rule.templateTransactionId]),
-      ];
+      if (ruleRows.isEmpty) return const <RecurringSeriesRow>[];
+      return _withTemplates(ruleRows);
     });
+  }
+
+  @override
+  Future<List<RecurringSeriesRow>> all() {
+    return _guard('read the repeating entries', () async {
+      // Every rule, in id order; the list's own order is the use case's.
+      final ruleRows = await _db.query('recurring_rules', orderBy: 'id ASC');
+      return _withTemplates(ruleRows);
+    });
+  }
+
+  @override
+  Future<void> pause(int ruleId) async {
+    await _guard('pause the repeat', () async {
+      final changed = await _db.update(
+        'recurring_rules',
+        {'is_active': 0},
+        where: 'id = ?',
+        whereArgs: [ruleId],
+      );
+      if (changed != 1) throw CacheException('No repeat with id $ruleId.');
+    });
+    _changes.notify();
+  }
+
+  @override
+  Future<void> resume(int ruleId, DateTime nextDueDate) async {
+    await _guard('resume the repeat', () async {
+      // Refused in SQL as well as in the use case: a rule whose template
+      // went (E-36) has nothing to copy, and resuming it would only have
+      // the next catch-up report that.
+      final changed = await _db.update(
+        'recurring_rules',
+        {'is_active': 1, 'next_due_date': encodeIsoDay(nextDueDate)},
+        where: 'id = ? AND template_tx_id IS NOT NULL',
+        whereArgs: [ruleId],
+      );
+      if (changed != 1) {
+        throw CacheException('No repeat with id $ruleId to resume.');
+      }
+    });
+    _changes.notify();
+  }
+
+  @override
+  Future<void> delete(int ruleId) async {
+    await _guard('delete the repeat', () {
+      return _db.transaction((txn) async {
+        // E-36: `transactions.recurring_rule_id` has no delete action, so
+        // the rule cannot go while an entry names it. The entries are money
+        // that moved and stay; unlinked, they keep `is_recurring` and still
+        // read as generated. Both statements or neither.
+        await txn.update(
+          'transactions',
+          {'recurring_rule_id': null},
+          where: 'recurring_rule_id = ?',
+          whereArgs: [ruleId],
+        );
+        final deleted = await txn.delete(
+          'recurring_rules',
+          where: 'id = ?',
+          whereArgs: [ruleId],
+        );
+        if (deleted != 1) throw CacheException('No repeat with id $ruleId.');
+      });
+    });
+    _changes.notify();
+  }
+
+  /// [ruleRows] as models, each with its template and the template's
+  /// split parts, in the order given. Two queries however many rules.
+  Future<List<RecurringSeriesRow>> _withTemplates(
+    List<Map<String, Object?>> ruleRows,
+  ) async {
+    final rules = ruleRows.map(RecurringRuleModel.fromMap).toList();
+    final templateIds = {
+      for (final rule in rules)
+        if (rule.templateTransactionId != null) rule.templateTransactionId,
+    }.toList();
+
+    final templatesById = <int, TransactionModel>{};
+    if (templateIds.isNotEmpty) {
+      final placeholders = List.filled(templateIds.length, '?').join(', ');
+      final rows = await _db.query(
+        'transactions',
+        where: 'id IN ($placeholders)',
+        whereArgs: templateIds,
+      );
+      for (final row in rows) {
+        // The parts are read so a template edited into a split is seen as
+        // one, and refused, rather than copied as its parent row.
+        templatesById[row['id']! as int] = await LedgerWriter.withSplits(
+          _db,
+          row,
+        );
+      }
+    }
+
+    return [
+      for (final rule in rules)
+        (rule: rule, template: templatesById[rule.templateTransactionId]),
+    ];
   }
 
   @override

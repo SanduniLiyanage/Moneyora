@@ -28,7 +28,27 @@ abstract interface class RecurringRuleRepository {
 
   /// Every active rule whose next entry falls on or before [today], with
   /// its template, oldest due date first.
-  Future<Either<Failure, List<DueRecurringRule>>> due(DateTime today);
+  Future<Either<Failure, List<RecurringSeries>>> due(DateTime today);
+
+  /// Every rule, active and stopped, each with its template, kept live.
+  ///
+  /// Re-read on every write to the ledger, not only to the rules: a
+  /// catch-up moving a due date, an edit changing a template's amount, and
+  /// a delete handing a template on (E-36) all change what the list shows.
+  Stream<Either<Failure, List<RecurringSeries>>> watchAll();
+
+  /// Stops rule [ruleId] posting. Its entries stay; nothing else changes.
+  Future<Either<Failure, Unit>> pause(int ruleId);
+
+  /// Starts rule [ruleId] posting again, next due on [nextDueDate].
+  Future<Either<Failure, Unit>> resume(int ruleId, DateTime nextDueDate);
+
+  /// Deletes rule [ruleId], keeping every entry it posted. E-36.
+  ///
+  /// The entries are unlinked first — `recurring_rule_id` cleared,
+  /// `is_recurring` kept, so each still reads as generated — then the rule
+  /// goes, in one database transaction.
+  Future<Either<Failure, Unit>> delete(int ruleId);
 
   /// Posts [entries] for rule [ruleId] and moves its next due date to
   /// [nextDueDate], in one database transaction. Returns the entries' ids.

@@ -139,10 +139,14 @@ import 'features/transactions/domain/repositories/transaction_repository.dart';
 import 'features/transactions/domain/usecases/add_expenses.dart';
 import 'features/transactions/domain/usecases/add_transaction.dart';
 import 'features/transactions/domain/usecases/create_recurring_rule.dart';
+import 'features/transactions/domain/usecases/delete_recurring_rule.dart';
 import 'features/transactions/domain/usecases/delete_transaction.dart';
 import 'features/transactions/domain/usecases/make_transfer.dart';
+import 'features/transactions/domain/usecases/pause_recurring_rule.dart';
 import 'features/transactions/domain/usecases/post_due_recurring_transactions.dart';
+import 'features/transactions/domain/usecases/resume_recurring_rule.dart';
 import 'features/transactions/domain/usecases/update_transaction.dart';
+import 'features/transactions/domain/usecases/watch_recurring_rules.dart';
 import 'features/transactions/domain/usecases/watch_transactions.dart';
 
 /// Dependency wiring, per SDD §3.3.
@@ -337,6 +341,34 @@ final recurringRuleRepositoryProvider = FutureProvider<RecurringRuleRepository>(
 /// Records an expense or income that repeats. FR-EXP-008, FR-INC-004.
 final createRecurringRuleProvider = FutureProvider<CreateRecurringRule>(
   (ref) async => CreateRecurringRule(
+    await ref.watch(recurringRuleRepositoryProvider.future),
+  ),
+);
+
+/// Watches every recurring rule for the rules list. FR-EXP-008, FR-INC-004.
+final watchRecurringRulesProvider = FutureProvider<WatchRecurringRules>(
+  (ref) async => WatchRecurringRules(
+    await ref.watch(recurringRuleRepositoryProvider.future),
+  ),
+);
+
+/// Stops a recurring rule posting.
+final pauseRecurringRuleProvider = FutureProvider<PauseRecurringRule>(
+  (ref) async => PauseRecurringRule(
+    await ref.watch(recurringRuleRepositoryProvider.future),
+  ),
+);
+
+/// Starts a paused recurring rule from today.
+final resumeRecurringRuleProvider = FutureProvider<ResumeRecurringRule>(
+  (ref) async => ResumeRecurringRule(
+    await ref.watch(recurringRuleRepositoryProvider.future),
+  ),
+);
+
+/// Deletes a recurring rule, keeping its entries. E-36.
+final deleteRecurringRuleProvider = FutureProvider<DeleteRecurringRule>(
+  (ref) async => DeleteRecurringRule(
     await ref.watch(recurringRuleRepositoryProvider.future),
   ),
 );

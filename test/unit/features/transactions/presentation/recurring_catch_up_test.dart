@@ -19,7 +19,7 @@ class _Rules implements RecurringRuleRepository {
   Completer<void>? hold;
 
   @override
-  Future<Either<Failure, List<DueRecurringRule>>> due(DateTime today) async {
+  Future<Either<Failure, List<RecurringSeries>>> due(DateTime today) async {
     asked.add(today);
     await hold?.future;
     return const Right([]);

@@ -26,7 +26,7 @@ class _Post {
 }
 
 class _FakeRules implements RecurringRuleRepository {
-  Either<Failure, List<DueRecurringRule>> dueResult = const Right([]);
+  Either<Failure, List<RecurringSeries>> dueResult = const Right([]);
   DateTime? askedAbout;
   final posts = <_Post>[];
 
@@ -34,7 +34,7 @@ class _FakeRules implements RecurringRuleRepository {
   final failing = <int, Failure>{};
 
   @override
-  Future<Either<Failure, List<DueRecurringRule>>> due(DateTime today) async {
+  Future<Either<Failure, List<RecurringSeries>>> due(DateTime today) async {
     askedAbout = today;
     return dueResult;
   }
@@ -145,7 +145,7 @@ void main() {
   test('posts every missed entry, copied from the template, and moves the '
       'rule on compare-and-set', () async {
     rules.dueResult = Right([
-      DueRecurringRule(rule: monthly(), template: template()),
+      RecurringSeries(rule: monthly(), template: template()),
     ]);
 
     final result = await postDue(now);
@@ -182,7 +182,7 @@ void main() {
 
   test('a rule reaching its end posts up to it and ends', () async {
     rules.dueResult = Right([
-      DueRecurringRule(
+      RecurringSeries(
         rule: monthly(end: DateTime(2026, 3, 31)),
         template: template(),
       ),
@@ -200,7 +200,7 @@ void main() {
 
   test('a rule already past its end is stopped with nothing posted', () async {
     rules.dueResult = Right([
-      DueRecurringRule(
+      RecurringSeries(
         rule: monthly(end: DateTime(2026, 2, 1)),
         template: template(),
       ),
@@ -222,11 +222,8 @@ void main() {
   group(
     'a rule that cannot post is left due and reported; the others post',
     () {
-      Future<void> reportsOnly(
-        DueRecurringRule broken,
-        Failure expected,
-      ) async {
-        final healthy = DueRecurringRule(
+      Future<void> reportsOnly(RecurringSeries broken, Failure expected) async {
+        final healthy = RecurringSeries(
           rule: monthly(id: 6),
           template: template(),
         );
@@ -253,7 +250,7 @@ void main() {
 
       test('its account is archived', () async {
         await reportsOnly(
-          DueRecurringRule(rule: monthly(), template: template(accountId: 3)),
+          RecurringSeries(rule: monthly(), template: template(accountId: 3)),
           const ValidationFailure(
             'Its account is archived. Restore the account to post this repeat.',
           ),
@@ -262,7 +259,7 @@ void main() {
 
       test('its template is gone (E-36)', () async {
         await reportsOnly(
-          DueRecurringRule(rule: monthly(), template: null),
+          RecurringSeries(rule: monthly(), template: null),
           const ValidationFailure(
             'The entry this repeat copied was deleted, so there is nothing '
             'left to copy.',
@@ -272,7 +269,7 @@ void main() {
 
       test('its template was edited into a split', () async {
         await reportsOnly(
-          DueRecurringRule(
+          RecurringSeries(
             rule: monthly(),
             template: template(
               splits: const [
@@ -290,7 +287,7 @@ void main() {
 
       test('it cannot be scheduled', () async {
         await reportsOnly(
-          DueRecurringRule(
+          RecurringSeries(
             rule: RecurringRule(
               id: 5,
               templateTransactionId: 9,
@@ -310,7 +307,7 @@ void main() {
       test('its write fails, as a lost compare-and-set does', () async {
         rules.failing[5] = const CacheFailure('Already posted.');
         await reportsOnly(
-          DueRecurringRule(rule: monthly(), template: template()),
+          RecurringSeries(rule: monthly(), template: template()),
           const CacheFailure('Already posted.'),
         );
       });
@@ -319,7 +316,7 @@ void main() {
 
   test('income posts as income (FR-INC-004)', () async {
     rules.dueResult = Right([
-      DueRecurringRule(
+      RecurringSeries(
         rule: monthly(),
         template: template(type: TransactionType.income, categoryId: 3),
       ),
@@ -344,7 +341,7 @@ void main() {
 
   test('failing to read the accounts fails the run, posting nothing', () async {
     rules.dueResult = Right([
-      DueRecurringRule(rule: monthly(), template: template()),
+      RecurringSeries(rule: monthly(), template: template()),
     ]);
     accounts.result = const Left(CacheFailure('No accounts.'));
 
@@ -357,8 +354,8 @@ void main() {
 
   test('reads the accounts once for the whole run', () async {
     rules.dueResult = Right([
-      DueRecurringRule(rule: monthly(), template: template()),
-      DueRecurringRule(rule: monthly(id: 6), template: template()),
+      RecurringSeries(rule: monthly(), template: template()),
+      RecurringSeries(rule: monthly(id: 6), template: template()),
     ]);
 
     await postDue(now);

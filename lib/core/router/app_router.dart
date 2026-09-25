@@ -28,6 +28,7 @@ import '../../features/receipt_scanner/presentation/pages/receipt_review_page.da
 import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
 import '../../features/settings/presentation/pages/exchange_rates_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/transactions/presentation/pages/recurring_rules_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
 
@@ -59,6 +60,10 @@ abstract final class Routes {
   /// Every saved plan: switch the active one, pick two to compare.
   /// FR-PLN-015; the SDD's SCR-010.
   static const String plans = '/plans';
+
+  /// Every recurring rule, with pause, resume and delete. FR-EXP-008,
+  /// FR-INC-004. No SDD screen places it (E-13's addendum).
+  static const String recurring = '/recurring';
 
   /// Two plans side by side, named by `?a=` and `?b=`. FR-PLN-015.
   static const String comparePlans = '/plans/compare';
@@ -168,6 +173,11 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.plans,
       name: 'plans',
       builder: (context, state) => const PlanListPage(),
+    ),
+    GoRoute(
+      path: Routes.recurring,
+      name: 'recurring',
+      builder: (context, state) => const RecurringRulesPage(),
     ),
     GoRoute(
       path: Routes.comparePlans,
