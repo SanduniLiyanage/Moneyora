@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
@@ -10,9 +12,12 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_expression.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../domain/entities/recurring_rule.dart';
 import '../../domain/entities/transaction.dart';
+import '../../domain/usecases/create_recurring_rule.dart';
 import '../providers/transaction_providers.dart';
 import '../widgets/amount_keypad.dart';
+import '../widgets/recurrence_labels.dart';
 
 /// SCR-002 / SCR-003 — record an expense or an income. FR-EXP-001, FR-INC-001.
 ///
@@ -46,6 +51,14 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   late DateTime _date;
   late final TextEditingController _note;
 
+  /// E-13's recurring toggle, and the schedule it opens. FR-EXP-008,
+  /// FR-INC-004. Offered on a new entry only: an edit is a row that already
+  /// exists, and a rule is created with its first entry.
+  bool _repeats = false;
+  RecurrenceFrequency _frequency = RecurrenceFrequency.monthly;
+  late final TextEditingController _interval;
+  DateTime? _endDate;
+
   bool get _isEditing => widget.initial != null;
 
   @override
@@ -60,18 +73,41 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _accountId = initial?.accountId;
     _date = initial?.date ?? DateTime.now();
     _note = TextEditingController(text: initial?.note ?? '');
+    _interval = TextEditingController(text: '7');
   }
 
   @override
   void dispose() {
     _note.dispose();
+    _interval.dispose();
     super.dispose();
   }
 
-  bool get _canSave =>
+  /// The entry's own fields are complete.
+  bool get _entryComplete =>
       (_amount.valueCents ?? 0) > 0 &&
       _categoryId != null &&
       _accountId != null;
+
+  bool get _canSave => _entryComplete && (!_repeats || _repeatProblem == null);
+
+  RecurringRuleRequest _request() => RecurringRuleRequest(
+    first: _build(),
+    frequency: _frequency,
+    intervalDays: int.tryParse(_interval.text.trim()),
+    endDate: _endDate,
+  );
+
+  /// Why the schedule cannot be saved, in `CreateRecurringRule`'s own
+  /// words, or null. The same check the use case runs on save, called as
+  /// the user changes the schedule — a monthly start past the 28th is said
+  /// here, not discovered on tapping Save. Only once the entry is complete,
+  /// so the amount's and category's own gaps are not repeated under the
+  /// schedule.
+  String? get _repeatProblem {
+    if (!_repeats || !_entryComplete) return null;
+    return CreateRecurringRule.validate(_request())?.message;
+  }
 
   Transaction _build() => Transaction(
     // Carried through so save() knows this is an edit rather than an entry.
@@ -129,9 +165,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   }
 
   Future<void> _save() async {
-    final saved = await ref
-        .read(saveTransactionControllerProvider.notifier)
-        .save(_build());
+    final controller = ref.read(saveTransactionControllerProvider.notifier);
+    final saved = _repeats
+        ? await controller.saveRepeating(_request())
+        : await controller.save(_build());
 
     if (!mounted) return;
     if (saved) {
@@ -165,6 +202,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           (false, _) => 'New expense',
         }),
         actions: [
+          // E-13: the recurring toggle, top right, as the reference app
+          // places it. A new entry only — see _repeats.
+          if (!_isEditing)
+            IconButton(
+              tooltip: _repeats ? 'Stop repeating' : 'Repeat',
+              isSelected: _repeats,
+              icon: const Icon(Icons.repeat),
+              selectedIcon: const Icon(Icons.repeat_on),
+              onPressed: () => setState(() => _repeats = !_repeats),
+            ),
           // FR-RCP-001: the scanner from the add-expense flow as well as
           // the main screen. A new expense only — a receipt is never an
           // income, and an edit is a row that already exists.
@@ -228,6 +275,31 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           date: _date,
                           onChanged: (next) => setState(() => _date = next),
                         ),
+                        if (_repeats)
+                          _RepeatSection(
+                            frequency: _frequency,
+                            onFrequency: (next) =>
+                                setState(() => _frequency = next),
+                            interval: _interval,
+                            onIntervalChanged: () => setState(() {}),
+                            startDate: _date,
+                            endDate: _endDate,
+                            onEndDate: (next) =>
+                                setState(() => _endDate = next),
+                            problem: _repeatProblem,
+                            // From the schedule alone: the entry may not
+                            // have an amount yet.
+                            summary: describeRecurrence(
+                              RecurringRule.startingOn(
+                                _date,
+                                frequency: _frequency,
+                                intervalDays: int.tryParse(
+                                  _interval.text.trim(),
+                                ),
+                                endDate: _endDate,
+                              ),
+                            ),
+                          ),
                         TextField(
                           controller: _note,
                           textCapitalization: TextCapitalization.sentences,
@@ -564,6 +636,113 @@ class _AccountPicker extends StatelessWidget {
               selected: account.id == selectedId,
               onSelected: (_) => onSelected(account.id),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// How often the entry repeats, and until when. E-13, FR-EXP-008,
+/// FR-INC-004.
+///
+/// The entry's date above is the series' start. Every option FR-EXP-008
+/// lists is a chip; the custom interval is a field that appears with its
+/// chip. Below them, either the reason the schedule cannot be saved or what
+/// it will do, in the words the rules list uses for it.
+class _RepeatSection extends StatelessWidget {
+  const _RepeatSection({
+    required this.frequency,
+    required this.onFrequency,
+    required this.interval,
+    required this.onIntervalChanged,
+    required this.startDate,
+    required this.endDate,
+    required this.onEndDate,
+    required this.problem,
+    required this.summary,
+  });
+
+  final RecurrenceFrequency frequency;
+  final ValueChanged<RecurrenceFrequency> onFrequency;
+  final TextEditingController interval;
+  final VoidCallback onIntervalChanged;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final ValueChanged<DateTime?> onEndDate;
+  final String? problem;
+  final String summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final end = endDate;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Repeats', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in RecurrenceFrequency.values)
+                ChoiceChip(
+                  label: Text(frequencyLabel(option)),
+                  selected: option == frequency,
+                  onSelected: (_) => onFrequency(option),
+                ),
+            ],
+          ),
+          if (frequency == RecurrenceFrequency.customDays)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: TextField(
+                controller: interval,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Every how many days',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (_) => onIntervalChanged(),
+              ),
+            ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.event_busy_outlined),
+            title: Text(
+              end == null
+                  ? 'No end date'
+                  : 'Ends ${DateFormat.yMMMd().format(end)}',
+            ),
+            trailing: end == null
+                ? const Icon(Icons.chevron_right)
+                : IconButton(
+                    tooltip: 'Remove end date',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => onEndDate(null),
+                  ),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: end ?? startDate,
+                // An end before the start is refused by the use case; a
+                // picker that offers one is a trap.
+                firstDate: startDate,
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) onEndDate(picked);
+            },
+          ),
+          Text(
+            problem ?? summary,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: problem == null ? null : theme.colorScheme.error,
+            ),
+          ),
         ],
       ),
     );

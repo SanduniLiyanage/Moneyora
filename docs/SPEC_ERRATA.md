@@ -586,6 +586,33 @@ is the difference between "I can add a category" and "I can add a category at
 the moment I discover I need one", which is the only moment anyone ever wants
 to. The Categories drawer keeps its own `+` for deliberate management.
 
+### Addendum, 2026-09-26 — the toggle creates rules nothing can see
+
+Building the toggle (Sprint 7) surfaced the same kind of omission one step
+further on: SDD §4.1's twenty screens include none that lists recurring
+rules, so a rule created from the entry screen could be neither seen,
+paused nor stopped. FR-EXP-008 asks for recurring entries to be
+*supported*, and a repeat the user cannot stop is not supported.
+
+**Resolved as a list screen at `/recurring`, "Recurring" on the home
+screen's list**, beside Transactions. Each row names what repeats (the
+template's category and amount), how often, and where it stands — next
+date, overdue, paused, ended, or stopped because its first entry was
+deleted (E-36). A tap opens the rule with Pause or Resume and Delete.
+
+- **Not under Settings.** SCR-016 groups preferences; a rule is data the
+  user made, like a saved plan, and the home list is where the app already
+  keeps those. FR-SET-006's reminder preferences do belong in Settings,
+  and land there.
+- **Resuming skips the paused stretch.** A resumed rule is next due on its
+  first date from today; the entries that fell due while paused are the
+  ones pausing was for.
+- **Deleting keeps the entries** — unlinked, still marked as generated —
+  for the reason E-36 gives: they are money that moved.
+- **The toggle is offered on a new entry only.** A rule is created with its
+  first entry (E-36's template design), and an edit is a row that already
+  exists.
+
 ---
 
 <a id="e-14"></a>

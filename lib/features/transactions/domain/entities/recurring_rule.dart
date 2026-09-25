@@ -237,6 +237,42 @@ class RecurringRule extends Equatable {
     );
   }
 
+  /// The first date this rule falls on, on or after [day], counting from
+  /// [nextDueDate].
+  ///
+  /// What a resumed rule is next due on: the entries that fell due while it
+  /// was paused are stepped over, not posted, because pausing is the user
+  /// saying "not these". [nextDueDate] itself when it is already on or
+  /// after [day]. May be past [endDate]; [statusOn] and the resume use case
+  /// read that as ended.
+  ///
+  /// Only meaningful on a rule with no [problem].
+  DateTime nextOnOrAfter(DateTime day) {
+    final first = _day(day);
+    var next = nextDueDate;
+    while (next.isBefore(first)) {
+      next = nextAfter(next);
+    }
+    return next;
+  }
+
+  /// Where this rule stands on [today], for the rules list.
+  ///
+  /// Checked in this order, because the first that holds is the one worth
+  /// saying: a rule with no template has stopped whatever else is true
+  /// (E-36); a rule whose next entry is past its end has ended, active or
+  /// not; a stopped rule otherwise was paused; an active rule whose next
+  /// entry is before today was left due by a catch-up that could not post
+  /// it. An entry due today is not overdue — the catch-up posts it on the
+  /// next launch or resume.
+  RecurrenceStatus statusOn(DateTime today) {
+    if (templateTransactionId == null) return RecurrenceStatus.noTemplate;
+    if (_isPastEnd(nextDueDate)) return RecurrenceStatus.ended;
+    if (!isActive) return RecurrenceStatus.paused;
+    if (nextDueDate.isBefore(_day(today))) return RecurrenceStatus.overdue;
+    return RecurrenceStatus.active;
+  }
+
   /// The entry this rule posts on [date], copied from [template].
   ///
   /// Everything that says what the money was — account, category, amount,
@@ -312,6 +348,26 @@ class RecurringRule extends Equatable {
   ];
 }
 
+/// Where a rule stands. See [RecurringRule.statusOn].
+enum RecurrenceStatus {
+  /// Posting as scheduled.
+  active,
+
+  /// Active, but an entry before today was not posted: the catch-up left
+  /// it due (an archived account, say) and will try again.
+  overdue,
+
+  /// Stopped by the user; resuming picks up from today.
+  paused,
+
+  /// Its next entry falls after its end date. Cannot be resumed.
+  ended,
+
+  /// Its template was deleted with no other entry to take over (E-36).
+  /// Nothing left to copy, so it cannot be resumed.
+  noTemplate,
+}
+
 /// What catching a rule up comes to. See [RecurringRule.catchUp].
 class RecurrenceCatchUp extends Equatable {
   /// Creates a catch-up result.
@@ -335,14 +391,15 @@ class RecurrenceCatchUp extends Equatable {
   List<Object?> get props => [dates, nextDueDate, ended];
 }
 
-/// A rule that is due, with the template it copies.
+/// A rule with the template it copies.
 ///
-/// Read together because a catch-up needs both, and reading the template
-/// through a second query per rule would be one round trip per rule on the
-/// launch path.
-class DueRecurringRule extends Equatable {
-  /// Creates a due rule.
-  const DueRecurringRule({required this.rule, required this.template});
+/// Read together because both readers need both — the catch-up to copy the
+/// template, the rules list to say what repeats (its category and amount) —
+/// and reading the template through a second query per rule would be one
+/// round trip per rule.
+class RecurringSeries extends Equatable {
+  /// Creates a series.
+  const RecurringSeries({required this.rule, required this.template});
 
   /// The rule.
   final RecurringRule rule;

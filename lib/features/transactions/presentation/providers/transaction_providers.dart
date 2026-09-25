@@ -21,7 +21,9 @@ import '../../../../core/ports/category_writer.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
+import '../../domain/usecases/create_recurring_rule.dart';
 import '../../domain/usecases/make_transfer.dart';
+import 'recurring_catch_up.dart';
 
 /// The categories the entry screen offers, both kinds, kept live.
 ///
@@ -133,6 +135,32 @@ class SaveTransactionController extends AutoDisposeAsyncNotifier<void> {
       },
       (_) {
         state = const AsyncValue<void>.data(null);
+        return true;
+      },
+    );
+  }
+
+  /// Saves [request]'s entry with the rule that repeats it. FR-EXP-008,
+  /// FR-INC-004, E-13.
+  ///
+  /// A new entry only: the entry screen offers Repeat when recording, not
+  /// when editing. Returns true when written. Then runs a catch-up, so a
+  /// repeat started in the past posts its missed entries now, while the
+  /// user is looking, rather than on the next launch.
+  Future<bool> saveRepeating(RecurringRuleRequest request) async {
+    state = const AsyncValue<void>.loading();
+
+    final create = await ref.read(createRecurringRuleProvider.future);
+    final result = await create(request);
+
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        ref.read(recurringCatchUpProvider.notifier).run();
         return true;
       },
     );

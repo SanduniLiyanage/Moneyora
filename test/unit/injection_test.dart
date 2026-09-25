@@ -11,6 +11,7 @@ import 'package:moneyora/features/transactions/domain/entities/recurring_rule.da
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
 import 'package:moneyora/features/transactions/domain/usecases/create_recurring_rule.dart';
+import 'package:moneyora/features/transactions/domain/usecases/resume_recurring_rule.dart';
 import 'package:moneyora/injection.dart';
 // sqflite exports a Transaction of its own — the database kind, not the
 // money kind.
@@ -77,9 +78,63 @@ void main() {
         container.read(recurringRuleRepositoryProvider.future),
         container.read(createRecurringRuleProvider.future),
         container.read(postDueRecurringTransactionsProvider.future),
+        container.read(watchRecurringRulesProvider.future),
+        container.read(pauseRecurringRuleProvider.future),
+        container.read(resumeRecurringRuleProvider.future),
+        container.read(deleteRecurringRuleProvider.future),
       ]),
       completes,
     );
+  });
+
+  test('a rule paused, resumed and deleted through the real wiring keeps '
+      'its entries (E-36)', () async {
+    final create = await container.read(createRecurringRuleProvider.future);
+    final watch = await container.read(watchRecurringRulesProvider.future);
+    final pause = await container.read(pauseRecurringRuleProvider.future);
+    final resume = await container.read(resumeRecurringRuleProvider.future);
+    final delete = await container.read(deleteRecurringRuleProvider.future);
+    final watchTransactions = await container.read(
+      watchTransactionsProvider.future,
+    );
+    final today = DateTime(2026, 4, 20);
+
+    final created = await create(
+      RecurringRuleRequest(
+        first: Transaction(
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 4500000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 1, 5),
+        ),
+        frequency: RecurrenceFrequency.monthly,
+      ),
+    );
+    final ruleId = created.getOrElse((f) => fail('$f'));
+
+    Future<RecurringRule> readRule() async =>
+        (await watch(today).first).getOrElse((f) => fail('$f')).single.rule;
+
+    expect((await pause(ruleId)).isRight(), isTrue);
+    expect((await readRule()).isActive, isFalse);
+
+    final resumed = await resume(
+      ResumeRequest(rule: await readRule(), today: today),
+    );
+    expect(resumed.isRight(), isTrue, reason: '$resumed');
+    final rule = await readRule();
+    expect(rule.isActive, isTrue);
+    expect(rule.nextDueDate, DateTime(2026, 5, 5));
+
+    expect((await delete(ruleId)).isRight(), isTrue);
+    expect((await watch(today).first).getOrElse((f) => fail('$f')), isEmpty);
+    final rows = (await watchTransactions(
+      const TransactionFilter(),
+    ).first).getOrElse((f) => fail('$f'));
+    expect(rows, hasLength(1));
+    expect(rows.single.recurringRuleId, isNull);
+    expect(rows.single.isRecurring, isTrue);
   });
 
   test('a recurring rule posts through the real wiring, and a watching '

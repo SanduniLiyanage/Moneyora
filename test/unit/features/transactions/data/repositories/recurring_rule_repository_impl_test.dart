@@ -10,7 +10,7 @@ import 'package:moneyora/features/transactions/domain/entities/recurring_rule.da
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 
 class _FakeSource implements RecurringRuleLocalDataSource {
-  List<DueRecurringRuleRow> dueRows = const [];
+  List<RecurringSeriesRow> dueRows = const [];
   AppException? error;
   List<TransactionModel>? posted;
   TransactionModel? created;
@@ -26,7 +26,7 @@ class _FakeSource implements RecurringRuleLocalDataSource {
   }
 
   @override
-  Future<List<DueRecurringRuleRow>> due(DateTime today) async {
+  Future<List<RecurringSeriesRow>> due(DateTime today) async {
     if (error case final e?) throw e;
     return dueRows;
   }
@@ -89,8 +89,8 @@ void main() {
 
     final due = result.getOrElse((f) => fail('$f'));
     expect(due, [
-      DueRecurringRule(rule: rule, template: template),
-      DueRecurringRule(rule: rule, template: null),
+      RecurringSeries(rule: rule, template: template),
+      RecurringSeries(rule: rule, template: null),
     ]);
     expect(due.first.rule.runtimeType, RecurringRule);
     expect(due.first.template.runtimeType, Transaction);
@@ -127,7 +127,7 @@ void main() {
     );
     expect(
       await repository.due(DateTime(2026, 3)),
-      const Left<Failure, List<DueRecurringRule>>(failure),
+      const Left<Failure, List<RecurringSeries>>(failure),
     );
     expect(
       await repository.post(

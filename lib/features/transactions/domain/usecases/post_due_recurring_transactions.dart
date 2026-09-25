@@ -41,7 +41,7 @@ class PostDueRecurringTransactions
   Future<Either<Failure, RecurringPostingReport>> call(DateTime params) async {
     final now = params;
 
-    final List<DueRecurringRule> due;
+    final List<RecurringSeries> due;
     switch (await _rules.due(now)) {
       case Left(value: final failure):
         return Left(failure);
@@ -80,7 +80,7 @@ class PostDueRecurringTransactions
 
   /// Posts [item]'s due entries, returning how many.
   Future<Either<Failure, int>> _catchUp(
-    DueRecurringRule item,
+    RecurringSeries item,
     Set<int> openAccounts,
     DateTime now,
   ) async {
