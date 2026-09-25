@@ -130,13 +130,18 @@ import 'features/settings/domain/usecases/set_plan_analysis_months.dart';
 import 'features/settings/domain/usecases/set_theme.dart';
 import 'features/settings/domain/usecases/watch_exchange_rates.dart';
 import 'features/settings/domain/usecases/watch_settings.dart';
+import 'features/transactions/data/datasources/recurring_rule_local_datasource.dart';
 import 'features/transactions/data/datasources/transaction_local_datasource.dart';
+import 'features/transactions/data/repositories/recurring_rule_repository_impl.dart';
 import 'features/transactions/data/repositories/transaction_repository_impl.dart';
+import 'features/transactions/domain/repositories/recurring_rule_repository.dart';
 import 'features/transactions/domain/repositories/transaction_repository.dart';
 import 'features/transactions/domain/usecases/add_expenses.dart';
 import 'features/transactions/domain/usecases/add_transaction.dart';
+import 'features/transactions/domain/usecases/create_recurring_rule.dart';
 import 'features/transactions/domain/usecases/delete_transaction.dart';
 import 'features/transactions/domain/usecases/make_transfer.dart';
+import 'features/transactions/domain/usecases/post_due_recurring_transactions.dart';
 import 'features/transactions/domain/usecases/update_transaction.dart';
 import 'features/transactions/domain/usecases/watch_transactions.dart';
 
@@ -305,6 +310,49 @@ final watchTransactionsProvider = FutureProvider<WatchTransactions>(
   (ref) async =>
       WatchTransactions(await ref.watch(transactionRepositoryProvider.future)),
 );
+
+/// Reads and writes recurring rules and the entries they post. FR-EXP-008,
+/// FR-INC-004.
+///
+/// On the shared bus, because an entry a rule posts moves a balance, plan
+/// spend and the transaction list exactly as a typed one does, and every
+/// screen showing those must hear it.
+final recurringRuleLocalDataSourceProvider =
+    FutureProvider<RecurringRuleLocalDataSource>((ref) async {
+      final source = RecurringRuleLocalDataSourceImpl(
+        await ref.watch(databaseProvider.future),
+        changeBus: ref.watch(databaseChangeBusProvider),
+      );
+      ref.onDispose(source.dispose);
+      return source;
+    });
+
+/// Turns the rules datasource's exceptions into failures.
+final recurringRuleRepositoryProvider = FutureProvider<RecurringRuleRepository>(
+  (ref) async => RecurringRuleRepositoryImpl(
+    await ref.watch(recurringRuleLocalDataSourceProvider.future),
+  ),
+);
+
+/// Records an expense or income that repeats. FR-EXP-008, FR-INC-004.
+final createRecurringRuleProvider = FutureProvider<CreateRecurringRule>(
+  (ref) async => CreateRecurringRule(
+    await ref.watch(recurringRuleRepositoryProvider.future),
+  ),
+);
+
+/// Posts every recurring entry that has fallen due. FR-EXP-008, FR-INC-004.
+///
+/// Reads accounts through [accountReaderProvider], the port — the
+/// transactions feature may not import the accounts feature (rule 4) — to
+/// leave a rule on an archived account unposted.
+final postDueRecurringTransactionsProvider =
+    FutureProvider<PostDueRecurringTransactions>(
+      (ref) async => PostDueRecurringTransactions(
+        await ref.watch(recurringRuleRepositoryProvider.future),
+        await ref.watch(accountReaderProvider.future),
+      ),
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Accounts

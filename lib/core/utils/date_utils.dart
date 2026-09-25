@@ -41,3 +41,17 @@ DateTime decodeIsoDay(String value) {
     int.parse(value.substring(8, 10)),
   );
 }
+
+/// Dart's [DateTime.monday] (1) … [DateTime.sunday] (7) as a weekday column
+/// stores it: 0 = Sunday … 6 = Saturday.
+///
+/// The DBD numbers the week from Sunday at zero (`users.first_day_week`,
+/// `recurring_rules.day_of_week`) and Dart from Monday at one, so only
+/// Sunday moves; the six other days already agree. One definition, for the
+/// same reason [encodeIsoDay] has one: two would be two chances to store a
+/// Sunday as a Monday.
+int encodeWeekdayColumn(int weekday) =>
+    weekday == DateTime.sunday ? 0 : weekday;
+
+/// The inverse of [encodeWeekdayColumn].
+int decodeWeekdayColumn(int stored) => stored == 0 ? DateTime.sunday : stored;

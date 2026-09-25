@@ -6,6 +6,7 @@
 /// absent from [toUpdateMap].
 library;
 
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/user_settings.dart';
 
 /// A [UserSettings] that can be written to and read from the `users` row.
@@ -41,7 +42,7 @@ class UserSettingsModel extends UserSettings {
         theme: AppThemeMode.fromStorage(map['theme']! as String),
         language: map['language']! as String,
         currency: map['currency']! as String,
-        firstDayOfWeek: decodeWeekday(map['first_day_week']! as int),
+        firstDayOfWeek: decodeWeekdayColumn(map['first_day_week']! as int),
         firstDayOfMonth: map['first_day_month']! as int,
         savingsTargetPct: (map['savings_target_pct']! as num).toDouble(),
         planAnalysisMonths: map['plan_analysis_months']! as int,
@@ -57,24 +58,12 @@ class UserSettingsModel extends UserSettings {
     'theme': theme.storageValue,
     'language': language,
     'currency': currency,
-    'first_day_week': encodeWeekday(firstDayOfWeek),
+    'first_day_week': encodeWeekdayColumn(firstDayOfWeek),
     'first_day_month': firstDayOfMonth,
     'savings_target_pct': savingsTargetPct,
     'plan_analysis_months': planAnalysisMonths,
     'budget_alerts_enabled': budgetAlertsEnabled ? 1 : 0,
   };
-
-  /// The column's 0 = Sunday … 6 = Saturday as Dart's 1 = Monday … 7 = Sunday.
-  ///
-  /// Only Sunday moves: the DBD numbers the week from Sunday at zero and
-  /// Dart numbers it from Monday at one, so the six other days already
-  /// agree.
-  static int decodeWeekday(int stored) =>
-      stored == 0 ? DateTime.sunday : stored;
-
-  /// The inverse of [decodeWeekday].
-  static int encodeWeekday(int weekday) =>
-      weekday == DateTime.sunday ? 0 : weekday;
 
   /// A plain entity, safe to hand to the domain layer.
   UserSettings toEntity() => UserSettings(
