@@ -9,6 +9,9 @@ import 'package:equatable/equatable.dart';
 enum NotificationKind {
   /// A plan category crossing 80% or 100%. FR-SET-007.
   budgetAlert,
+
+  /// A recurring entry about to be added. FR-SET-006.
+  recurringReminder,
 }
 
 /// One notification the app wants the device to show. FR-SET-007.
@@ -35,6 +38,19 @@ class AppNotification extends Equatable {
   /// of notifications get their own without renumbering this one; an
   /// allocation id would have to pass 2³⁰ to reach the next range.
   static const int budgetAlertBase = 1 << 30;
+
+  /// Base of the id range recurring reminders use, one id per rule.
+  /// FR-SET-006.
+  ///
+  /// One pending reminder per rule — its next entry's — so scheduling the
+  /// next one under the same id replaces the last. Below
+  /// [budgetAlertBase], by the same bit rule: a rule id would have to pass
+  /// 2²⁹ to reach the budget alerts.
+  static const int recurringReminderBase = 1 << 29;
+
+  /// Whether [id] belongs to the recurring reminders' range.
+  static bool isRecurringReminder(int id) =>
+      id >= recurringReminderBase && id < budgetAlertBase;
 
   /// The notification's id — the same id replaces, never duplicates.
   final int id;

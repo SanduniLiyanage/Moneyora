@@ -1,5 +1,5 @@
 /// [LocalNotifier] and [NotificationTaps] over `flutter_local_notifications`.
-/// FR-SET-007.
+/// FR-SET-007, FR-SET-006.
 ///
 /// The one file that knows how the platform is asked. Never unit-tested — a
 /// method channel does not answer in a VM test, the way ML Kit's and
@@ -13,7 +13,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:fpdart/fpdart.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 import '../errors/failures.dart';
 import '../ports/local_notifier.dart';
@@ -99,6 +102,89 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
   }
 
   @override
+  Future<Either<Failure, Unit>> schedule(
+    AppNotification notification,
+    DateTime at,
+  ) async {
+    try {
+      await _ensureInitialised();
+      await _ensureTimeZone();
+      await _plugin.zonedSchedule(
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        // The wall-clock time in the phone's own zone, so a 9:00 reminder
+        // is at 9:00 where the user is, across a daylight-saving change.
+        scheduledDate: tz.TZDateTime(
+          tz.local,
+          at.year,
+          at.month,
+          at.day,
+          at.hour,
+          at.minute,
+        ),
+        notificationDetails: _detailsFor(notification.kind),
+        // Inexact: no exact-alarm permission, which Android 14 withholds
+        // by default and the stores audit. A heads-up a few minutes late
+        // costs nothing (E-37).
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: notification.payload,
+      );
+      return const Right(unit);
+    } on Exception catch (e) {
+      debugPrint('[notifications] schedule failed: $e');
+      return const Left(
+        PermissionFailure('Could not schedule a notification.'),
+      );
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> cancel(int id) async {
+    try {
+      await _ensureInitialised();
+      await _plugin.cancel(id: id);
+      return const Right(unit);
+    } on Exception catch (e) {
+      debugPrint('[notifications] cancel failed: $e');
+      return const Left(PermissionFailure('Could not cancel a notification.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Set<int>>> scheduledIds() async {
+    try {
+      await _ensureInitialised();
+      final pending = await _plugin.pendingNotificationRequests();
+      return Right({for (final request in pending) request.id});
+    } on Exception catch (e) {
+      debugPrint('[notifications] pending list unavailable: $e');
+      return const Left(
+        PermissionFailure('Could not read the scheduled notifications.'),
+      );
+    }
+  }
+
+  /// Loads the time-zone database and sets the phone's zone, once.
+  ///
+  /// `timezone` ships the rules but not which zone the phone is in; the
+  /// platform says that. A zone the database does not know falls back to
+  /// UTC rather than failing every schedule — a reminder at the wrong hour
+  /// is better than none, and the log says why.
+  Future<void> _ensureTimeZone() => _zoneReady ??= () async {
+    tzdata.initializeTimeZones();
+    try {
+      final zone = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(zone.identifier));
+    } on Exception catch (e) {
+      debugPrint('[notifications] time zone unknown, using UTC: $e');
+      tz.setLocalLocation(tz.UTC);
+    }
+  }();
+
+  Future<void>? _zoneReady;
+
+  @override
   Future<String?> launchPayload() async {
     try {
       await _ensureInitialised();
@@ -137,6 +223,22 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
           ),
           // Shown while the app is open too: the expense that crossed the
           // threshold was most likely just entered in it.
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBanner: true,
+            presentList: true,
+          ),
+        ),
+        // Its own channel, so a user can silence reminders and keep budget
+        // alerts, or the other way round. Default importance: a heads-up,
+        // not an interruption.
+        NotificationKind.recurringReminder => const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'recurring_reminders',
+            'Recurring reminders',
+            channelDescription:
+                'Before a repeating expense or income is added.',
+          ),
           iOS: DarwinNotificationDetails(
             presentAlert: true,
             presentBanner: true,

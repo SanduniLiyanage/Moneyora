@@ -10,7 +10,7 @@ import '../../../../core/ports/notification_settings_reader.dart';
 import '../../domain/repositories/settings_repository.dart';
 
 /// Fulfils [NotificationSettingsReader] over [SettingsRepository].
-/// FR-SET-007.
+/// FR-SET-007, FR-SET-006.
 ///
 /// A projection, the shape `CalendarSettingsReaderImpl` has: one stream
 /// beneath, so a `map` and nothing more.
@@ -24,8 +24,12 @@ class NotificationSettingsReaderImpl implements NotificationSettingsReader {
   Stream<Either<Failure, NotificationSettings>> watch() =>
       _settings.watch().map(
         (result) => result.map(
-          (s) =>
-              NotificationSettings(budgetAlertsEnabled: s.budgetAlertsEnabled),
+          (s) => NotificationSettings(
+            budgetAlertsEnabled: s.budgetAlertsEnabled,
+            recurringRemindersEnabled: s.recurringRemindersEnabled,
+            reminderDaysBefore: s.reminderDaysBefore,
+            reminderMinuteOfDay: s.reminderMinuteOfDay,
+          ),
         ),
       );
 }

@@ -51,6 +51,9 @@ class UserSettings extends Equatable {
     this.savingsTargetPct = 0,
     this.planAnalysisMonths = 6,
     this.budgetAlertsEnabled = false,
+    this.recurringRemindersEnabled = false,
+    this.reminderDaysBefore = 1,
+    this.reminderMinuteOfDay = 9 * 60,
   });
 
   /// Light, dark, or the device's choice. FR-SET-001.
@@ -87,6 +90,18 @@ class UserSettings extends Equatable {
   /// it; schema v5 added one (E-35).
   final bool budgetAlertsEnabled;
 
+  /// Whether a recurring entry is announced before it is added. FR-SET-006.
+  ///
+  /// Off until turned on, for [budgetAlertsEnabled]'s reason. Schema v6
+  /// (E-37).
+  final bool recurringRemindersEnabled;
+
+  /// Days before the entry the reminder comes, 0 to 7. FR-SET-006.
+  final int reminderDaysBefore;
+
+  /// Minutes after midnight the reminder comes, 0 to 1439. FR-SET-006.
+  final int reminderMinuteOfDay;
+
   /// A copy with the given fields replaced.
   UserSettings copyWith({
     AppThemeMode? theme,
@@ -97,6 +112,9 @@ class UserSettings extends Equatable {
     double? savingsTargetPct,
     int? planAnalysisMonths,
     bool? budgetAlertsEnabled,
+    bool? recurringRemindersEnabled,
+    int? reminderDaysBefore,
+    int? reminderMinuteOfDay,
   }) => UserSettings(
     theme: theme ?? this.theme,
     language: language ?? this.language,
@@ -106,6 +124,10 @@ class UserSettings extends Equatable {
     savingsTargetPct: savingsTargetPct ?? this.savingsTargetPct,
     planAnalysisMonths: planAnalysisMonths ?? this.planAnalysisMonths,
     budgetAlertsEnabled: budgetAlertsEnabled ?? this.budgetAlertsEnabled,
+    recurringRemindersEnabled:
+        recurringRemindersEnabled ?? this.recurringRemindersEnabled,
+    reminderDaysBefore: reminderDaysBefore ?? this.reminderDaysBefore,
+    reminderMinuteOfDay: reminderMinuteOfDay ?? this.reminderMinuteOfDay,
   );
 
   @override
@@ -118,5 +140,8 @@ class UserSettings extends Equatable {
     savingsTargetPct,
     planAnalysisMonths,
     budgetAlertsEnabled,
+    recurringRemindersEnabled,
+    reminderDaysBefore,
+    reminderMinuteOfDay,
   ];
 }

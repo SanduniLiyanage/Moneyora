@@ -54,7 +54,7 @@ void main() {
   test('adds receipt_number, null, and keeps every scan', () async {
     await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5});
+    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5, 6});
     final rows = await db.query('receipt_scans');
     expect(rows, hasLength(1));
     expect(rows.single['total_amount_cents'], 70500, reason: 'intact');

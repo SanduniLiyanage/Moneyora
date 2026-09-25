@@ -91,7 +91,7 @@ void main() {
       'defaults', () async {
     await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5});
+    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5, 6});
 
     final user = (await db.query('users')).single;
     expect(user['theme'], 'dark', reason: 'intact');
@@ -155,8 +155,8 @@ void main() {
     });
   });
 
-  test('v5 is the latest version', () {
+  test('v5 is registered', () {
+    // No longer the latest: v6 (E-37) follows, and asserts that itself.
     expect(schemaMigrations[v5SchemaVersion], v5Statements);
-    expect(latestSchemaVersion, v5SchemaVersion);
   });
 }

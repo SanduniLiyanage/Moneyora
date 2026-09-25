@@ -90,6 +90,11 @@ class _FakeNotifier implements LocalNotifier {
   @override
   Future<Either<Failure, bool>> requestPermission() =>
       throw UnimplementedError();
+
+  // Scheduling (FR-SET-006) is not exercised here; a call fails loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
 
 PlanAllocation _row(

@@ -9,6 +9,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/widgets/auth_gate.dart';
 import 'features/money_plan/domain/usecases/check_budget_alerts.dart';
 import 'features/settings/presentation/providers/settings_providers.dart';
+import 'features/transactions/domain/usecases/sync_recurring_reminders.dart';
 import 'injection.dart';
 
 /// The root widget: theming, routing and the passcode gate, and nothing
@@ -64,6 +65,10 @@ class _MoneyoraAppState extends ConsumerState<MoneyoraApp> {
   void _open(String payload) {
     if (payload == CheckBudgetAlerts.payload) {
       unawaited(_router.push(Routes.activePlan));
+    } else if (payload == SyncRecurringReminders.payload) {
+      // FR-SET-006: a reminder opens the rules list, where the repeat it
+      // named can be paused or stopped before it is added.
+      unawaited(_router.push(Routes.recurring));
     }
   }
 

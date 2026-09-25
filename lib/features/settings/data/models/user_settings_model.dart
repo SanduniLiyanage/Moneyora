@@ -21,6 +21,9 @@ class UserSettingsModel extends UserSettings {
     super.savingsTargetPct,
     super.planAnalysisMonths,
     super.budgetAlertsEnabled,
+    super.recurringRemindersEnabled,
+    super.reminderDaysBefore,
+    super.reminderMinuteOfDay,
   });
 
   /// Wraps an entity so it can be written.
@@ -34,6 +37,9 @@ class UserSettingsModel extends UserSettings {
         savingsTargetPct: settings.savingsTargetPct,
         planAnalysisMonths: settings.planAnalysisMonths,
         budgetAlertsEnabled: settings.budgetAlertsEnabled,
+        recurringRemindersEnabled: settings.recurringRemindersEnabled,
+        reminderDaysBefore: settings.reminderDaysBefore,
+        reminderMinuteOfDay: settings.reminderMinuteOfDay,
       );
 
   /// Rebuilds a model from the `users` row.
@@ -47,6 +53,9 @@ class UserSettingsModel extends UserSettings {
         savingsTargetPct: (map['savings_target_pct']! as num).toDouble(),
         planAnalysisMonths: map['plan_analysis_months']! as int,
         budgetAlertsEnabled: map['budget_alerts_enabled'] == 1,
+        recurringRemindersEnabled: map['recurring_reminders_enabled'] == 1,
+        reminderDaysBefore: map['recurring_reminder_days_before']! as int,
+        reminderMinuteOfDay: map['recurring_reminder_minute']! as int,
       );
 
   /// The columns a preference change may write.
@@ -63,6 +72,9 @@ class UserSettingsModel extends UserSettings {
     'savings_target_pct': savingsTargetPct,
     'plan_analysis_months': planAnalysisMonths,
     'budget_alerts_enabled': budgetAlertsEnabled ? 1 : 0,
+    'recurring_reminders_enabled': recurringRemindersEnabled ? 1 : 0,
+    'recurring_reminder_days_before': reminderDaysBefore,
+    'recurring_reminder_minute': reminderMinuteOfDay,
   };
 
   /// A plain entity, safe to hand to the domain layer.
@@ -75,5 +87,8 @@ class UserSettingsModel extends UserSettings {
     savingsTargetPct: savingsTargetPct,
     planAnalysisMonths: planAnalysisMonths,
     budgetAlertsEnabled: budgetAlertsEnabled,
+    recurringRemindersEnabled: recurringRemindersEnabled,
+    reminderDaysBefore: reminderDaysBefore,
+    reminderMinuteOfDay: reminderMinuteOfDay,
   );
 }

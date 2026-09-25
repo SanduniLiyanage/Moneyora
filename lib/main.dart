@@ -8,6 +8,7 @@ import 'app.dart';
 import 'features/auth/presentation/providers/auth_providers.dart';
 import 'features/money_plan/presentation/providers/budget_alert_watcher.dart';
 import 'features/transactions/presentation/providers/recurring_catch_up.dart';
+import 'features/transactions/presentation/providers/recurring_reminder_watcher.dart';
 import 'injection.dart';
 
 /// Entry point.
@@ -58,6 +59,10 @@ void main() {
   // was closed or in the background are posted on launch and on every
   // resume. App-lifetime for the same reason as the watcher above.
   container.listen(recurringCatchUpProvider, (_, _) {});
+
+  // FR-SET-006: the pending reminders follow the rules and the settings for
+  // as long as the app runs; the boot receiver keeps them across restarts.
+  container.listen(recurringReminderWatcherProvider, (_, _) {});
 
   runApp(
     UncontrolledProviderScope(container: container, child: const MoneyoraApp()),

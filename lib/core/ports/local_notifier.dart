@@ -14,8 +14,9 @@ export 'app_notification.dart';
 /// interface the way `TextRecogniser` stands in front of ML Kit, so every
 /// use case that notifies is tested on the VM against a fake.
 ///
-/// Showing only, for now. Scheduling arrives with the recurring reminders
-/// that need it (FR-SET-006), not ahead of them.
+/// Showing now, and scheduling for later — the recurring reminders
+/// (FR-SET-006) are the first notifications that must fire while the app
+/// is closed.
 abstract interface class LocalNotifier {
   /// Asks the platform for permission to notify, where it has to be asked
   /// (Android 13 and later, and iOS). True when notifications may be shown.
@@ -26,4 +27,21 @@ abstract interface class LocalNotifier {
 
   /// Shows [notification] now, replacing any on screen with the same id.
   Future<Either<Failure, Unit>> show(AppNotification notification);
+
+  /// Shows [notification] at [at], local wall-clock time, even if the app
+  /// is closed or the phone has restarted since. FR-SET-006.
+  ///
+  /// Replaces anything pending under the same id. Not to the minute: the
+  /// platform may batch it to save battery, which a heads-up can afford
+  /// and an exact alarm would need a permission for.
+  Future<Either<Failure, Unit>> schedule(
+    AppNotification notification,
+    DateTime at,
+  );
+
+  /// Withdraws the pending notification with [id], if there is one.
+  Future<Either<Failure, Unit>> cancel(int id);
+
+  /// The ids of every notification scheduled and not yet shown.
+  Future<Either<Failure, Set<int>>> scheduledIds();
 }

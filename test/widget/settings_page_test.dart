@@ -17,6 +17,7 @@ import 'package:moneyora/features/settings/domain/entities/user_settings.dart';
 import 'package:moneyora/features/settings/domain/repositories/exchange_rate_repository.dart';
 import 'package:moneyora/features/settings/domain/repositories/settings_repository.dart';
 import 'package:moneyora/features/settings/domain/usecases/set_budget_alerts.dart';
+import 'package:moneyora/features/settings/domain/usecases/set_recurring_reminders.dart';
 import 'package:moneyora/features/settings/presentation/pages/settings_page.dart';
 import 'package:moneyora/features/settings/presentation/providers/settings_providers.dart';
 import 'package:moneyora/injection.dart';
@@ -80,6 +81,11 @@ class _FakeNotifier implements LocalNotifier {
   @override
   Future<Either<Failure, Unit>> show(AppNotification notification) async =>
       const Right(unit);
+
+  // Scheduling (FR-SET-006) is not exercised here; a call fails loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
 
 class _FakeRatesRepository implements ExchangeRateRepository {
@@ -314,6 +320,77 @@ void main() {
       expect(notifier.asked, 0);
       expect(settings.saved, [const UserSettings()]);
       expect(switchedOn(tester), isFalse);
+    });
+  });
+
+  group('recurring reminders. FR-SET-006', () {
+    bool switchedOn(WidgetTester tester) => tester
+        .widget<SwitchListTile>(
+          find.widgetWithText(SwitchListTile, 'Recurring reminders'),
+        )
+        .value;
+
+    testWidgets('start off, with no schedule row', (tester) async {
+      await open(tester);
+
+      expect(switchedOn(tester), isFalse);
+      expect(find.text('Remind me'), findsNothing);
+      expect(notifier.asked, 0);
+    });
+
+    testWidgets('turning on asks, stores it, and shows when they come', (
+      tester,
+    ) async {
+      await open(tester);
+
+      await tester.tap(find.text('Recurring reminders'));
+      await tester.pumpAndSettle();
+
+      expect(notifier.asked, 1);
+      expect(settings.saved, [
+        const UserSettings(recurringRemindersEnabled: true),
+      ]);
+      expect(switchedOn(tester), isTrue);
+      expect(find.text('Remind me'), findsOneWidget);
+      expect(find.text('The day before, at 9:00 AM'), findsOneWidget);
+    });
+
+    testWidgets('a refused permission stores nothing and says where to '
+        'allow it', (tester) async {
+      notifier.grant = false;
+      await open(tester);
+
+      await tester.tap(find.text('Recurring reminders'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(SetRecurringReminders.refusedMessage), findsOneWidget);
+      expect(settings.saved, isEmpty);
+      expect(switchedOn(tester), isFalse);
+    });
+
+    testWidgets('the schedule dialog writes a new day, and cancel writes '
+        'nothing', (tester) async {
+      settings.stored = const UserSettings(recurringRemindersEnabled: true);
+      await open(tester);
+
+      await tester.tap(find.text('Remind me'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(settings.saved, isEmpty);
+
+      await tester.tap(find.text('Remind me'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('The day before').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2 days before').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved.single.reminderDaysBefore, 2);
+      expect(settings.saved.single.reminderMinuteOfDay, 9 * 60);
+      expect(find.text('2 days before, at 9:00 AM'), findsOneWidget);
     });
   });
 

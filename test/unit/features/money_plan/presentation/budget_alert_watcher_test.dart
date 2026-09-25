@@ -56,6 +56,11 @@ class _Tray implements LocalNotifier {
 
   @override
   Future<Either<Failure, bool>> requestPermission() async => const Right(true);
+
+  // Scheduling (FR-SET-006) is not exercised here; a call fails loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
 
 void main() {

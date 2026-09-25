@@ -127,6 +127,8 @@ import 'features/settings/domain/usecases/set_exchange_rate.dart';
 import 'features/settings/domain/usecases/set_first_day_of_month.dart';
 import 'features/settings/domain/usecases/set_first_day_of_week.dart';
 import 'features/settings/domain/usecases/set_plan_analysis_months.dart';
+import 'features/settings/domain/usecases/set_recurring_reminders.dart';
+import 'features/settings/domain/usecases/set_reminder_schedule.dart';
 import 'features/settings/domain/usecases/set_theme.dart';
 import 'features/settings/domain/usecases/watch_exchange_rates.dart';
 import 'features/settings/domain/usecases/watch_settings.dart';
@@ -145,6 +147,7 @@ import 'features/transactions/domain/usecases/make_transfer.dart';
 import 'features/transactions/domain/usecases/pause_recurring_rule.dart';
 import 'features/transactions/domain/usecases/post_due_recurring_transactions.dart';
 import 'features/transactions/domain/usecases/resume_recurring_rule.dart';
+import 'features/transactions/domain/usecases/sync_recurring_reminders.dart';
 import 'features/transactions/domain/usecases/update_transaction.dart';
 import 'features/transactions/domain/usecases/watch_recurring_rules.dart';
 import 'features/transactions/domain/usecases/watch_transactions.dart';
@@ -371,6 +374,14 @@ final deleteRecurringRuleProvider = FutureProvider<DeleteRecurringRule>(
   (ref) async => DeleteRecurringRule(
     await ref.watch(recurringRuleRepositoryProvider.future),
   ),
+);
+
+/// Keeps one pending reminder per recurring rule. FR-SET-006, E-37.
+///
+/// Over [localNotifierProvider], the port the budget alerts already use —
+/// synchronous, like it, because the plugin needs no database.
+final syncRecurringRemindersProvider = Provider<SyncRecurringReminders>(
+  (ref) => SyncRecurringReminders(ref.watch(localNotifierProvider)),
 );
 
 /// Posts every recurring entry that has fallen due. FR-EXP-008, FR-INC-004.
@@ -981,6 +992,21 @@ final setBudgetAlertsProvider = FutureProvider<SetBudgetAlerts>(
     await ref.watch(settingsRepositoryProvider.future),
     ref.watch(localNotifierProvider),
   ),
+);
+
+/// Turns recurring reminders on or off, asking permission first.
+/// FR-SET-006, E-37.
+final setRecurringRemindersProvider = FutureProvider<SetRecurringReminders>(
+  (ref) async => SetRecurringReminders(
+    await ref.watch(settingsRepositoryProvider.future),
+    ref.watch(localNotifierProvider),
+  ),
+);
+
+/// Sets how many days before, and at what time, reminders come. FR-SET-006.
+final setReminderScheduleProvider = FutureProvider<SetReminderSchedule>(
+  (ref) async =>
+      SetReminderSchedule(await ref.watch(settingsRepositoryProvider.future)),
 );
 
 /// The notification settings, for features outside settings. FR-SET-007.
