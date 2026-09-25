@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'features/auth/presentation/providers/auth_providers.dart';
 import 'features/money_plan/presentation/providers/budget_alert_watcher.dart';
+import 'features/transactions/presentation/providers/recurring_catch_up.dart';
 import 'injection.dart';
 
 /// Entry point.
@@ -52,6 +53,11 @@ void main() {
   // rather than in `MoneyoraApp` for the reason the splash is: the app's
   // widget tests build their own scope and have no plan to watch.
   container.listen(budgetAlertWatcherProvider, (_, _) {});
+
+  // FR-EXP-008, FR-INC-004: recurring entries that fell due while the app
+  // was closed or in the background are posted on launch and on every
+  // resume. App-lifetime for the same reason as the watcher above.
+  container.listen(recurringCatchUpProvider, (_, _) {});
 
   runApp(
     UncontrolledProviderScope(container: container, child: const MoneyoraApp()),

@@ -51,6 +51,7 @@ follows the Resolution sections.
 | [E-33](#e-33) | FR-PLN-014's Carry Over has nowhere to live in the schema | Resolved | FR-PLN-014 |
 | [E-34](#e-34) | FR-ACC-005 has no schema: no rates table, and a transfer header that cannot carry two amounts | Resolved | FR-ACC-005, FR-SET-003, FR-TRF-001 |
 | [E-35](#e-35) | FR-SET-007's budget alerts have no schema: no setting, and nothing recording an alert was sent | Resolved | FR-SET-007 |
+| [E-36](#e-36) | A recurring rule's template cannot be deleted, and the DBD's cascade would delete the series | Resolved | FR-EXP-008, FR-INC-004 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2087,6 +2088,72 @@ Decisions the SRS leaves open, made here:
    write fires no change signal — no screen draws the column.
 
 The DBD v1.1 that E-32 anticipates should carry both columns.
+
+---
+
+<a id="e-36"></a>
+
+## E-36 — A recurring rule's template cannot be deleted, and the DBD's cascade would delete the series
+
+**Severity:** Medium · **Affects:** DBD §2.2, §3.6 (`recurring_rules`)
+· **Requirement:** FR-EXP-008, FR-INC-004
+
+Raised 2026-09-25, building the recurring engine in Sprint 7. Amendment A
+adopted the DBD's design for `recurring_rules`: the rule holds the schedule
+and a `template_tx_id` naming a transaction to copy. Two things follow from
+that design that neither the DBD nor v1 settles.
+
+**1. The template's foreign key has no delete action, so the template
+cannot be deleted.** DBD §2.2 lists `transactions → recurring_rules` as
+`CASCADE DELETE`. `v1_initial.dart` built
+`template_tx_id INTEGER REFERENCES transactions(id)` with no `ON DELETE`
+clause — `NO ACTION` — and `DatabaseHelper` turns foreign keys on for every
+connection. Inert until a rule existed; from the first one, deleting the
+series' first entry fails the constraint and the user is told only that the
+delete could not be done.
+
+**2. The DBD's cascade would be worse than the failure.** The template is
+the series' first entry, an ordinary row in the ledger. Deleting it — a
+mistyped first month, say — would delete the rule with it, and the rent
+would silently stop repeating.
+
+### Resolution — hand the template on, in the delete's own transaction
+
+No schema change; `TransactionLocalDataSourceImpl.delete` does it:
+
+1. **The latest remaining entry of the series becomes the template.** Every
+   entry is a copy of the template as it stood when it was posted, and the
+   latest is the nearest to what is repeating now. The series goes on.
+2. **When the template was the only entry, the rule stops**: its
+   `template_tx_id` is set to `NULL` — the column is nullable — and
+   `is_active` to 0. There is nothing left to copy, and a rule kept with no
+   template is still readable by the rules list, which says it has stopped.
+3. **Both in the transaction that deletes the row**, so a delete that fails
+   hands nothing on, and a delete undone inside E-23's window — which never
+   reaches the datasource — changes nothing.
+
+The catch-up reports a rule with no template rather than posting it, in
+case one is ever found in that state some other way.
+
+### The other direction, for the rules screen
+
+`transactions.recurring_rule_id` has the same `NO ACTION`, so a rule with
+entries cannot be deleted either. That is the rules list's to handle when it
+offers "delete this repeat" (Sprint 7, PR C): unlink the entries
+(`recurring_rule_id = NULL`) and keep `is_recurring = 1` on them — the
+reason `Transaction.isRecurring` exists beside the id — then delete the
+rule, in one transaction. Nothing deletes a rule before that screen exists.
+
+### One consequence of the template design, recorded
+
+Because the template is a real entry, **a repeat cannot start in the
+future**: `AddTransaction.validate` refuses a future date for any entry,
+and `CreateRecurringRule` runs it on the template. A start in the past is
+allowed, and its missed entries are posted by the next catch-up. If a
+future start is wanted — "rent from next month" — it needs the rule to hold
+the amount itself, which is E-03's original design, and a migration.
+
+The DBD v1.1 that E-32 anticipates should replace §2.2's cascade with this.
 
 ---
 

@@ -1,4 +1,8 @@
-/// The only place SQL is written for the transactions feature.
+/// Where SQL is written for the transactions a user enters.
+///
+/// Recurring rules have their own datasource beside this one, and both
+/// write ledger rows through `ledger_writer.dart`, so a balance moves by
+/// one arithmetic however the row arrived.
 ///
 /// Everything here throws [CacheException] on failure and returns models, per
 /// the layer contract in `docs/ARCHITECTURE.md` §3. The repository above
@@ -22,7 +26,8 @@
 /// * **`plan_allocations.spent_amount_cents` is a cache with the same rules**
 ///   (FR-PLN-013, E-18): an expense moves the active plan's figure for its
 ///   category inside the transaction that writes the expense. See
-///   [_applyPlanSpend] for what counts as spending and what is a no-op.
+///   [LedgerWriter.applyPlanSpend] for what counts as spending and what is
+///   a no-op.
 library;
 
 import 'dart:async';
@@ -34,6 +39,7 @@ import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../models/transaction_model.dart';
+import 'ledger_writer.dart';
 
 /// Reads and writes transactions in the local encrypted database.
 abstract interface class TransactionLocalDataSource {
@@ -58,6 +64,10 @@ abstract interface class TransactionLocalDataSource {
   ///
   /// Deleting either half of a transfer removes **both** halves and the header
   /// row, because half a transfer is not a thing the rest of the app can read.
+  ///
+  /// Deleting the entry a recurring rule copies hands that role to the
+  /// series' latest remaining entry, or stops the rule when there is none
+  /// (E-36).
   Future<void> delete(int id);
 
   /// Reads rows matching [filter], newest first, with their split parts.
@@ -135,7 +145,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
     }
 
     final id = await _guard('add a transaction', () async {
-      return _db.transaction((txn) => _insert(txn, transaction));
+      return _db.transaction((txn) => LedgerWriter.insert(txn, transaction));
     });
 
     _notify();
@@ -159,7 +169,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
       return _db.transaction((txn) async {
         final ids = <int>[];
         for (final transaction in transactions) {
-          ids.add(await _insert(txn, transaction));
+          ids.add(await LedgerWriter.insert(txn, transaction));
         }
         return ids;
       });
@@ -178,7 +188,7 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
 
     await _guard('update transaction $id', () async {
       await _db.transaction((txn) async {
-        final existing = await _requireRow(txn, id);
+        final existing = await LedgerWriter.requireRow(txn, id);
 
         // Reverse the old row's effect before applying the new one. The two
         // may sit on different accounts, and they may be different amounts, so
@@ -187,8 +197,12 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
         // parts may all have changed, so the old row is taken out in full and
         // the new one put in — which is also what moves spend between two
         // categories when the category changes.
-        await _applyBalance(txn, existing.accountId, -_delta(existing));
-        await _applyPlanSpend(txn, existing, sign: -1);
+        await LedgerWriter.applyBalance(
+          txn,
+          existing.accountId,
+          -LedgerWriter.delta(existing),
+        );
+        await LedgerWriter.applyPlanSpend(txn, existing, sign: -1);
 
         await txn.update(
           'transactions',
@@ -205,10 +219,14 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
           where: 'transaction_id = ?',
           whereArgs: [id],
         );
-        await _writeSplits(txn, transaction, id);
+        await LedgerWriter.writeSplits(txn, transaction, id);
 
-        await _applyBalance(txn, transaction.accountId, _delta(transaction));
-        await _applyPlanSpend(txn, transaction, sign: 1);
+        await LedgerWriter.applyBalance(
+          txn,
+          transaction.accountId,
+          LedgerWriter.delta(transaction),
+        );
+        await LedgerWriter.applyPlanSpend(txn, transaction, sign: 1);
       });
     });
 
@@ -219,17 +237,24 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
   Future<void> delete(int id) async {
     await _guard('delete transaction $id', () async {
       await _db.transaction((txn) async {
-        final existing = await _requireRow(txn, id);
+        final existing = await LedgerWriter.requireRow(txn, id);
 
         if (existing.type == TransactionType.transfer) {
           await _deleteTransferAround(txn, id);
           return;
         }
 
-        await _applyBalance(txn, existing.accountId, -_delta(existing));
+        await LedgerWriter.applyBalance(
+          txn,
+          existing.accountId,
+          -LedgerWriter.delta(existing),
+        );
         // Before the row goes: a split's parts are what moved the plan, and
         // they cascade away with the parent (E-04).
-        await _applyPlanSpend(txn, existing, sign: -1);
+        await LedgerWriter.applyPlanSpend(txn, existing, sign: -1);
+        // And before it goes: a recurring rule naming it as its template
+        // would refuse the delete on its foreign key (E-36).
+        await _handOnTemplate(txn, id);
         // transaction_splits cascades on delete (E-04), so the parts go with
         // the parent without a second statement.
         await txn.delete('transactions', where: 'id = ?', whereArgs: [id]);
@@ -296,8 +321,8 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
           'created_at': now.toIso8601String(),
         });
 
-        await _applyBalance(txn, fromAccountId, -amountCents);
-        await _applyBalance(txn, toAccountId, creditedAmountCents);
+        await LedgerWriter.applyBalance(txn, fromAccountId, -amountCents);
+        await LedgerWriter.applyBalance(txn, toAccountId, creditedAmountCents);
 
         return transferId;
       });
@@ -338,107 +363,50 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
   }
 
   // ── writes shared by several paths ────────────────────────────────────────
+  //
+  // The single-row insert and the balance and plan caches it moves live in
+  // `LedgerWriter`, shared with the recurring rules' datasource, so a rule's
+  // entries move a balance by exactly the arithmetic a typed entry does.
 
-  /// Writes one non-transfer row with its parts and cache moves. Always
-  /// inside a transaction — [add] opens one per row, [addAll] one per
-  /// batch.
-  Future<int> _insert(
-    DatabaseExecutor txn,
-    TransactionModel transaction,
-  ) async {
-    final rowId = await txn.insert('transactions', transaction.toMap());
-    await _writeSplits(txn, transaction, rowId);
-    await _applyBalance(txn, transaction.accountId, _delta(transaction));
-    await _applyPlanSpend(txn, transaction, sign: 1);
-    return rowId;
-  }
-
-  Future<void> _writeSplits(
-    DatabaseExecutor txn,
-    TransactionModel transaction,
-    int parentId,
-  ) async {
-    // The common case is unsplit, and it must stay a single insert (E-04).
-    if (transaction.splits.isEmpty) return;
-
-    for (final row in transaction.splitMaps(parentId)) {
-      await txn.insert('transaction_splits', row);
-    }
-  }
-
-  /// Moves the cached balance on [accountId] by [deltaCents].
+  /// Hands the template role of any recurring rule copying [id] to another
+  /// entry of the same series, before [id] is deleted. E-36.
   ///
-  /// Always called from inside a transaction, never on its own (E-18). The
-  /// arithmetic is exact because the column is `INTEGER` cents (E-06);
-  /// repeated increment of a `REAL` would drift.
-  Future<void> _applyBalance(
-    DatabaseExecutor txn,
-    int accountId,
-    int deltaCents,
-  ) async {
-    if (deltaCents == 0) return;
-    await txn.rawUpdate(
-      'UPDATE accounts SET current_balance_cents = current_balance_cents + ? '
-      'WHERE id = ?',
-      [deltaCents, accountId],
+  /// `recurring_rules.template_tx_id` has no `ON DELETE` action (DBD §2.2
+  /// asks for a cascade; v1 built none), so with foreign keys on, deleting
+  /// a template would fail. A cascade would be worse than the failure:
+  /// deleting last month's rent, one wrong entry, would delete the rent.
+  ///
+  /// So the **latest remaining entry** of the series becomes the template
+  /// — every entry is a copy of the template as it was when posted, and the
+  /// latest is the nearest to what is repeating now — and the series goes
+  /// on. When the template was the only entry there is nothing left to copy:
+  /// the rule keeps its row, with no template, and stops. Both in the
+  /// delete's own transaction, so an undone delete (E-23), which never
+  /// reaches here, changes nothing.
+  Future<void> _handOnTemplate(DatabaseExecutor txn, int id) async {
+    final rules = await txn.query(
+      'recurring_rules',
+      columns: ['id'],
+      where: 'template_tx_id = ?',
+      whereArgs: [id],
     );
-  }
-
-  /// Moves the active plan's `spent_amount_cents` by what [transaction]
-  /// spends, times [sign] (`1` to apply, `-1` to reverse). FR-PLN-013.
-  ///
-  /// Always called from inside the transaction that writes the row, never on
-  /// its own — the same rule as [_applyBalance] and for the same reason
-  /// (E-18): a second call is a call something can skip, and eventual
-  /// consistency here is a plan screen that says "on track" over an expense
-  /// the list screen already shows.
-  ///
-  /// **What counts as spending.** Only `expense` rows. FR-PLN-013 tracks
-  /// "actual spending vs. the active plan"; income is not spending, a
-  /// transfer is neither (E-02), and a plan allocates expense categories. A
-  /// split parent contributes nothing and each of its parts contributes its
-  /// own amount to its own category (E-04) — the rows the analytics
-  /// datasource's `_spendingParts` counts, so the plan and the reports agree
-  /// on what was spent on Food.
-  ///
-  /// **What is a no-op, not an error.** No active plan; the date outside the
-  /// active plan's period; a category the plan has no row for. All three
-  /// come out of the one statement below: the subquery yields `NULL` when no
-  /// active plan holds the date, `plan_id = NULL` matches nothing, and a
-  /// category with no allocation row matches nothing. An expense the plan
-  /// does not cover is simply not tracked, which is what "tracking against
-  /// the plan" means; refusing the expense would let the plan veto the
-  /// ledger.
-  ///
-  /// **Active plan only, as of the write.** The reversal on edit and delete
-  /// targets the plan that is active *now*, holding the *old* row's date. A
-  /// plan that was active when a row was written and is not any more keeps
-  /// the figure it had, and a plan activated after rows in its period were
-  /// written starts from whatever `spent_amount_cents` says. Both are
-  /// repaired by `MoneyPlanLocalDataSource.recomputeSpent`, the recount E-18
-  /// asks for; activation is where that recount belongs.
-  Future<void> _applyPlanSpend(
-    DatabaseExecutor txn,
-    TransactionModel transaction, {
-    required int sign,
-  }) async {
-    if (transaction.type != TransactionType.expense) return;
-
-    final parts = transaction.splits.isEmpty
-        ? [(transaction.categoryId, transaction.amountCents)]
-        : [for (final s in transaction.splits) (s.categoryId, s.amountCents)];
-    final date = TransactionModel.encodeDate(transaction.date);
-
-    for (final (categoryId, amountCents) in parts) {
-      if (categoryId == null || amountCents == 0) continue;
-      await txn.rawUpdate(
-        'UPDATE plan_allocations '
-        'SET spent_amount_cents = spent_amount_cents + ? '
-        'WHERE category_id = ? AND plan_id = ('
-        'SELECT id FROM money_plans '
-        'WHERE is_active = 1 AND start_date <= ? AND end_date >= ? '
-        'ORDER BY id DESC LIMIT 1)',
-        [sign * amountCents, categoryId, date, date],
+    for (final rule in rules) {
+      final ruleId = rule['id']! as int;
+      final heirs = await txn.query(
+        'transactions',
+        columns: ['id'],
+        where: 'recurring_rule_id = ? AND id <> ?',
+        whereArgs: [ruleId, id],
+        orderBy: 'date DESC, id DESC',
+        limit: 1,
+      );
+      await txn.update(
+        'recurring_rules',
+        heirs.isEmpty
+            ? {'template_tx_id': null, 'is_active': 0}
+            : {'template_tx_id': heirs.first['id']},
+        where: 'id = ?',
+        whereArgs: [ruleId],
       );
     }
   }
@@ -460,8 +428,12 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
       // A transfer half with no header is already corrupt. Removing the row
       // and its balance effect is the best available repair, and it is better
       // than refusing to let the user delete something they can see.
-      final orphan = await _requireRow(txn, halfId);
-      await _applyBalance(txn, orphan.accountId, -_delta(orphan));
+      final orphan = await LedgerWriter.requireRow(txn, halfId);
+      await LedgerWriter.applyBalance(
+        txn,
+        orphan.accountId,
+        -LedgerWriter.delta(orphan),
+      );
       await txn.delete('transactions', where: 'id = ?', whereArgs: [halfId]);
       return;
     }
@@ -477,40 +449,17 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
     await txn.delete('transfers', where: 'id = ?', whereArgs: [header['id']]);
 
     for (final txId in {fromTxId, toTxId}) {
-      final half = await _requireRow(txn, txId);
-      await _applyBalance(txn, half.accountId, -_delta(half));
+      final half = await LedgerWriter.requireRow(txn, txId);
+      await LedgerWriter.applyBalance(
+        txn,
+        half.accountId,
+        -LedgerWriter.delta(half),
+      );
       await txn.delete('transactions', where: 'id = ?', whereArgs: [txId]);
     }
   }
 
   // ── reads ─────────────────────────────────────────────────────────────────
-
-  /// The stored row, with its split parts when it has any.
-  ///
-  /// The parts are needed by whoever reverses the row's effect (E-04: they,
-  /// not the parent, are what moved the plan), and an unsplit row costs no
-  /// second query.
-  Future<TransactionModel> _requireRow(DatabaseExecutor txn, int id) async {
-    final rows = await txn.query(
-      'transactions',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (rows.isEmpty) {
-      throw CacheException('No transaction with id $id.');
-    }
-    final row = rows.first;
-    final splitRows = row['is_split'] == 1
-        ? await txn.query(
-            'transaction_splits',
-            where: 'transaction_id = ?',
-            whereArgs: [id],
-            orderBy: 'id ASC',
-          )
-        : const <Map<String, Object?>>[];
-    return TransactionModel.fromMap(row, splitRows: splitRows);
-  }
 
   /// Split parts for [rows], keyed by parent id.
   ///
@@ -630,20 +579,6 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
       .replaceAll(r'\', r'\\')
       .replaceAll('%', r'\%')
       .replaceAll('_', r'\_');
-
-  /// How much [transaction] moves its own account's balance, signed.
-  ///
-  /// Amounts are always positive on the row, so the direction has to come from
-  /// somewhere: [TransactionType] for ordinary rows, and [TransferDirection]
-  /// for the two halves of a transfer, which are otherwise identical (E-16).
-  static int _delta(TransactionModel transaction) => switch (transaction.type) {
-    TransactionType.income => transaction.amountCents,
-    TransactionType.expense => -transaction.amountCents,
-    TransactionType.transfer =>
-      transaction.transferDirection == TransferDirection.incoming
-          ? transaction.amountCents
-          : -transaction.amountCents,
-  };
 
   /// Runs [body], turning any database error into a [CacheException].
   ///

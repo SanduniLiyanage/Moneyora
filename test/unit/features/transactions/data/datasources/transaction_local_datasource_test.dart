@@ -1223,4 +1223,105 @@ void main() {
       await subscription.cancel();
     });
   });
+
+  // ── deleting an entry of a recurring series (E-36) ────────────────────────
+
+  group('delete, for an entry a recurring rule copies (E-36)', () {
+    /// A monthly series: [entries] rows, the first its template, each
+    /// linked to the rule. Returns the rule's id and the rows' ids.
+    Future<(int, List<int>)> series(int entries) async {
+      final ids = <int>[
+        for (var i = 0; i < entries; i++)
+          await source.add(expense(on: DateTime(2026, 1 + i, 5))),
+      ];
+      final ruleId = await db.insert('recurring_rules', {
+        'template_tx_id': ids.first,
+        'frequency': 'monthly',
+        'day_of_month': 5,
+        'start_date': '2026-01-05',
+        'next_due_date': '2026-${(1 + entries).toString().padLeft(2, '0')}-05',
+      });
+      await db.update('transactions', {
+        'recurring_rule_id': ruleId,
+        'is_recurring': 1,
+      }, where: 'id IN (${ids.join(', ')})');
+      return (ruleId, ids);
+    }
+
+    Future<Map<String, Object?>> rule(int id) async => (await db.query(
+      'recurring_rules',
+      where: 'id = ?',
+      whereArgs: [id],
+    )).single;
+
+    test('hands the template to the latest remaining entry, and the series '
+        'goes on', () async {
+      final (ruleId, ids) = await series(3);
+
+      await source.delete(ids.first);
+
+      final after = await rule(ruleId);
+      expect(after['template_tx_id'], ids.last);
+      expect(after['is_active'], 1);
+      expect(await countOf('transactions'), 2);
+      expect(await balanceOf(cash), await recomputeBalance(cash));
+    });
+
+    test('stops the rule when the template was its only entry', () async {
+      final (ruleId, ids) = await series(1);
+
+      await source.delete(ids.single);
+
+      final after = await rule(ruleId);
+      expect(after['template_tx_id'], isNull);
+      expect(after['is_active'], 0);
+      expect(await countOf('transactions'), 0);
+      expect(await balanceOf(cash), 0);
+    });
+
+    test('an entry that is not the template leaves the rule alone', () async {
+      final (ruleId, ids) = await series(3);
+
+      await source.delete(ids[1]);
+
+      final after = await rule(ruleId);
+      expect(after['template_tx_id'], ids.first);
+      expect(after['is_active'], 1);
+    });
+
+    test('a failed delete hands nothing on', () async {
+      final (ruleId, ids) = await series(2);
+      // Make the template undeletable: a transfer header naming it, whose
+      // foreign key has no cascade. Corrupt on purpose — it is the one way
+      // to fail the delete *after* the hand-on has run, which is what
+      // proves the two share a transaction.
+      final transferHalf = await db.insert('transactions', {
+        'account_id': cash,
+        'amount_cents': 1,
+        'type': 'transfer',
+        'transfer_direction': 'out',
+        'date': '2026-01-05',
+        'created_at': '2026-01-05T00:00:00Z',
+        'updated_at': '2026-01-05T00:00:00Z',
+      });
+      await db.insert('transfers', {
+        'from_account_id': cash,
+        'to_account_id': card,
+        'amount_cents': 1,
+        'date': '2026-01-05',
+        'from_tx_id': transferHalf,
+        'to_tx_id': ids.first,
+        'created_at': '2026-01-05T00:00:00Z',
+      });
+
+      await expectLater(
+        source.delete(ids.first),
+        throwsA(isA<CacheException>()),
+      );
+
+      final after = await rule(ruleId);
+      expect(after['template_tx_id'], ids.first);
+      expect(after['is_active'], 1);
+    });
+  });
 }

@@ -7,8 +7,10 @@ import 'package:moneyora/core/database/encryption_key_store.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/categories/domain/entities/category.dart';
+import 'package:moneyora/features/transactions/domain/entities/recurring_rule.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
+import 'package:moneyora/features/transactions/domain/usecases/create_recurring_rule.dart';
 import 'package:moneyora/injection.dart';
 // sqflite exports a Transaction of its own — the database kind, not the
 // money kind.
@@ -71,9 +73,53 @@ void main() {
         container.read(deleteTransactionProvider.future),
         container.read(makeTransferProvider.future),
         container.read(watchTransactionsProvider.future),
+        container.read(recurringRuleLocalDataSourceProvider.future),
+        container.read(recurringRuleRepositoryProvider.future),
+        container.read(createRecurringRuleProvider.future),
+        container.read(postDueRecurringTransactionsProvider.future),
       ]),
       completes,
     );
+  });
+
+  test('a recurring rule posts through the real wiring, and a watching '
+      'list hears it (FR-EXP-008)', () async {
+    final create = await container.read(createRecurringRuleProvider.future);
+    final postDue = await container.read(
+      postDueRecurringTransactionsProvider.future,
+    );
+    final watchTransactions = await container.read(
+      watchTransactionsProvider.future,
+    );
+
+    final created = await create(
+      RecurringRuleRequest(
+        first: Transaction(
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 4500000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 1, 5),
+          note: 'Rent',
+        ),
+        frequency: RecurrenceFrequency.monthly,
+      ),
+    );
+    expect(created.isRight(), isTrue, reason: 'create failed: $created');
+
+    var seen = <Transaction>[];
+    final subscription = watchTransactions(const TransactionFilter())
+        .listen((rows) => seen = rows.getOrElse((_) => []));
+    await pumpUntil(() => seen.length == 1, 'the template on the list');
+
+    // Past, so the future-date rule — on the real clock — refuses nothing.
+    final report = await postDue(DateTime(2026, 4, 20));
+
+    expect(report.isRight(), isTrue, reason: 'catch-up failed: $report');
+    // The recurring datasource is on the shared bus: the list re-reads.
+    await pumpUntil(() => seen.length == 4, 'the posted entries on the list');
+    expect(seen.every((t) => t.isRecurring), isTrue);
+    await subscription.cancel();
   });
 
   test('an expense added through the use case comes back out', () async {
