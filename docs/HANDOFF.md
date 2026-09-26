@@ -2061,8 +2061,7 @@ FR-SET-009's and FR-SET-010's Settings rows. What the backup has to know:
   below.
 
 Still open and not blocking Sprint 8: **FR-SET-002** (languages; English
-only) and **FR-SET-008** (the savings target, which is stored with no Settings
-row); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
+only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
 there is one; and, carried from Sprint 6's list without being rechecked,
 FR-RPT-006's summary figures and `ComparePeriods`' Copilot caller.
 

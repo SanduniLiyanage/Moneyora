@@ -1,4 +1,4 @@
-/// The settings feature's answer to [CalendarSettingsReader]: three columns
+/// The settings feature's answer to [CalendarSettingsReader]: four columns
 /// of the `users` row, as the value other features read.
 library;
 
@@ -25,6 +25,7 @@ class CalendarSettingsReaderImpl implements CalendarSettingsReader {
         firstWeekday: s.firstDayOfWeek,
         firstDayOfMonth: s.firstDayOfMonth,
         planAnalysisMonths: s.planAnalysisMonths,
+        savingsTargetPct: s.savingsTargetPct,
       ),
     ),
   );

@@ -129,6 +129,7 @@ import 'features/settings/domain/usecases/set_first_day_of_week.dart';
 import 'features/settings/domain/usecases/set_plan_analysis_months.dart';
 import 'features/settings/domain/usecases/set_recurring_reminders.dart';
 import 'features/settings/domain/usecases/set_reminder_schedule.dart';
+import 'features/settings/domain/usecases/set_savings_target.dart';
 import 'features/settings/domain/usecases/set_theme.dart';
 import 'features/settings/domain/usecases/watch_exchange_rates.dart';
 import 'features/settings/domain/usecases/watch_settings.dart';
@@ -984,6 +985,12 @@ final setFirstDayOfMonthProvider = FutureProvider<SetFirstDayOfMonth>(
 final setPlanAnalysisMonthsProvider = FutureProvider<SetPlanAnalysisMonths>(
   (ref) async =>
       SetPlanAnalysisMonths(await ref.watch(settingsRepositoryProvider.future)),
+);
+
+/// Sets the savings target a suggested plan starts from. FR-SET-008.
+final setSavingsTargetProvider = FutureProvider<SetSavingsTarget>(
+  (ref) async =>
+      SetSavingsTarget(await ref.watch(settingsRepositoryProvider.future)),
 );
 
 /// Turns budget alerts on, asking the platform first, or off. FR-SET-007.

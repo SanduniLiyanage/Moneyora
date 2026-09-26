@@ -230,6 +230,40 @@ void main() {
     );
   });
 
+  testWidgets('the savings figure starts from the stored target. FR-SET-008', (
+    tester,
+  ) async {
+    final handedOn = <AllocationRequest>[];
+    await tester.pumpWidget(
+      boot(handedOn, calendar: const CalendarSettings(savingsTargetPct: 20)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Suggest from income'));
+    await tester.pumpAndSettle();
+    await generate(tester);
+
+    expect(
+      handedOn.single.mode,
+      const BudgetMode.suggested(savingsTargetPct: 20),
+    );
+  });
+
+  testWidgets('with no stored target, the suggestion is 10%', (tester) async {
+    final handedOn = <AllocationRequest>[];
+    await tester.pumpWidget(boot(handedOn));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Suggest from income'));
+    await tester.pumpAndSettle();
+    await generate(tester);
+
+    expect(
+      handedOn.single.mode,
+      const BudgetMode.suggested(savingsTargetPct: 10),
+    );
+  });
+
   testWidgets('zero days is refused', (tester) async {
     final handedOn = <AllocationRequest>[];
     await tester.pumpWidget(boot(handedOn));
