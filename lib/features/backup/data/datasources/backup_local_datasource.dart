@@ -38,6 +38,9 @@ abstract class BackupLocalDataSource {
   /// Every transaction as a CSV file, oldest first. [now] names the file.
   /// FR-RPT-007.
   Future<BackupFile> exportCsv({required DateTime now});
+
+  /// How many transactions there are. FR-BAK-006.
+  Future<int> transactionCount();
 }
 
 /// Fulfils [BackupLocalDataSource] over the open database.
@@ -311,6 +314,18 @@ class BackupLocalDataSourceImpl implements BackupLocalDataSource {
       return '"${safe.replaceAll('"', '""')}"';
     }
     return safe;
+  }
+
+  @override
+  Future<int> transactionCount() async {
+    try {
+      return Sqflite.firstIntValue(
+            await _db.rawQuery('SELECT COUNT(*) FROM transactions'),
+          ) ??
+          0;
+    } on DatabaseException catch (e) {
+      throw CacheException('Could not read your transactions.', cause: e);
+    }
   }
 
   /// Every kept photo the rows name now.

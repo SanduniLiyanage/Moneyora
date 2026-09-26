@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/backup/domain/entities/backup_file.dart';
+import 'package:moneyora/features/backup/domain/entities/backup_status.dart';
 import 'package:moneyora/features/backup/domain/entities/restore_summary.dart';
 import 'package:moneyora/features/backup/domain/repositories/backup_repository.dart';
 import 'package:moneyora/features/backup/domain/usecases/create_backup.dart';
@@ -70,6 +71,7 @@ void main() {
 }
 
 class _FakeBackups implements BackupRepository {
+  DateTime? savedAt;
   int cleared = 0;
   String? createdWith;
   (Uint8List, String)? restored;
@@ -104,6 +106,17 @@ class _FakeBackups implements BackupRepository {
   @override
   Future<Either<Failure, BackupFile>> exportTransactionsCsv() async =>
       Right(_csv);
+
+  @override
+  Future<Either<Failure, BackupStatus>> status(DateTime now) async => Right(
+    BackupStatus(lastSavedAt: null, firstSeenAt: now, transactionCount: 0),
+  );
+
+  @override
+  Future<Either<Failure, Unit>> recordSaved(DateTime at) async {
+    savedAt = at;
+    return const Right(unit);
+  }
 }
 
 final _bytes = Uint8List.fromList([1, 2, 3]);

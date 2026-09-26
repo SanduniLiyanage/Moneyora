@@ -10,8 +10,10 @@ import 'package:moneyora/core/usecases/usecase.dart';
 import 'package:moneyora/features/accounts/domain/usecases/recompute_all_account_balances.dart';
 import 'package:moneyora/features/backup/data/datasources/backup_file_gateway.dart';
 import 'package:moneyora/features/backup/domain/entities/backup_file.dart';
+import 'package:moneyora/features/backup/domain/entities/backup_status.dart';
 import 'package:moneyora/features/backup/domain/entities/restore_summary.dart';
 import 'package:moneyora/features/backup/domain/repositories/backup_repository.dart';
+import 'package:moneyora/features/backup/presentation/providers/backup_reminder_watcher.dart';
 import 'package:moneyora/features/backup/presentation/widgets/backup_settings_section.dart';
 import 'package:moneyora/injection.dart';
 
@@ -21,11 +23,13 @@ void main() {
   late _FakeBackups backups;
   late _FakeFiles files;
   late _FakeRecompute recompute;
+  late _FakeReminders reminders;
 
   setUp(() {
     backups = _FakeBackups();
     files = _FakeFiles();
     recompute = _FakeRecompute();
+    reminders = _FakeReminders();
   });
 
   Future<void> pump(WidgetTester tester) async {
@@ -37,6 +41,8 @@ void main() {
           recomputeAllAccountBalancesProvider.overrideWith(
             (ref) async => recompute,
           ),
+          backupReminderWatcherProvider.overrideWith(() => reminders),
+          clockProvider.overrideWithValue(() => DateTime(2026, 9, 27, 10)),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -72,6 +78,9 @@ void main() {
 
       expect(backups.createdWith, 'long enough');
       expect(files.saved, _file);
+      // FR-BAK-006: a saved backup puts the reminder off.
+      expect(backups.savedAt, DateTime(2026, 9, 27, 10));
+      expect(reminders.syncs, 1);
       expect(
         find.text('Backup saved as moneyora-2026-09-27.mora.'),
         findsOneWidget,
@@ -106,6 +115,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('The backup was not saved.'), findsOneWidget);
+      // Abandoned in the dialog, it protects nothing and puts nothing off.
+      expect(backups.savedAt, isNull);
+      expect(reminders.syncs, 0);
     });
   });
 
@@ -220,6 +232,7 @@ final _file = BackupFile(
 );
 
 class _FakeBackups implements BackupRepository {
+  DateTime? savedAt;
   int cleared = 0;
   String? createdWith;
   (Uint8List, String)? restored;
@@ -256,6 +269,17 @@ class _FakeBackups implements BackupRepository {
   @override
   Future<Either<Failure, BackupFile>> exportTransactionsCsv() async =>
       Right(_csv);
+
+  @override
+  Future<Either<Failure, BackupStatus>> status(DateTime now) async => Right(
+    BackupStatus(lastSavedAt: null, firstSeenAt: now, transactionCount: 0),
+  );
+
+  @override
+  Future<Either<Failure, Unit>> recordSaved(DateTime at) async {
+    savedAt = at;
+    return const Right(unit);
+  }
 }
 
 class _FakeFiles implements BackupFileGateway {
@@ -287,3 +311,13 @@ final _csv = BackupFile(
   name: 'moneyora-transactions-2026-09-27.csv',
   bytes: Uint8List.fromList([4, 5]),
 );
+
+class _FakeReminders extends BackupReminderWatcher {
+  int syncs = 0;
+
+  @override
+  void build() {}
+
+  @override
+  void sync() => syncs++;
+}

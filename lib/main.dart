@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'features/auth/presentation/providers/auth_providers.dart';
+import 'features/backup/presentation/providers/backup_reminder_watcher.dart';
 import 'features/money_plan/presentation/providers/budget_alert_watcher.dart';
 import 'features/transactions/presentation/providers/recurring_catch_up.dart';
 import 'features/transactions/presentation/providers/recurring_reminder_watcher.dart';
@@ -63,6 +64,10 @@ void main() {
   // FR-SET-006: the pending reminders follow the rules and the settings for
   // as long as the app runs; the boot receiver keeps them across restarts.
   container.listen(recurringReminderWatcherProvider, (_, _) {});
+
+  // FR-BAK-006: one reminder stays scheduled for the day a week passes
+  // without a saved backup, rescheduled as the data and the backups change.
+  container.listen(backupReminderWatcherProvider, (_, _) {});
 
   runApp(
     UncontrolledProviderScope(container: container, child: const MoneyoraApp()),

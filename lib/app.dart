@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/widgets/auth_gate.dart';
+import 'features/backup/domain/usecases/schedule_backup_reminder.dart';
 import 'features/money_plan/domain/usecases/check_budget_alerts.dart';
 import 'features/settings/presentation/providers/settings_providers.dart';
 import 'features/transactions/domain/usecases/sync_recurring_reminders.dart';
@@ -69,6 +70,9 @@ class _MoneyoraAppState extends ConsumerState<MoneyoraApp> {
       // FR-SET-006: a reminder opens the rules list, where the repeat it
       // named can be paused or stopped before it is added.
       unawaited(_router.push(Routes.recurring));
+    } else if (payload == ScheduleBackupReminder.payload) {
+      // FR-BAK-006: the backup rows are under Settings › Data.
+      unawaited(_router.push(Routes.settings));
     }
   }
 

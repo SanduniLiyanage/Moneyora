@@ -4,6 +4,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../entities/backup_file.dart';
+import '../entities/backup_status.dart';
 import '../entities/restore_summary.dart';
 
 /// Makes a backup of everything the app holds, and restores one.
@@ -27,4 +28,10 @@ abstract class BackupRepository {
 
   /// Every transaction as a CSV file. FR-RPT-007.
   Future<Either<Failure, BackupFile>> exportTransactionsCsv();
+
+  /// Where this phone stands on backups, as of [now]. FR-BAK-006.
+  Future<Either<Failure, BackupStatus>> status(DateTime now);
+
+  /// Records that a backup was saved at [at]. FR-BAK-006.
+  Future<Either<Failure, Unit>> recordSaved(DateTime at);
 }

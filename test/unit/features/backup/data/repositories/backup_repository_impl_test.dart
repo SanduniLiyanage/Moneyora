@@ -5,8 +5,10 @@ import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/features/backup/data/datasources/backup_local_datasource.dart';
+import 'package:moneyora/features/backup/data/datasources/backup_log.dart';
 import 'package:moneyora/features/backup/data/repositories/backup_repository_impl.dart';
 import 'package:moneyora/features/backup/domain/entities/backup_file.dart';
+import 'package:moneyora/features/backup/domain/entities/backup_status.dart';
 import 'package:moneyora/features/backup/domain/entities/restore_summary.dart';
 
 void main() {
@@ -16,7 +18,11 @@ void main() {
 
   setUp(() {
     source = _FakeSource();
-    repository = BackupRepositoryImpl(source, clock: () => now);
+    repository = BackupRepositoryImpl(
+      source,
+      log: _FakeLog(),
+      clock: () => now,
+    );
   });
 
   test('dates the backup by its clock', () async {
@@ -25,6 +31,24 @@ void main() {
       Right<Failure, BackupFile>(_file),
     );
     expect(source.createdAt, now);
+  });
+
+  test('status joins the keychain log with the transaction count', () async {
+    expect(
+      await repository.status(now),
+      Right<Failure, BackupStatus>(
+        BackupStatus(lastSavedAt: null, firstSeenAt: now, transactionCount: 3),
+      ),
+    );
+
+    await repository.recordSaved(now);
+    final later = now.add(const Duration(days: 1));
+    expect(
+      await repository.status(later),
+      Right<Failure, BackupStatus>(
+        BackupStatus(lastSavedAt: now, firstSeenAt: now, transactionCount: 3),
+      ),
+    );
   });
 
   test('a password that does not open it is an encryption failure', () async {
@@ -92,7 +116,27 @@ class _FakeSource implements BackupLocalDataSource {
     createdAt = now;
     return _file;
   }
+
+  @override
+  Future<int> transactionCount() async {
+    if (throwWith case final e?) throw e;
+    return 3;
+  }
 }
 
 final _bytes = Uint8List.fromList([1, 2, 3]);
 final _file = BackupFile(name: 'moneyora-2026-09-27.mora', bytes: _bytes);
+
+class _FakeLog implements BackupLog {
+  DateTime? saved;
+  DateTime? seen;
+
+  @override
+  Future<DateTime?> lastSavedAt() async => saved;
+
+  @override
+  Future<void> recordSaved(DateTime at) async => saved = at;
+
+  @override
+  Future<DateTime> firstSeenAt(DateTime now) async => seen ??= now;
+}

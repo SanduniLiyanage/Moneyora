@@ -65,12 +65,15 @@ import 'features/auth/domain/usecases/set_passcode.dart';
 import 'features/auth/domain/usecases/verify_passcode.dart';
 import 'features/backup/data/datasources/backup_file_gateway.dart';
 import 'features/backup/data/datasources/backup_local_datasource.dart';
+import 'features/backup/data/datasources/backup_log.dart';
 import 'features/backup/data/repositories/backup_repository_impl.dart';
 import 'features/backup/domain/repositories/backup_repository.dart';
 import 'features/backup/domain/usecases/clear_all_data.dart';
 import 'features/backup/domain/usecases/create_backup.dart';
 import 'features/backup/domain/usecases/export_transactions_csv.dart';
+import 'features/backup/domain/usecases/record_backup_saved.dart';
 import 'features/backup/domain/usecases/restore_backup.dart';
+import 'features/backup/domain/usecases/schedule_backup_reminder.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
 import 'features/categories/domain/repositories/category_repository.dart';
@@ -1385,8 +1388,28 @@ final backupLocalDataSourceProvider = FutureProvider<BackupLocalDataSource>(
 final backupRepositoryProvider = FutureProvider<BackupRepository>(
   (ref) async => BackupRepositoryImpl(
     await ref.watch(backupLocalDataSourceProvider.future),
+    log: ref.watch(backupLogProvider),
     clock: ref.watch(clockProvider),
   ),
+);
+
+/// When this phone last saved a backup, in the keychain. FR-BAK-006.
+final backupLogProvider = Provider<BackupLog>(
+  (ref) => SecureStorageBackupLog(),
+);
+
+/// Keeps the backup reminder scheduled. FR-BAK-006.
+final scheduleBackupReminderProvider = FutureProvider<ScheduleBackupReminder>(
+  (ref) async => ScheduleBackupReminder(
+    await ref.watch(backupRepositoryProvider.future),
+    ref.watch(localNotifierProvider),
+  ),
+);
+
+/// Notes that a backup was saved. FR-BAK-006.
+final recordBackupSavedProvider = FutureProvider<RecordBackupSaved>(
+  (ref) async =>
+      RecordBackupSaved(await ref.watch(backupRepositoryProvider.future)),
 );
 
 /// Seals everything under a password. FR-BAK-001.

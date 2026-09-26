@@ -245,5 +245,17 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
             presentList: true,
           ),
         ),
+        // Low importance: a nudge that can wait in the shade, and its own
+        // channel so it can be silenced alone. FR-BAK-006.
+        NotificationKind.backupReminder => const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'backup_reminders',
+            'Backup reminders',
+            channelDescription: 'When nothing has been backed up for a week.',
+            importance: Importance.low,
+            priority: Priority.low,
+          ),
+          iOS: DarwinNotificationDetails(presentList: true),
+        ),
       };
 }
