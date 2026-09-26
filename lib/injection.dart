@@ -63,6 +63,12 @@ import 'features/auth/domain/usecases/is_biometrics_enabled.dart';
 import 'features/auth/domain/usecases/remove_passcode.dart';
 import 'features/auth/domain/usecases/set_passcode.dart';
 import 'features/auth/domain/usecases/verify_passcode.dart';
+import 'features/backup/data/datasources/backup_file_gateway.dart';
+import 'features/backup/data/datasources/backup_local_datasource.dart';
+import 'features/backup/data/repositories/backup_repository_impl.dart';
+import 'features/backup/domain/repositories/backup_repository.dart';
+import 'features/backup/domain/usecases/create_backup.dart';
+import 'features/backup/domain/usecases/restore_backup.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
 import 'features/categories/domain/repositories/category_repository.dart';
@@ -1353,4 +1359,47 @@ final runCopilotQueryProvider = FutureProvider<RunCopilotQuery>(
     ref.watch(networkInfoProvider),
     tools: await ref.watch(copilotToolsProvider.future),
   ),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Backup
+//
+// Sprint 8. FR-BAK-001, FR-BAK-005, FR-SET-009, E-38.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Makes and restores `.mora` backups. The holder of SQL for the feature.
+///
+/// Over the receipt vault as its photo store, so a backup carries the kept
+/// photos and a restore seals them again under this phone's key.
+final backupLocalDataSourceProvider = FutureProvider<BackupLocalDataSource>(
+  (ref) async => BackupLocalDataSourceImpl(
+    await ref.watch(databaseProvider.future),
+    photos: ref.watch(receiptImageVaultProvider),
+    changeBus: ref.watch(databaseChangeBusProvider),
+  ),
+);
+
+/// Turns backup exceptions into failures.
+final backupRepositoryProvider = FutureProvider<BackupRepository>(
+  (ref) async => BackupRepositoryImpl(
+    await ref.watch(backupLocalDataSourceProvider.future),
+    clock: ref.watch(clockProvider),
+  ),
+);
+
+/// Seals everything under a password. FR-BAK-001.
+final createBackupProvider = FutureProvider<CreateBackup>(
+  (ref) async => CreateBackup(await ref.watch(backupRepositoryProvider.future)),
+);
+
+/// Replaces everything with a backup. FR-BAK-005.
+final restoreBackupProvider = FutureProvider<RestoreBackup>(
+  (ref) async =>
+      RestoreBackup(await ref.watch(backupRepositoryProvider.future)),
+);
+
+/// The platform's save and open dialogs. A seam so the screens are tested
+/// against a fake.
+final backupFileGatewayProvider = Provider<BackupFileGateway>(
+  (ref) => const FilePickerBackupFileGateway(),
 );

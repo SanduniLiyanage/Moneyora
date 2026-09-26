@@ -100,6 +100,13 @@ class _FakeVault implements ReceiptImageVault {
       copyDeleted = true;
     }
   }
+
+  @override
+  Future<String> keepBytes(Uint8List bytes, {required String extension}) =>
+      throw UnimplementedError('keepBytes');
+
+  @override
+  Future<void> discard(String path) => throw UnimplementedError('discard');
 }
 
 void main() {
