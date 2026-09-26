@@ -494,7 +494,7 @@ Camera -> preprocess -> ML Kit -> parse -> categorise -> review -> save -> learn
 crumpled, faded, handwritten) and build a fixture suite from them. Target is
 >70% categorisation accuracy (M5); you cannot claim a number without a test set.
 
-## Sprint 7 — Settings, auth, notifications (Week 12)
+## Sprint 7 — Settings, auth, notifications (Week 12) — done
 
 PIN + biometrics + lockout backoff, dark theme toggle, recurring reminders,
 budget alerts at 80% / 100%.
@@ -649,12 +649,67 @@ reach the settings screen through a widget slot the router fills, the way the
 accounts panel reaches the home screen — the settings feature may not import
 auth (rule 4).
 
-Still open in Sprint 7: NFR-SEC-004 (biometrics, the other half of
-FR-SET-005), FR-SET-006 and FR-SET-007 (notifications).
+### Biometric unlock (NFR-SEC-004) — done ([PR #110](https://github.com/SanduniLiyanage/Moneyora/pull/110))
+
+The other half of FR-SET-005, and never the only way in: `EnableBiometrics`
+refuses until a PIN exists and needs one successful prompt at the moment it
+is turned on. A biometric unlock bypasses the PIN lockout on purpose — the
+OS rate-limits the sensor, and the lockout defends the PIN.
+`BiometricGateway` is its own port; `MainActivity` became a
+`FlutterFragmentActivity` because the prompt is a `DialogFragment`.
+
+### Budget alerts at 80% and 100% (FR-SET-007) — done ([PR #111](https://github.com/SanduniLiyanage/Moneyora/pull/111))
+
+Schema v5 stores the switch and, per plan row, the level last announced
+([E-35](SPEC_ERRATA.md)), so an alert fires once per crossing and again
+after spend drops back and rises. The bands are FR-PLN-013's own
+(`AllocationProgress.statusOf`), so a notification can never say 80% over
+a row still drawn green. The level is written compare-and-set before
+anything is shown, which is what makes two racing expenses announce once.
+Off until turned on in Settings, which is where the permission is asked.
+
+### Recurring entries (FR-EXP-008, FR-INC-004) — done ([PR #112](https://github.com/SanduniLiyanage/Moneyora/pull/112), [PR #113](https://github.com/SanduniLiyanage/Moneyora/pull/113))
+
+The engine, then the screens. A rule is created with its first entry
+(the DBD's template design), and every missed entry is posted on launch
+and on resume, uncapped, through the same insert a typed entry takes; the
+due date moves compare-and-set in the same transaction. Deleting a
+series' first entry hands the template to the latest remaining one, or
+stops the rule ([E-36](SPEC_ERRATA.md)). E-13's toggle sits on the entry
+screen for a new entry only; the rules list at `/recurring` — home, beside
+Transactions — pauses, resumes (skipping the paused stretch) and deletes
+(keeping the entries).
+
+### Recurring reminders (FR-SET-006) — done ([PR #114](https://github.com/SanduniLiyanage/Moneyora/pull/114))
+
+Schema v6 holds the switch, days before (0–7) and a time of day as
+minutes after midnight ([E-37](SPEC_ERRATA.md)). The reminders are not
+stored: `SyncRecurringReminders` re-derives them from the active rules
+on every change and schedules by id. Inexact on purpose — an exact alarm
+needs a permission Android 14 withholds — with a boot receiver and their
+own channel.
+
+### The emulator pass's fixes — done ([PR #115](https://github.com/SanduniLiyanage/Moneyora/pull/115))
+
+Walking #113 and #114 on the 320×640 emulator found three older faults in
+the entry flow: the transaction list never named a row by its category
+(every row read "Uncategorised"); an edit wrote back only the fields the
+form shows, so time, split parts, receipt links and the recurring link
+came back empty; and the keypad left the details list a 40dp sliver.
+All three are fixed, the keypad folding away when the details are
+reached for.
+
+**Sprint 7 is complete.** Of the FR-SET requirements, four are not built:
+FR-SET-002 (display languages — English only; `UserSettings.language` is
+stored and read by nothing), FR-SET-008 (the savings target — stored on
+`UserSettings`, with no Settings row to set it), and FR-SET-009 and
+FR-SET-010, which are Sprint 8's backup and sync. FR-SET-011 is withdrawn
+([E-12](SPEC_ERRATA.md)).
 
 ## Sprint 8 — Backup, export, sync (Week 13)
 
-Encrypted `.mb` backups, CSV/PDF export, optional Drive/Dropbox.
+Encrypted `.mora` backups ([E-08](SPEC_ERRATA.md) — neither `.mb` nor
+`.sb`), CSV/PDF export, optional Drive/Dropbox.
 **Test restore on a second physical device**, not just re-import on the same one.
 
 ## Sprint 9 — Hardening (Week 14)
