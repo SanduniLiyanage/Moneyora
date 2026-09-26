@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/notification_settings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../domain/entities/user_settings.dart';
 import '../../domain/usecases/set_base_currency.dart';
 import '../../domain/usecases/set_first_day_of_month.dart';
 import '../../domain/usecases/set_plan_analysis_months.dart';
+import '../../domain/usecases/set_reminder_schedule.dart';
 import '../providers/settings_providers.dart';
 
 /// The settings screen. SDD SCR-016.
@@ -170,6 +172,9 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(recalculateBalancesControllerProvider).isLoading;
     final alertsBusy = ref.watch(budgetAlertsControllerProvider).isLoading;
+    final remindersBusy = ref
+        .watch(recurringRemindersControllerProvider)
+        .isLoading;
     final settings = ref.watch(settingsProvider);
     final theme = settings.asData?.value.theme;
     final baseCurrency = settings.asData?.value.currency;
@@ -367,6 +372,52 @@ class SettingsPage extends ConsumerWidget {
                       if (context.mounted) _report(context, failure);
                     },
             ),
+            // FR-SET-006, E-37.
+            SwitchListTile(
+              secondary: const Icon(Icons.event_repeat_outlined),
+              title: const Text('Recurring reminders'),
+              subtitle: const Text(
+                'A notification before a repeating expense or income is '
+                'added.',
+              ),
+              value: calendar?.recurringRemindersEnabled ?? false,
+              onChanged: calendar == null || remindersBusy
+                  ? null
+                  : (enabled) async {
+                      final failure = await ref
+                          .read(recurringRemindersControllerProvider.notifier)
+                          .set(enabled: enabled);
+                      if (context.mounted) _report(context, failure);
+                    },
+            ),
+            if (calendar != null && calendar.recurringRemindersEnabled)
+              ListTile(
+                leading: const Icon(Icons.schedule_outlined),
+                title: const Text('Remind me'),
+                subtitle: Text(
+                  describeReminderSchedule(
+                    context,
+                    daysBefore: calendar.reminderDaysBefore,
+                    minuteOfDay: calendar.reminderMinuteOfDay,
+                  ),
+                ),
+                onTap: remindersBusy
+                    ? null
+                    : () async {
+                        final schedule = await showDialog<ReminderSchedule>(
+                          context: context,
+                          builder: (_) => _ReminderScheduleDialog(
+                            daysBefore: calendar.reminderDaysBefore,
+                            minuteOfDay: calendar.reminderMinuteOfDay,
+                          ),
+                        );
+                        if (schedule == null || !context.mounted) return;
+                        final failure = await ref
+                            .read(recurringRemindersControllerProvider.notifier)
+                            .schedule(schedule);
+                        if (context.mounted) _report(context, failure);
+                      },
+              ),
             const _SectionHeader('Data'),
             ListTile(
               enabled: !busy,
@@ -386,6 +437,105 @@ class SettingsPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// When reminders come, as the Settings row says it: "The day before, at
+/// 9:00 AM". The time in the phone's own 12- or 24-hour style. FR-SET-006.
+String describeReminderSchedule(
+  BuildContext context, {
+  required int daysBefore,
+  required int minuteOfDay,
+}) {
+  final time = TimeOfDay(
+    hour: minuteOfDay ~/ 60,
+    minute: minuteOfDay % 60,
+  ).format(context);
+  return '${_daysBeforeLabel(daysBefore)}, at $time';
+}
+
+String _daysBeforeLabel(int days) => switch (days) {
+  0 => 'On the day',
+  1 => 'The day before',
+  _ => '$days days before',
+};
+
+/// Picks how many days before, and at what time, reminders come.
+/// FR-SET-006.
+///
+/// Returns the new [ReminderSchedule], or null when cancelled. The day list
+/// runs to `NotificationSettings.maxReminderDaysBefore`, so it offers only
+/// what `SetReminderSchedule` accepts.
+class _ReminderScheduleDialog extends StatefulWidget {
+  const _ReminderScheduleDialog({
+    required this.daysBefore,
+    required this.minuteOfDay,
+  });
+
+  final int daysBefore;
+  final int minuteOfDay;
+
+  @override
+  State<_ReminderScheduleDialog> createState() =>
+      _ReminderScheduleDialogState();
+}
+
+class _ReminderScheduleDialogState extends State<_ReminderScheduleDialog> {
+  late int _days = widget.daysBefore;
+  late int _minute = widget.minuteOfDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = TimeOfDay(hour: _minute ~/ 60, minute: _minute % 60);
+    return AlertDialog(
+      title: const Text('Remind me'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<int>(
+            initialValue: _days,
+            decoration: const InputDecoration(labelText: 'When'),
+            items: [
+              for (
+                var d = 0;
+                d <= NotificationSettings.maxReminderDaysBefore;
+                d++
+              )
+                DropdownMenuItem(value: d, child: Text(_daysBeforeLabel(d))),
+            ],
+            onChanged: (d) => setState(() => _days = d ?? _days),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.access_time),
+            title: Text(time.format(context)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: time,
+              );
+              if (picked != null) {
+                setState(() => _minute = picked.hour * 60 + picked.minute);
+              }
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context)
+              .pop(ReminderSchedule(daysBefore: _days, minuteOfDay: _minute)),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

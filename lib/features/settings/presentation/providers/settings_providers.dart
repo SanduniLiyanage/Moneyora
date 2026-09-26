@@ -17,6 +17,7 @@ import '../../../../injection.dart';
 import '../../domain/entities/exchange_rate.dart';
 import '../../domain/entities/user_settings.dart';
 import '../../domain/usecases/remove_exchange_rate.dart';
+import '../../domain/usecases/set_reminder_schedule.dart';
 
 /// The user's preferences, kept live. SRS §3.8.
 ///
@@ -193,6 +194,49 @@ class BudgetAlertsController extends AutoDisposeAsyncNotifier<void> {
 final budgetAlertsControllerProvider =
     AutoDisposeAsyncNotifierProvider<BudgetAlertsController, void>(
       BudgetAlertsController.new,
+    );
+
+/// Turning recurring reminders on or off. FR-SET-006, E-37.
+///
+/// The budget-alerts switch's shape: on asks for permission first, and a
+/// refusal comes back as the use case's sentence.
+class RecurringRemindersController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Stores [enabled]. Returns the failure, for its sentence.
+  Future<Failure?> set({required bool enabled}) => _settle(() async {
+    final setReminders = await ref.read(setRecurringRemindersProvider.future);
+    return setReminders(enabled);
+  });
+
+  /// Stores when reminders come. Returns the failure, for its sentence.
+  Future<Failure?> schedule(ReminderSchedule schedule) => _settle(() async {
+    final setSchedule = await ref.read(setReminderScheduleProvider.future);
+    return setSchedule(schedule);
+  });
+
+  Future<Failure?> _settle(
+    Future<Either<Failure, Unit>> Function() action,
+  ) async {
+    state = const AsyncValue<void>.loading();
+    return (await action()).match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return failure;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return null;
+      },
+    );
+  }
+}
+
+/// Controller for the recurring-reminders switch and its schedule.
+final recurringRemindersControllerProvider =
+    AutoDisposeAsyncNotifierProvider<RecurringRemindersController, void>(
+      RecurringRemindersController.new,
     );
 
 /// Every stored exchange rate, kept live. FR-SET-003.

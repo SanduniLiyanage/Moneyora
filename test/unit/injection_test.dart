@@ -82,9 +82,13 @@ void main() {
         container.read(pauseRecurringRuleProvider.future),
         container.read(resumeRecurringRuleProvider.future),
         container.read(deleteRecurringRuleProvider.future),
+        container.read(setRecurringRemindersProvider.future),
+        container.read(setReminderScheduleProvider.future),
       ]),
       completes,
     );
+    // Synchronous: the reminders need the notifier, not the database.
+    expect(container.read(syncRecurringRemindersProvider), isNotNull);
   });
 
   test('a rule paused, resumed and deleted through the real wiring keeps '

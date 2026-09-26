@@ -121,6 +121,11 @@ class _FakeNotifier implements LocalNotifier {
   @override
   Future<Either<Failure, Unit>> show(AppNotification notification) =>
       throw UnimplementedError();
+
+  // Scheduling (FR-SET-006) is not exercised here; a call fails loudly.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
 
 class _FakeRepository implements SettingsRepository {

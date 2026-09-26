@@ -52,6 +52,7 @@ follows the Resolution sections.
 | [E-34](#e-34) | FR-ACC-005 has no schema: no rates table, and a transfer header that cannot carry two amounts | Resolved | FR-ACC-005, FR-SET-003, FR-TRF-001 |
 | [E-35](#e-35) | FR-SET-007's budget alerts have no schema: no setting, and nothing recording an alert was sent | Resolved | FR-SET-007 |
 | [E-36](#e-36) | A recurring rule's template cannot be deleted, and the DBD's cascade would delete the series | Resolved | FR-EXP-008, FR-INC-004 |
+| [E-37](#e-37) | FR-SET-006's reminders have no schema, and "configuration" names nothing to configure | Resolved | FR-SET-006 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2181,6 +2182,71 @@ future start is wanted — "rent from next month" — it needs the rule to hold
 the amount itself, which is E-03's original design, and a migration.
 
 The DBD v1.1 that E-32 anticipates should replace §2.2's cascade with this.
+
+---
+
+<a id="e-37"></a>
+
+## E-37 — FR-SET-006's reminders have no schema, and "configuration" names nothing to configure
+
+**Severity:** Medium · **Affects:** DBD §3.1 (`users`) · **Requirement:**
+FR-SET-006
+
+Raised 2026-09-25, building FR-SET-006 in Sprint 7. The requirement —
+*"allow configuration of recurring expense/income reminder
+notifications"* — says what is configured but not how, and the DBD's
+`users` row has no column for any of it; E-35 found the same for budget
+alerts one version earlier.
+
+### Resolution — schema v6 adds three columns to `users`
+
+`migrations/v6_recurring_reminders.dart`, additive per SDD §5.3:
+
+```sql
+ALTER TABLE users ADD COLUMN recurring_reminders_enabled INTEGER NOT NULL
+  DEFAULT 0 CHECK(recurring_reminders_enabled IN (0, 1));
+ALTER TABLE users ADD COLUMN recurring_reminder_days_before INTEGER NOT NULL
+  DEFAULT 1 CHECK(recurring_reminder_days_before BETWEEN 0 AND 7);
+ALTER TABLE users ADD COLUMN recurring_reminder_minute INTEGER NOT NULL
+  DEFAULT 540 CHECK(recurring_reminder_minute BETWEEN 0 AND 1439);
+```
+
+The time is minutes after midnight, not a timestamp, so it carries no
+time zone and a 9:00 reminder follows the phone to wherever it is.
+`v6_recurring_reminders_test.dart` upgrades a v5 database with a rule
+already posting and proves every row intact.
+
+Decisions the SRS leaves open, made here:
+
+1. **A reminder is a heads-up, not the posting.** Entries are still added
+   by the catch-up (FR-EXP-008); the reminder says one is coming — "Rent is
+   due tomorrow" — so the user can move money, or pause the repeat first.
+   Tapping it opens the rules list.
+2. **Configured as one switch and one schedule for all rules** — on or off,
+   0 to 7 days before, a time of day. Per-rule reminders would be a column
+   on `recurring_rules` and a control on every rule for a choice most
+   people make once.
+3. **Off by default**, asking for the notification permission when turned
+   on — E-35's reasoning, and the same use-case shape.
+4. **Nothing records which reminders were scheduled.** The platform keeps
+   the pending notifications; `SyncRecurringReminders` re-derives the whole
+   set — one per active rule, for its next entry, skipping one whose moment
+   has passed — whenever the rules or these settings change, cancels what is
+   no longer wanted and schedules the rest by id. Idempotent, so a second
+   record could only drift from the rules it described.
+5. **Only a rule that will post gets one**: active, with a template, not
+   ended, and not overdue — an overdue rule is waiting on something the
+   user must fix, and the rules list already says so.
+6. **Inexact scheduling** (`inexactAllowWhileIdle`). An exact alarm needs a
+   permission Android 14 withholds by default and the Play Store audits; a
+   heads-up that arrives a few minutes late loses nothing.
+7. **Survives a restart** through the plugin's boot receiver
+   (`RECEIVE_BOOT_COMPLETED`), and its own Android channel, so reminders can
+   be silenced without silencing budget alerts.
+8. **No amount in the text**, for the reason E-35's alerts give: formatting
+   money is `currency_utils.dart`'s job, which the domain does not reach.
+
+The DBD v1.1 that E-32 anticipates should carry all three columns.
 
 ---
 
