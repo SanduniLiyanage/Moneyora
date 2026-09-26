@@ -18,9 +18,11 @@ import '../../../../injection.dart';
 import '../../domain/entities/analytics_query.dart';
 import '../../domain/entities/category_total.dart';
 import '../../domain/entities/period_selection.dart';
+import '../../domain/entities/period_summary.dart';
 import '../../domain/entities/spending_calendar.dart';
 import '../../domain/entities/spending_trend.dart';
 import '../../domain/repositories/analytics_repository.dart';
+import '../../domain/usecases/get_period_summary.dart';
 
 /// The period every analytics surface reports over. FR-RPT-002.
 ///
@@ -223,3 +225,42 @@ final accountOptionsProvider = StreamProvider.autoDispose<List<AccountOption>>((
         ),
       );
 });
+
+/// The headline figures for the selected period and account. FR-RPT-006.
+///
+/// Watches the same selection, calendar and account filter every chart does,
+/// so the figures move with them. The period before is the same kind of
+/// period one step back, cut by the same calendar; the average divides by the
+/// days that have happened, today included. All time has neither.
+final periodSummaryProvider = FutureProvider.autoDispose<PeriodSummary>((
+  ref,
+) async {
+  final calendar =
+      ref.watch(calendarSettingsProvider).asData?.value ??
+      CalendarSettings.defaults;
+  final selection = ref.watch(analyticsPeriodProvider);
+  final query = ref.watch(analyticsQueryProvider);
+  final today = ref.watch(clockProvider)();
+
+  final summarise = await ref.watch(getPeriodSummaryProvider.future);
+  final result = await summarise(
+    SummaryRequest(
+      query: query,
+      previousRange: selection.previous?.rangeWith(calendar),
+      daysElapsed: selection.period == AnalyticsPeriod.all
+          ? null
+          : daysElapsed(query.range, today),
+    ),
+  );
+  return result.match(Future<PeriodSummary>.error, Future<PeriodSummary>.value);
+});
+
+/// Days of [range] up to and including [today]: all of them for a period
+/// that is over, none for one that has not begun.
+int daysElapsed(DateRange range, DateTime today) {
+  DateTime day(DateTime d) => DateTime.utc(d.year, d.month, d.day);
+  final start = day(range.from);
+  final end = day(range.to).isBefore(day(today)) ? day(range.to) : day(today);
+  if (end.isBefore(start)) return 0;
+  return end.difference(start).inDays + 1;
+}
