@@ -13,6 +13,7 @@ import 'package:moneyora/features/transactions/domain/entities/transaction.dart'
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
 import 'package:moneyora/features/transactions/presentation/pages/transaction_list_page.dart';
 import 'package:moneyora/features/transactions/presentation/providers/transaction_providers.dart';
+import 'package:moneyora/features/transactions/presentation/widgets/amount_keypad.dart';
 import 'package:moneyora/injection.dart';
 
 /// The two screens, driven the way a person drives them.
@@ -207,7 +208,8 @@ void main() {
 
       expect(repository.saved.single.note, 'Groceries');
       expect(repository.saved.single.amountCents, 50000);
-      expect(find.text('Groceries'), findsOneWidget);
+      // Under the category's name, not in place of it.
+      expect(find.text('Today · Groceries'), findsOneWidget);
     });
 
     testWidgets('switching to income swaps the category list', (tester) async {
@@ -310,6 +312,99 @@ void main() {
       expect(repository.saved, hasLength(1), reason: 'edited, not duplicated');
       expect(repository.updated.single.id, 1);
       expect(repository.updated.single.amountCents, 125000);
+    });
+
+    testWidgets('keeps everything the form does not show', (tester) async {
+      // The update writes every column. An edit built from the form alone
+      // wrote the time, the split parts, the receipt link and the recurring
+      // link back as empty — changing a split's category deleted its parts.
+      final original = Transaction(
+        id: 7,
+        accountId: 1,
+        categoryId: 1,
+        amountCents: 30000,
+        type: TransactionType.expense,
+        date: DateTime(2026, 9, 1),
+        time: '08:15',
+        note: 'Market',
+        splits: const [
+          TransactionSplit(categoryId: 1, amountCents: 20000),
+          TransactionSplit(categoryId: 2, amountCents: 10000),
+        ],
+        receiptScanId: 3,
+        receiptImagePath: '/vault/3.enc',
+        recurringRuleId: 5,
+        isRecurring: true,
+      );
+      repository.saved.add(original);
+
+      await pumpApp(tester);
+      await tapText(tester, '−Rs300.00');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.updated.single, original);
+    });
+  });
+
+  group('row names', () {
+    testWidgets('name a row by its category. FR-EXP-006', (tester) async {
+      await pumpApp(tester);
+      await addExpense(tester, category: 'Transport');
+
+      expect(find.text('Transport'), findsOneWidget);
+      expect(find.text('Uncategorised'), findsNothing);
+    });
+
+    testWidgets('fall back to the note, then a bare word', (tester) async {
+      // A category the catalog does not carry — archived since, or still
+      // loading — must not blank the row.
+      repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 1,
+          categoryId: 998,
+          amountCents: 1000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          note: 'Lunch',
+        ),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          categoryId: 999,
+          amountCents: 2000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+        ),
+      ]);
+
+      await pumpApp(tester);
+
+      expect(find.text('Lunch'), findsOneWidget);
+      expect(find.text('2026-09-01 · Lunch'), findsNothing);
+      expect(find.text('Uncategorised'), findsOneWidget);
+    });
+  });
+
+  group('the keypad', () {
+    testWidgets('folds away when the details are dragged, and comes back', (
+      tester,
+    ) async {
+      // On a short phone the keypad left the details a sliver: the second
+      // row of chips peeked out under the first, one mis-tap from filing an
+      // expense under the wrong category.
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+      expect(find.byType(AmountKeypad), findsOneWidget);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -40));
+      await tester.pumpAndSettle();
+      expect(find.byType(AmountKeypad), findsNothing);
+
+      await tester.tap(find.byTooltip('Show keypad'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AmountKeypad), findsOneWidget);
     });
   });
 

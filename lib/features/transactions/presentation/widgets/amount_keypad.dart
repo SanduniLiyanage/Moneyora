@@ -18,6 +18,7 @@ class AmountKeypad extends StatelessWidget {
   const AmountKeypad({
     required this.expression,
     required this.onChanged,
+    this.keyHeight = 64,
     super.key,
   });
 
@@ -26,6 +27,12 @@ class AmountKeypad extends StatelessWidget {
 
   /// Called with the expression that results from a keypress.
   final ValueChanged<AmountExpression> onChanged;
+
+  /// How tall each key is. 64 is comfortably past the 48dp minimum touch
+  /// target, because this is the control the app is used through and a
+  /// mis-tap here costs a wrong amount rather than a wasted second; a short
+  /// phone trades that margin for room to see what the amount is for.
+  final double keyHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +53,11 @@ class AmountKeypad extends StatelessWidget {
             children: [
               for (final key in row)
                 Expanded(
-                  child: _Key(label: key, onTap: () => _press(key)),
+                  child: _Key(
+                    label: key,
+                    height: keyHeight,
+                    onTap: () => _press(key),
+                  ),
                 ),
             ],
           ),
@@ -69,9 +80,10 @@ class AmountKeypad extends StatelessWidget {
 }
 
 class _Key extends StatelessWidget {
-  const _Key({required this.label, required this.onTap});
+  const _Key({required this.label, required this.height, required this.onTap});
 
   final String label;
+  final double height;
   final VoidCallback onTap;
 
   bool get _isOperator => '÷×−+'.contains(label);
@@ -95,10 +107,7 @@ class _Key extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          // 64 is comfortably past the 48dp minimum touch target, because this
-          // is the control the app is used through and a mis-tap here costs a
-          // wrong amount rather than a wasted second.
-          height: 64,
+          height: height,
           child: Center(
             child: Text(
               label,

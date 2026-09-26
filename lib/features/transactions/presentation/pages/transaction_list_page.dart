@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/ports/account_reader.dart';
+import '../../../../core/ports/category_reader.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -80,6 +81,14 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
           in ref.watch(entryAccountsProvider).valueOrNull ??
               const <AccountOption>[])
         account.id: account.name,
+    };
+    // Names each row by its category, the same way: a catalog still loading
+    // leaves the note or a bare word, never a blocked list.
+    final categoryNames = <int, String>{
+      for (final category
+          in ref.watch(entryCategoriesProvider).valueOrNull ??
+              const <CategoryOption>[])
+        category.id: category.name,
     };
 
     return Scaffold(
@@ -173,6 +182,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                 child: _TransactionTile(
                   transaction: transaction,
                   accountNames: accountNames,
+                  categoryNames: categoryNames,
                   onTap: () => _edit(transaction),
                 ),
               );
@@ -189,6 +199,7 @@ class _TransactionTile extends StatelessWidget {
   const _TransactionTile({
     required this.transaction,
     required this.accountNames,
+    required this.categoryNames,
     this.onTap,
   });
 
@@ -196,6 +207,9 @@ class _TransactionTile extends StatelessWidget {
 
   /// Id-to-name, for naming a transfer's counterparty. FR-TRF-004.
   final Map<int, String> accountNames;
+
+  /// Id-to-name, for naming what an expense or income was for. FR-EXP-006.
+  final Map<int, String> categoryNames;
 
   final VoidCallback? onTap;
 
@@ -215,6 +229,16 @@ class _TransactionTile extends StatelessWidget {
       ),
     };
 
+    final note = transaction.note?.trim() ?? '';
+    final title = switch (transaction.type) {
+      TransactionType.transfer => _transferLabel(),
+      _ =>
+        categoryNames[transaction.categoryId] ??
+            (note.isNotEmpty ? note : 'Uncategorised'),
+    };
+    final showNote = note.isNotEmpty && note != title;
+    final date = _formatDate(transaction.date);
+
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
@@ -229,15 +253,11 @@ class _TransactionTile extends StatelessWidget {
           size: 20,
         ),
       ),
-      title: Text(
-        transaction.note?.isNotEmpty ?? false
-            ? transaction.note!
-            : switch (transaction.type) {
-                TransactionType.transfer => _transferLabel(),
-                _ => 'Uncategorised',
-              },
-      ),
-      subtitle: Text(_formatDate(transaction.date)),
+      title: Text(title),
+      // The note goes under the name rather than replacing it: "Groceries"
+      // alone does not say it was filed under Food, and a misfiled row is
+      // exactly what someone scanning the list is looking for.
+      subtitle: Text(showNote ? '$date · $note' : date),
       trailing: Text(
         '$sign${formatCents(transaction.amountCents)}',
         style: theme.textTheme.titleMedium?.copyWith(

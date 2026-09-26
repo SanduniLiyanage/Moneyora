@@ -59,7 +59,48 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   late final TextEditingController _interval;
   DateTime? _endDate;
 
+  /// Whether the keypad is showing.
+  ///
+  /// On a short phone the keypad and Save leave the details list a sliver:
+  /// the second row of category chips peeks out beneath the first, and the
+  /// date and the Repeat choices are out of reach. So the keypad folds away
+  /// when the user reaches for the details — dragging the list, or turning
+  /// Repeat on — and comes back from the amount, where the number it types
+  /// is shown.
+  bool _keypadOpen = true;
+
+  /// The Repeat section, so turning it on can bring it into view.
+  final _repeatKey = GlobalKey();
+
   bool get _isEditing => widget.initial != null;
+
+  void _toggleRepeat() {
+    setState(() {
+      _repeats = !_repeats;
+      if (_repeats) _keypadOpen = false;
+    });
+    if (!_repeats) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final section = _repeatKey.currentContext;
+      if (section != null && section.mounted) {
+        Scrollable.ensureVisible(
+          section,
+          duration: const Duration(milliseconds: 200),
+        );
+      }
+    });
+  }
+
+  /// Folds the keypad away when the user drags the details list.
+  ///
+  /// Only a drag: a scroll with no drag behind it is the framework bringing
+  /// something into view, which is no sign the user is done typing.
+  bool _onDetailsScroll(ScrollStartNotification notification) {
+    if (notification.dragDetails != null && _keypadOpen) {
+      setState(() => _keypadOpen = false);
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -109,16 +150,32 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     return CreateRecurringRule.validate(_request())?.message;
   }
 
-  Transaction _build() => Transaction(
-    // Carried through so save() knows this is an edit rather than an entry.
-    id: widget.initial?.id,
-    accountId: _accountId!,
-    categoryId: _categoryId,
-    amountCents: _amount.valueCents!,
-    type: _type,
-    date: _date,
-    note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-  );
+  /// The row this screen would write.
+  ///
+  /// An edit starts from the row being edited, not from a blank one: the
+  /// update writes every column, so anything this form does not show — the
+  /// time, split parts, the receipt link and photo, the recurring link —
+  /// would otherwise be written back as empty. Editing a split's category
+  /// used to delete its parts that way.
+  Transaction _build() {
+    final initial = widget.initial;
+    return Transaction(
+      // Carried through so save() knows this is an edit rather than an entry.
+      id: initial?.id,
+      accountId: _accountId!,
+      categoryId: _categoryId,
+      amountCents: _amount.valueCents!,
+      type: _type,
+      date: _date,
+      time: initial?.time,
+      note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+      splits: initial?.splits ?? const [],
+      receiptScanId: initial?.receiptScanId,
+      receiptImagePath: initial?.receiptImagePath,
+      recurringRuleId: initial?.recurringRuleId,
+      isRecurring: initial?.isRecurring ?? false,
+    );
+  }
 
   /// Opens the inline category form. E-13.
   ///
@@ -210,7 +267,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               isSelected: _repeats,
               icon: const Icon(Icons.repeat),
               selectedIcon: const Icon(Icons.repeat_on),
-              onPressed: () => setState(() => _repeats = !_repeats),
+              onPressed: _toggleRepeat,
             ),
           // FR-RCP-001: the scanner from the add-expense flow as well as
           // the main screen. A new expense only — a receipt is never an
@@ -249,7 +306,13 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
             return SafeArea(
               child: Column(
                 children: [
-                  _AmountDisplay(expression: _amount, type: _type),
+                  _AmountDisplay(
+                    expression: _amount,
+                    type: _type,
+                    keypadOpen: _keypadOpen,
+                    onToggleKeypad: () =>
+                        setState(() => _keypadOpen = !_keypadOpen),
+                  ),
                   _TypeToggle(
                     type: _type,
                     onChanged: (next) => setState(() {
@@ -261,67 +324,79 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     }),
                   ),
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      children: [
-                        _CategoryPicker(
-                          categories: categories,
-                          selectedId: _categoryId,
-                          onSelected: (id) => setState(() => _categoryId = id),
-                          onAddNew: () => _addCategory(context),
-                        ),
-                        const SizedBox(height: 8),
-                        _DateField(
-                          date: _date,
-                          onChanged: (next) => setState(() => _date = next),
-                        ),
-                        if (_repeats)
-                          _RepeatSection(
-                            frequency: _frequency,
-                            onFrequency: (next) =>
-                                setState(() => _frequency = next),
-                            interval: _interval,
-                            onIntervalChanged: () => setState(() {}),
-                            startDate: _date,
-                            endDate: _endDate,
-                            onEndDate: (next) =>
-                                setState(() => _endDate = next),
-                            problem: _repeatProblem,
-                            // From the schedule alone: the entry may not
-                            // have an amount yet.
-                            summary: describeRecurrence(
-                              RecurringRule.startingOn(
-                                _date,
-                                frequency: _frequency,
-                                intervalDays: int.tryParse(
-                                  _interval.text.trim(),
+                    child: NotificationListener<ScrollStartNotification>(
+                      onNotification: _onDetailsScroll,
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          _CategoryPicker(
+                            categories: categories,
+                            selectedId: _categoryId,
+                            onSelected: (id) =>
+                                setState(() => _categoryId = id),
+                            onAddNew: () => _addCategory(context),
+                          ),
+                          const SizedBox(height: 8),
+                          _DateField(
+                            date: _date,
+                            onChanged: (next) => setState(() => _date = next),
+                          ),
+                          if (_repeats)
+                            _RepeatSection(
+                              key: _repeatKey,
+                              frequency: _frequency,
+                              onFrequency: (next) =>
+                                  setState(() => _frequency = next),
+                              interval: _interval,
+                              onIntervalChanged: () => setState(() {}),
+                              startDate: _date,
+                              endDate: _endDate,
+                              onEndDate: (next) =>
+                                  setState(() => _endDate = next),
+                              problem: _repeatProblem,
+                              // From the schedule alone: the entry may not
+                              // have an amount yet.
+                              summary: describeRecurrence(
+                                RecurringRule.startingOn(
+                                  _date,
+                                  frequency: _frequency,
+                                  intervalDays: int.tryParse(
+                                    _interval.text.trim(),
+                                  ),
+                                  endDate: _endDate,
                                 ),
-                                endDate: _endDate,
                               ),
                             ),
+                          TextField(
+                            controller: _note,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              labelText: 'Note (optional)',
+                              border: OutlineInputBorder(),
+                            ),
                           ),
-                        TextField(
-                          controller: _note,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(
-                            labelText: 'Note (optional)',
-                            border: OutlineInputBorder(),
+                          const SizedBox(height: 8),
+                          _AccountPicker(
+                            accounts: accounts,
+                            selectedId: _accountId,
+                            onSelected: (id) => setState(() => _accountId = id),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        _AccountPicker(
-                          accounts: accounts,
-                          selectedId: _accountId,
-                          onSelected: (id) => setState(() => _accountId = id),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+                          const SizedBox(height: 16),
+                        ],
+                      ),
                     ),
                   ),
-                  AmountKeypad(
-                    expression: _amount,
-                    onChanged: (next) => setState(() => _amount = next),
-                  ),
+                  if (_keypadOpen)
+                    AmountKeypad(
+                      // Under 720dp tall — a 640dp phone left the details a
+                      // 40dp sliver at 64 — keys drop to the 48dp minimum
+                      // target, which buys two full rows of categories.
+                      keyHeight: MediaQuery.sizeOf(context).height < 720
+                          ? 48
+                          : 64,
+                      expression: _amount,
+                      onChanged: (next) => setState(() => _amount = next),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     child: SizedBox(
@@ -360,10 +435,19 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
 /// The running total, in the colour of what it will become.
 class _AmountDisplay extends StatelessWidget {
-  const _AmountDisplay({required this.expression, required this.type});
+  const _AmountDisplay({
+    required this.expression,
+    required this.type,
+    required this.keypadOpen,
+    required this.onToggleKeypad,
+  });
 
   final AmountExpression expression;
   final TransactionType type;
+
+  /// Whether the keypad below is showing, and the way to fold or open it.
+  final bool keypadOpen;
+  final VoidCallback onToggleKeypad;
 
   @override
   Widget build(BuildContext context) {
@@ -381,34 +465,52 @@ class _AmountDisplay extends StatelessWidget {
         ? 'That comes to less than nothing.'
         : null;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              expression.pendingOperator == null && value != null
-                  ? formatCents(value)
-                  : expression.display,
-              style: theme.textTheme.displaySmall?.copyWith(
-                color: tint,
-                fontWeight: FontWeight.w600,
-              ),
+    return InkWell(
+      // The number is where the keypad types, so it is where the keypad is
+      // brought back from.
+      onTap: keypadOpen ? null : onToggleKeypad,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(4, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  tooltip: keypadOpen ? 'Hide keypad' : 'Show keypad',
+                  icon: Icon(
+                    keypadOpen ? Icons.keyboard_hide_outlined : Icons.dialpad,
+                  ),
+                  onPressed: onToggleKeypad,
+                ),
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      expression.pendingOperator == null && value != null
+                          ? formatCents(value)
+                          : expression.display,
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        color: tint,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          if (warning != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                warning,
-                style: theme.textTheme.bodySmall?.copyWith(color: tint),
+            if (warning != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  warning,
+                  style: theme.textTheme.bodySmall?.copyWith(color: tint),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -652,6 +754,7 @@ class _AccountPicker extends StatelessWidget {
 class _RepeatSection extends StatelessWidget {
   const _RepeatSection({
     required this.frequency,
+    super.key,
     required this.onFrequency,
     required this.interval,
     required this.onIntervalChanged,
