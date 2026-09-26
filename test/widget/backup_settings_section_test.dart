@@ -109,6 +109,46 @@ void main() {
     });
   });
 
+  group('exporting. FR-RPT-007', () {
+    testWidgets('saves the CSV where chosen', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('Export transactions'));
+      await tester.pumpAndSettle();
+
+      expect(files.saved, _csv);
+      expect(
+        find.text('Exported as moneyora-transactions-2026-09-27.csv.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('clearing. FR-SET-009', () {
+    testWidgets('clears only once confirmed, and says what happened', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.tap(find.text('Clear all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(backups.cleared, 0);
+
+      await tester.tap(find.text('Clear all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear everything'));
+      await tester.pumpAndSettle();
+
+      expect(backups.cleared, 1);
+      expect(
+        find.text(
+          'Everything was cleared. Moneyora is as it was on first open.',
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('restoring', () {
     Future<void> restoreWith(WidgetTester tester, String password) async {
       await tester.tap(find.text('Restore from a backup'));
@@ -180,6 +220,7 @@ final _file = BackupFile(
 );
 
 class _FakeBackups implements BackupRepository {
+  int cleared = 0;
   String? createdWith;
   (Uint8List, String)? restored;
   Failure? restoreFails;
@@ -205,6 +246,16 @@ class _FakeBackups implements BackupRepository {
       ),
     );
   }
+
+  @override
+  Future<Either<Failure, Unit>> clearAll() async {
+    cleared++;
+    return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, BackupFile>> exportTransactionsCsv() async =>
+      Right(_csv);
 }
 
 class _FakeFiles implements BackupFileGateway {
@@ -231,3 +282,8 @@ class _FakeRecompute implements RecomputeAllAccountBalances {
     return const Right(unit);
   }
 }
+
+final _csv = BackupFile(
+  name: 'moneyora-transactions-2026-09-27.csv',
+  bytes: Uint8List.fromList([4, 5]),
+);

@@ -70,6 +70,7 @@ void main() {
 }
 
 class _FakeBackups implements BackupRepository {
+  int cleared = 0;
   String? createdWith;
   (Uint8List, String)? restored;
 
@@ -93,7 +94,22 @@ class _FakeBackups implements BackupRepository {
       ),
     );
   }
+
+  @override
+  Future<Either<Failure, Unit>> clearAll() async {
+    cleared++;
+    return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, BackupFile>> exportTransactionsCsv() async =>
+      Right(_csv);
 }
 
 final _bytes = Uint8List.fromList([1, 2, 3]);
 final _file = BackupFile(name: 'moneyora-2026-09-27.mora', bytes: _bytes);
+
+final _csv = BackupFile(
+  name: 'moneyora-transactions-2026-09-27.csv',
+  bytes: Uint8List.fromList([4, 5]),
+);
