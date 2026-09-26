@@ -43,6 +43,7 @@ import 'features/analytics/data/repositories/analytics_repository_impl.dart';
 import 'features/analytics/domain/repositories/analytics_repository.dart';
 import 'features/analytics/domain/usecases/compare_periods.dart';
 import 'features/analytics/domain/usecases/get_income_for_period.dart';
+import 'features/analytics/domain/usecases/get_period_summary.dart';
 import 'features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'features/analytics/domain/usecases/get_spending_trend.dart';
@@ -621,6 +622,12 @@ final getSpendingByCategoryProvider = FutureProvider<GetSpendingByCategory>(
 final getIncomeForPeriodProvider = FutureProvider<GetIncomeForPeriod>(
   (ref) async =>
       GetIncomeForPeriod(await ref.watch(analyticsRepositoryProvider.future)),
+);
+
+/// The headline figures for a period. FR-RPT-006.
+final getPeriodSummaryProvider = FutureProvider<GetPeriodSummary>(
+  (ref) async =>
+      GetPeriodSummary(await ref.watch(analyticsRepositoryProvider.future)),
 );
 
 /// How spending by category moved between two periods. FR-COP-021.

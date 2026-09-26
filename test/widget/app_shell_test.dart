@@ -23,6 +23,7 @@ import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_income_for_period.dart';
+import 'package:moneyora/features/analytics/domain/usecases/get_period_summary.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
@@ -129,6 +130,9 @@ final List<Override> _noChartDataOverrides = [
   ),
   getSpendingCalendarProvider.overrideWith(
     (ref) async => GetSpendingCalendar(_NoSpendingRepository()),
+  ),
+  getPeriodSummaryProvider.overrideWith(
+    (ref) async => GetPeriodSummary(_NoSpendingRepository()),
   ),
   categoryReaderProvider.overrideWith((ref) async => _NoCategoryReader()),
   accountReaderProvider.overrideWith((ref) async => _NoAccountReader()),
