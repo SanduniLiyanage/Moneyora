@@ -13,6 +13,7 @@ import 'package:moneyora/features/transactions/domain/usecases/create_recurring_
 import 'package:moneyora/features/transactions/presentation/pages/add_transaction_page.dart';
 import 'package:moneyora/features/transactions/presentation/providers/recurring_catch_up.dart';
 import 'package:moneyora/features/transactions/presentation/providers/transaction_providers.dart';
+import 'package:moneyora/features/transactions/presentation/widgets/amount_keypad.dart';
 import 'package:moneyora/injection.dart';
 
 /// Records what `CreateRecurringRule` hands down.
@@ -159,6 +160,24 @@ void main() {
     }
     expect(find.text('No end date'), findsOneWidget);
     expect(find.byTooltip('Stop repeating'), findsOneWidget);
+  });
+
+  testWidgets('turning Repeat on folds the keypad so the choices show', (
+    tester,
+  ) async {
+    // Under the keypad the frequency chips were out of reach on a phone.
+    await pumpEntry(tester);
+    await fillRent(tester);
+
+    await tester.tap(repeatToggle);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AmountKeypad), findsNothing);
+    expect(find.text('Monthly').hitTestable(), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Show keypad'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AmountKeypad), findsOneWidget);
   });
 
   testWidgets('saving creates the entry and its monthly rule, then asks for '
