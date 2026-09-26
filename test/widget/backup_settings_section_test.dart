@@ -126,12 +126,38 @@ void main() {
       await pump(tester);
       await tester.tap(find.text('Export transactions'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Spreadsheet (CSV)'));
+      await tester.pumpAndSettle();
 
       expect(files.saved, _csv);
       expect(
         find.text('Exported as moneyora-transactions-2026-09-27.csv.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('or the PDF', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('Export transactions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('PDF'));
+      await tester.pumpAndSettle();
+
+      expect(files.saved, _pdf);
+      expect(
+        find.text('Exported as moneyora-transactions-2026-09-27.pdf.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('writes nothing when the choice is dismissed', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('Export transactions'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+
+      expect(files.saved, isNull);
     });
   });
 
@@ -271,6 +297,10 @@ class _FakeBackups implements BackupRepository {
       Right(_csv);
 
   @override
+  Future<Either<Failure, BackupFile>> exportTransactionsPdf() async =>
+      Right(_pdf);
+
+  @override
   Future<Either<Failure, BackupStatus>> status(DateTime now) async => Right(
     BackupStatus(lastSavedAt: null, firstSeenAt: now, transactionCount: 0),
   );
@@ -321,3 +351,8 @@ class _FakeReminders extends BackupReminderWatcher {
   @override
   void sync() => syncs++;
 }
+
+final _pdf = BackupFile(
+  name: 'moneyora-transactions-2026-09-27.pdf',
+  bytes: Uint8List.fromList([6, 7]),
+);

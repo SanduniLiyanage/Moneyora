@@ -328,6 +328,31 @@ void main() {
     });
   });
 
+  group('exportPdf. FR-RPT-007', () {
+    test('a PDF named by the day, from the same rows', () async {
+      final file = await sourceOn(oldPhone, oldPhotos).exportPdf(now: now);
+
+      expect(file.name, 'moneyora-transactions-2026-09-27.pdf');
+      expect(String.fromCharCodes(file.bytes.sublist(0, 5)), '%PDF-');
+    });
+
+    test(
+      'draws a note the standard fonts cannot, rather than failing',
+      () async {
+        await oldPhone.update(
+          'transactions',
+          {'note': 'සහල් 5kg'},
+          where: 'date = ?',
+          whereArgs: ['2026-09-01'],
+        );
+
+        final file = await sourceOn(oldPhone, oldPhotos).exportPdf(now: now);
+
+        expect(file.bytes, isNotEmpty);
+      },
+    );
+  });
+
   group('exportCsv. FR-RPT-007', () {
     Future<List<String>> exportLines() async {
       final file = await sourceOn(oldPhone, oldPhotos).exportCsv(now: now);

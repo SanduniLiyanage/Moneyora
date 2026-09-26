@@ -108,6 +108,10 @@ class _FakeBackups implements BackupRepository {
       Right(_csv);
 
   @override
+  Future<Either<Failure, BackupFile>> exportTransactionsPdf() async =>
+      Right(_pdf);
+
+  @override
   Future<Either<Failure, BackupStatus>> status(DateTime now) async => Right(
     BackupStatus(lastSavedAt: null, firstSeenAt: now, transactionCount: 0),
   );
@@ -125,4 +129,9 @@ final _file = BackupFile(name: 'moneyora-2026-09-27.mora', bytes: _bytes);
 final _csv = BackupFile(
   name: 'moneyora-transactions-2026-09-27.csv',
   bytes: Uint8List.fromList([4, 5]),
+);
+
+final _pdf = BackupFile(
+  name: 'moneyora-transactions-2026-09-27.pdf',
+  bytes: Uint8List.fromList([6, 7]),
 );

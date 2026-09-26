@@ -53,7 +53,7 @@ follows the Resolution sections.
 | [E-35](#e-35) | FR-SET-007's budget alerts have no schema: no setting, and nothing recording an alert was sent | Resolved | FR-SET-007 |
 | [E-36](#e-36) | A recurring rule's template cannot be deleted, and the DBD's cascade would delete the series | Resolved | FR-EXP-008, FR-INC-004 |
 | [E-37](#e-37) | FR-SET-006's reminders have no schema, and "configuration" names nothing to configure | Resolved | FR-SET-006 |
-| [E-38](#e-38) | A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have | Resolved (FR-BAK-003/004 deferred) | FR-BAK-001, FR-BAK-003, FR-BAK-004, FR-BAK-005 |
+| [E-38](#e-38) | A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have | Resolved (FR-BAK-002/003/004 deferred) | FR-BAK-001, FR-BAK-002, FR-BAK-003, FR-BAK-004, FR-BAK-005 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2256,7 +2256,7 @@ The DBD v1.1 that E-32 anticipates should carry all three columns.
 ## E-38 — A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have
 
 **Severity:** Medium · **Affects:** SRS §3.9, NFR-PRT-004, NFR-SEC-006 ·
-**Requirement:** FR-BAK-001, FR-BAK-003, FR-BAK-004, FR-BAK-005
+**Requirement:** FR-BAK-001, FR-BAK-002, FR-BAK-003, FR-BAK-004, FR-BAK-005
 
 Raised 2026-09-27, building backup and restore in Sprint 8. FR-BAK-001 asks
 for *"local encrypted backups in SQLite format"*, and FR-BAK-005 for a
@@ -2306,6 +2306,14 @@ what may leave the phone.
    an account of its own. **FR-BAK-003 and FR-BAK-004 are deferred**: the
    sealed file already satisfies NFR-SEC-006 wherever the user puts it,
    and a direct integration waits on registering the two OAuth clients.
+5. **FR-BAK-002's scheduled automatic backups are deferred too.** A backup
+   made with nobody present needs its password stored on the phone, and a
+   password the phone holds is one a stolen phone gives up with the
+   backups beside it. That turns point 2's only key into no key. FR-BAK-006's
+   reminder is what is built instead: a notification after a week without
+   a saved backup, which keeps the user in the loop the password needs.
+   Revisit if a platform backup service (Android's Auto Backup, iCloud)
+   can carry the sealed file without the app holding its password.
 
 ---
 

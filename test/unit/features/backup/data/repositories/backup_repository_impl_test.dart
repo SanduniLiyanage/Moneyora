@@ -118,6 +118,12 @@ class _FakeSource implements BackupLocalDataSource {
   }
 
   @override
+  Future<BackupFile> exportPdf({required DateTime now}) async {
+    if (throwWith case final e?) throw e;
+    return _file;
+  }
+
+  @override
   Future<int> transactionCount() async {
     if (throwWith case final e?) throw e;
     return 3;

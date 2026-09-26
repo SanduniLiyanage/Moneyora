@@ -5,10 +5,13 @@ library;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
+import '../../domain/entities/backup_file.dart';
 import '../../domain/usecases/restore_backup.dart';
 import 'backup_reminder_watcher.dart';
 
@@ -81,9 +84,22 @@ class BackupController extends AutoDisposeAsyncNotifier<void> {
 
   /// Writes every transaction as CSV and asks where to save it. FR-RPT-007.
   Future<BackupOutcome> exportCsv() async {
-    state = const AsyncValue<void>.loading();
     final export = await ref.read(exportTransactionsCsvProvider.future);
-    final result = await export(const NoParams());
+    return _export(() => export(const NoParams()));
+  }
+
+  /// Writes every transaction as a PDF and asks where to save it.
+  /// FR-RPT-007.
+  Future<BackupOutcome> exportPdf() async {
+    final export = await ref.read(exportTransactionsPdfProvider.future);
+    return _export(() => export(const NoParams()));
+  }
+
+  Future<BackupOutcome> _export(
+    Future<Either<Failure, BackupFile>> Function() make,
+  ) async {
+    state = const AsyncValue<void>.loading();
+    final result = await make();
 
     final BackupOutcome outcome = await result.match(
       (failure) async => (done: false, message: failure.message),

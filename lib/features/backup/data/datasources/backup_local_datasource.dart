@@ -21,6 +21,7 @@ import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/backup_file.dart';
 import '../../domain/entities/restore_summary.dart';
 import 'backup_codec.dart';
+import 'transactions_pdf.dart';
 
 /// Makes and restores backups. The only holder of SQL for the feature.
 abstract class BackupLocalDataSource {
@@ -38,6 +39,10 @@ abstract class BackupLocalDataSource {
   /// Every transaction as a CSV file, oldest first. [now] names the file.
   /// FR-RPT-007.
   Future<BackupFile> exportCsv({required DateTime now});
+
+  /// Every transaction as a printable PDF, oldest first, with totals per
+  /// currency. [now] names and dates the file. FR-RPT-007.
+  Future<BackupFile> exportPdf({required DateTime now});
 
   /// How many transactions there are. FR-BAK-006.
   Future<int> transactionCount();
@@ -250,6 +255,43 @@ class BackupLocalDataSourceImpl implements BackupLocalDataSource {
 
   @override
   Future<BackupFile> exportCsv({required DateTime now}) async {
+    final csv = StringBuffer()
+      ..write('Date,Type,Amount,Currency,Account,Category,Note\r\n');
+    for (final row in await _exportRows()) {
+      csv.write(
+        [
+          row.date,
+          row.type,
+          // Signed, so a spreadsheet's SUM of the column is the net.
+          formatCentsPlain(
+            row.signedCents,
+            currency: CurrencyFormat.forCode(row.currency),
+          ),
+          _csvText(row.currency),
+          _csvText(row.account),
+          _csvText(row.category),
+          _csvText(row.note),
+        ].join(','),
+      );
+      csv.write('\r\n');
+    }
+
+    return BackupFile(
+      name: 'moneyora-transactions-${_day(now)}.csv',
+      // A byte-order mark, so a spreadsheet opens Sinhala and Tamil notes as
+      // text rather than as mojibake.
+      bytes: Uint8List.fromList(utf8.encode('\uFEFF$csv')),
+    );
+  }
+
+  @override
+  Future<BackupFile> exportPdf({required DateTime now}) async => BackupFile(
+    name: 'moneyora-transactions-${_day(now)}.pdf',
+    bytes: await buildTransactionsPdf(await _exportRows(), now: now),
+  );
+
+  /// Every transaction, oldest first, as both exports read it.
+  Future<List<ExportRow>> _exportRows() async {
     final List<Map<String, Object?>> rows;
     try {
       rows = await _db.rawQuery('''
@@ -263,46 +305,31 @@ class BackupLocalDataSourceImpl implements BackupLocalDataSource {
     } on DatabaseException catch (e) {
       throw CacheException('Could not read your transactions.', cause: e);
     }
+    return [for (final row in rows) _exportRow(row)];
+  }
 
-    final csv = StringBuffer()
-      ..write('Date,Type,Amount,Currency,Account,Category,Note\r\n');
-    for (final row in rows) {
-      final type = row['type']! as String;
-      final out =
-          type == 'expense' ||
-          (type == 'transfer' && row['transfer_direction'] == 'out');
-      final currency = row['currency']! as String;
-      final cents = row['amount_cents']! as int;
-      csv.write(
-        [
-          row['date']! as String,
-          switch (type) {
-            'expense' => 'Expense',
-            'income' => 'Income',
-            _ => out ? 'Transfer out' : 'Transfer in',
-          },
-          // Signed, so a spreadsheet's SUM of the column is the net.
-          formatCentsPlain(
-            out ? -cents : cents,
-            currency: CurrencyFormat.forCode(currency),
-          ),
-          _csvText(currency),
-          _csvText(row['account']! as String),
-          _csvText((row['category'] as String?) ?? ''),
-          _csvText((row['note'] as String?) ?? ''),
-        ].join(','),
-      );
-      csv.write('\r\n');
-    }
-
-    final day = now.toIso8601String().substring(0, 10);
-    return BackupFile(
-      name: 'moneyora-transactions-$day.csv',
-      // A byte-order mark, so a spreadsheet opens Sinhala and Tamil notes as
-      // text rather than as mojibake.
-      bytes: Uint8List.fromList(utf8.encode('﻿$csv')),
+  static ExportRow _exportRow(Map<String, Object?> row) {
+    final type = row['type']! as String;
+    final outgoing =
+        type == 'expense' ||
+        (type == 'transfer' && row['transfer_direction'] == 'out');
+    return ExportRow(
+      date: row['date']! as String,
+      type: switch (type) {
+        'expense' => 'Expense',
+        'income' => 'Income',
+        _ => outgoing ? 'Transfer out' : 'Transfer in',
+      },
+      outgoing: outgoing,
+      amountCents: row['amount_cents']! as int,
+      currency: row['currency']! as String,
+      account: row['account']! as String,
+      category: (row['category'] as String?) ?? '',
+      note: (row['note'] as String?) ?? '',
     );
   }
+
+  static String _day(DateTime now) => now.toIso8601String().substring(0, 10);
 
   /// [value] as one CSV field: quoted when it holds a comma, a quote or a
   /// line break (RFC 4180), and led by an apostrophe when it would start a

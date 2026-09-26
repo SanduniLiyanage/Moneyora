@@ -71,6 +71,7 @@ import 'features/backup/domain/repositories/backup_repository.dart';
 import 'features/backup/domain/usecases/clear_all_data.dart';
 import 'features/backup/domain/usecases/create_backup.dart';
 import 'features/backup/domain/usecases/export_transactions_csv.dart';
+import 'features/backup/domain/usecases/export_transactions_pdf.dart';
 import 'features/backup/domain/usecases/record_backup_saved.dart';
 import 'features/backup/domain/usecases/restore_backup.dart';
 import 'features/backup/domain/usecases/schedule_backup_reminder.dart';
@@ -1438,4 +1439,10 @@ final clearAllDataProvider = FutureProvider<ClearAllData>(
 final exportTransactionsCsvProvider = FutureProvider<ExportTransactionsCsv>(
   (ref) async =>
       ExportTransactionsCsv(await ref.watch(backupRepositoryProvider.future)),
+);
+
+/// Every transaction as a PDF. FR-RPT-007.
+final exportTransactionsPdfProvider = FutureProvider<ExportTransactionsPdf>(
+  (ref) async =>
+      ExportTransactionsPdf(await ref.watch(backupRepositoryProvider.future)),
 );

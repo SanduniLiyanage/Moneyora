@@ -147,6 +147,10 @@ class _FakeStatus implements BackupRepository {
   @override
   Future<Either<Failure, BackupFile>> exportTransactionsCsv() =>
       throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, BackupFile>> exportTransactionsPdf() =>
+      throw UnimplementedError();
 }
 
 class _FakeNotifier implements LocalNotifier {
