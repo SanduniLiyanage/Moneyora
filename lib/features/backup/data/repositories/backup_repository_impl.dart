@@ -5,17 +5,24 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/backup_file.dart';
+import '../../domain/entities/backup_status.dart';
 import '../../domain/entities/restore_summary.dart';
 import '../../domain/repositories/backup_repository.dart';
 import '../datasources/backup_local_datasource.dart';
+import '../datasources/backup_log.dart';
 
 /// Turns the datasource's exceptions into failures. The layer boundary.
 class BackupRepositoryImpl implements BackupRepository {
-  /// Creates the repository. [clock] names the file and dates the backup.
-  BackupRepositoryImpl(this._source, {DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+  /// Creates the repository. [clock] names the file and dates the backup;
+  /// [log] is the keychain's record of when this phone last saved one.
+  BackupRepositoryImpl(
+    this._source, {
+    required this._log,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now;
 
   final BackupLocalDataSource _source;
+  final BackupLog _log;
   final DateTime Function() _clock;
 
   @override
@@ -37,6 +44,21 @@ class BackupRepositoryImpl implements BackupRepository {
   @override
   Future<Either<Failure, BackupFile>> exportTransactionsCsv() =>
       _guard(() => _source.exportCsv(now: _clock()));
+
+  @override
+  Future<Either<Failure, BackupStatus>> status(DateTime now) => _guard(
+    () async => BackupStatus(
+      lastSavedAt: await _log.lastSavedAt(),
+      firstSeenAt: await _log.firstSeenAt(now),
+      transactionCount: await _source.transactionCount(),
+    ),
+  );
+
+  @override
+  Future<Either<Failure, Unit>> recordSaved(DateTime at) => _guard(() async {
+    await _log.recordSaved(at);
+    return unit;
+  });
 
   Future<Either<Failure, T>> _guard<T>(Future<T> Function() body) async {
     try {

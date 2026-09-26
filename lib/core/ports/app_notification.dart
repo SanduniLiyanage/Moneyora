@@ -12,6 +12,9 @@ enum NotificationKind {
 
   /// A recurring entry about to be added. FR-SET-006.
   recurringReminder,
+
+  /// Nothing backed up for a week. FR-BAK-006.
+  backupReminder,
 }
 
 /// One notification the app wants the device to show. FR-SET-007.
@@ -47,6 +50,13 @@ class AppNotification extends Equatable {
   /// [budgetAlertBase], by the same bit rule: a rule id would have to pass
   /// 2²⁹ to reach the budget alerts.
   static const int recurringReminderBase = 1 << 29;
+
+  /// The backup reminder's id. FR-BAK-006.
+  ///
+  /// There is only ever one pending — the next — so it is a single id, below
+  /// [recurringReminderBase] by the same bit rule, and rescheduling it
+  /// replaces it.
+  static const int backupReminderId = 1 << 28;
 
   /// Whether [id] belongs to the recurring reminders' range.
   static bool isRecurringReminder(int id) =>

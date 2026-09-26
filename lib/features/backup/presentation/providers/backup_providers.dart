@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
 import '../../domain/usecases/restore_backup.dart';
+import 'backup_reminder_watcher.dart';
 
 /// What a backup or restore came to, as the sentence the screen shows.
 typedef BackupOutcome = ({bool done, String message});
@@ -31,9 +32,17 @@ class BackupController extends AutoDisposeAsyncNotifier<void> {
 
     final BackupOutcome outcome = await result.match(
       (failure) async => (done: false, message: failure.message),
-      (file) async => await ref.read(backupFileGatewayProvider).save(file)
-          ? (done: true, message: 'Backup saved as ${file.name}.')
-          : (done: false, message: 'The backup was not saved.'),
+      (file) async {
+        if (!await ref.read(backupFileGatewayProvider).save(file)) {
+          return (done: false, message: 'The backup was not saved.');
+        }
+        // FR-BAK-006: a saved backup puts the reminder off a week. A failure
+        // to record it costs one early reminder, not the backup.
+        final record = await ref.read(recordBackupSavedProvider.future);
+        await record(ref.read(clockProvider)());
+        ref.read(backupReminderWatcherProvider.notifier).sync();
+        return (done: true, message: 'Backup saved as ${file.name}.');
+      },
     );
     state = const AsyncValue<void>.data(null);
     return outcome;
