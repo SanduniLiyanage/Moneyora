@@ -46,6 +46,10 @@ class BackupRepositoryImpl implements BackupRepository {
       _guard(() => _source.exportCsv(now: _clock()));
 
   @override
+  Future<Either<Failure, BackupFile>> exportTransactionsPdf() =>
+      _guard(() => _source.exportPdf(now: _clock()));
+
+  @override
   Future<Either<Failure, BackupStatus>> status(DateTime now) => _guard(
     () async => BackupStatus(
       lastSavedAt: await _log.lastSavedAt(),

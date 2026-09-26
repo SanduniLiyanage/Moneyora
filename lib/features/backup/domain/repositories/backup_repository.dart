@@ -29,6 +29,9 @@ abstract class BackupRepository {
   /// Every transaction as a CSV file. FR-RPT-007.
   Future<Either<Failure, BackupFile>> exportTransactionsCsv();
 
+  /// Every transaction as a printable PDF. FR-RPT-007.
+  Future<Either<Failure, BackupFile>> exportTransactionsPdf();
+
   /// Where this phone stands on backups, as of [now]. FR-BAK-006.
   Future<Either<Failure, BackupStatus>> status(DateTime now);
 

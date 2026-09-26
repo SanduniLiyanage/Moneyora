@@ -67,9 +67,39 @@ class BackupSettingsSection extends ConsumerWidget {
   }
 
   Future<void> _export(BuildContext context, WidgetRef ref) async {
-    final outcome = await ref
-        .read(backupControllerProvider.notifier)
-        .exportCsv();
+    final pdf = await showDialog<bool>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Export transactions as'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const ListTile(
+              leading: Icon(Icons.table_view_outlined),
+              title: Text('Spreadsheet (CSV)'),
+              subtitle: Text('Every character, for another program to read.'),
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const ListTile(
+              leading: Icon(Icons.picture_as_pdf_outlined),
+              title: Text('PDF'),
+              subtitle: Text(
+                'A printable table with totals. Sinhala and Tamil notes '
+                'show as "?".',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (pdf == null || !context.mounted) return;
+
+    final controller = ref.read(backupControllerProvider.notifier);
+    final outcome = pdf
+        ? await controller.exportPdf()
+        : await controller.exportCsv();
     if (context.mounted) _say(context, outcome.message);
   }
 
@@ -149,8 +179,8 @@ class BackupSettingsSection extends ConsumerWidget {
           leading: leading(Icons.table_view_outlined),
           title: const Text('Export transactions'),
           subtitle: const Text(
-            'Every transaction as a spreadsheet (CSV). Not encrypted — for '
-            'reading elsewhere, not for restoring.',
+            'Every transaction as a spreadsheet (CSV) or a PDF. Not '
+            'encrypted — for reading elsewhere, not for restoring.',
           ),
           onTap: busy ? null : () => _export(context, ref),
         ),
