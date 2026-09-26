@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -296,6 +297,74 @@ void main() {
     expect(await newPhone.query('accounts'), before);
     expect(await newPhone.query('transactions'), isEmpty);
     expect(newPhotos.files, isEmpty);
+  });
+
+  group('clearAll. FR-SET-009', () {
+    test('leaves exactly what a first launch writes', () async {
+      final fresh = await openPhone();
+      addTearDown(fresh.close);
+
+      await sourceOn(oldPhone, oldPhotos).clearAll();
+
+      expect(await oldPhone.query('transactions'), isEmpty);
+      expect(await oldPhone.query('recurring_rules'), isEmpty);
+      expect(await oldPhone.query('receipt_scans'), isEmpty);
+      for (final table in ['accounts', 'categories']) {
+        final names = (await oldPhone.query(table)).map((r) => r['name']);
+        final seeded = (await fresh.query(table)).map((r) => r['name']);
+        expect(names, seeded, reason: table);
+      }
+      expect(await oldPhone.query('users'), hasLength(1));
+    });
+
+    test('deletes the kept photos and tells every screen', () async {
+      notified = 0;
+
+      await sourceOn(oldPhone, oldPhotos).clearAll();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(oldPhotos.files, isEmpty);
+      expect(notified, 1);
+    });
+  });
+
+  group('exportCsv. FR-RPT-007', () {
+    Future<List<String>> exportLines() async {
+      final file = await sourceOn(oldPhone, oldPhotos).exportCsv(now: now);
+      expect(file.name, 'moneyora-transactions-2026-09-27.csv');
+      // The byte-order mark, as bytes: utf8.decode drops it.
+      expect(file.bytes.sublist(0, 3), [0xEF, 0xBB, 0xBF]);
+      return utf8.decode(file.bytes.sublist(3)).split('\r\n')..removeLast();
+    }
+
+    test('one row per transaction, oldest first, amounts signed', () async {
+      final lines = await exportLines();
+
+      expect(lines.first, 'Date,Type,Amount,Currency,Account,Category,Note');
+      expect(lines, hasLength(3));
+      expect(lines[1], startsWith('2026-09-01,Expense,-45000.00,LKR,'));
+      expect(lines[2], startsWith('2026-09-16,Expense,-2790.00,LKR,'));
+    });
+
+    test('quotes what would break a column, and defuses a formula', () async {
+      await oldPhone.update(
+        'transactions',
+        {'note': 'Rice, "red", 5kg'},
+        where: 'date = ?',
+        whereArgs: ['2026-09-01'],
+      );
+      await oldPhone.update(
+        'transactions',
+        {'note': '=HYPERLINK("x")'},
+        where: 'date = ?',
+        whereArgs: ['2026-09-16'],
+      );
+
+      final lines = await exportLines();
+
+      expect(lines[1], endsWith(',"Rice, ""red"", 5kg"'));
+      expect(lines[2], endsWith(',"\'=HYPERLINK(""x"")"'));
+    });
   });
 }
 

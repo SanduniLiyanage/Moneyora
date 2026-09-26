@@ -20,4 +20,11 @@ abstract class BackupRepository {
     Uint8List bytes,
     String password,
   );
+
+  /// Deletes everything and writes the first-launch defaults back.
+  /// FR-SET-009.
+  Future<Either<Failure, Unit>> clearAll();
+
+  /// Every transaction as a CSV file. FR-RPT-007.
+  Future<Either<Failure, BackupFile>> exportTransactionsCsv();
 }

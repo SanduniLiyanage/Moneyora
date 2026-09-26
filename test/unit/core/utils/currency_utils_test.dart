@@ -212,4 +212,21 @@ void main() {
       );
     });
   });
+
+  group('formatCentsPlain', () {
+    test('a bare decimal: no symbol, no grouping', () {
+      expect(formatCentsPlain(123456789), '1234567.89');
+      expect(formatCentsPlain(7), '0.07');
+      expect(formatCentsPlain(0), '0.00');
+    });
+
+    test('the sign leads', () {
+      expect(formatCentsPlain(-50000), '-500.00');
+    });
+
+    test("follows the currency's decimals", () {
+      const yen = CurrencyFormat(code: 'JPY', symbol: '¥', decimalDigits: 0);
+      expect(formatCentsPlain(1500, currency: yen), '1500');
+    });
+  });
 }

@@ -13,8 +13,11 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../../../../core/database/database_change_bus.dart';
 import '../../../../core/database/database_helper.dart';
+import '../../../../core/database/seed/default_seed.dart';
+import '../../../../core/database/seed/keyword_seed.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/ports/receipt_photo_store.dart';
+import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/backup_file.dart';
 import '../../domain/entities/restore_summary.dart';
 import 'backup_codec.dart';
@@ -27,6 +30,14 @@ abstract class BackupLocalDataSource {
 
   /// Replaces every row with the backup [bytes], opened with [password].
   Future<RestoreSummary> restore(Uint8List bytes, String password);
+
+  /// Deletes every row and every kept photo, and writes the first-launch
+  /// defaults back — the state a fresh install opens on. FR-SET-009.
+  Future<void> clearAll();
+
+  /// Every transaction as a CSV file, oldest first. [now] names the file.
+  /// FR-RPT-007.
+  Future<BackupFile> exportCsv({required DateTime now});
 }
 
 /// Fulfils [BackupLocalDataSource] over the open database.
@@ -143,13 +154,7 @@ class BackupLocalDataSourceImpl implements BackupLocalDataSource {
 
     // The photos this phone holds now, to be removed once the rows naming
     // them are gone — and only then, so a failed restore loses nothing.
-    final replaced = <String>{};
-    for (final entry in _photoColumns.entries) {
-      final rows = await _db.query(entry.key, columns: [entry.value]);
-      for (final row in rows) {
-        if (row[entry.value] case final String path) replaced.add(path);
-      }
-    }
+    final replaced = await _keptPhotoPaths();
 
     // Photos first: sealing is file I/O and cannot share the database
     // transaction, so it happens before it, and is undone if it fails.
@@ -214,6 +219,110 @@ class BackupLocalDataSourceImpl implements BackupLocalDataSource {
       transactionCount: count ?? 0,
       photoCount: moved.length,
     );
+  }
+
+  @override
+  Future<void> clearAll() async {
+    final kept = await _keptPhotoPaths();
+    try {
+      await _db.transaction((txn) async {
+        await txn.execute('PRAGMA defer_foreign_keys = ON');
+        for (final table in await _tableNames(txn)) {
+          await txn.delete(table);
+        }
+        // What a fresh install opens on: the default account and categories
+        // FR-EXP-003 expects, and the dictionary the scanner reads.
+        await applyDefaultSeed(txn);
+        await applyKeywordSeed(txn);
+      });
+    } on DatabaseException catch (e) {
+      throw CacheException(
+        'Your data could not be cleared. Nothing was changed.',
+        cause: e,
+      );
+    }
+    await _discardAll(kept);
+    _changeBus?.notify();
+  }
+
+  @override
+  Future<BackupFile> exportCsv({required DateTime now}) async {
+    final List<Map<String, Object?>> rows;
+    try {
+      rows = await _db.rawQuery('''
+        SELECT t.date, t.type, t.transfer_direction, t.amount_cents,
+               a.currency, a.name AS account, c.name AS category, t.note
+        FROM transactions t
+        JOIN accounts a ON a.id = t.account_id
+        LEFT JOIN categories c ON c.id = t.category_id
+        ORDER BY t.date, t.id
+      ''');
+    } on DatabaseException catch (e) {
+      throw CacheException('Could not read your transactions.', cause: e);
+    }
+
+    final csv = StringBuffer()
+      ..write('Date,Type,Amount,Currency,Account,Category,Note\r\n');
+    for (final row in rows) {
+      final type = row['type']! as String;
+      final out =
+          type == 'expense' ||
+          (type == 'transfer' && row['transfer_direction'] == 'out');
+      final currency = row['currency']! as String;
+      final cents = row['amount_cents']! as int;
+      csv.write(
+        [
+          row['date']! as String,
+          switch (type) {
+            'expense' => 'Expense',
+            'income' => 'Income',
+            _ => out ? 'Transfer out' : 'Transfer in',
+          },
+          // Signed, so a spreadsheet's SUM of the column is the net.
+          formatCentsPlain(
+            out ? -cents : cents,
+            currency: CurrencyFormat.forCode(currency),
+          ),
+          _csvText(currency),
+          _csvText(row['account']! as String),
+          _csvText((row['category'] as String?) ?? ''),
+          _csvText((row['note'] as String?) ?? ''),
+        ].join(','),
+      );
+      csv.write('\r\n');
+    }
+
+    final day = now.toIso8601String().substring(0, 10);
+    return BackupFile(
+      name: 'moneyora-transactions-$day.csv',
+      // A byte-order mark, so a spreadsheet opens Sinhala and Tamil notes as
+      // text rather than as mojibake.
+      bytes: Uint8List.fromList(utf8.encode('﻿$csv')),
+    );
+  }
+
+  /// [value] as one CSV field: quoted when it holds a comma, a quote or a
+  /// line break (RFC 4180), and led by an apostrophe when it would start a
+  /// formula — a note reading `=HYPERLINK(...)` is text the user typed, not
+  /// something a spreadsheet should run.
+  static String _csvText(String value) {
+    final safe = value.startsWith(RegExp(r'[=+\-@\t\r]')) ? "'$value" : value;
+    if (safe.contains(RegExp('[",\r\n]'))) {
+      return '"${safe.replaceAll('"', '""')}"';
+    }
+    return safe;
+  }
+
+  /// Every kept photo the rows name now.
+  Future<Set<String>> _keptPhotoPaths() async {
+    final paths = <String>{};
+    for (final entry in _photoColumns.entries) {
+      final rows = await _db.query(entry.key, columns: [entry.value]);
+      for (final row in rows) {
+        if (row[entry.value] case final String path) paths.add(path);
+      }
+    }
+    return paths;
   }
 
   /// The tables in [contents], once it is known to be a backup this version

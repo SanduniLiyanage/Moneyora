@@ -69,6 +69,38 @@ class BackupController extends AutoDisposeAsyncNotifier<void> {
     state = const AsyncValue<void>.data(null);
     return outcome;
   }
+
+  /// Writes every transaction as CSV and asks where to save it. FR-RPT-007.
+  Future<BackupOutcome> exportCsv() async {
+    state = const AsyncValue<void>.loading();
+    final export = await ref.read(exportTransactionsCsvProvider.future);
+    final result = await export(const NoParams());
+
+    final BackupOutcome outcome = await result.match(
+      (failure) async => (done: false, message: failure.message),
+      (file) async => await ref.read(backupFileGatewayProvider).save(file)
+          ? (done: true, message: 'Exported as ${file.name}.')
+          : (done: false, message: 'The export was not saved.'),
+    );
+    state = const AsyncValue<void>.data(null);
+    return outcome;
+  }
+
+  /// Deletes everything and starts over from the first-launch defaults.
+  /// FR-SET-009.
+  Future<BackupOutcome> clearAll() async {
+    state = const AsyncValue<void>.loading();
+    final clear = await ref.read(clearAllDataProvider.future);
+    final result = await clear(const NoParams());
+    state = const AsyncValue<void>.data(null);
+    return result.match(
+      (failure) => (done: false, message: failure.message),
+      (_) => (
+        done: true,
+        message: 'Everything was cleared. Moneyora is as it was on first open.',
+      ),
+    );
+  }
 }
 
 /// Controller for the backup rows.

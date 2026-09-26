@@ -99,6 +99,32 @@ String formatCents(
   return buffer.toString();
 }
 
+/// Turns minor units into a bare decimal for a file another program reads.
+///
+/// ```dart
+/// formatCentsPlain(123456)   // '1234.56'
+/// formatCentsPlain(-50000)   // '-500.00'
+/// formatCentsPlain(7)        // '0.07'
+/// ```
+///
+/// For export (FR-RPT-007): no symbol, which a spreadsheet would read as
+/// text, and no grouping, whose commas a CSV reader takes for column breaks.
+/// A point for the decimals whatever the locale, because that is what every
+/// CSV reader parses.
+String formatCentsPlain(
+  int cents, {
+  CurrencyFormat currency = CurrencyFormat.lkr,
+}) {
+  final negative = cents < 0;
+  final absolute = cents.abs();
+  final divisor = currency.minorUnitsPerMajor;
+  final whole = absolute ~/ divisor;
+  final fraction = absolute % divisor;
+  final sign = negative ? '-' : '';
+  if (currency.decimalDigits == 0) return '$sign$whole';
+  return '$sign$whole.${fraction.toString().padLeft(currency.decimalDigits, '0')}';
+}
+
 /// Turns minor units into the short form an axis tick has room for.
 ///
 /// ```dart

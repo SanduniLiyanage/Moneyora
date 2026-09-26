@@ -67,7 +67,9 @@ import 'features/backup/data/datasources/backup_file_gateway.dart';
 import 'features/backup/data/datasources/backup_local_datasource.dart';
 import 'features/backup/data/repositories/backup_repository_impl.dart';
 import 'features/backup/domain/repositories/backup_repository.dart';
+import 'features/backup/domain/usecases/clear_all_data.dart';
 import 'features/backup/domain/usecases/create_backup.dart';
+import 'features/backup/domain/usecases/export_transactions_csv.dart';
 import 'features/backup/domain/usecases/restore_backup.dart';
 import 'features/categories/data/datasources/category_local_datasource.dart';
 import 'features/categories/data/repositories/category_repository_impl.dart';
@@ -1402,4 +1404,15 @@ final restoreBackupProvider = FutureProvider<RestoreBackup>(
 /// against a fake.
 final backupFileGatewayProvider = Provider<BackupFileGateway>(
   (ref) => const FilePickerBackupFileGateway(),
+);
+
+/// Deletes everything and reseeds the first-launch defaults. FR-SET-009.
+final clearAllDataProvider = FutureProvider<ClearAllData>(
+  (ref) async => ClearAllData(await ref.watch(backupRepositoryProvider.future)),
+);
+
+/// Every transaction as CSV. FR-RPT-007.
+final exportTransactionsCsvProvider = FutureProvider<ExportTransactionsCsv>(
+  (ref) async =>
+      ExportTransactionsCsv(await ref.watch(backupRepositoryProvider.future)),
 );

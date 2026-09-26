@@ -80,6 +80,18 @@ class _FakeSource implements BackupLocalDataSource {
       photoCount: 0,
     );
   }
+
+  @override
+  Future<void> clearAll() async {
+    if (throwWith case final e?) throw e;
+  }
+
+  @override
+  Future<BackupFile> exportCsv({required DateTime now}) async {
+    if (throwWith case final e?) throw e;
+    createdAt = now;
+    return _file;
+  }
 }
 
 final _bytes = Uint8List.fromList([1, 2, 3]);

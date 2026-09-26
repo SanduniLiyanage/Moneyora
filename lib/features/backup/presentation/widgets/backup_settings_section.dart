@@ -66,6 +66,46 @@ class BackupSettingsSection extends ConsumerWidget {
     if (context.mounted) _say(context, outcome.message);
   }
 
+  Future<void> _export(BuildContext context, WidgetRef ref) async {
+    final outcome = await ref
+        .read(backupControllerProvider.notifier)
+        .exportCsv();
+    if (context.mounted) _say(context, outcome.message);
+  }
+
+  Future<void> _clear(BuildContext context, WidgetRef ref) async {
+    final colors = Theme.of(context).colorScheme;
+    final clear = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear all data?'),
+        content: const Text(
+          'Every transaction, account, plan, repeat, receipt and setting on '
+          'this phone is deleted, and Moneyora opens as it did the first '
+          'time. This cannot be undone: back up first if you might want '
+          'any of it back. Your passcode stays as it is.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: colors.error),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Clear everything'),
+          ),
+        ],
+      ),
+    );
+    if (clear != true || !context.mounted) return;
+
+    final outcome = await ref
+        .read(backupControllerProvider.notifier)
+        .clearAll();
+    if (context.mounted) _say(context, outcome.message);
+  }
+
   static void _say(BuildContext context, String message) =>
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -103,6 +143,25 @@ class BackupSettingsSection extends ConsumerWidget {
             "Replaces everything on this phone with a backup's contents.",
           ),
           onTap: busy ? null : () => _restore(context, ref),
+        ),
+        ListTile(
+          enabled: !busy,
+          leading: leading(Icons.table_view_outlined),
+          title: const Text('Export transactions'),
+          subtitle: const Text(
+            'Every transaction as a spreadsheet (CSV). Not encrypted — for '
+            'reading elsewhere, not for restoring.',
+          ),
+          onTap: busy ? null : () => _export(context, ref),
+        ),
+        ListTile(
+          enabled: !busy,
+          leading: leading(Icons.delete_forever_outlined),
+          title: const Text('Clear all data'),
+          subtitle: const Text(
+            'Delete everything on this phone and start again.',
+          ),
+          onTap: busy ? null : () => _clear(context, ref),
         ),
       ],
     );

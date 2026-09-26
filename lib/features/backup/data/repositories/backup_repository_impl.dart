@@ -28,6 +28,16 @@ class BackupRepositoryImpl implements BackupRepository {
     String password,
   ) => _guard(() => _source.restore(bytes, password));
 
+  @override
+  Future<Either<Failure, Unit>> clearAll() => _guard(() async {
+    await _source.clearAll();
+    return unit;
+  });
+
+  @override
+  Future<Either<Failure, BackupFile>> exportTransactionsCsv() =>
+      _guard(() => _source.exportCsv(now: _clock()));
+
   Future<Either<Failure, T>> _guard<T>(Future<T> Function() body) async {
     try {
       return Right(await body());
