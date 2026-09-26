@@ -25,6 +25,7 @@ class HomePage extends ConsumerWidget {
     this.drawer,
     this.spendingChart,
     this.incomeExpenseChart,
+    this.summaryCard,
     this.spendingTrendChart,
     this.spendingHeatmap,
   });
@@ -55,6 +56,11 @@ class HomePage extends ConsumerWidget {
   /// [spendingChart] is. It reads the period and account filters that render
   /// on the donut's card, so it is placed directly below it.
   final Widget? incomeExpenseChart;
+
+  /// FR-RPT-006's headline figures, composed in the same way and placed
+  /// below the bars, whose income, expenses and net savings it restates
+  /// beside the three figures they cannot show.
+  final Widget? summaryCard;
 
   /// FR-RPT-005's trend lines, composed in the same way and placed below the
   /// bars: third of the three charts that read the one filter row on the
@@ -87,6 +93,7 @@ class HomePage extends ConsumerWidget {
           summary: value,
           spendingChart: spendingChart,
           incomeExpenseChart: incomeExpenseChart,
+          summaryCard: summaryCard,
           spendingTrendChart: spendingTrendChart,
           spendingHeatmap: spendingHeatmap,
         ),
@@ -102,6 +109,7 @@ class _Ready extends StatelessWidget {
     required this.summary,
     required this.spendingChart,
     required this.incomeExpenseChart,
+    required this.summaryCard,
     required this.spendingTrendChart,
     required this.spendingHeatmap,
   });
@@ -109,6 +117,7 @@ class _Ready extends StatelessWidget {
   final DatabaseSummary summary;
   final Widget? spendingChart;
   final Widget? incomeExpenseChart;
+  final Widget? summaryCard;
   final Widget? spendingTrendChart;
   final Widget? spendingHeatmap;
 
@@ -128,6 +137,7 @@ class _Ready extends StatelessWidget {
           incomeExpenseChart!,
           const SizedBox(height: 16),
         ],
+        if (summaryCard != null) ...[summaryCard!, const SizedBox(height: 16)],
         if (spendingTrendChart != null) ...[
           spendingTrendChart!,
           const SizedBox(height: 16),

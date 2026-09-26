@@ -5,6 +5,7 @@ import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/account_drawer.dart';
 import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
+import '../../features/analytics/presentation/widgets/period_summary_card.dart';
 import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
 import '../../features/analytics/presentation/widgets/spending_heatmap.dart';
 import '../../features/analytics/presentation/widgets/spending_trend_lines.dart';
@@ -143,6 +144,7 @@ GoRouter buildRouter() => GoRouter(
         drawer: AccountDrawer(),
         spendingChart: SpendingDonutChart(),
         incomeExpenseChart: IncomeExpenseBars(),
+        summaryCard: PeriodSummaryCard(),
         spendingTrendChart: SpendingTrendLines(),
         spendingHeatmap: SpendingHeatmap(),
       ),

@@ -98,6 +98,52 @@ class PeriodSelection extends Equatable {
   /// This selection with [period] chosen, keeping the anchor and any custom
   /// interval already picked — switching to Week and back to Month must
   /// return to the month the user was looking at, not to today.
+  /// The period of the same kind just before this one — last month for a
+  /// month, last week for a week — or null for all time, which has none.
+  /// FR-RPT-006's month-over-month change is read against it.
+  ///
+  /// A month steps its anchor back one calendar month, clamped to the
+  /// month's last day, so the range is cut by the same first-day rule
+  /// (FR-SET-004) as this one. A custom range steps back by its own length.
+  PeriodSelection? get previous => switch (period) {
+    AnalyticsPeriod.day => withAnchor(_shift(anchor, days: -1)),
+    AnalyticsPeriod.week => withAnchor(_shift(anchor, days: -7)),
+    AnalyticsPeriod.month => withAnchor(_monthBefore(anchor)),
+    AnalyticsPeriod.year => withAnchor(
+      DateTime(anchor.year - 1, anchor.month, anchor.day),
+    ),
+    AnalyticsPeriod.all => null,
+    AnalyticsPeriod.custom => switch (customRange) {
+      null => withAnchor(_shift(anchor, days: -1)),
+      final range => withCustomRange(
+        DateRange(
+          from: _shift(range.from, days: -(_days(range))),
+          to: _shift(range.from, days: -1),
+        ),
+      ),
+    },
+  };
+
+  static DateTime _shift(DateTime date, {required int days}) =>
+      DateTime(date.year, date.month, date.day + days);
+
+  static DateTime _monthBefore(DateTime date) {
+    final lastDay = DateTime(date.year, date.month, 0).day;
+    return DateTime(
+      date.year,
+      date.month - 1,
+      date.day > lastDay ? lastDay : date.day,
+    );
+  }
+
+  static int _days(DateRange range) =>
+      DateTime.utc(range.to.year, range.to.month, range.to.day)
+          .difference(
+            DateTime.utc(range.from.year, range.from.month, range.from.day),
+          )
+          .inDays +
+      1;
+
   PeriodSelection withPeriod(AnalyticsPeriod period) =>
       PeriodSelection(period: period, anchor: anchor, customRange: customRange);
 
