@@ -15,6 +15,7 @@ class CalendarSettings extends Equatable {
     this.firstWeekday = DateTime.sunday,
     this.firstDayOfMonth = 1,
     this.planAnalysisMonths = 6,
+    this.savingsTargetPct = 0,
   });
 
   /// The schema's column defaults, which every seeded row starts with.
@@ -38,10 +39,22 @@ class CalendarSettings extends Equatable {
   /// FR-PLN-003.
   final int planAnalysisMonths;
 
+  /// The share of income a suggested plan sets aside, 0–100. FR-SET-008.
+  ///
+  /// Carried here beside the lookback because the Money Plan is its reader
+  /// and this is the Money Plan's view of the `users` row. 0 is the
+  /// column's default, which nobody chose, so [hasSavingsTarget] is false
+  /// and the wizard keeps its own suggestion.
+  final double savingsTargetPct;
+
+  /// Whether the user has set a savings target.
+  bool get hasSavingsTarget => savingsTargetPct > 0;
+
   @override
   List<Object?> get props => [
     firstWeekday,
     firstDayOfMonth,
     planAnalysisMonths,
+    savingsTargetPct,
   ];
 }

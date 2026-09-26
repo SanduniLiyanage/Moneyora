@@ -118,7 +118,8 @@ final baseCurrencyControllerProvider =
       BaseCurrencyController.new,
     );
 
-/// The three calendar settings. FR-SET-004, FR-SET-012.
+/// The calendar settings and the Money Plan's two. FR-SET-004, FR-SET-008,
+/// FR-SET-012.
 ///
 /// One controller because they are one section and one `users` row, and
 /// each write is a use case with its own refusal, shown never swallowed.
@@ -145,6 +146,14 @@ class CalendarController extends AutoDisposeAsyncNotifier<void> {
     state = const AsyncValue<void>.loading();
     final set = await ref.read(setPlanAnalysisMonthsProvider.future);
     return _settle(await set(months));
+  }
+
+  /// Stores the savings target a suggested plan starts from, 0–100.
+  /// FR-SET-008.
+  Future<Failure?> setSavingsTarget(int percent) async {
+    state = const AsyncValue<void>.loading();
+    final set = await ref.read(setSavingsTargetProvider.future);
+    return _settle(await set(percent));
   }
 
   Failure? _settle(Either<Failure, Unit> result) => result.match(

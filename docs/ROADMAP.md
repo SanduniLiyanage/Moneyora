@@ -699,12 +699,19 @@ came back empty; and the keypad left the details list a 40dp sliver.
 All three are fixed, the keypad folding away when the details are
 reached for.
 
-**Sprint 7 is complete.** Of the FR-SET requirements, four are not built:
+**Sprint 7 is complete.** Of the FR-SET requirements, three are not built:
 FR-SET-002 (display languages — English only; `UserSettings.language` is
-stored and read by nothing), FR-SET-008 (the savings target — stored on
-`UserSettings`, with no Settings row to set it), and FR-SET-009 and
-FR-SET-010, which are Sprint 8's backup and sync. FR-SET-011 is withdrawn
+stored and read by nothing), and FR-SET-009 and FR-SET-010, which are
+Sprint 8's backup and sync. FR-SET-011 is withdrawn
 ([E-12](SPEC_ERRATA.md)).
+
+### The savings target (FR-SET-008) — done
+
+Settings › Calendar › *Savings target*, 0–100, on the #105 pattern
+(`SetSavingsTarget`). The Money Plan wizard starts its savings field from
+it through `CalendarSettings`, the port that already carried the lookback,
+and a figure the user types there still wins. 0 is the column's default,
+which nobody chose, so it leaves the wizard's 10% suggestion in place.
 
 ## Sprint 8 — Backup, export, sync (Week 13)
 

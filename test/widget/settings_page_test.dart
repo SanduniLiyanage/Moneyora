@@ -548,6 +548,37 @@ void main() {
       expect(settings.saved, [const UserSettings(planAnalysisMonths: 12)]);
       expect(find.text('12 months of spending.'), findsOneWidget);
     });
+
+    testWidgets('writes the savings target within 0–100. FR-SET-008', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.scrollUntilVisible(find.text('Savings target'), 100);
+      expect(
+        find.text('Not set — a suggested plan starts at 10%.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Savings target'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '120');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Choose a percentage from 0 to 100.'), findsOneWidget);
+      expect(settings.saved, isEmpty);
+
+      await tester.enterText(find.byType(TextField), '20');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(settings.saved, [const UserSettings(savingsTargetPct: 20)]);
+      expect(
+        find.text(
+          '20% of income, set aside before a suggested plan budgets the rest.',
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   group('the security slot', () {

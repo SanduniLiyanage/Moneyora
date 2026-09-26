@@ -6,6 +6,7 @@ import 'package:moneyora/features/settings/domain/repositories/settings_reposito
 import 'package:moneyora/features/settings/domain/usecases/set_first_day_of_month.dart';
 import 'package:moneyora/features/settings/domain/usecases/set_first_day_of_week.dart';
 import 'package:moneyora/features/settings/domain/usecases/set_plan_analysis_months.dart';
+import 'package:moneyora/features/settings/domain/usecases/set_savings_target.dart';
 
 /// The three calendar settings, one fake. Each is SetTheme's shape with one
 /// rule of its own; the rules are what is tested.
@@ -96,6 +97,41 @@ void main() {
 
       expect(result.isLeft(), isTrue);
       expect(settings.saved, isNull);
+    });
+  });
+
+  group('SetSavingsTarget', () {
+    test('accepts 0 through 100 and changes nothing else', () async {
+      settings.stored = const UserSettings(planAnalysisMonths: 12);
+      for (final percent in [0, 15, 100]) {
+        expect(
+          await SetSavingsTarget(settings)(percent),
+          const Right<Failure, Unit>(unit),
+        );
+        expect(
+          settings.saved,
+          UserSettings(
+            planAnalysisMonths: 12,
+            savingsTargetPct: percent.toDouble(),
+          ),
+        );
+      }
+    });
+
+    test('refuses what is not a percentage, and writes nothing', () async {
+      final result = await SetSavingsTarget(settings)(101);
+
+      expect(
+        result,
+        const Left<Failure, Unit>(
+          ValidationFailure(
+            'Choose a percentage from 0 to 100.',
+            field: 'savingsTargetPct',
+          ),
+        ),
+      );
+      expect(settings.saved, isNull);
+      expect(SetSavingsTarget.validate(-1)?.field, 'savingsTargetPct');
     });
   });
 }

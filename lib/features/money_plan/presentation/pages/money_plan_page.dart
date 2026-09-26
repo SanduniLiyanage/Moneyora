@@ -53,6 +53,10 @@ class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
   final TextEditingController _total = TextEditingController();
   final TextEditingController _savings = TextEditingController(text: '10');
 
+  /// Whether the user has typed a savings figure, which then outranks the
+  /// stored target arriving late.
+  bool _savingsTyped = false;
+
   /// Set once the user has tried to continue, so the screen does not object
   /// to an empty total before they have typed one.
   bool _submitted = false;
@@ -67,6 +71,15 @@ class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
     for (final c in [_days, _total, _savings]) {
       c.addListener(() => setState(() {}));
     }
+    // FR-SET-008: the savings figure starts from the stored target, set
+    // once in Settings, rather than from a number this screen made up. 10%
+    // stays the suggestion when none is set.
+    ref.listenManual(calendarSettingsProvider, (_, next) {
+      final stored = next.asData?.value;
+      if (stored == null || !stored.hasSavingsTarget || _savingsTyped) return;
+      final pct = stored.savingsTargetPct;
+      _savings.text = pct == pct.roundToDouble() ? '${pct.round()}' : '$pct';
+    }, fireImmediately: true);
   }
 
   @override
@@ -254,6 +267,7 @@ class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: TextField(
                       controller: _savings,
+                      onChanged: (_) => _savingsTyped = true,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),

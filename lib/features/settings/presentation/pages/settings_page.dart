@@ -10,6 +10,7 @@ import '../../domain/usecases/set_base_currency.dart';
 import '../../domain/usecases/set_first_day_of_month.dart';
 import '../../domain/usecases/set_plan_analysis_months.dart';
 import '../../domain/usecases/set_reminder_schedule.dart';
+import '../../domain/usecases/set_savings_target.dart';
 import '../providers/settings_providers.dart';
 
 /// The settings screen. SDD SCR-016.
@@ -348,6 +349,38 @@ class SettingsPage extends ConsumerWidget {
                       final failure = await ref
                           .read(calendarControllerProvider.notifier)
                           .setPlanAnalysisMonths(months);
+                      if (context.mounted) _report(context, failure);
+                    },
+            ),
+            ListTile(
+              leading: const Icon(Icons.savings_outlined),
+              title: const Text('Savings target'),
+              subtitle: Text(
+                calendar == null
+                    ? 'The share of income a suggested plan sets aside.'
+                    : calendar.savingsTargetPct > 0
+                    ? '${calendar.savingsTargetPct.round()}% of income, set '
+                          'aside before a suggested plan budgets the rest.'
+                    : 'Not set — a suggested plan starts at 10%.',
+              ),
+              enabled: calendar != null,
+              onTap: calendar == null
+                  ? null
+                  : () async {
+                      final percent = await _askNumber(
+                        context,
+                        title: 'Savings target',
+                        label: 'Percent of income',
+                        initial: calendar.savingsTargetPct.round(),
+                        validate: SetSavingsTarget.validate,
+                        help:
+                            '0 to 100. The Money Plan starts from this when '
+                            'it suggests a budget from your income.',
+                      );
+                      if (percent == null || !context.mounted) return;
+                      final failure = await ref
+                          .read(calendarControllerProvider.notifier)
+                          .setSavingsTarget(percent);
                       if (context.mounted) _report(context, failure);
                     },
             ),
