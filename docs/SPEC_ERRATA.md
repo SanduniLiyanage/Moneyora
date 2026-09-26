@@ -53,6 +53,7 @@ follows the Resolution sections.
 | [E-35](#e-35) | FR-SET-007's budget alerts have no schema: no setting, and nothing recording an alert was sent | Resolved | FR-SET-007 |
 | [E-36](#e-36) | A recurring rule's template cannot be deleted, and the DBD's cascade would delete the series | Resolved | FR-EXP-008, FR-INC-004 |
 | [E-37](#e-37) | FR-SET-006's reminders have no schema, and "configuration" names nothing to configure | Resolved | FR-SET-006 |
+| [E-38](#e-38) | A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have | Resolved (FR-BAK-003/004 deferred) | FR-BAK-001, FR-BAK-003, FR-BAK-004, FR-BAK-005 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2247,6 +2248,64 @@ Decisions the SRS leaves open, made here:
    money is `currency_utils.dart`'s job, which the domain does not reach.
 
 The DBD v1.1 that E-32 anticipates should carry all three columns.
+
+---
+
+<a id="e-38"></a>
+
+## E-38 — A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have
+
+**Severity:** Medium · **Affects:** SRS §3.9, NFR-PRT-004, NFR-SEC-006 ·
+**Requirement:** FR-BAK-001, FR-BAK-003, FR-BAK-004, FR-BAK-005
+
+Raised 2026-09-27, building backup and restore in Sprint 8. FR-BAK-001 asks
+for *"local encrypted backups in SQLite format"*, and FR-BAK-005 for a
+restore *"from any valid Moneyora backup file"* on any device. Both cannot
+hold as written:
+
+- The database is SQLCipher-sealed under a key that lives in this phone's
+  keychain and never leaves it (NFR-SEC-001). A copy of the file in SQLite
+  format is either sealed under that key, which no other phone has, or
+  it is not encrypted at all, which breaks the requirement's other half.
+- The kept receipt photos (FR-RCP-012) are not in the database. They are
+  files sealed under a key derived from the database key, so they are as
+  local as it is, and a backup of the database alone loses them.
+
+FR-BAK-003 and FR-BAK-004 (Google Drive, Dropbox) each need an OAuth
+client registered in that provider's console under the developer's account,
+review before public release, and a network path the rest of the app does
+not have. That is work outside the code, and NFR-SEC-005 already limits
+what may leave the phone.
+
+### Resolution — the data, sealed under a password; the platform's own dialogs for where it goes
+
+1. **A `.mora` file (E-08) carries the data, not the database file.** It
+   holds every table's rows, read from `sqlite_master` so a later
+   migration's table is included, and every kept photo, decrypted. That is
+   gzip'd JSON, sealed with **AES-256-GCM under a key PBKDF2-HMAC-SHA256
+   derives from a password the user chooses**. The header carries the salt
+   and the work factor. A restore writes the rows into whatever database the
+   new phone has, under its own key, and seals the photos again under its
+   own vault key. Nothing on disk is ever unencrypted. This fills
+   FR-BAK-001's intent (an encrypted local backup) and FR-BAK-005's
+   (cross-device) at the cost of its letter (SQLite format).
+2. **The password is the backup's only key.** It is asked for twice, is at
+   least eight characters, and cannot be recovered. A forgotten password
+   loses the backup, not the ledger it was made from.
+3. **A restore replaces; it does not merge.** Two ledgers with overlapping
+   history merged row by row would double every transaction both recorded.
+   It runs in one database transaction with foreign-key checks deferred to
+   the commit, because `transactions` and `recurring_rules` name each other
+   (E-36). A backup that fails partway leaves the phone as it was, and one
+   from a newer schema is refused. Account balances are recomputed after it
+   (E-18's second caller). The passcode is not in the backup: it lives in
+   the keychain (PR #109), and a restore leaves the phone's own.
+4. **Where the file goes is the platform's save and open dialogs**, which
+   already reach Downloads, removable storage and Google Drive's document
+   provider. That is the cloud path an offline-first app can offer without
+   an account of its own. **FR-BAK-003 and FR-BAK-004 are deferred**: the
+   sealed file already satisfies NFR-SEC-006 wherever the user puts it,
+   and a direct integration waits on registering the two OAuth clients.
 
 ---
 

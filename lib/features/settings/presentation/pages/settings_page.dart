@@ -53,7 +53,7 @@ import '../providers/settings_providers.dart';
 /// a task to schedule.
 class SettingsPage extends ConsumerWidget {
   /// Creates the settings screen.
-  const SettingsPage({super.key, this.securitySection});
+  const SettingsPage({super.key, this.securitySection, this.backupSection});
 
   /// The Security section's rows, if supplied.
   ///
@@ -61,6 +61,12 @@ class SettingsPage extends ConsumerWidget {
   /// because the passcode belongs to the auth feature and a feature may not
   /// import another (rule 4 of `scripts/check_architecture.sh`).
   final Widget? securitySection;
+
+  /// Backup and restore's rows, placed under Data, if supplied. FR-SET-009.
+  ///
+  /// Handed in by the router for the reason [securitySection] is: they
+  /// belong to the backup feature, which this one may not import.
+  final Widget? backupSection;
 
   /// Stores [mode], and shows the failure if it could not be. FR-SET-001.
   ///
@@ -467,6 +473,7 @@ class SettingsPage extends ConsumerWidget {
               ),
               onTap: busy ? null : () => _recalculate(context, ref),
             ),
+            if (backupSection case final Widget section) section,
           ],
         ),
       ),

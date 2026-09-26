@@ -10,6 +10,7 @@ import '../../features/analytics/presentation/widgets/spending_heatmap.dart';
 import '../../features/analytics/presentation/widgets/spending_trend_lines.dart';
 import '../../features/auth/presentation/pages/passcode_flow_page.dart';
 import '../../features/auth/presentation/widgets/security_settings_section.dart';
+import '../../features/backup/presentation/widgets/backup_settings_section.dart';
 import '../../features/categories/domain/entities/category.dart';
 import '../../features/categories/presentation/pages/category_form_page.dart';
 import '../../features/categories/presentation/pages/category_list_page.dart';
@@ -216,10 +217,13 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.settings,
       name: 'settings',
-      // The Security rows (FR-SET-005) are the auth feature's, composed in
-      // here for the reason the home screen's panel is.
-      builder: (context, state) =>
-          const SettingsPage(securitySection: SecuritySettingsSection()),
+      // The Security rows (FR-SET-005) are the auth feature's and the
+      // backup rows (FR-SET-009) the backup feature's, composed in here for
+      // the reason the home screen's panel is.
+      builder: (context, state) => const SettingsPage(
+        securitySection: SecuritySettingsSection(),
+        backupSection: BackupSettingsSection(),
+      ),
     ),
     GoRoute(
       path: Routes.exchangeRates,

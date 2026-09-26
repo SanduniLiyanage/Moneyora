@@ -22,9 +22,13 @@ import 'package:path/path.dart' as p;
 
 import '../../../../core/database/encryption_key_store.dart';
 import '../../../../core/errors/exceptions.dart';
+import '../../../../core/ports/receipt_photo_store.dart';
 
 /// The kept copy of a receipt photo. FR-RCP-012.
-abstract class ReceiptImageVault {
+///
+/// Also the [ReceiptPhotoStore] a backup reads photos out of and a restore
+/// writes them back through (FR-BAK-005).
+abstract class ReceiptImageVault implements ReceiptPhotoStore {
   /// Copies the photo at [sourcePath] into the vault, encrypted, and
   /// returns the kept file's path. The source is left where it was.
   ///
@@ -41,6 +45,7 @@ abstract class ReceiptImageVault {
   ///
   /// Throws [EncryptionException] when a kept file will not decrypt — it
   /// was altered, or the key is not the one it was written under.
+  @override
   Future<Uint8List?> read(String path);
 
   /// Runs [body] over a plain copy of the kept photo at [path], written to
@@ -155,9 +160,13 @@ class EncryptedReceiptImageVault implements ReceiptImageVault {
     } on IOException catch (e) {
       throw CacheException('The photo is no longer on this phone.', cause: e);
     }
+    return keepBytes(plain, extension: p.extension(sourcePath));
+  }
 
+  @override
+  Future<String> keepBytes(Uint8List bytes, {required String extension}) async {
     final box = await _cipher.encrypt(
-      plain,
+      bytes,
       secretKey: await _secretKey,
       nonce: _cipher.newNonce(),
     );
@@ -169,13 +178,23 @@ class EncryptedReceiptImageVault implements ReceiptImageVault {
       final kept = File(
         p.join(
           dir.path,
-          '${_randomName()}${p.extension(sourcePath)}$extension',
+          '${_randomName()}$extension${EncryptedReceiptImageVault.extension}',
         ),
       );
       await kept.writeAsBytes(sealed, flush: true);
       return kept.path;
     } on IOException catch (e) {
       throw CacheException('Could not keep the receipt photo.', cause: e);
+    }
+  }
+
+  @override
+  Future<void> discard(String path) async {
+    final file = File(path);
+    try {
+      if (file.existsSync()) await file.delete();
+    } on IOException catch (e) {
+      throw CacheException('Could not remove a receipt photo.', cause: e);
     }
   }
 
