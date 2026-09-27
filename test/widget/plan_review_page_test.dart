@@ -25,6 +25,7 @@ import 'package:moneyora/features/money_plan/domain/usecases/allocate_budget.dar
 import 'package:moneyora/features/money_plan/domain/usecases/classify_categories.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/plan_review_page.dart';
+import 'package:moneyora/features/money_plan/presentation/providers/money_plan_providers.dart';
 import 'package:moneyora/injection.dart';
 
 import 'large_text.dart';
@@ -38,7 +39,8 @@ import 'large_text.dart';
 class _ScriptedSpending implements MonthlySpendingReader {
   _ScriptedSpending({this.rows = const [], this.failure, this.hold});
 
-  final List<MonthlySpending> rows;
+  /// Not final: the sample-data tests put history in once it is loaded.
+  List<MonthlySpending> rows;
   final Failure? failure;
   final Completer<void>? hold;
 
@@ -165,8 +167,10 @@ void main() {
     int income = 0,
     MoneyPlan? previous,
     List<DailySpending> days = const [],
+    DevSeedLoader? seed,
   }) => ProviderScope(
     overrides: [
+      if (seed != null) devSeedLoaderProvider.overrideWith(() => seed),
       dailySpendingReaderProvider.overrideWith(
         (ref) async => _ScriptedDays(days),
       ),
@@ -392,6 +396,69 @@ void main() {
     expect(find.textContaining('Your total'), findsOneWidget);
   });
 
+  group('sample data, with nothing to plan from (debug builds)', () {
+    Future<_ScriptedSpending> empty(
+      WidgetTester tester,
+      _ScriptedSeed seed,
+    ) async {
+      final spending = _ScriptedSpending();
+      await tester.pumpWidget(
+        boot(
+          spending,
+          request: AllocationRequest(period: october, lookback: halfYear),
+          seed: seed,
+        ),
+      );
+      await tester.pumpAndSettle();
+      return spending;
+    }
+
+    testWidgets('asks first, and cancelling loads nothing', (tester) async {
+      final seed = _ScriptedSeed(const SampleDataLoad(written: 1234));
+      await empty(tester, seed);
+
+      await tester.tap(find.text('Try it with sample data'));
+      await tester.pumpAndSettle();
+      expect(find.text('Load sample data?'), findsOneWidget);
+      expect(find.textContaining('added once'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(seed.loads, 0);
+    });
+
+    testWidgets('loads, says how much, and plans from it', (tester) async {
+      final seed = _ScriptedSeed(const SampleDataLoad(written: 1234));
+      final spending = await empty(tester, seed);
+      seed.onLoad = () => spending.rows = shaped(halfYear);
+
+      await tester.tap(find.text('Try it with sample data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Load'));
+      await tester.pumpAndSettle();
+
+      expect(seed.loads, 1);
+      expect(find.text('Added 1234 sample transactions.'), findsOneWidget);
+      expect(find.text('Nothing to plan from yet'), findsNothing);
+      expect(find.text('Bills'), findsOneWidget);
+    });
+
+    testWidgets('says so rather than loading it twice', (tester) async {
+      final seed = _ScriptedSeed(const SampleDataLoad(written: 0));
+      await empty(tester, seed);
+
+      await tester.tap(find.text('Try it with sample data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Load'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('The sample data is already loaded'),
+        findsOneWidget,
+      );
+    });
+  });
+
   testWidgets('with no history it says so, rather than showing an empty '
       'list', (tester) async {
     await tester.pumpWidget(
@@ -473,4 +540,22 @@ void main() {
     expect(find.text('Rs42,000.00'), findsOneWidget, reason: '45,000 − 3,000');
     expect(find.textContaining('−Rs3,000.00 carried over'), findsOneWidget);
   });
+}
+
+/// The loader with its outcome scripted: the real one opens a database.
+class _ScriptedSeed extends DevSeedLoader {
+  _ScriptedSeed(this.outcome);
+
+  final SampleDataLoad outcome;
+  int loads = 0;
+
+  /// What loading puts on the phone, for the draft generated after it.
+  void Function()? onLoad;
+
+  @override
+  Future<SampleDataLoad?> load() async {
+    loads++;
+    onLoad?.call();
+    return outcome;
+  }
 }
