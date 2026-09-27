@@ -56,7 +56,9 @@ abstract final class AppTheme {
       // red keeps one red in the app: a validation error and an overspent
       // category should not be two different reds.
       error: colors.expense,
-      onError: Colors.white,
+      // Dark text on the dark theme's lighter red: white on it is 3.5:1,
+      // under SRS §4.1's floor (app_theme_test.dart measures both).
+      onError: brightness == Brightness.light ? Colors.white : colors.onAccent,
       surface: surface,
       onSurface: onSurface,
     );
