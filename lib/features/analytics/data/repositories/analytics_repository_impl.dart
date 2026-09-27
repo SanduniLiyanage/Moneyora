@@ -6,6 +6,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/daily_spending_reader.dart';
 import '../../../../core/ports/income_reader.dart';
 import '../../../../core/ports/monthly_spending_reader.dart';
 import '../../../../core/ports/spending_by_category_reader.dart';
@@ -32,6 +33,7 @@ class AnalyticsRepositoryImpl
         AnalyticsRepository,
         SpendingByCategoryReader,
         MonthlySpendingReader,
+        DailySpendingReader,
         IncomeReader {
   /// Creates a repository over [local].
   const AnalyticsRepositoryImpl(this._local);
@@ -129,6 +131,26 @@ class AnalyticsRepositoryImpl
             amountCents: p.amountCents,
             transactionCount: p.transactionCount,
           ),
+      ],
+    );
+  }
+
+  @override
+  Future<Either<Failure, List<DailySpending>>> dailySpending({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    // Every account, as the month cut above; the heatmap's own query, so
+    // E-02 and E-04 hold here because they hold there.
+    final totals = await dailySpendingTotals(
+      AnalyticsQuery(
+        range: DateRange(from: from, to: to),
+      ),
+    );
+    return totals.map(
+      (rows) => [
+        for (final t in rows)
+          DailySpending(day: t.date, amountCents: t.amountCents),
       ],
     );
   }

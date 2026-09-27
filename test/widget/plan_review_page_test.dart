@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/daily_spending_reader.dart';
 import 'package:moneyora/core/ports/income_reader.dart';
 import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
@@ -108,6 +109,19 @@ class _ScriptedIncome implements IncomeReader {
   }) async => Right(income);
 }
 
+/// Days of spending, as the heatmap's query would give them. FR-PLN-006.
+class _ScriptedDays implements DailySpendingReader {
+  _ScriptedDays([this.rows = const []]);
+
+  final List<DailySpending> rows;
+
+  @override
+  Future<Either<Failure, List<DailySpending>>> dailySpending({
+    required DateTime from,
+    required DateTime to,
+  }) async => Right(rows);
+}
+
 void main() {
   final now = DateTime(2026, 9, 13);
   final halfYear = LookbackWindow.before(now);
@@ -148,8 +162,12 @@ void main() {
     required AllocationRequest request,
     int income = 0,
     MoneyPlan? previous,
+    List<DailySpending> days = const [],
   }) => ProviderScope(
     overrides: [
+      dailySpendingReaderProvider.overrideWith(
+        (ref) async => _ScriptedDays(days),
+      ),
       allocateBudgetProvider.overrideWith(
         (ref) async => AllocateBudget(
           ClassifyCategories(ComputeCategoryStatistics(spending)),
@@ -163,6 +181,62 @@ void main() {
       home: PlanReviewPage(request: request),
     ),
   );
+
+  group('spending patterns. FR-PLN-006', () {
+    List<DailySpending> everyDay(LookbackWindow window, int weekend) => [
+      for (
+        var d = window.from;
+        !d.isAfter(window.to);
+        d = DateTime(d.year, d.month, d.day + 1)
+      )
+        DailySpending(
+          day: d,
+          amountCents:
+              d.weekday == DateTime.saturday || d.weekday == DateTime.sunday
+              ? weekend
+              : 1000,
+        ),
+    ];
+
+    Future<void> review(WidgetTester tester, List<DailySpending> days) async {
+      await tester.pumpWidget(
+        boot(
+          _ScriptedSpending(rows: shaped(halfYear)),
+          request: AllocationRequest(period: october, lookback: halfYear),
+          days: days,
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Below the categories: the figures first, what they show after.
+      await tester.scrollUntilVisible(find.text('Spending patterns'), 200);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('names a weekend habit with its figures', (tester) async {
+      await review(tester, everyDay(halfYear, 3000));
+
+      expect(find.text('Spending patterns'), findsOneWidget);
+      expect(
+        find.textContaining('Weekends cost 200% more a day than weekdays'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('says steady when nothing stands out', (tester) async {
+      await review(tester, everyDay(halfYear, 1000));
+
+      expect(find.textContaining('Steady across the week'), findsOneWidget);
+    });
+
+    testWidgets('says when there is too little to go on', (tester) async {
+      await review(tester, const []);
+
+      expect(
+        find.text('Too little spending in these months to see a pattern yet.'),
+        findsOneWidget,
+      );
+    });
+  });
 
   testWidgets('spins while the engine works', (tester) async {
     final hold = Completer<void>();

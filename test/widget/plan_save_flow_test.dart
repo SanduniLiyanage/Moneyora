@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/daily_spending_reader.dart';
 import 'package:moneyora/core/ports/income_reader.dart';
 import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/router/app_router.dart';
@@ -160,6 +161,7 @@ void main() {
           _NoIncome(),
         ),
       ),
+      dailySpendingReaderProvider.overrideWith((ref) async => _ScriptedDays()),
       savePlanProvider.overrideWith((ref) async => SavePlan(repository)),
       watchActivePlanProvider.overrideWith(
         (ref) async => WatchActivePlan(repository),
@@ -297,4 +299,13 @@ void main() {
 
     expect(repository.saved, isNull);
   });
+}
+
+/// Days of spending, as the heatmap's query would give them. FR-PLN-006.
+class _ScriptedDays implements DailySpendingReader {
+  @override
+  Future<Either<Failure, List<DailySpending>>> dailySpending({
+    required DateTime from,
+    required DateTime to,
+  }) async => const Right([]);
 }

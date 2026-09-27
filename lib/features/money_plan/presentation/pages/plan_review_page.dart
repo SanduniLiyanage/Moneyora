@@ -10,6 +10,7 @@ import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/category_allocation.dart';
 import '../../domain/entities/confidence_score.dart';
+import '../../domain/entities/lookback_window.dart';
 import '../../domain/entities/money_plan_draft.dart';
 import '../../domain/usecases/save_plan.dart';
 import '../providers/money_plan_providers.dart';
@@ -209,7 +210,53 @@ class _Draft extends StatelessWidget {
         const SizedBox(height: 8),
         for (final allocation in draft.allocations)
           _AllocationCard(allocation: allocation),
+        const SizedBox(height: 8),
+        _PatternsCard(lookback: draft.lookback),
       ],
+    );
+  }
+}
+
+/// When in the week and the month the money goes. FR-PLN-006.
+///
+/// Over the same months as the figures above it, so a habit named here is
+/// one those figures learned from.
+class _PatternsCard extends ConsumerWidget {
+  const _PatternsCard({required this.lookback});
+
+  final LookbackWindow lookback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final lines = switch (ref.watch(spendingPatternsProvider(lookback))) {
+      AsyncData(:final value) => spendingPatternLines(value),
+      AsyncError(:final error) => [
+        error is Failure
+            ? error.message
+            : 'Your spending patterns could not be read.',
+      ],
+      _ => null,
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Spending patterns', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            if (lines == null)
+              const LinearProgressIndicator()
+            else
+              for (final line in lines)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(line, style: theme.textTheme.bodyMedium),
+                ),
+          ],
+        ),
+      ),
     );
   }
 }

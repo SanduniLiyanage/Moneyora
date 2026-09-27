@@ -14,6 +14,55 @@ import '../../domain/entities/budget_mode.dart';
 import '../../domain/entities/category_classification.dart';
 import '../../domain/entities/confidence_score.dart';
 import '../../domain/entities/plan_period.dart';
+import '../../domain/entities/spending_patterns.dart';
+
+/// What [patterns] say, one sentence each. FR-PLN-006.
+///
+/// Only a pattern past `PatternComparison.thresholdPercent` is named, and
+/// when neither is the answer says so rather than saying nothing: "steady"
+/// is a finding too.
+List<String> spendingPatternLines(SpendingPatterns patterns) {
+  if (!patterns.hasEnoughHistory) {
+    return const ['Too little spending in these months to see a pattern yet.'];
+  }
+  final lines = [
+    ?_patternLine(patterns.week, 'Weekdays', 'weekends'),
+    ?_patternLine(
+      patterns.month,
+      'The first ten days of a month',
+      'the last ten',
+    ),
+  ];
+  return lines.isEmpty
+      ? const [
+          'Steady across the week and the month: no kind of day costs '
+              '${PatternComparison.thresholdPercent}% more than another.',
+        ]
+      : lines;
+}
+
+String? _patternLine(PatternComparison c, String first, String second) {
+  final lean = c.lean;
+  if (lean == null) return null;
+  final (high, low, highDaily, lowDaily) = switch (lean) {
+    PatternLean.first => (first, second, c.firstDailyCents, c.secondDailyCents),
+    PatternLean.second => (
+      _capitalise(second),
+      first.toLowerCase(),
+      c.secondDailyCents,
+      c.firstDailyCents,
+    ),
+  };
+  final percent = c.percentMore;
+  if (percent == null) {
+    return '$high are when you spend: ${formatCents(highDaily)} a day, '
+        'and nothing on $low.';
+  }
+  return '$high cost $percent% more a day than $low: '
+      '${formatCents(highDaily)} against ${formatCents(lowDaily)}.';
+}
+
+String _capitalise(String s) => s[0].toUpperCase() + s.substring(1);
 
 /// One line for [period]: `September 2026`, `7 – 13 Sep 2026`, `2027`.
 ///
