@@ -21,6 +21,7 @@ import 'core/ports/calendar_settings_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
 import 'core/ports/conversion_reader.dart';
+import 'core/ports/expense_photos.dart';
 import 'core/ports/expense_writer.dart';
 import 'core/ports/income_reader.dart';
 import 'core/ports/local_notifier.dart';
@@ -112,6 +113,7 @@ import 'features/receipt_scanner/data/datasources/ocr_local_datasource.dart';
 import 'features/receipt_scanner/data/datasources/receipt_image_local_datasource.dart';
 import 'features/receipt_scanner/data/datasources/receipt_image_vault.dart';
 import 'features/receipt_scanner/data/datasources/receipt_scan_local_datasource.dart';
+import 'features/receipt_scanner/data/repositories/expense_photos_impl.dart';
 import 'features/receipt_scanner/data/repositories/keyword_dictionary_repository_impl.dart';
 import 'features/receipt_scanner/data/repositories/receipt_repository_impl.dart';
 import 'features/receipt_scanner/domain/repositories/keyword_dictionary_repository.dart';
@@ -154,9 +156,12 @@ import 'features/transactions/domain/repositories/recurring_rule_repository.dart
 import 'features/transactions/domain/repositories/transaction_repository.dart';
 import 'features/transactions/domain/usecases/add_expenses.dart';
 import 'features/transactions/domain/usecases/add_transaction.dart';
+import 'features/transactions/domain/usecases/attach_expense_photo.dart';
 import 'features/transactions/domain/usecases/create_recurring_rule.dart';
 import 'features/transactions/domain/usecases/delete_recurring_rule.dart';
 import 'features/transactions/domain/usecases/delete_transaction.dart';
+import 'features/transactions/domain/usecases/discard_unused_photos.dart';
+import 'features/transactions/domain/usecases/load_expense_photo.dart';
 import 'features/transactions/domain/usecases/make_transfer.dart';
 import 'features/transactions/domain/usecases/pause_recurring_rule.dart';
 import 'features/transactions/domain/usecases/post_due_recurring_transactions.dart';
@@ -318,6 +323,32 @@ final updateTransactionProvider = FutureProvider<UpdateTransaction>(
 final deleteTransactionProvider = FutureProvider<DeleteTransaction>(
   (ref) async =>
       DeleteTransaction(await ref.watch(transactionRepositoryProvider.future)),
+);
+
+/// The camera, the library and the vault, for a photo on any expense.
+/// FR-EXP-009. The scanner's own picker and vault, so a photo attached by
+/// hand is bounded and sealed exactly as a scanned one is.
+final expensePhotosProvider = Provider<ExpensePhotos>(
+  (ref) => ExpensePhotosImpl(
+    ref.watch(receiptImageLocalDataSourceProvider),
+    ref.watch(receiptImageVaultProvider),
+  ),
+);
+
+/// Takes or picks a photo for an expense, and keeps it. FR-EXP-009.
+final attachExpensePhotoProvider = Provider<AttachExpensePhoto>(
+  (ref) => AttachExpensePhoto(ref.watch(expensePhotosProvider)),
+);
+
+/// An expense's photo, decrypted for the screen. FR-EXP-009.
+final loadExpensePhotoProvider = Provider<LoadExpensePhoto>(
+  (ref) => LoadExpensePhoto(ref.watch(expensePhotosProvider)),
+);
+
+/// Deletes the kept photos a save, a cancel or a delete left unnamed.
+/// FR-EXP-009.
+final discardUnusedPhotosProvider = Provider<DiscardUnusedPhotos>(
+  (ref) => DiscardUnusedPhotos(ref.watch(expensePhotosProvider)),
 );
 
 /// Moves money between two accounts atomically. FR-TRF-002.

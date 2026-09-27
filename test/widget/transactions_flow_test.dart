@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/category_writer.dart';
+import 'package:moneyora/core/ports/expense_photos.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/core/utils/currency_utils.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
@@ -30,6 +32,7 @@ import 'package:moneyora/injection.dart';
 /// real database, so between them nothing is only ever exercised by a fake.
 void main() {
   late _FakeRepository repository;
+  late _FakePhotos photos;
 
   const categories = [
     CategoryOption(
@@ -59,7 +62,10 @@ void main() {
     AccountOption(id: 2, name: 'Bank', balanceCents: 0),
   ];
 
-  setUp(() => repository = _FakeRepository());
+  setUp(() {
+    repository = _FakeRepository();
+    photos = _FakePhotos();
+  });
   tearDown(() => repository.dispose());
 
   Widget boot() => ProviderScope(
@@ -71,6 +77,7 @@ void main() {
         (ref) => Stream<List<AccountOption>>.value(accounts),
       ),
       transactionRepositoryProvider.overrideWith((ref) => repository),
+      expensePhotosProvider.overrideWithValue(photos),
     ],
     child: MaterialApp(
       theme: AppTheme.light,
@@ -345,6 +352,172 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.updated.single, original);
+    });
+  });
+
+  group('a photo on an expense. FR-EXP-009', () {
+    /// The photo row is the last detail, below the fold on a phone.
+    Future<void> reveal(WidgetTester tester, Finder finder) async {
+      await tester.dragUntilVisible(
+        finder,
+        find.byType(ListView).first,
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> startExpense(WidgetTester tester) async {
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+      await keyIn(tester, '500');
+      await tapText(tester, 'Food');
+    }
+
+    Future<void> attach(WidgetTester tester, String path) async {
+      photos.nextPick = Right(path);
+      await reveal(tester, find.text('Attach a photo'));
+      await tapText(tester, 'Attach a photo');
+      await tapText(tester, 'Take a photo');
+    }
+
+    testWidgets('is attached, and saved on the row', (tester) async {
+      await startExpense(tester);
+      await attach(tester, 'kept.jpg');
+
+      expect(photos.pickedFrom, [PhotoSource.camera]);
+      expect(find.byTooltip('Remove photo'), findsOneWidget);
+
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved.single.receiptImagePath, 'kept.jpg');
+      expect(photos.discarded, isEmpty);
+    });
+
+    testWidgets('can come from the photo library', (tester) async {
+      await startExpense(tester);
+      photos.nextPick = const Right('kept.jpg');
+      await reveal(tester, find.text('Attach a photo'));
+      await tapText(tester, 'Attach a photo');
+      await tapText(tester, 'Choose from your photos');
+
+      expect(photos.pickedFrom, [PhotoSource.gallery]);
+    });
+
+    testWidgets('is discarded when the form is abandoned', (tester) async {
+      await startExpense(tester);
+      await attach(tester, 'kept.jpg');
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(repository.saved, isEmpty);
+      expect(photos.discarded, ['kept.jpg']);
+    });
+
+    testWidgets('replaced before saving, the first is discarded', (
+      tester,
+    ) async {
+      await startExpense(tester);
+      await attach(tester, 'a.jpg');
+      photos.nextPick = const Right('b.jpg');
+      await tester.tap(find.byTooltip('Replace photo'));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Take a photo');
+
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved.single.receiptImagePath, 'b.jpg');
+      expect(photos.discarded, ['a.jpg']);
+    });
+
+    testWidgets('removed in an edit, is discarded once saved', (tester) async {
+      repository.saved.add(
+        Transaction(
+          id: 7,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 30000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          receiptImagePath: 'old.jpg',
+        ),
+      );
+      await pumpApp(tester);
+      await tapText(tester, '−Rs300.00');
+
+      await reveal(tester, find.byTooltip('Remove photo'));
+      await tester.tap(find.byTooltip('Remove photo'));
+      await tester.pumpAndSettle();
+      expect(photos.discarded, isEmpty, reason: 'not before the save');
+
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.updated.single.receiptImagePath, isNull);
+      expect(photos.discarded, ['old.jpg']);
+    });
+
+    testWidgets('from a scan is shown, and cannot be changed here', (
+      tester,
+    ) async {
+      repository.saved.add(
+        Transaction(
+          id: 7,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 30000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          receiptScanId: 3,
+          receiptImagePath: '/vault/3.enc',
+        ),
+      );
+      await pumpApp(tester);
+      await tapText(tester, '−Rs300.00');
+      await reveal(tester, find.text('Photo from the receipt scan'));
+
+      expect(find.text('Photo from the receipt scan'), findsOneWidget);
+      expect(find.byTooltip('Remove photo'), findsNothing);
+      expect(find.byTooltip('Replace photo'), findsNothing);
+    });
+
+    testWidgets('is not offered on an income', (tester) async {
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+      await tapText(tester, 'Income');
+      await reveal(tester, find.text('Bank'));
+
+      expect(find.text('Attach a photo'), findsNothing);
+    });
+
+    testWidgets('a refused camera says so in its own words', (tester) async {
+      await startExpense(tester);
+      photos.nextPick = const Left(PermissionFailure('Allow the camera.'));
+      await reveal(tester, find.text('Attach a photo'));
+      await tapText(tester, 'Attach a photo');
+      await tapText(tester, 'Take a photo');
+
+      expect(find.text('Allow the camera.'), findsOneWidget);
+      expect(find.text('Attach a photo'), findsOneWidget);
+    });
+
+    testWidgets('goes with its row once the delete is written', (tester) async {
+      await startExpense(tester);
+      await attach(tester, 'kept.jpg');
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(photos.discarded, isEmpty, reason: 'undo still possible');
+
+      await tester.pump(PendingDeletions.window);
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, [1]);
+      expect(photos.discarded, ['kept.jpg']);
     });
   });
 
@@ -922,6 +1095,29 @@ class _FakeRepository implements TransactionRepository {
     required DateTime date,
     String? note,
   }) async => const Right(1);
+}
+
+class _FakePhotos implements ExpensePhotos {
+  Either<Failure, String?> nextPick = const Right(null);
+  final List<PhotoSource> pickedFrom = [];
+  final List<String> discarded = [];
+
+  @override
+  Future<Either<Failure, String?>> pickAndKeep(PhotoSource source) async {
+    pickedFrom.add(source);
+    return nextPick;
+  }
+
+  /// Always gone: real image bytes would have to decode under test.
+  @override
+  Future<Either<Failure, Uint8List?>> read(String path) async =>
+      const Right(null);
+
+  @override
+  Future<Either<Failure, Unit>> discard(String path) async {
+    discarded.add(path);
+    return const Right(unit);
+  }
 }
 
 extension _FollowedBy<T> on Stream<T> {

@@ -56,7 +56,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     final id = transaction.id;
     if (id == null) return;
 
-    ref.read(pendingDeletionsProvider.notifier).schedule(id);
+    ref.read(pendingDeletionsProvider.notifier).schedule(id, row: transaction);
 
     ScaffoldMessenger.of(context)
       ..clearSnackBars()

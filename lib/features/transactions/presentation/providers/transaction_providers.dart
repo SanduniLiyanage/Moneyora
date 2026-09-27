@@ -22,6 +22,7 @@ import '../../../../injection.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../../domain/usecases/create_recurring_rule.dart';
+import '../../domain/usecases/discard_unused_photos.dart';
 import '../../domain/usecases/make_transfer.dart';
 import 'recurring_catch_up.dart';
 
@@ -273,6 +274,17 @@ String? failureMessage(Object? error) => switch (error) {
   _ => 'Something went wrong. Please try again.',
 };
 
+/// An expense's photo, decrypted, for the entry screen. FR-EXP-009.
+///
+/// A family on the path, disposed with its last watcher, as the scanner's
+/// `receiptImageProvider` is: a photo leaves memory with the screen that
+/// showed it. Null is a photo that is gone; a `Left` is the error.
+final expensePhotoProvider = FutureProvider.autoDispose
+    .family<Uint8List?, String>((ref, path) async {
+      final result = await ref.watch(loadExpensePhotoProvider)(path);
+      return result.match(Future<Uint8List?>.error, Future<Uint8List?>.value);
+    });
+
 /// Transactions deleted on screen but not yet written away. E-23.
 ///
 /// The undo window is here, in presentation, rather than in the datasource,
@@ -286,6 +298,9 @@ String? failureMessage(Object? error) => switch (error) {
 /// deleted, which is the safe direction to fail when the data is money.
 class PendingDeletions extends Notifier<Set<int>> {
   final Map<int, Timer> _timers = {};
+
+  /// The rows being deleted, for the photo each takes with it. FR-EXP-009.
+  final Map<int, Transaction> _rows = {};
   AppLifecycleListener? _lifecycle;
 
   /// How long the user has to change their mind. Matches the snackbar.
@@ -328,12 +343,17 @@ class PendingDeletions extends Notifier<Set<int>> {
         timer.cancel();
       }
       _timers.clear();
+      _rows.clear();
     });
     return const {};
   }
 
   /// Hides [id] and schedules the write.
-  void schedule(int id) {
+  ///
+  /// Given the [row], a photo attached to it by hand is discarded once the
+  /// delete is written — never before, so an undo brings the photo back.
+  void schedule(int id, {Transaction? row}) {
+    if (row != null) _rows[id] = row;
     state = {...state, id};
     _timers[id] = Timer(window, () => unawaited(_commit(id)));
   }
@@ -341,6 +361,7 @@ class PendingDeletions extends Notifier<Set<int>> {
   /// Puts [id] back, and never writes.
   void undo(int id) {
     _timers.remove(id)?.cancel();
+    _rows.remove(id);
     state = {...state}..remove(id);
   }
 
@@ -355,7 +376,11 @@ class PendingDeletions extends Notifier<Set<int>> {
   Future<void> _commit(int id) async {
     _timers.remove(id);
     final deleteTransaction = await ref.read(deleteTransactionProvider.future);
-    await deleteTransaction(id);
+    final deleted = await deleteTransaction(id);
+    final row = _rows.remove(id);
+    if (deleted.isRight() && row != null) {
+      await ref.read(discardUnusedPhotosProvider)(PhotoCleanup(before: row));
+    }
     // Only stop hiding it once the row is actually gone, or the list would
     // show it again for the instant between the write and the next query.
     state = {...state}..remove(id);
