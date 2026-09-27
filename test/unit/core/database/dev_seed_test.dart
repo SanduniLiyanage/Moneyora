@@ -195,6 +195,115 @@ void main() {
     );
   });
 
+  group('loaded into a phone, as the debug button does', () {
+    test('knows when it is already there', () async {
+      expect(await DevSeed.isLoaded(db), isFalse);
+
+      await DevSeed.populate(db, endDate: endDate);
+
+      expect(await DevSeed.isLoaded(db), isTrue);
+    });
+
+    test('a handful of real rent and grocery rows is not the seed', () async {
+      final bills = (await db.query(
+        'categories',
+        where: 'name = ?',
+        whereArgs: ['Bills'],
+      )).first['id'];
+      for (var m = 1; m <= 6; m++) {
+        await db.insert('transactions', {
+          'account_id': 1,
+          'category_id': bills,
+          'amount_cents': 5000000,
+          'type': 'expense',
+          'date': '2026-0$m-01',
+          'note': 'Rent',
+          'created_at': '2026-0$m-01',
+          'updated_at': '2026-0$m-01',
+        });
+      }
+
+      expect(await DevSeed.isLoaded(db), isFalse);
+    });
+
+    test('moves the account balance by what it wrote (E-18)', () async {
+      Future<int> balance() async =>
+          (await db.query(
+                'accounts',
+                columns: ['current_balance_cents'],
+                where: 'id = 1',
+              )).first['current_balance_cents']!
+              as int;
+      final before = await balance();
+
+      await DevSeed.populate(db, endDate: endDate);
+
+      final net =
+          (await db.rawQuery(
+                "SELECT COALESCE(SUM(CASE type WHEN 'income' THEN amount_cents "
+                "WHEN 'expense' THEN -amount_cents ELSE 0 END), 0) AS net "
+                'FROM transactions WHERE account_id = 1',
+              )).first['net']!
+              as int;
+      expect(await balance(), before + net);
+    });
+
+    test(
+      "counts toward the active plan's categories, in its period only",
+      () async {
+        final food =
+            (await db.query(
+                  'categories',
+                  where: 'name = ?',
+                  whereArgs: ['Food'],
+                )).first['id']!
+                as int;
+        Future<int> plan({required bool active}) => db.insert('money_plans', {
+          'user_id': 1,
+          'name': active ? 'August' : 'Old',
+          'period_type': 'month',
+          'start_date': '2026-08-01',
+          'end_date': '2026-08-31',
+          'total_budget_cents': 1000000,
+          'is_active': active ? 1 : 0,
+          'created_at': '2026-08-01',
+        });
+        Future<void> allocate(int planId) => db.insert('plan_allocations', {
+          'plan_id': planId,
+          'category_id': food,
+          'allocated_amount_cents': 1000000,
+          'confidence_level': 'high',
+        });
+        final active = await plan(active: true);
+        final inactive = await plan(active: false);
+        await allocate(active);
+        await allocate(inactive);
+
+        await DevSeed.populate(db, endDate: endDate);
+
+        Future<int> spent(int planId) async =>
+            (await db.query(
+                  'plan_allocations',
+                  columns: ['spent_amount_cents'],
+                  where: 'plan_id = ?',
+                  whereArgs: [planId],
+                )).first['spent_amount_cents']!
+                as int;
+        final august =
+            (await db.rawQuery(
+                  'SELECT SUM(amount_cents) AS s FROM transactions '
+                  "WHERE category_id = ? AND type = 'expense' "
+                  "AND date BETWEEN '2026-08-01' AND '2026-08-31'",
+                  [food],
+                )).first['s']!
+                as int;
+        expect(august, greaterThan(0));
+        expect(await spent(active), august);
+        expect(await spent(inactive), 0, reason: 'only the tracked plan moves');
+      },
+    );
+  });
+
   group('determinism', () {
     test('the same seed produces byte-identical history', () async {
       final first = await DevSeed.populate(db, endDate: endDate);

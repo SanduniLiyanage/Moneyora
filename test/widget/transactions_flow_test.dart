@@ -33,6 +33,7 @@ import 'package:moneyora/injection.dart';
 void main() {
   late _FakeRepository repository;
   late _FakePhotos photos;
+  _ScriptedSeed seed = _ScriptedSeed(const SampleDataLoad(written: 0));
 
   const categories = [
     CategoryOption(
@@ -78,6 +79,7 @@ void main() {
       ),
       transactionRepositoryProvider.overrideWith((ref) => repository),
       expensePhotosProvider.overrideWithValue(photos),
+      devSeedLoaderProvider.overrideWith(() => seed),
     ],
     child: MaterialApp(
       theme: AppTheme.light,
@@ -635,6 +637,55 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('Stop repeating'), findsOneWidget);
+    });
+  });
+
+  group('the debug sample-data button', () {
+    final flask = find.byTooltip('Load sample data (debug)');
+
+    testWidgets('asks first, and cancelling writes nothing', (tester) async {
+      seed = _ScriptedSeed(const SampleDataLoad(written: 1234));
+      await pumpApp(tester);
+
+      await tester.tap(flask);
+      await tester.pumpAndSettle();
+      expect(find.text('Load sample data?'), findsOneWidget);
+      expect(find.textContaining('added once'), findsOneWidget);
+
+      await tapText(tester, 'Cancel');
+      expect(seed.loads, 0);
+    });
+
+    testWidgets('says how many rows it added', (tester) async {
+      seed = _ScriptedSeed(const SampleDataLoad(written: 1234));
+      await pumpApp(tester);
+
+      await tester.tap(flask);
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Load');
+
+      expect(seed.loads, 1);
+      expect(find.text('Added 1234 sample transactions.'), findsOneWidget);
+    });
+
+    testWidgets('says so rather than loading it twice', (tester) async {
+      seed = _ScriptedSeed(const SampleDataLoad(written: 0));
+      await pumpApp(tester);
+
+      await tester.tap(flask);
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Load');
+
+      expect(
+        find.textContaining('The sample data is already loaded'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the empty list offers it under the same name', (tester) async {
+      await pumpApp(tester);
+
+      expect(find.text('Load sample data'), findsOneWidget);
     });
   });
 
@@ -1247,4 +1298,19 @@ extension _FollowedBy<T> on Stream<T> {
 
 extension _AffectsTotals on Transaction {
   bool get affectsTotals => type.affectsTotals;
+}
+
+/// The loader with its outcome scripted: the real one opens a database,
+/// which never completes in a widget test's fake-async zone.
+class _ScriptedSeed extends DevSeedLoader {
+  _ScriptedSeed(this.outcome);
+
+  final SampleDataLoad outcome;
+  int loads = 0;
+
+  @override
+  Future<SampleDataLoad?> load() async {
+    loads++;
+    return outcome;
+  }
 }

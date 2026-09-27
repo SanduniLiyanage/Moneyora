@@ -2301,10 +2301,16 @@ as a device and is a separate, unscheduled problem — see
 
 ### Seeing the app with real data
 
-The transaction list's empty state carries a **Load 24 months of sample data**
-button in debug builds. It runs `dev_seed.dart`, which until PR #27 nothing in
-the app could reach — the fixture existed for tests alone, which is half of
-what Sprint 1 built it for.
+The transaction list's empty state carries a **Load sample data** button in
+debug builds, and its app bar the same action as a flask. It runs
+`dev_seed.dart`, which until PR #27 nothing in the app could reach — the
+fixture existed for tests alone, which is half of what Sprint 1 built it for.
+
+It asks first, **loads once** — a second tap says the data is already there
+rather than writing an identical second copy and doubling every total — and
+moves the account balance and the active plan's figures with the rows, then
+signals the change bus so every screen follows. Settings › Clear all data
+removes it.
 
 ## Environment — the traps, all of which have already bitten
 

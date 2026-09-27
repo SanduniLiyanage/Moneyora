@@ -70,14 +70,77 @@ class DevSeed {
 
     var written = 0;
     await db.transaction((txn) async {
+      final before = await _maxTransactionId(txn);
       written += await _fixed(txn, rng, accountId, categories, start, end);
       written += await _variable(txn, rng, accountId, categories, start, end);
       written += await _seasonal(txn, rng, accountId, categories, start, end);
       written += await _trending(txn, rng, accountId, categories, start, end);
       written += await _sparse(txn, rng, accountId, categories, end);
       written += await _income(txn, rng, accountId, categories, start, end);
+      await _applyToCaches(txn, accountId, before);
     });
     return written;
+  }
+
+  /// Whether this history is already in [db]: two years of monthly Rent
+  /// and near-daily Groceries are the seed's signature. Loading it twice
+  /// writes every row twice — the generator is seeded, so the second copy
+  /// is identical — and every total doubles.
+  ///
+  /// By shape rather than by a marker, so it needs no column: a real
+  /// ledger with a year of rows noted exactly "Rent" under Bills *and* a
+  /// hundred noted "Groceries" under Food is not one this debug-only
+  /// loader should add to anyway.
+  static Future<bool> isLoaded(DatabaseExecutor db) async {
+    Future<int> count(String category, String note) async {
+      final rows = await db.rawQuery(
+        'SELECT COUNT(*) AS n FROM transactions t '
+        'JOIN categories c ON c.id = t.category_id '
+        'WHERE c.name = ? AND t.note = ?',
+        [category, note],
+      );
+      return rows.first['n']! as int;
+    }
+
+    return await count('Bills', 'Rent') >= 12 &&
+        await count('Food', 'Groceries') >= 100;
+  }
+
+  static Future<int> _maxTransactionId(DatabaseExecutor db) async {
+    final rows = await db.rawQuery(
+      'SELECT COALESCE(MAX(id), 0) AS id FROM transactions',
+    );
+    return rows.first['id']! as int;
+  }
+
+  /// What an ordinary insert does to the two cached figures, for every row
+  /// written above id [after]: the account's balance moves by their net
+  /// (E-18), and the active plan's rows by what was spent in its period.
+  /// The rows go in beneath the datasources, so nothing else would — the
+  /// balance and the plan used to stay where they were until recalculated
+  /// by hand. The seed writes no splits, so each row counts whole.
+  static Future<void> _applyToCaches(
+    DatabaseExecutor txn,
+    int accountId,
+    int after,
+  ) async {
+    await txn.rawUpdate(
+      'UPDATE accounts SET current_balance_cents = current_balance_cents + '
+      "(SELECT COALESCE(SUM(CASE type WHEN 'income' THEN amount_cents "
+      "WHEN 'expense' THEN -amount_cents ELSE 0 END), 0) "
+      'FROM transactions WHERE id > ?) WHERE id = ?',
+      [after, accountId],
+    );
+    await txn.rawUpdate(
+      'UPDATE plan_allocations SET spent_amount_cents = spent_amount_cents + '
+      '(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t '
+      'JOIN money_plans p ON p.id = plan_allocations.plan_id '
+      "WHERE t.id > ? AND t.type = 'expense' "
+      'AND t.category_id = plan_allocations.category_id '
+      'AND t.date BETWEEN p.start_date AND p.end_date) '
+      'WHERE plan_id IN (SELECT id FROM money_plans WHERE is_active = 1)',
+      [after],
+    );
   }
 
   // ── shapes ────────────────────────────────────────────────────────────
