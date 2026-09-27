@@ -181,6 +181,36 @@ void main() {
     await subscription.cancel();
   });
 
+  test('the database summary follows a write, not only the launch', () async {
+    // The chart cards tell E-22's two empty states apart by this count; one
+    // read at launch outlived Clear all data on the emulator.
+    final sub = container.listen(databaseSummaryProvider, (_, _) {});
+    addTearDown(sub.close);
+    expect(
+      (await container.read(databaseSummaryProvider.future)).transactions,
+      0,
+    );
+
+    final addTransaction = await container.read(addTransactionProvider.future);
+    await addTransaction(
+      Transaction(
+        accountId: 1,
+        categoryId: 1,
+        amountCents: 500,
+        type: TransactionType.expense,
+        date: DateTime(2026, 9, 2),
+      ),
+    );
+
+    var count = 0;
+    for (var i = 0; i < 200 && count == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      count = (await container.read(databaseSummaryProvider.future))
+          .transactions;
+    }
+    expect(count, 1);
+  });
+
   test('an expense added through the use case comes back out', () async {
     // The seeded default account and categories come from applyDefaultSeed,
     // which databaseProvider runs on first launch — so ids 1 exist.

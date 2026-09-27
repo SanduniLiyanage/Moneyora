@@ -207,13 +207,11 @@ class _NetSavings extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Flexible(
-            child: ScaleDownText(
-              formatCents(overspent ? -netCents : netCents),
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w700,
-              ),
+          ScaleDownText(
+            formatCents(overspent ? -netCents : netCents),
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

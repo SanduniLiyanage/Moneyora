@@ -642,6 +642,7 @@ class _BaseCurrencyDialogState extends State<_BaseCurrencyDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: const Text('Base currency'),
     content: Column(
       mainAxisSize: MainAxisSize.min,
@@ -746,6 +747,7 @@ class _NumberDialogState extends State<_NumberDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: Text(widget.title),
     content: TextField(
       controller: _value,

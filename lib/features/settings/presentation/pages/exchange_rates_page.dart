@@ -225,6 +225,7 @@ class _RateDialogState extends State<_RateDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: Text(_isEditing ? 'Edit rate' : 'Add rate'),
     content: Column(
       mainAxisSize: MainAxisSize.min,

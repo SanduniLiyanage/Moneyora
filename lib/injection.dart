@@ -255,8 +255,18 @@ final databaseProvider = FutureProvider<Database>((ref) async {
 ///
 /// A [FutureProvider] because the read is async and can fail; `AsyncValue`
 /// gives the UI loading and error states without the screen inventing them.
+///
+/// Read again on every write the change bus carries. The chart cards tell
+/// E-22's two empty states apart by its transaction count, and a count read
+/// once at launch outlived Clear all data on the emulator: a phone with
+/// nothing on it was told it had had a quiet month.
 final databaseSummaryProvider = FutureProvider<DatabaseSummary>((ref) async {
   final db = await ref.watch(databaseProvider.future);
+  final changes = ref
+      .watch(databaseChangeBusProvider)
+      .changes
+      .listen((_) => ref.invalidateSelf());
+  ref.onDispose(changes.cancel);
   return readDatabaseSummary(db);
 });
 

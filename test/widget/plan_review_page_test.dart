@@ -256,6 +256,34 @@ void main() {
     });
   });
 
+  testWidgets('a figure sits at the right of its row on a 320dp phone', (
+    tester,
+  ) async {
+    // Found on the emulator: split evenly with its label, the total sat
+    // mid-card and a long category name broke mid-word.
+    tester.view
+      ..physicalSize = const Size(960, 1920)
+      ..devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      boot(
+        _ScriptedSpending(rows: shaped(halfYear)),
+        request: AllocationRequest(period: october, lookback: halfYear),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final totalRow = find
+        .ancestor(of: find.text('Total'), matching: find.byType(Row))
+        .first;
+    final amount = find
+        .descendant(of: totalRow, matching: find.byType(Text))
+        .last;
+    // 320 less the list's 16dp padding, the card's 4dp margin and its 16dp
+    // padding.
+    expect(tester.getTopRight(amount).dx, closeTo(284, 1));
+  });
+
   testWidgets('spins while the engine works', (tester) async {
     final hold = Completer<void>();
     await tester.pumpWidget(

@@ -605,6 +605,7 @@ class _SplitDialogState extends State<_SplitDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: Text('Split ${widget.item.item.name}'),
     content: TextField(
       controller: _amount,
