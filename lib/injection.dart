@@ -556,6 +556,7 @@ final categoryLocalDataSourceProvider = FutureProvider<CategoryLocalDataSource>(
   (ref) async {
     final source = CategoryLocalDataSourceImpl(
       await ref.watch(databaseProvider.future),
+      changeBus: ref.watch(databaseChangeBusProvider),
     );
     ref.onDispose(source.dispose);
     return source;
