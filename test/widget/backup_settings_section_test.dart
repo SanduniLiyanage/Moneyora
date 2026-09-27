@@ -46,7 +46,10 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const Scaffold(body: BackupSettingsSection()),
+          // Scrolls, as the settings list it sits in does.
+          home: const Scaffold(
+            body: SingleChildScrollView(child: BackupSettingsSection()),
+          ),
         ),
       ),
     );
@@ -85,6 +88,26 @@ void main() {
         find.text('Backup saved as moneyora-2026-09-27.mora.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('fits a 320x640 phone with the keyboard up', (tester) async {
+      // Found on the emulator: the helper text and the second field ran
+      // 55px past the dialog's foot once the keyboard took its half.
+      tester.view
+        ..physicalSize = const Size(960, 1920)
+        ..devicePixelRatio = 3
+        ..viewInsets = const FakeViewPadding(bottom: 870);
+      addTearDown(tester.view.reset);
+      await pump(tester);
+      await tester.tap(find.text('Back up now'));
+      await tester.pumpAndSettle();
+
+      await typePasswords(tester, 'long enough', 'long enougj');
+      await tester.ensureVisible(find.text('Back up'));
+      await tester.tap(find.text('Back up'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The two passwords are different.'), findsOneWidget);
     });
 
     testWidgets('refuses two different passwords and a short one', (

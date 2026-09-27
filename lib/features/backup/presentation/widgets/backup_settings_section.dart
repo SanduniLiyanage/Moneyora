@@ -244,6 +244,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
   Widget build(BuildContext context) {
     final error = _submitted ? _problem : null;
     return AlertDialog(
+      scrollable: true,
       title: Text(widget.confirm ? 'Protect the backup' : 'Open the backup'),
       content: Column(
         mainAxisSize: MainAxisSize.min,

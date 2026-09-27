@@ -372,12 +372,10 @@ class _Legend extends StatelessWidget {
                   child: Text(line.name, style: theme.textTheme.bodyMedium),
                 ),
                 const SizedBox(width: 8),
-                Flexible(
-                  child: ScaleDownText(
-                    formatCents(line.totalCents),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                ScaleDownText(
+                  formatCents(line.totalCents),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],

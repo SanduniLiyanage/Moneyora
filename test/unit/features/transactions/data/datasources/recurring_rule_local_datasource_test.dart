@@ -582,11 +582,20 @@ void main() {
       final sub = repository.watchAll().listen(
         (r) => seen.add(r.getOrElse((f) => fail('$f'))),
       );
-      await pumpEventQueue();
+      // Each read is real SQLite I/O, which a busy machine can take longer
+      // over than a fixed number of event-queue turns: wait for the answer,
+      // not for a count. The full suite once caught the read before this.
+      Future<void> until(bool Function() arrived) async {
+        for (var i = 0; i < 200 && !arrived(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      await until(() => seen.isNotEmpty);
       expect(seen.single, isEmpty);
 
       final id = await createMonthlyRent();
-      await pumpEventQueue();
+      await until(() => seen.last.isNotEmpty);
       expect(seen.last.single.rule.id, id);
 
       // A write from elsewhere on the shared bus — a transaction edit —
@@ -598,7 +607,7 @@ void main() {
         whereArgs: [id],
       );
       bus.notify();
-      await pumpEventQueue();
+      await until(() => seen.last.single.template!.amountCents == 5000000);
       expect(seen.last.single.template!.amountCents, 5000000);
 
       await sub.cancel();

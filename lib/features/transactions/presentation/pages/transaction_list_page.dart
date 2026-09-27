@@ -433,30 +433,20 @@ class _CategoryGroupTile extends StatelessWidget {
   }
 }
 
-/// An amount at a row's end, never wider than [maxShare] of the screen.
-///
-/// At the largest font setting a seven-figure amount is wider than a 320dp
-/// phone, and a `ListTile` whose trailing widget takes the whole row
-/// throws rather than lays out. So the amount is capped, and scales down
-/// only when it would not fit — at every ordinary size it is untouched.
+/// An amount at a row's end. At the largest font a seven-figure amount is
+/// wider than a 320dp phone, and a `ListTile` whose trailing widget takes
+/// the whole row throws rather than lays out; [ScaleDownText] caps it.
 class _Amount extends StatelessWidget {
   const _Amount(this.text, {required this.color});
 
   final String text;
   final Color color;
 
-  static const double maxShare = 0.45;
-
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: BoxConstraints(
-      maxWidth: MediaQuery.sizeOf(context).width * maxShare,
-    ),
-    child: ScaleDownText(
-      text,
-      style: Theme.of(context).textTheme.titleMedium
-          ?.copyWith(color: color, fontWeight: FontWeight.w600),
-    ),
+  Widget build(BuildContext context) => ScaleDownText(
+    text,
+    style: Theme.of(context).textTheme.titleMedium
+        ?.copyWith(color: color, fontWeight: FontWeight.w600),
   );
 }
 

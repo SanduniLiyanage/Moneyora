@@ -128,11 +128,9 @@ class _Plan extends ConsumerWidget {
                       child: Text('Total', style: theme.textTheme.titleMedium),
                     ),
                     const SizedBox(width: 8),
-                    Flexible(
-                      child: ScaleDownText(
-                        formatCents(plan.totalBudgetCents),
-                        style: theme.textTheme.titleMedium,
-                      ),
+                    ScaleDownText(
+                      formatCents(plan.totalBudgetCents),
+                      style: theme.textTheme.titleMedium,
                     ),
                   ],
                 ),
@@ -271,14 +269,9 @@ class _AllocationRow extends StatelessWidget {
               subtitle: Text(details.join(' · ')),
               // Capped: at the largest font a ListTile whose trailing
               // figure takes the whole row throws rather than lays out.
-              trailing: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.45,
-                ),
-                child: ScaleDownText(
-                  formatCents(a.allocatedCents),
-                  style: theme.textTheme.titleMedium,
-                ),
+              trailing: ScaleDownText(
+                formatCents(a.allocatedCents),
+                style: theme.textTheme.titleMedium,
               ),
             ),
             Padding(
@@ -456,6 +449,7 @@ class _AdjustDialogState extends State<_AdjustDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: Text(widget.allocation.categoryName ?? 'Allocation'),
     content: TextField(
       controller: _amount,

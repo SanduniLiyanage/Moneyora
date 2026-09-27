@@ -130,6 +130,7 @@ class _NameDialogState extends State<_NameDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: const Text('Name your plan'),
     content: Column(
       mainAxisSize: MainAxisSize.min,
@@ -278,7 +279,7 @@ class _Figure extends StatelessWidget {
       children: [
         Expanded(child: Text(label, style: style)),
         const SizedBox(width: 8),
-        Flexible(child: ScaleDownText(formatCents(cents), style: style)),
+        ScaleDownText(formatCents(cents), style: style),
       ],
     );
   }
@@ -319,11 +320,9 @@ class _AllocationCard extends StatelessWidget {
                   child: Text(a.name, style: theme.textTheme.titleMedium),
                 ),
                 const SizedBox(width: 8),
-                Flexible(
-                  child: ScaleDownText(
-                    formatCents(a.allocationCents),
-                    style: theme.textTheme.titleMedium,
-                  ),
+                ScaleDownText(
+                  formatCents(a.allocationCents),
+                  style: theme.textTheme.titleMedium,
                 ),
               ],
             ),

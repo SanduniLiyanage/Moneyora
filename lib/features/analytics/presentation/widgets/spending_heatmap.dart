@@ -267,7 +267,7 @@ class _Legend extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Flexible(child: ScaleDownText('Less', style: style)),
+        ScaleDownText('Less', style: style, maxWidthFactor: 0.15),
         const SizedBox(width: 6),
         for (var level = 0; level <= SpendingCalendar.levels; level++)
           Padding(
@@ -282,7 +282,7 @@ class _Legend extends StatelessWidget {
             ),
           ),
         const SizedBox(width: 6),
-        Flexible(child: ScaleDownText('More', style: style)),
+        ScaleDownText('More', style: style, maxWidthFactor: 0.15),
       ],
     );
   }
