@@ -9,6 +9,7 @@ import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/category_writer.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
+import 'package:moneyora/core/utils/currency_utils.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
 import 'package:moneyora/features/transactions/presentation/pages/transaction_list_page.dart';
@@ -676,6 +677,153 @@ void main() {
       // AddCategory.validate's own sentence, not a second one invented here.
       expect(find.text('Give the category a name.'), findsOneWidget);
       expect(booted.created, isEmpty);
+    });
+  });
+
+  group('grouped by category. FR-EXP-011', () {
+    final groupByCategory = find.byTooltip('Group by category');
+
+    Transaction expense(int id, int categoryId, int cents, {String? note}) =>
+        Transaction(
+          id: id,
+          accountId: 1,
+          categoryId: categoryId,
+          amountCents: cents,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          note: note,
+        );
+
+    testWidgets('each header names its category, count and total', (
+      tester,
+    ) async {
+      repository.saved.addAll([
+        expense(1, 1, 1000, note: 'Lunch'),
+        expense(2, 2, 300),
+        expense(3, 1, 500, note: 'Dinner'),
+      ]);
+      await pumpApp(tester);
+
+      await tester.tap(groupByCategory);
+      await tester.pumpAndSettle();
+
+      final food = find.widgetWithText(ExpansionTile, 'Food');
+      expect(food, findsOneWidget);
+      expect(
+        find.descendant(of: food, matching: find.text('2')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: food, matching: find.text('−${formatCents(1500)}')),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(ExpansionTile, 'Transport'), findsOneWidget);
+      // Closed until tapped: the rows are not on screen yet.
+      expect(find.text('Lunch'), findsNothing);
+      // Largest total first.
+      expect(
+        tester.getTopLeft(food).dy,
+        lessThan(
+          tester.getTopLeft(find.widgetWithText(ExpansionTile, 'Transport')).dy,
+        ),
+      );
+    });
+
+    testWidgets('a header opens to its rows, led by the note', (tester) async {
+      repository.saved.addAll([
+        expense(1, 1, 1000, note: 'Lunch'),
+        expense(2, 1, 500),
+      ]);
+      await pumpApp(tester);
+      await tester.tap(groupByCategory);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Food'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lunch'), findsOneWidget);
+      expect(find.text('2026-09-01'), findsNWidgets(2));
+      // The category is the header; the rows do not repeat it.
+      expect(find.text('Food'), findsOneWidget);
+    });
+
+    testWidgets('a split shows its part under each category', (tester) async {
+      repository.saved.add(
+        Transaction(
+          id: 1,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 1000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          splits: const [
+            TransactionSplit(categoryId: 1, amountCents: 700),
+            TransactionSplit(categoryId: 2, amountCents: 300),
+          ],
+        ),
+      );
+      await pumpApp(tester);
+      await tester.tap(groupByCategory);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Transport'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('−${formatCents(300)}'), findsNWidgets(2));
+      expect(find.text('−${formatCents(700)}'), findsOneWidget);
+    });
+
+    testWidgets('transfers are one group with no total', (tester) async {
+      repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 1,
+          amountCents: 5000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.out,
+          date: DateTime(2026, 9, 1),
+        ),
+        expense(2, 1, 100),
+      ]);
+      await pumpApp(tester);
+      await tester.tap(groupByCategory);
+      await tester.pumpAndSettle();
+
+      final transfers = find.widgetWithText(ExpansionTile, 'Transfers');
+      expect(transfers, findsOneWidget);
+      expect(
+        find.descendant(of: transfers, matching: find.textContaining('5')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('the same filter applies, and the toggle comes back', (
+      tester,
+    ) async {
+      repository.saved.addAll([
+        expense(1, 1, 1000),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          categoryId: 3,
+          amountCents: 90000,
+          type: TransactionType.income,
+          date: DateTime(2026, 9, 1),
+        ),
+      ]);
+      await pumpApp(tester);
+      await tester.tap(groupByCategory);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ExpansionTile, 'Salary'), findsOneWidget);
+
+      await tapText(tester, 'Expenses');
+      expect(find.widgetWithText(ExpansionTile, 'Salary'), findsNothing);
+      expect(find.widgetWithText(ExpansionTile, 'Food'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('List by date'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ExpansionTile), findsNothing);
+      expect(find.text('Food'), findsOneWidget);
     });
   });
 }
