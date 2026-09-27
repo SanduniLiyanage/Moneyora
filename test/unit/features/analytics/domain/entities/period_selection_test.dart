@@ -246,4 +246,64 @@ void main() {
       }
     });
   });
+
+  group('the period before. FR-RPT-006', () {
+    PeriodSelection pick(AnalyticsPeriod period, DateTime anchor) =>
+        PeriodSelection(period: period, anchor: anchor);
+
+    test('a day, a week and a year step back one of themselves', () {
+      final day = DateTime(2026, 3, 1);
+      expect(
+        pick(AnalyticsPeriod.day, day).previous!.range,
+        DateRange.day(DateTime(2026, 2, 28)),
+      );
+      expect(
+        pick(AnalyticsPeriod.week, day).previous!.range,
+        // The default calendar's week, which starts on Sunday.
+        DateRange.week(DateTime(2026, 2, 22), firstWeekday: DateTime.sunday),
+      );
+      expect(
+        pick(AnalyticsPeriod.year, day).previous!.range,
+        DateRange.year(2025),
+      );
+    });
+
+    test('a month steps to the whole month before, from its last day', () {
+      // 31 March back one month is 28 February, not 3 March.
+      expect(
+        pick(AnalyticsPeriod.month, DateTime(2026, 3, 31)).previous!.range,
+        DateRange.month(2026, 2),
+      );
+      expect(
+        pick(AnalyticsPeriod.month, DateTime(2026, 1, 15)).previous!.range,
+        DateRange.month(2025, 12),
+      );
+    });
+
+    test('a month cut on the 25th stays cut on the 25th', () {
+      const calendar = CalendarSettings(firstDayOfMonth: 25);
+      final now = pick(AnalyticsPeriod.month, DateTime(2026, 9, 26));
+
+      expect(
+        now.previous!.rangeWith(calendar),
+        DateRange(from: DateTime(2026, 8, 25), to: DateTime(2026, 9, 24)),
+      );
+    });
+
+    test('a custom range steps back by its own length', () {
+      final picked = PeriodSelection.monthOf(DateTime(2026, 9, 1))
+          .withCustomRange(
+            DateRange(from: DateTime(2026, 9, 10), to: DateTime(2026, 9, 19)),
+          );
+
+      expect(
+        picked.previous!.range,
+        DateRange(from: DateTime(2026, 8, 31), to: DateTime(2026, 9, 9)),
+      );
+    });
+
+    test('all time has none', () {
+      expect(pick(AnalyticsPeriod.all, DateTime(2026, 9, 1)).previous, isNull);
+    });
+  });
 }
