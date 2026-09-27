@@ -34,6 +34,8 @@ import 'package:moneyora/features/money_plan/presentation/pages/active_plan_page
 import 'package:moneyora/features/money_plan/presentation/providers/money_plan_providers.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// An empty answer for the home screen's three charts, for every shell test
 /// below that does not care about any of them.
 ///
@@ -310,6 +312,18 @@ void main() {
       expect(find.text('Could not open the database'), findsOneWidget);
       expect(find.textContaining('keychain unavailable'), findsOneWidget);
     });
+  });
+
+  testWidgets('home holds at the largest font on a 320dp phone. SRS §4.1', (
+    tester,
+  ) async {
+    useLargeTextOnSmallPhone(tester);
+    await tester.pumpWidget(
+      bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
+    );
+    await tester.pumpAndSettle();
+
+    await scrollToEnd(tester);
   });
 
   group('shell', () {

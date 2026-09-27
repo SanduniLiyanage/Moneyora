@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../domain/entities/allocation_progress.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/plan_allocation.dart';
@@ -122,12 +123,16 @@ class _Plan extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Total', style: theme.textTheme.titleMedium),
-                    Text(
-                      formatCents(plan.totalBudgetCents),
-                      style: theme.textTheme.titleMedium,
+                    Expanded(
+                      child: Text('Total', style: theme.textTheme.titleMedium),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: ScaleDownText(
+                        formatCents(plan.totalBudgetCents),
+                        style: theme.textTheme.titleMedium,
+                      ),
                     ),
                   ],
                 ),
@@ -264,9 +269,16 @@ class _AllocationRow extends StatelessWidget {
             ListTile(
               title: Text(a.categoryName ?? 'Category ${a.categoryId}'),
               subtitle: Text(details.join(' · ')),
-              trailing: Text(
-                formatCents(a.allocatedCents),
-                style: theme.textTheme.titleMedium,
+              // Capped: at the largest font a ListTile whose trailing
+              // figure takes the whole row throws rather than lays out.
+              trailing: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.45,
+                ),
+                child: ScaleDownText(
+                  formatCents(a.allocatedCents),
+                  style: theme.textTheme.titleMedium,
+                ),
               ),
             ),
             Padding(

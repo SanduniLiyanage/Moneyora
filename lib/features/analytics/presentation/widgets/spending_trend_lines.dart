@@ -32,6 +32,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/category_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/spending_trend.dart';
 import '../../domain/entities/trend_point.dart';
@@ -370,10 +371,13 @@ class _Legend extends StatelessWidget {
                 Expanded(
                   child: Text(line.name, style: theme.textTheme.bodyMedium),
                 ),
-                Text(
-                  formatCents(line.totalCents),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: ScaleDownText(
+                    formatCents(line.totalCents),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],

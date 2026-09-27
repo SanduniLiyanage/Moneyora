@@ -16,6 +16,7 @@ import '../../../../core/ports/category_reader.dart';
 import '../../../../core/theme/category_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/category_icons.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/category_total.dart';
 import '../providers/analytics_providers.dart';
@@ -230,10 +231,13 @@ class _Legend extends StatelessWidget {
                 Expanded(
                   child: Text(slice.name, style: theme.textTheme.bodyMedium),
                 ),
-                Text(
-                  formatCents(slice.amountCents),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: ScaleDownText(
+                    formatCents(slice.amountCents),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],

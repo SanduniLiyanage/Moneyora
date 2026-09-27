@@ -23,6 +23,8 @@ import 'package:moneyora/features/analytics/presentation/providers/analytics_pro
 import 'package:moneyora/features/analytics/presentation/widgets/spending_heatmap.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// FR-RPT-009's heatmap over a scripted repository: one cell per day of the
 /// anchor's month, shaded against the month's largest day, and pinned to the
 /// calendar month whatever period shape the picker has selected.
@@ -111,6 +113,18 @@ void main() {
   }
 
   group('the grid', () {
+    testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+      tester,
+    ) async {
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(
+        boot(_ScriptedRepository(days: [day(3, 123456789)])),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('30'), findsOneWidget);
+    });
+
     testWidgets('draws one cell per day of the month', (tester) async {
       await tester.pumpWidget(boot(_ScriptedRepository(days: [day(3, 100)])));
       await tester.pumpAndSettle();

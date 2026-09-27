@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/category_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/category_icons.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../domain/entities/category_group.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
@@ -327,12 +328,9 @@ class _TransactionTile extends StatelessWidget {
       // alone does not say it was filed under Food, and a misfiled row is
       // exactly what someone scanning the list is looking for.
       subtitle: subtitle,
-      trailing: Text(
+      trailing: _Amount(
         '$sign${formatCents(amountCents ?? transaction.amountCents)}',
-        style: theme.textTheme.titleMedium?.copyWith(
-          color: tint,
-          fontWeight: FontWeight.w600,
-        ),
+        color: tint,
       ),
     );
   }
@@ -427,20 +425,39 @@ class _CategoryGroupTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: total == null
-          ? null
-          : Text(
-              total.$1,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: total.$2,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+      trailing: total == null ? null : _Amount(total.$1, color: total.$2),
       childrenPadding: const EdgeInsets.only(left: 16),
       shape: const Border(),
       children: children,
     );
   }
+}
+
+/// An amount at a row's end, never wider than [maxShare] of the screen.
+///
+/// At the largest font setting a seven-figure amount is wider than a 320dp
+/// phone, and a `ListTile` whose trailing widget takes the whole row
+/// throws rather than lays out. So the amount is capped, and scales down
+/// only when it would not fit — at every ordinary size it is untouched.
+class _Amount extends StatelessWidget {
+  const _Amount(this.text, {required this.color});
+
+  final String text;
+  final Color color;
+
+  static const double maxShare = 0.45;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxWidth: MediaQuery.sizeOf(context).width * maxShare,
+    ),
+    child: ScaleDownText(
+      text,
+      style: Theme.of(context).textTheme.titleMedium
+          ?.copyWith(color: color, fontWeight: FontWeight.w600),
+    ),
+  );
 }
 
 /// What shows behind a row being swiped away.
@@ -578,8 +595,10 @@ class _Message extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurface.withValues(alpha: 0.6);
 
+    // Scrolls: at the largest font on a small phone the three lines and the
+    // action are taller than the space under the app bar.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
