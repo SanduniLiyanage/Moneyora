@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,8 +43,9 @@ class PlanReviewPage extends ConsumerWidget {
       body: draft.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _Problem(error: error),
-        data: (draft) =>
-            draft.isEmpty ? const _NothingToPlanFrom() : _Draft(draft: draft),
+        data: (draft) => draft.isEmpty
+            ? _NothingToPlanFrom(request: request)
+            : _Draft(draft: draft),
       ),
       bottomNavigationBar: switch (draft.valueOrNull) {
         final MoneyPlanDraft d when !d.isEmpty => SafeArea(
@@ -390,14 +392,18 @@ class _Tag extends StatelessWidget {
 }
 
 /// E-21 / E-22: a plan needs history, and a first-time user has none.
-class _NothingToPlanFrom extends StatelessWidget {
-  const _NothingToPlanFrom();
+class _NothingToPlanFrom extends ConsumerWidget {
+  const _NothingToPlanFrom({required this.request});
+
+  /// The request to generate again once there is history.
+  final AllocationRequest request;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final loading = ref.watch(devSeedLoaderProvider).isLoading;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -413,11 +419,80 @@ class _NothingToPlanFrom extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
+            // Debug builds only, and stripped from release by the constant:
+            // two years of shaped history is what lets the generator be
+            // tried by eye on a phone with none.
+            if (kDebugMode) ...[
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: loading
+                    ? null
+                    : () => _loadSampleData(context, ref, request),
+                icon: loading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.science_outlined),
+                label: const Text('Try it with sample data'),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+/// Asks, loads the sample history once, says what happened, and plans
+/// again from it. Debug builds only.
+Future<void> _loadSampleData(
+  BuildContext context,
+  WidgetRef ref,
+  AllocationRequest request,
+) async {
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      scrollable: true,
+      title: const Text('Load sample data?'),
+      content: const Text(
+        'Adds two years of made-up transactions — rent, groceries, gifts, '
+        'fuel, a pet, a salary — to this phone, so a plan has history to '
+        'learn from. It is added once; Settings › Clear all data removes '
+        'it. Debug builds only.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Load'),
+        ),
+      ],
+    ),
+  );
+  if (go != true || !context.mounted) return;
+
+  final result = await ref.read(devSeedLoaderProvider.notifier).load();
+  if (!context.mounted) return;
+  final error = ref.read(devSeedLoaderProvider).error;
+  final message = switch (result) {
+    null =>
+      'Could not load the sample data: '
+          '${error is Failure ? error.message : 'please try again.'}',
+    SampleDataLoad(alreadyLoaded: true) =>
+      'The sample data is already loaded. Clear all data in Settings to '
+          'start again.',
+    SampleDataLoad(:final written) => 'Added $written sample transactions.',
+  };
+  ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(message)));
+  // The draft was generated from no history; generate it again from this.
+  if (result != null) ref.invalidate(planDraftProvider(request));
 }
 
 /// The use case's own refusal, or a failure beneath it, in its own words.

@@ -6,9 +6,11 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 
+import '../../../../core/database/seed/dev_seed.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
@@ -258,4 +260,67 @@ class RecomputePlanSpendingController extends AutoDisposeAsyncNotifier<void> {
 final recomputePlanSpendingControllerProvider =
     AutoDisposeAsyncNotifierProvider<RecomputePlanSpendingController, void>(
       RecomputePlanSpendingController.new,
+    );
+
+/// Loads the synthetic history from `dev_seed.dart`, in debug builds only.
+///
+/// That generator is 24 months of deliberately shaped data — a fixed cost, a
+/// noisy one, one that spikes each April and December, one climbing 8% a
+/// month, and one with three transactions that must score low confidence. It
+/// is the Money Plan's test oracle and the demo dataset both.
+///
+/// It was written in Sprint 1 exactly so that Sprint 5 would not arrive with
+/// eleven test expenses and no way to exercise the algorithm. It is offered
+/// where that algorithm finds nothing to plan from — not on the transaction
+/// list, which is where someone checks their real money.
+///
+/// Guarded by [kDebugMode] so it cannot ship, per `docs/ROADMAP.md`.
+///
+/// Loads at most once: the generator is seeded, so a second load wrote an
+/// identical second copy of every row and doubled every total. It checks
+/// first, and says which happened.
+class DevSeedLoader extends AutoDisposeAsyncNotifier<SampleDataLoad?> {
+  @override
+  Future<SampleDataLoad?> build() async => null;
+
+  /// Writes the sample history, unless it is already there, and returns
+  /// what happened — null in a release build or when the write failed,
+  /// which leaves the error in [state].
+  Future<SampleDataLoad?> load() async {
+    if (!kDebugMode) return null;
+    state = const AsyncValue<SampleDataLoad?>.loading();
+
+    state = await AsyncValue.guard(() async {
+      final db = await ref.read(databaseProvider.future);
+      if (await DevSeed.isLoaded(db)) return const SampleDataLoad(written: 0);
+      final written = await DevSeed.populate(db);
+
+      // The rows went in beneath the datasources, whose change streams
+      // therefore stayed quiet. The shared bus is what every screen
+      // listens to — the list, the accounts, the charts, the plan and the
+      // home screen's count — so one signal refreshes all of them. The
+      // cached balances and plan figures moved in the same transaction.
+      ref.read(databaseChangeBusProvider).notify();
+      return SampleDataLoad(written: written);
+    });
+    return state.valueOrNull;
+  }
+}
+
+/// What a sample-data load did.
+class SampleDataLoad {
+  /// Creates the outcome.
+  const SampleDataLoad({required this.written});
+
+  /// How many transactions went in; 0 when the history was already there.
+  final int written;
+
+  /// True when nothing was written because it had been loaded before.
+  bool get alreadyLoaded => written == 0;
+}
+
+/// Controller for the debug-only "load sample data" action.
+final devSeedLoaderProvider =
+    AutoDisposeAsyncNotifierProvider<DevSeedLoader, SampleDataLoad?>(
+      DevSeedLoader.new,
     );

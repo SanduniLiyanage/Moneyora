@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -104,11 +103,9 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transactions'),
-        // The fixture loader also lives in the empty state, which is where it
-        // is first needed — but a single real transaction hides that state and
-        // takes the 24-month dataset with it. Since that dataset is what the
-        // analytics, plan and Copilot work are demonstrated on, it has to stay
-        // reachable with rows on screen.
+        // No sample-data loader here: this is where someone checks their
+        // real money. It lives on the Money Plan, which is what needs history
+        // to show anything.
         actions: [
           // E-11 puts the toggle beside the balance; on this screen that is
           // the app bar, and the icon shows the mode a tap would switch to.
@@ -130,7 +127,6 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             icon: const Icon(Icons.swap_horiz),
             tooltip: 'Transfer between accounts',
           ),
-          if (kDebugMode) const _LoadSampleDataAction(),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
@@ -179,11 +175,6 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                     body:
                         'Tap Add to record your first one. Everything you '
                         'enter stays on this phone.',
-                    // Debug builds only, and stripped from release by the
-                    // constant. Two years of shaped sample history is what
-                    // makes the list, and later the charts and the plan
-                    // generator, testable by eye instead of only by unit test.
-                    action: kDebugMode ? _LoadSampleDataButton() : null,
                   );
           }
 
@@ -467,101 +458,6 @@ class _DeleteBackground extends StatelessWidget {
           child: Icon(Icons.delete_outline, color: Colors.white),
         ),
       ),
-    );
-  }
-}
-
-/// Asks, loads the sample history once, and says what happened.
-///
-/// A flask that silently wrote two years of rows on every tap was hard to
-/// read: nothing said what it was about to do, that it adds to what is
-/// there, or that a second tap copied everything again. Debug builds only.
-Future<void> _loadSampleData(BuildContext context, WidgetRef ref) async {
-  final go = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      scrollable: true,
-      title: const Text('Load sample data?'),
-      content: const Text(
-        'Adds two years of made-up transactions — rent, groceries, gifts, '
-        'fuel, a pet, a salary — to what is already on this phone, to try '
-        'the charts and the Money Plan with. It is added once; Settings › '
-        'Clear all data removes it. Debug builds only.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Load'),
-        ),
-      ],
-    ),
-  );
-  if (go != true || !context.mounted) return;
-
-  final result = await ref.read(devSeedLoaderProvider.notifier).load();
-  if (!context.mounted) return;
-  final message = switch (result) {
-    null =>
-      'Could not load the sample data: '
-          '${failureMessage(ref.read(devSeedLoaderProvider).error) ?? 'please try again.'}',
-    SampleDataLoad(alreadyLoaded: true) =>
-      'The sample data is already loaded. Clear all data in Settings to '
-          'start again.',
-    SampleDataLoad(:final written) => 'Added $written sample transactions.',
-  };
-  ScaffoldMessenger.of(context)
-    ..clearSnackBars()
-    ..showSnackBar(SnackBar(content: Text(message)));
-}
-
-/// Debug-only shortcut to the fixture generator built in Sprint 1.
-///
-/// `dev_seed.dart` existed from the first sprint precisely so that Sprint 5
-/// would not arrive with a handful of test rows. `kDebugMode` is a
-/// compile-time constant, so this and everything it references are removed
-/// from a release build.
-class _LoadSampleDataButton extends ConsumerWidget {
-  const _LoadSampleDataButton();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final loading = ref.watch(devSeedLoaderProvider).isLoading;
-
-    return TextButton.icon(
-      onPressed: loading ? null : () => _loadSampleData(context, ref),
-      icon: loading
-          ? const SizedBox.square(
-              dimension: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.science_outlined),
-      label: const Text('Load sample data'),
-    );
-  }
-}
-
-/// The same shortcut as [_LoadSampleDataButton], in the app bar, for
-/// someone who has a few rows and wants the two years under them.
-class _LoadSampleDataAction extends ConsumerWidget {
-  const _LoadSampleDataAction();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final loading = ref.watch(devSeedLoaderProvider).isLoading;
-
-    return IconButton(
-      onPressed: loading ? null : () => _loadSampleData(context, ref),
-      icon: loading
-          ? const SizedBox.square(
-              dimension: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.science_outlined),
-      tooltip: 'Load sample data (debug)',
     );
   }
 }
