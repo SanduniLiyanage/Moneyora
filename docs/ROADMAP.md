@@ -108,7 +108,10 @@ Full vertical slice, domain first, in the usual order:
 - **FR-EXP-011 — the category-grouped list view**
   ([E-11](SPEC_ERRATA.md)). Scheduled here rather than in Sprint 4 because it
   groups the transaction list by category identity, which is this slice's
-  subject, not the chart's.
+  subject, not the chart's. **Done late**, after Sprint 8
+  ([PR #123](https://github.com/SanduniLiyanage/Moneyora/pull/123)): a
+  toggle on the Transactions app bar, and `CategoryGroup.group` as a pure
+  regrouping of the rows the date list already shows.
 - **Delete `core/database/entry_catalog.dart`** and move its two reads behind
   this slice's repository. This is [E-27](SPEC_ERRATA.md)'s resolution and a
   deliverable of this sprint, not an aspiration attached to it. A read that
@@ -368,7 +371,8 @@ darkest. No category colour renders, so
 the chart set complete.**
 
 **Left open, on purpose:** FR-RPT-006's summary figures (never scheduled as
-a chart) and a user-configurable first weekday (FR-SET-004, Sprint 7 — the
+a chart; built in Sprint 8's
+[PR #122](https://github.com/SanduniLiyanage/Moneyora/pull/122)) and a user-configurable first weekday (FR-SET-004, Sprint 7 — the
 heatmap's `_firstWeekday` and `DateRange.week`'s default are where it lands).
 
 ## Sprint 5 — Money Plan Generator (Weeks 8–9) — the headline feature
@@ -705,7 +709,7 @@ stored and read by nothing), and FR-SET-009 and FR-SET-010, which are
 Sprint 8's backup and sync. FR-SET-011 is withdrawn
 ([E-12](SPEC_ERRATA.md)).
 
-### The savings target (FR-SET-008) — done
+### The savings target (FR-SET-008) — done ([PR #117](https://github.com/SanduniLiyanage/Moneyora/pull/117))
 
 Settings › Calendar › *Savings target*, 0–100, on the #105 pattern
 (`SetSavingsTarget`). The Money Plan wizard starts its savings field from
@@ -713,11 +717,74 @@ it through `CalendarSettings`, the port that already carried the lookback,
 and a figure the user types there still wins. 0 is the column's default,
 which nobody chose, so it leaves the wizard's 10% suggestion in place.
 
-## Sprint 8 — Backup, export, sync (Week 13)
+## Sprint 8 — Backup, export, sync (Week 13) — done
 
 Encrypted `.mora` backups ([E-08](SPEC_ERRATA.md) — neither `.mb` nor
 `.sb`), CSV/PDF export, optional Drive/Dropbox.
 **Test restore on a second physical device**, not just re-import on the same one.
+That test is still owed: it is step 7 of `HANDOFF.md`'s device checklist.
+
+### Encrypted `.mora` backup and restore (FR-BAK-001, FR-BAK-005) — done ([PR #118](https://github.com/SanduniLiyanage/Moneyora/pull/118))
+
+FR-BAK-001's "SQLite format" and FR-BAK-005's "any device" cannot both
+hold: the database is sealed under a key that never leaves this phone.
+[E-38](SPEC_ERRATA.md) records the answer. A `.mora` file carries the
+rows — every table read from `sqlite_master`, so a later migration's table
+is included — and every kept photo decrypted, gzip'd and sealed with
+AES-256-GCM under a key PBKDF2 derives from a password the user chooses.
+Restore replaces rather than merges, in one transaction with foreign keys
+deferred to the commit (E-36's two tables name each other), reseals the
+photos under the new phone's key, refuses a newer schema, and recomputes
+every balance after — E-18's second caller. The PIN stays in the keychain
+and is not carried. Where the file goes is the platform's own save and
+open dialogs, which already reach Google Drive's document provider.
+**No migration**: the schema is still v6.
+
+### CSV export and Clear all data (FR-SET-009, FR-RPT-007) — done ([PR #119](https://github.com/SanduniLiyanage/Moneyora/pull/119))
+
+One row per transaction, oldest first, amount signed so a spreadsheet's
+`SUM` is the net; UTF-8 with a byte-order mark so Sinhala and Tamil
+notes open as text; a note that starts like a formula is led with an
+apostrophe. Clear deletes every row in one transaction, writes the
+first-launch seed back and discards the kept photos; the PIN stays.
+
+### The backup reminder (FR-BAK-006) — done ([PR #120](https://github.com/SanduniLiyanage/Moneyora/pull/120))
+
+One notification stays scheduled for seven days after the last *saved*
+backup (not one abandoned in the save dialog), then each morning at 9:00
+while overdue; withdrawn when there are no transactions. The date lives
+in the keychain, so a restore does not tell a new phone it was backed up.
+
+### PDF export (FR-RPT-007) — done ([PR #121](https://github.com/SanduniLiyanage/Moneyora/pull/121))
+
+The same rows as the CSV on A4, with a total per currency and never one
+across currencies. The standard PDF fonts are Latin-1 only, so a
+Sinhala or Tamil note prints with "?"; the chooser says the CSV keeps
+every character.
+
+### The summary card (FR-RPT-006) — done ([PR #122](https://github.com/SanduniLiyanage/Moneyora/pull/122))
+
+Carried since Sprint 4: average daily spend (over the days elapsed, today
+included), the largest category and the change against the period before,
+read from the aggregates the charts use so the card cannot disagree with
+them.
+
+**Sprint 8 is complete.** Deferred, with reasons in
+[E-38](SPEC_ERRATA.md): FR-BAK-002's scheduled automatic backups (an
+unattended backup needs its password on the phone) and FR-BAK-003/004's
+direct Drive and Dropbox sync (each needs an OAuth client registered
+outside the code). FR-SET-010's sync row waits with them.
+
+### After the sprint: two requirements scheduled nowhere — done
+
+FR-EXP-011's grouped list ([PR #123](https://github.com/SanduniLiyanage/Moneyora/pull/123);
+see Sprint 3.5) and FR-EXP-009's photo on any expense
+([PR #124](https://github.com/SanduniLiyanage/Moneyora/pull/124)). The
+photo goes through the scanner's picker and vault behind
+`core/ports/expense_photos.dart`, into the row's existing
+`receipt_image_path`, so the backup carries it with no change. A photo
+attached by hand is discarded when replaced, removed, abandoned or deleted
+with its row; a scan's photo is the scan's, and view-only on the expense.
 
 ## Sprint 9 — Hardening (Week 14)
 
