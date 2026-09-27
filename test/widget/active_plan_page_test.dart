@@ -25,6 +25,8 @@ import 'package:moneyora/features/money_plan/domain/usecases/watch_active_plan.d
 import 'package:moneyora/features/money_plan/presentation/pages/active_plan_page.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The saved-plan screen over the real use cases and an in-memory
 /// repository whose stream re-emits after every write — so an adjustment is
 /// seen the way the screen will see it in the app: through the stream, not
@@ -238,6 +240,17 @@ void main() {
     );
     expect(find.text('Food'), findsOneWidget);
     expect(find.text('Car'), findsOneWidget);
+  });
+
+  testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+    tester,
+  ) async {
+    useLargeTextOnSmallPhone(tester);
+    await tester.pumpWidget(boot(_MemoryRepository(plan: _september)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('September'), findsOneWidget);
+    await scrollToEnd(tester);
   });
 
   testWidgets('a failure reading shows its message', (tester) async {

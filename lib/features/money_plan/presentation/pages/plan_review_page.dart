@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/category_allocation.dart';
 import '../../domain/entities/confidence_score.dart';
@@ -274,10 +275,10 @@ class _Figure extends StatelessWidget {
         ? Theme.of(context).textTheme.titleMedium
         : Theme.of(context).textTheme.bodyMedium;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: style),
-        Text(formatCents(cents), style: style),
+        Expanded(child: Text(label, style: style)),
+        const SizedBox(width: 8),
+        Flexible(child: ScaleDownText(formatCents(cents), style: style)),
       ],
     );
   }
@@ -317,9 +318,12 @@ class _AllocationCard extends StatelessWidget {
                 Expanded(
                   child: Text(a.name, style: theme.textTheme.titleMedium),
                 ),
-                Text(
-                  formatCents(a.allocationCents),
-                  style: theme.textTheme.titleMedium,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: ScaleDownText(
+                    formatCents(a.allocationCents),
+                    style: theme.textTheme.titleMedium,
+                  ),
                 ),
               ],
             ),

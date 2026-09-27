@@ -27,6 +27,8 @@ import 'package:moneyora/features/money_plan/domain/usecases/compute_category_st
 import 'package:moneyora/features/money_plan/presentation/pages/plan_review_page.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The review screen over the real engine and scripted ports.
 ///
 /// The engine is tested stage by stage on its own; what is worth asserting
@@ -211,6 +213,22 @@ void main() {
       await tester.scrollUntilVisible(find.text('Spending patterns'), 200);
       await tester.pumpAndSettle();
     }
+
+    testWidgets('the whole review holds at the largest font on a 320dp '
+        'phone. SRS §4.1', (tester) async {
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(
+        boot(
+          _ScriptedSpending(rows: shaped(halfYear)),
+          request: AllocationRequest(period: october, lookback: halfYear),
+          days: everyDay(halfYear, 3000),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await scrollToEnd(tester);
+      expect(find.text('Spending patterns'), findsOneWidget);
+    });
 
     testWidgets('names a weekend habit with its figures', (tester) async {
       await review(tester, everyDay(halfYear, 3000));
