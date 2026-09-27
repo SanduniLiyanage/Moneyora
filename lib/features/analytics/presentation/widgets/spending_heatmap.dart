@@ -21,6 +21,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/calendar_settings.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/spending_calendar.dart';
 import '../providers/analytics_providers.dart';
@@ -236,11 +237,16 @@ class _Summary extends StatelessWidget {
             ),
           ),
         ),
-        Text(
-          'Busiest ${DateFormat.MMMd().format(busiestDate)}, '
-          '${formatCents(calendar.maxCents)}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+        const SizedBox(width: 8),
+        // Wraps under its own start rather than pushing off the card.
+        Flexible(
+          child: Text(
+            'Busiest ${DateFormat.MMMd().format(busiestDate)}, '
+            '${formatCents(calendar.maxCents)}',
+            textAlign: TextAlign.end,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
         ),
       ],
@@ -261,7 +267,7 @@ class _Legend extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Text('Less', style: style),
+        Flexible(child: ScaleDownText('Less', style: style)),
         const SizedBox(width: 6),
         for (var level = 0; level <= SpendingCalendar.levels; level++)
           Padding(
@@ -276,7 +282,7 @@ class _Legend extends StatelessWidget {
             ),
           ),
         const SizedBox(width: 6),
-        Text('More', style: style),
+        Flexible(child: ScaleDownText('More', style: style)),
       ],
     );
   }

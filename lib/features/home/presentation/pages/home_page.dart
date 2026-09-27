@@ -156,7 +156,12 @@ class _Ready extends StatelessWidget {
                   children: [
                     Icon(Icons.check_circle, color: colors.income),
                     const SizedBox(width: 8),
-                    Text('Database ready', style: theme.textTheme.titleMedium),
+                    Flexible(
+                      child: Text(
+                        'Database ready',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -210,9 +215,11 @@ class _Stat extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodyMedium),
+          // Takes what is left, so at the largest font the label wraps
+          // rather than pushing the figure off the card.
+          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+          const SizedBox(width: 8),
           Text(
             value,
             style: theme.textTheme.bodyMedium?.copyWith(

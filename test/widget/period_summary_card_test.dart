@@ -19,6 +19,8 @@ import 'package:moneyora/features/analytics/presentation/providers/analytics_pro
 import 'package:moneyora/features/analytics/presentation/widgets/period_summary_card.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// FR-RPT-006's card over a scripted repository, on a pinned clock.
 void main() {
   // Saturday 26 September 2026: 26 days of September have happened.
@@ -51,9 +53,31 @@ void main() {
     ],
     child: MaterialApp(
       theme: AppTheme.light,
-      home: const Scaffold(body: PeriodSummaryCard()),
+      // Scrolls, as the home screen's list does.
+      home: const Scaffold(
+        body: SingleChildScrollView(child: PeriodSummaryCard()),
+      ),
     ),
   );
+
+  testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+    tester,
+  ) async {
+    useLargeTextOnSmallPhone(tester);
+    await tester.pumpWidget(
+      boot(
+        _Scripted()
+          ..spending[september] = [
+            total('Bills and other long-named things', 123456789),
+          ]
+          ..spending[august] = [total('Food', 1200000)]
+          ..income[september] = 987654321,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Spending vs last month'), findsOneWidget);
+  });
 
   testWidgets('the six figures for the month, against last month', (
     tester,

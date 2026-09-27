@@ -24,6 +24,8 @@ import 'package:moneyora/features/analytics/presentation/providers/analytics_pro
 import 'package:moneyora/features/analytics/presentation/widgets/income_expense_bars.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// FR-RPT-004's bars over a scripted repository.
 ///
 /// The chart's two numbers come from two different aggregates, so what is
@@ -114,11 +116,31 @@ void main() {
     ],
     child: MaterialApp(
       theme: AppTheme.light,
-      home: const Scaffold(body: IncomeExpenseBars()),
+      // Scrolls, as the home screen's list does.
+      home: const Scaffold(
+        body: SingleChildScrollView(child: IncomeExpenseBars()),
+      ),
     ),
   );
 
   group('the comparison', () {
+    testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+      tester,
+    ) async {
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(
+        boot(
+          _ScriptedRepository(
+            incomeCents: 987654321,
+            totals: [total('Food', 123456789)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Income'), findsOneWidget);
+    });
+
     testWidgets('draws a bar for each side and names them', (tester) async {
       await tester.pumpWidget(
         boot(

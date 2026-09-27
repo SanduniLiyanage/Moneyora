@@ -21,6 +21,8 @@ import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_cate
 import 'package:moneyora/features/analytics/presentation/widgets/spending_donut_chart.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The donut chart over a scripted repository and category reader, with no
 /// real database at all — the same shape `copilot_screen_test.dart` uses for
 /// its scripted `LlmRepository`.
@@ -85,7 +87,10 @@ void main() {
     ],
     child: MaterialApp(
       theme: AppTheme.light,
-      home: const Scaffold(body: SpendingDonutChart()),
+      // Scrolls, as the home screen's list does.
+      home: const Scaffold(
+        body: SingleChildScrollView(child: SpendingDonutChart()),
+      ),
     ),
   );
 
@@ -114,6 +119,28 @@ void main() {
   });
 
   group('with data', () {
+    testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+      tester,
+    ) async {
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(
+        boot(
+          spendingResult: Right([
+            food(123456789),
+            const CategoryTotal(
+              categoryId: 2,
+              name: 'Transport and other long-named things',
+              color: '#2a78d6',
+              amountCents: 98765432,
+            ),
+          ]),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Food'), findsOneWidget);
+    });
+
     testWidgets('draws the chart and lists each category with its amount', (
       tester,
     ) async {

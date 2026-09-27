@@ -27,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../domain/entities/category_total.dart';
 import '../providers/analytics_providers.dart';
 import 'period_selector.dart';
@@ -198,17 +199,21 @@ class _NetSavings extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            overspent ? 'Overspent' : 'Net savings',
-            style: theme.textTheme.bodyMedium,
+          Expanded(
+            child: Text(
+              overspent ? 'Overspent' : 'Net savings',
+              style: theme.textTheme.bodyMedium,
+            ),
           ),
-          Text(
-            formatCents(overspent ? -netCents : netCents),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 8),
+          Flexible(
+            child: ScaleDownText(
+              formatCents(overspent ? -netCents : netCents),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

@@ -23,6 +23,8 @@ import 'package:moneyora/features/analytics/presentation/providers/analytics_pro
 import 'package:moneyora/features/analytics/presentation/widgets/spending_trend_lines.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// FR-RPT-005's trend lines over a scripted repository.
 ///
 /// The use case beneath the chart is tested on its own; what is worth
@@ -120,6 +122,31 @@ void main() {
       tester.widget<LineChart>(find.byType(LineChart)).data;
 
   group('the lines', () {
+    testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+      tester,
+    ) async {
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(
+        boot(
+          _ScriptedRepository(
+            points: [
+              point(DateTime(2026, 9, 3), 123456789),
+              point(
+                DateTime(2026, 9, 14),
+                98765432,
+                categoryId: 2,
+                name: 'Transport and other long-named things',
+                color: '#2a78d6',
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Food'), findsOneWidget);
+    });
+
     testWidgets('draws one line per category and names each in the legend', (
       tester,
     ) async {

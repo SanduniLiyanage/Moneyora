@@ -22,6 +22,8 @@ import 'package:moneyora/features/settings/presentation/pages/settings_page.dart
 import 'package:moneyora/features/settings/presentation/providers/settings_providers.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The settings screen, driven the way a person drives it.
 ///
 /// The repositories are fakes; everything above them is real — the widgets,
@@ -215,6 +217,16 @@ void main() {
 
   Brightness drawnBrightness(WidgetTester tester) =>
       Theme.of(tester.element(find.byType(SettingsPage))).brightness;
+
+  testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (
+    tester,
+  ) async {
+    useLargeTextOnSmallPhone(tester);
+    await tester.pumpWidget(boot());
+    await tester.pumpAndSettle();
+
+    await scrollToEnd(tester);
+  });
 
   group('the theme choice', () {
     testWidgets('shows the stored choice', (tester) async {

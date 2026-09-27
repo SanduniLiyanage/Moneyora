@@ -68,7 +68,7 @@ void main() {
   });
   tearDown(() => repository.dispose());
 
-  Widget boot() => ProviderScope(
+  Widget boot({double textScale = 1}) => ProviderScope(
     overrides: [
       entryCategoriesProvider.overrideWith(
         (ref) => Stream<List<CategoryOption>>.value(categories),
@@ -81,6 +81,11 @@ void main() {
     ],
     child: MaterialApp(
       theme: AppTheme.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: const TransactionListPage(),
     ),
   );
@@ -518,6 +523,118 @@ void main() {
 
       expect(repository.deleted, [1]);
       expect(photos.discarded, ['kept.jpg']);
+    });
+  });
+
+  group('at twice the text size on a 320dp phone. SRS §4.1', () {
+    // Android's largest font setting on the smallest supported screen. A
+    // layout that overflows here throws in the test, so each case passes
+    // only when nothing is clipped or striped.
+    Future<void> pumpLarge(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(960, 1920);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(boot(textScale: 2));
+      await tester.pumpAndSettle();
+    }
+
+    void seedRows() => repository.saved.addAll([
+      Transaction(
+        id: 1,
+        accountId: 1,
+        categoryId: 2,
+        amountCents: 123456789,
+        type: TransactionType.expense,
+        date: DateTime(2026, 9, 1),
+        note: 'A very long note about a taxi across the whole city at night',
+      ),
+      Transaction(
+        id: 2,
+        accountId: 1,
+        categoryId: 3,
+        amountCents: 987654321,
+        type: TransactionType.income,
+        date: DateTime(2026, 9, 2),
+      ),
+      Transaction(
+        id: 3,
+        accountId: 1,
+        amountCents: 50000,
+        type: TransactionType.transfer,
+        transferDirection: TransferDirection.out,
+        counterpartyAccountId: 2,
+        date: DateTime(2026, 9, 3),
+      ),
+    ]);
+
+    testWidgets('the empty list', (tester) async {
+      await pumpLarge(tester);
+
+      expect(find.text('No transactions yet'), findsOneWidget);
+    });
+
+    testWidgets('the list, by date and by category', (tester) async {
+      seedRows();
+      await pumpLarge(tester);
+      expect(find.text('Transport'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Group by category'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Transport'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('A very long note'), findsOneWidget);
+    });
+
+    testWidgets('the entry screen, keypad and details', (tester) async {
+      await pumpLarge(tester);
+      await tapText(tester, 'Add');
+      await keyIn(tester, '500');
+      await tapText(tester, 'Food');
+
+      await tester.dragUntilVisible(
+        find.text('Attach a photo'),
+        find.byType(ListView).first,
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Attach a photo'), findsOneWidget);
+    });
+
+    testWidgets('an edit with a photo', (tester) async {
+      repository.saved.add(
+        Transaction(
+          id: 9,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 700,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 4),
+          receiptImagePath: 'kept.jpg',
+        ),
+      );
+      await pumpLarge(tester);
+      await tapText(tester, '−${formatCents(700)}');
+
+      await tester.dragUntilVisible(
+        find.byTooltip('Remove photo'),
+        find.byType(ListView).first,
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Remove photo'), findsOneWidget);
+    });
+
+    testWidgets('a new entry that repeats', (tester) async {
+      await pumpLarge(tester);
+      await tapText(tester, 'Add');
+      await tester.tap(find.byTooltip('Repeat'));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Stop repeating'), findsOneWidget);
     });
   });
 
