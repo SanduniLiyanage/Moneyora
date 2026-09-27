@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/encryption_key_store.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
+import 'package:moneyora/core/ports/category_reader.dart';
+import 'package:moneyora/core/usecases/usecase.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/categories/domain/entities/category.dart';
 import 'package:moneyora/features/transactions/domain/entities/recurring_rule.dart';
@@ -209,6 +211,32 @@ void main() {
           .transactions;
     }
     expect(count, 1);
+  });
+
+  test('the category list follows Clear all data', () async {
+    // Clear rewrites every category under new ids. On the emulator the
+    // list kept the old ones, and every row lost its category's name until
+    // the app restarted: the categories datasource had a bus of its own.
+    final reader = await container.read(categoryReaderProvider.future);
+    final emissions = <List<CategoryOption>>[];
+    final sub = reader
+        .watchAll()
+        .map((r) => r.getOrElse((f) => fail('$f')))
+        .listen(emissions.add);
+    addTearDown(sub.cancel);
+    await pumpUntil(() => emissions.isNotEmpty, 'the first category read');
+    final before = emissions.last.map((c) => c.id).toSet();
+
+    final clear = await container.read(clearAllDataProvider.future);
+    expect((await clear(const NoParams())).isRight(), isTrue);
+
+    await pumpUntil(
+      () => emissions.length > 1,
+      'a category read after the clear',
+    );
+    final after = emissions.last.map((c) => c.id).toSet();
+    expect(after, isNotEmpty);
+    expect(after.intersection(before), isEmpty, reason: 'new ids, seen');
   });
 
   test('an expense added through the use case comes back out', () async {

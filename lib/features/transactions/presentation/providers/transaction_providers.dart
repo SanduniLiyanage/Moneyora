@@ -405,30 +405,53 @@ final pendingDeletionsProvider = NotifierProvider<PendingDeletions, Set<int>>(
 /// could reach. This is the missing half.
 ///
 /// Guarded by [kDebugMode] so it cannot ship, per `docs/ROADMAP.md`.
-class DevSeedLoader extends AutoDisposeAsyncNotifier<int?> {
+///
+/// Loads at most once: the generator is seeded, so a second load wrote an
+/// identical second copy of every row and doubled every total. It checks
+/// first, and says which happened.
+class DevSeedLoader extends AutoDisposeAsyncNotifier<SampleDataLoad?> {
   @override
-  Future<int?> build() async => null;
+  Future<SampleDataLoad?> build() async => null;
 
-  /// Writes the sample history and refreshes everything reading from it.
-  Future<void> load() async {
-    if (!kDebugMode) return;
-    state = const AsyncValue<int?>.loading();
+  /// Writes the sample history, unless it is already there, and returns
+  /// what happened — null in a release build or when the write failed,
+  /// which leaves the error in [state].
+  Future<SampleDataLoad?> load() async {
+    if (!kDebugMode) return null;
+    state = const AsyncValue<SampleDataLoad?>.loading();
 
     state = await AsyncValue.guard(() async {
       final db = await ref.read(databaseProvider.future);
+      if (await DevSeed.isLoaded(db)) return const SampleDataLoad(written: 0);
       final written = await DevSeed.populate(db);
 
-      // The rows went in underneath the datasource, so its change stream
-      // never fired. Invalidating is what tells the transaction list to ask
-      // again — categories and accounts are untouched by the seed, so
-      // entryCategoriesProvider/entryAccountsProvider need no such nudge.
+      // The rows went in beneath the datasources, whose change streams
+      // therefore stayed quiet. The shared bus is what every screen
+      // listens to — the list, the accounts, the charts, the plan and the
+      // home screen's count — so one signal refreshes all of them. The
+      // cached balances and plan figures moved in the same transaction.
+      ref.read(databaseChangeBusProvider).notify();
       ref.invalidate(transactionsProvider);
-
-      return written;
+      return SampleDataLoad(written: written);
     });
+    return state.valueOrNull;
   }
+}
+
+/// What a sample-data load did.
+class SampleDataLoad {
+  /// Creates the outcome.
+  const SampleDataLoad({required this.written});
+
+  /// How many transactions went in; 0 when the history was already there.
+  final int written;
+
+  /// True when nothing was written because it had been loaded before.
+  bool get alreadyLoaded => written == 0;
 }
 
 /// Controller for the debug-only "load sample data" action.
 final devSeedLoaderProvider =
-    AutoDisposeAsyncNotifierProvider<DevSeedLoader, int?>(DevSeedLoader.new);
+    AutoDisposeAsyncNotifierProvider<DevSeedLoader, SampleDataLoad?>(
+      DevSeedLoader.new,
+    );

@@ -47,16 +47,28 @@ abstract interface class CategoryLocalDataSource {
 /// sqflite implementation of [CategoryLocalDataSource].
 class CategoryLocalDataSourceImpl implements CategoryLocalDataSource {
   /// Creates a datasource over an already-open [db].
-  CategoryLocalDataSourceImpl(this._db) : _changes = DatabaseChangeBus();
+  ///
+  /// Pass [changeBus] to share the app's one change signal, as the other
+  /// datasources do. Without it the category list never heard Clear all
+  /// data or a restore, which rewrite every category under new ids: every
+  /// row lost its category's name until the app was restarted.
+  CategoryLocalDataSourceImpl(this._db, {DatabaseChangeBus? changeBus})
+    : _changes = changeBus ?? DatabaseChangeBus(),
+      _ownsChanges = changeBus == null;
 
   final Database _db;
   final DatabaseChangeBus _changes;
+
+  /// A shared bus outlives this datasource; only a private one is closed.
+  final bool _ownsChanges;
 
   @override
   Stream<void> get changes => _changes.changes;
 
   @override
-  Future<void> dispose() => _changes.close();
+  Future<void> dispose() async {
+    if (_ownsChanges) await _changes.close();
+  }
 
   void _notify() => _changes.notify();
 
