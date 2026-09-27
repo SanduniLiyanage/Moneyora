@@ -106,6 +106,50 @@ void main() {
     });
   });
 
+  group("the scheme's own text pairs — SRS §4.1's 4.5:1", () {
+    // Material draws text in each on-colour over its colour: a snackbar's
+    // action, a filled button, an error banner, a badge. Measured in both
+    // themes, with muted text at the 0.7 the screens use for it.
+    for (final (name, theme) in [
+      ('light', AppTheme.light),
+      ('dark', AppTheme.dark),
+    ]) {
+      test(name, () {
+        final s = theme.colorScheme;
+        Color muted(Color bg) =>
+            Color.alphaBlend(s.onSurface.withValues(alpha: 0.7), bg);
+        final pairs = <String, (Color, Color)>{
+          'onSurface on surface': (s.onSurface, s.surface),
+          'onSurfaceVariant on surface': (s.onSurfaceVariant, s.surface),
+          'muted text on surface': (muted(s.surface), s.surface),
+          'onPrimary on primary': (s.onPrimary, s.primary),
+          'onPrimaryContainer on primaryContainer': (
+            s.onPrimaryContainer,
+            s.primaryContainer,
+          ),
+          'onSecondary on secondary': (s.onSecondary, s.secondary),
+          'onSecondaryContainer on secondaryContainer': (
+            s.onSecondaryContainer,
+            s.secondaryContainer,
+          ),
+          'onError on error': (s.onError, s.error),
+          'onErrorContainer on errorContainer': (
+            s.onErrorContainer,
+            s.errorContainer,
+          ),
+          'primary on surface': (s.primary, s.surface),
+        };
+        for (final MapEntry(key: pair, value: (fg, bg)) in pairs.entries) {
+          expect(
+            contrastRatio(fg, bg),
+            greaterThanOrEqualTo(floor),
+            reason: '$name: $pair',
+          );
+        }
+      });
+    }
+  });
+
   group('semantics', () {
     test('income, expense and transfer are three distinct colours', () {
       // FR-INC-005 requires income and expense to be visually distinguished.

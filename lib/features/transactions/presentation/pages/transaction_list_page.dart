@@ -583,7 +583,9 @@ class _Message extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.6);
+    // 0.7, as the rest of the app's muted text: 0.6 is 4.45:1 on the
+    // light surface, just under SRS §4.1's floor.
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.7);
 
     // Scrolls: at the largest font on a small phone the three lines and the
     // action are taller than the space under the app bar.
