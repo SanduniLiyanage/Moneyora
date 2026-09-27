@@ -165,6 +165,14 @@ class Transaction extends Equatable {
   /// deleted, series ended) should still read as having been generated.
   final bool isRecurring;
 
+  /// The photo this row owns: one attached by hand. FR-EXP-009.
+  ///
+  /// Null for a row from a receipt scan, whose photo is the scan record's
+  /// and may be shared by every expense the receipt produced; removing it
+  /// from one of them must not take it from the rest, or from the history.
+  String? get attachedPhotoPath =>
+      receiptScanId == null ? receiptImagePath : null;
+
   /// True when this row is split across categories.
   bool get isSplit => splits.isNotEmpty;
 

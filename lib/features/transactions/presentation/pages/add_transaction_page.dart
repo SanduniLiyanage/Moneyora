@@ -3,18 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fpdart/fpdart.dart' show Left, Right;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
+import '../../../../core/ports/expense_photos.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_expression.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../injection.dart';
 import '../../domain/entities/recurring_rule.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/usecases/create_recurring_rule.dart';
+import '../../domain/usecases/discard_unused_photos.dart';
 import '../providers/transaction_providers.dart';
 import '../widgets/amount_keypad.dart';
 import '../widgets/recurrence_labels.dart';
@@ -72,6 +76,18 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   /// The Repeat section, so turning it on can bring it into view.
   final _repeatKey = GlobalKey();
 
+  /// The photo on this expense, if any. FR-EXP-009.
+  String? _photoPath;
+
+  /// Photos kept in the vault while this form was open. Each is sealed the
+  /// moment it is chosen, so the ones the saved row does not name — or all
+  /// of them, if nothing is saved — are discarded when the form closes.
+  final Set<String> _keptHere = {};
+  bool _saved = false;
+
+  /// Read up front: [dispose] cannot reach the container.
+  late final DiscardUnusedPhotos _discardUnused;
+
   bool get _isEditing => widget.initial != null;
 
   void _toggleRepeat() {
@@ -115,10 +131,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _date = initial?.date ?? DateTime.now();
     _note = TextEditingController(text: initial?.note ?? '');
     _interval = TextEditingController(text: '7');
+    _photoPath = initial?.receiptImagePath;
+    _discardUnused = ref.read(discardUnusedPhotosProvider);
   }
 
   @override
   void dispose() {
+    // Backed out: nothing names the photos taken here.
+    if (!_saved && _keptHere.isNotEmpty) {
+      unawaited(_discardUnused(PhotoCleanup(keptHere: {..._keptHere})));
+    }
     _note.dispose();
     _interval.dispose();
     super.dispose();
@@ -171,7 +193,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       splits: initial?.splits ?? const [],
       receiptScanId: initial?.receiptScanId,
-      receiptImagePath: initial?.receiptImagePath,
+      // A photo belongs on an expense (FR-EXP-009); the row is not offered
+      // on an income, so switching to one leaves the photo behind.
+      receiptImagePath: _type == TransactionType.expense ? _photoPath : null,
       recurringRuleId: initial?.recurringRuleId,
       isRecurring: initial?.isRecurring ?? false,
     );
@@ -221,12 +245,62 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     return completer.future;
   }
 
+  /// Asks where from, then keeps the photo. FR-EXP-009.
+  Future<void> _attachPhoto() async {
+    final source = await showModalBottomSheet<PhotoSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.of(context).pop(PhotoSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from your photos'),
+              onTap: () => Navigator.of(context).pop(PhotoSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final result = await ref.read(attachExpensePhotoProvider)(source);
+    if (!mounted) return;
+    switch (result) {
+      case Left(value: final failure):
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      case Right(value: final path?):
+        setState(() {
+          _photoPath = path;
+          _keptHere.add(path);
+        });
+      case Right():
+      // Backed out of the picker: nothing to keep.
+    }
+  }
+
   Future<void> _save() async {
     final controller = ref.read(saveTransactionControllerProvider.notifier);
+    final row = _build();
     final saved = _repeats
         ? await controller.saveRepeating(_request())
-        : await controller.save(_build());
+        : await controller.save(row);
 
+    if (saved) {
+      // Only now: a failed save must not lose the photo it was keeping.
+      _saved = true;
+      unawaited(
+        _discardUnused(
+          PhotoCleanup(before: widget.initial, after: row, keptHere: _keptHere),
+        ),
+      );
+    }
     if (!mounted) return;
     if (saved) {
       Navigator.of(context).pop();
@@ -381,6 +455,17 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                             selectedId: _accountId,
                             onSelected: (id) => setState(() => _accountId = id),
                           ),
+                          const SizedBox(height: 8),
+                          if (_type == TransactionType.expense)
+                            _PhotoField(
+                              path: _photoPath,
+                              // A scan's photo is the scan record's, shared
+                              // by every expense the receipt produced: it is
+                              // shown here, and changed nowhere.
+                              fromScan: widget.initial?.receiptScanId != null,
+                              onAttach: _attachPhoto,
+                              onRemove: () => setState(() => _photoPath = null),
+                            ),
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -431,6 +516,143 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       ),
     );
   }
+}
+
+/// The photo on an expense: attach, view, replace, remove. FR-EXP-009.
+class _PhotoField extends StatelessWidget {
+  const _PhotoField({
+    required this.path,
+    required this.fromScan,
+    required this.onAttach,
+    required this.onRemove,
+  });
+
+  final String? path;
+  final bool fromScan;
+  final VoidCallback onAttach;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = this.path;
+    if (path == null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: onAttach,
+          icon: const Icon(Icons.add_a_photo_outlined),
+          label: const Text('Attach a photo'),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        _PhotoThumbnail(
+          path: path,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => _PhotoPage(path: path)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(fromScan ? 'Photo from the receipt scan' : 'Photo'),
+        ),
+        if (!fromScan) ...[
+          IconButton(
+            tooltip: 'Replace photo',
+            onPressed: onAttach,
+            icon: const Icon(Icons.add_a_photo_outlined),
+          ),
+          IconButton(
+            tooltip: 'Remove photo',
+            onPressed: onRemove,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A small crop of the photo, decrypted through [expensePhotoProvider].
+class _PhotoThumbnail extends ConsumerWidget {
+  const _PhotoThumbnail({required this.path, required this.onTap});
+
+  final String path;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final placeholder = theme.colorScheme.surfaceContainerHighest;
+    return Semantics(
+      button: true,
+      label: 'View photo',
+      child: InkWell(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox.square(
+            dimension: 56,
+            child: switch (ref.watch(expensePhotoProvider(path))) {
+              AsyncData(value: final bytes?) => Image.memory(
+                bytes,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+              ),
+              AsyncData() => ColoredBox(
+                color: placeholder,
+                child: const Icon(Icons.image_not_supported_outlined),
+              ),
+              AsyncError() => ColoredBox(
+                color: placeholder,
+                child: const Icon(Icons.lock_outline),
+              ),
+              _ => ColoredBox(color: placeholder),
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The photo, full size, pinch-to-zoom.
+class _PhotoPage extends ConsumerWidget {
+  const _PhotoPage({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: AppBar(title: const Text('Photo')),
+    body: switch (ref.watch(expensePhotoProvider(path))) {
+      AsyncData(value: final bytes?) => InteractiveViewer(
+        maxScale: 5,
+        child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
+      ),
+      AsyncData() => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text(
+            'The photo is no longer on this phone.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+      AsyncError(:final error) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            failureMessage(error) ?? 'The photo could not be opened.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+      _ => const Center(child: CircularProgressIndicator()),
+    },
+  );
 }
 
 /// The running total, in the colour of what it will become.
