@@ -21,6 +21,7 @@ import 'core/ports/calendar_settings_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
 import 'core/ports/conversion_reader.dart';
+import 'core/ports/daily_spending_reader.dart';
 import 'core/ports/expense_photos.dart';
 import 'core/ports/expense_writer.dart';
 import 'core/ports/income_reader.dart';
@@ -101,6 +102,7 @@ import 'features/money_plan/domain/usecases/check_budget_alerts.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compare_plans.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
+import 'features/money_plan/domain/usecases/detect_spending_patterns.dart';
 import 'features/money_plan/domain/usecases/recompute_plan_spending.dart';
 import 'features/money_plan/domain/usecases/respond_to_overspend.dart';
 import 'features/money_plan/domain/usecases/save_plan.dart';
@@ -693,6 +695,21 @@ final getSpendingCalendarProvider = FutureProvider<GetSpendingCalendar>(
 /// contract in `core/ports/` — one month query, shared with the trend lines.
 final monthlySpendingReaderProvider = FutureProvider<MonthlySpendingReader>(
   (ref) async => ref.watch(_analyticsRepositoryImplProvider.future),
+);
+
+/// The day-cut read the spending patterns run on. FR-PLN-006.
+///
+/// The same object again, through its third `core/ports/` contract: the
+/// heatmap's day query, shared.
+final dailySpendingReaderProvider = FutureProvider<DailySpendingReader>(
+  (ref) async => ref.watch(_analyticsRepositoryImplProvider.future),
+);
+
+/// Weekday against weekend, a month's start against its end. FR-PLN-006.
+final detectSpendingPatternsProvider = FutureProvider<DetectSpendingPatterns>(
+  (ref) async => DetectSpendingPatterns(
+    await ref.watch(dailySpendingReaderProvider.future),
+  ),
 );
 
 /// Per-category statistics over a lookback window. FR-PLN-005.

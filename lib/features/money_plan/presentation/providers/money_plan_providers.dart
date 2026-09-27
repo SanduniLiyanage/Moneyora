@@ -13,13 +13,27 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/allocation_request.dart';
+import '../../domain/entities/lookback_window.dart';
 import '../../domain/entities/money_plan.dart';
 import '../../domain/entities/money_plan_draft.dart';
 import '../../domain/entities/plan_comparison.dart';
+import '../../domain/entities/spending_patterns.dart';
 import '../../domain/usecases/compare_plans.dart';
 import '../../domain/usecases/respond_to_overspend.dart';
 import '../../domain/usecases/save_plan.dart';
 import '../../domain/usecases/update_allocation.dart';
+
+/// When in the week and the month the money goes, over [LookbackWindow].
+/// FR-PLN-006. A `Left` is the future's error, as [planDraftProvider]'s.
+final spendingPatternsProvider = FutureProvider.autoDispose
+    .family<SpendingPatterns, LookbackWindow>((ref, window) async {
+      final detect = await ref.watch(detectSpendingPatternsProvider.future);
+      final result = await detect(window);
+      return result.match(
+        Future<SpendingPatterns>.error,
+        Future<SpendingPatterns>.value,
+      );
+    });
 
 /// The generator's proposal for [request]. FR-PLN-007 to FR-PLN-010.
 ///

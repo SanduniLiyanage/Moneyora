@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/daily_spending_reader.dart';
 import 'package:moneyora/core/ports/income_reader.dart';
 import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/ports/spending_by_category_reader.dart';
@@ -334,6 +335,45 @@ void main() {
         (failure) => expect(failure, isA<CacheFailure>()),
         (_) => fail('should not have returned totals'),
       );
+    });
+  });
+
+  group('as the DailySpendingReader the plan generator sees', () {
+    test('is the same object, so the day query is written once', () {
+      expect(
+        AnalyticsRepositoryImpl(_FakeDataSource()),
+        isA<DailySpendingReader>(),
+      );
+    });
+
+    test('asks for the days over every account, and hands them on', () async {
+      final source = _FakeDataSource();
+      final DailySpendingReader reader = AnalyticsRepositoryImpl(source);
+
+      final result = await reader.dailySpending(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(source.from, DateTime(2026, 8));
+      expect(source.to, DateTime(2026, 8, 31));
+      expect(source.accountId, isNull);
+      expect(result.getRight().toNullable(), [
+        DailySpending(day: DateTime(2026, 8, 3), amountCents: 120000),
+      ]);
+    });
+
+    test('turns a cache exception into a failure at this boundary', () async {
+      final DailySpendingReader reader = AnalyticsRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final result = await reader.dailySpending(
+        from: DateTime(2026, 8),
+        to: DateTime(2026, 8, 31),
+      );
+
+      expect(result.getLeft().toNullable(), isA<CacheFailure>());
     });
   });
 
