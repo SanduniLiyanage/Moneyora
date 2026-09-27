@@ -1,10 +1,15 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-27**, `main` at `a501586`, after **114
-merged pull requests** (#2–#115; #1 was closed unmerged). **Sprint 7 is
-complete** — settings, auth, notifications, FR-ACC-005 and recurring
-entries, PRs #104–#115; see "This session — Sprint 7" below. Next is
-Sprint 8: backup, export, sync.
+State of the project as of **2026-09-27**, `main` at `f01ec2b`, after **122
+merged pull requests** (#2–#123; #1 was closed unmerged). **Sprint 8 is
+complete** — encrypted `.mora` backup and restore, CSV and PDF export,
+Clear all data, the backup reminder and FR-RPT-006's summary card, PRs
+#116–#122; see "This session — Sprint 8" below. #123 then closed
+FR-EXP-011, open since Sprint 3.5, and #124 FR-EXP-009. Next: FR-PLN-006,
+then Sprint 9's hardening.
+
+Sprint 7, closed at `a501586` after 114 merged pull requests: settings,
+auth, notifications, FR-ACC-005 and recurring entries, PRs #104–#115.
 
 Sprint 6, closed at `5d241e4` after 101 merged pull requests: the parser
 ([PR #87](https://github.com/SanduniLiyanage/Moneyora/pull/87)), the
@@ -32,7 +37,7 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `a501586`, with PR #115 merged.
+at `f01ec2b`, with PR #123 merged.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -41,15 +46,21 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2092 passing** | `flutter test` |
+| Tests | **2185 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **14 tables, 11 indexes**, at version 6 (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 292 in `lib/`, 157 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprint 8, whose backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
+| Dart files | 318 in `lib/`, 167 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 1589 at `5d241e4` (PR #102, merged) plus **503 net new
+Tests by area: 2092 at `a501586` (PR #115, merged) plus **93 net new**
+from Sprint 8 and #123 (#116–#123), not broken down by area here; each
+PR's description names its own. #123's grouped list added 15 (10 for the
+grouping, 5 on the screen) and #122's summary card 18. **No assertion was
+removed.**
+
+Before that: 1589 at `5d241e4` (PR #102, merged) plus **503 net new
 from Sprint 7**, PRs #104–#115, not broken down by area here. Assertions
 that changed shape rather than growing are named in the commits that
 changed them: #104's app-shell test now expects the settings screen, not
@@ -244,6 +255,48 @@ not move the summary card out of reach a third time. Its assertions are
 unchanged. Every other existing fake gained a `spendingTrend` that throws
 `UnimplementedError`, the same way they already treat the aggregate they do
 not script; **no assertion changed or was removed**.
+
+## This session — Sprint 8 (PRs [#116](https://github.com/SanduniLiyanage/Moneyora/pull/116)–[#123](https://github.com/SanduniLiyanage/Moneyora/pull/123), `465e3b8`…`f01ec2b`)
+
+Eight PRs, each with its decisions in its commit and a section in
+[`ROADMAP.md`](ROADMAP.md)'s Sprint 8, so they are listed rather than
+retold:
+
+| PR | What | Schema |
+|---|---|---|
+| #116 | Sprint 7 docs close | — |
+| #117 | The savings target a suggested plan starts from (FR-SET-008) | — |
+| #118 | Encrypted `.mora` backup and restore (FR-BAK-001, FR-BAK-005, E-38) | — |
+| #119 | CSV export and Clear all data (FR-SET-009, FR-RPT-007) | — |
+| #120 | The backup reminder after seven days (FR-BAK-006) | — |
+| #121 | PDF export; FR-BAK-002's deferral added to E-38 | — |
+| #122 | The summary card: average a day, largest category, change (FR-RPT-006) | — |
+| #123 | The category-grouped transaction list (FR-EXP-011, E-11) | — |
+
+**What a backup is, in one paragraph** — because the SRS's wording
+("SQLite format", any device) cannot be met and E-38 is where the
+departure is argued: a `.mora` file is every table's rows plus every kept
+photo decrypted, gzip'd, sealed with AES-256-GCM under a PBKDF2 key from
+a password the user types twice. It is not the database file and it is
+not under the phone's key, which is what lets another phone open it. A
+restore replaces, never merges; runs in one transaction with foreign
+keys deferred; reseals the photos under the new phone's key; refuses a
+newer schema; and recomputes every balance. The PIN is not carried.
+
+**Deferred, with reasons in [E-38](SPEC_ERRATA.md):** FR-BAK-002's
+scheduled backups (the phone would have to hold the password) and
+FR-BAK-003/004's direct Drive and Dropbox sync (each needs an OAuth
+client registered outside the code). The platform's own save dialog
+already reaches Drive's document provider.
+
+**Not yet seen on the emulator:** Back up now's save dialog, Restore,
+the CSV and PDF saves, Clear all data and the Summary card were each
+covered by widget tests, but the pass on the device waits on the
+emulator being unlocked: after a restart it sits in
+RUNNING_LOCKED until the device PIN is typed. The cross-device restore
+stays step 7 of the device checklist below.
+
+---
 
 ## This session — Sprint 7 (PRs [#104](https://github.com/SanduniLiyanage/Moneyora/pull/104)–[#115](https://github.com/SanduniLiyanage/Moneyora/pull/115), `e433304`…`a501586`)
 
@@ -2030,47 +2083,27 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 7 is complete** — PRs #104–#115, `main` clean at `a501586`; see
-"This session — Sprint 7" above and `ROADMAP.md`. Next is **Sprint 8 —
-backup, export, sync** (`ROADMAP.md`, Week 13): FR-BAK-001's encrypted
-backup as a **`.mora`** file (E-08), restore, CSV/PDF export, and
-FR-SET-009's and FR-SET-010's Settings rows. What the backup has to know:
+**Sprint 8 is complete** — PRs #116–#122, and #123 closed FR-EXP-011;
+`main` clean at `f01ec2b`. See "This session — Sprint 8" above and
+`ROADMAP.md`. In order:
 
-- **The schema is at version 6** (14 tables, 11 indexes). A restore
-  brings back a file that may be older than the app: run
-  `schemaMigrations` over it the way an upgrade does, and test that with
-  rows intact, as every `vN_*_test.dart` does. Any test that builds tables
-  by hand runs every version.
-- **Not everything is in the database.** Kept receipt photos are
-  encrypted files in the documents directory, under a key HKDF-derived
-  from the database key, so the backup carries the files and one restored
-  key opens both. The PIN record and the lockout state live in the
-  platform keychain (PR #109), not the `users` row, so a restore onto a
-  new phone brings no PIN. That is the safe direction, and it has to be
-  decided and said on screen, not discovered.
-- **E-18's second caller is the restore.** After a restore,
-  `RecomputeAllAccountBalances` re-derives every cached balance before
-  anything is shown. The Settings action (PR #104) is the first caller.
-- **Derived state rebuilds itself.** Recurring reminders are never stored
-  (`SyncRecurringReminders` re-derives them from the rules on any
-  change), and a restored rule set reschedules on first read. Budget
-  alerts' last-announced levels are rows (E-35), so a restore does not
-  re-announce a crossing already announced.
-- **Test restore on a second device**, as the roadmap says, not a
-  re-import on the same one. That goes on the batched device checklist
-  below.
+1. ~~FR-EXP-009~~ — **done in #124** (`e90a5d2`), after these figures
+   were measured: a photo on any expense, through the scanner's picker and
+   vault behind `core/ports/expense_photos.dart`, stored in the row's
+   existing `receipt_image_path`, which the backup already carries.
+2. **FR-PLN-006** — spending patterns: weekday against weekend, the start
+   of a month against its end. Seasonal cycles are already FR-PLN-004's
+   Seasonal class; event-based spikes are not scheduled.
+3. **Sprint 9 — hardening** (`ROADMAP.md`, Week 14): domain coverage to
+   ≥75% (last measured 96.9%, in CI), integration tests, a pass over every
+   NFR-PER target, accessibility (4.5:1 contrast, font scaling).
+4. **The emulator pass** Sprint 8 is owed: Back up now (save dialog),
+   Restore, Export CSV and PDF, Clear all data, and the Summary card.
 
-Still open and not blocking Sprint 8: **FR-SET-002** (languages; English
+Still open and not blocking anything: **FR-SET-002** (languages; English
 only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
-there is one; and, carried from Sprint 6's list without being rechecked,
-FR-RPT-006's summary figures and `ComparePeriods`' Copilot caller.
-
-**FR-EXP-011's category-grouped list toggle is not Sprint 4 work**, despite
-the name inviting the mix-up. `ROADMAP.md`'s own Sprint 3.5 section lists it
-as one of that sprint's deliverables (E-11 raises it against FR-EXP-006 and
-SDD SCR-005), and it is still open — PR #51 closed out everything else in
-Sprint 3.5 but not this. It belongs to `transaction_list_page.dart`, and
-picking it up is independent of anything Sprint 4 builds.
+there is one; **FR-BAK-002/003/004** and FR-SET-010 (deferred, E-38); and
+`ComparePeriods`' Copilot caller.
 
 - **The account-picker widgets across `add_transaction_page.dart` and
   `transfer_page.dart` are near-duplicates** now that both read the same
