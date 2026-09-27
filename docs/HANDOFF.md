@@ -2087,18 +2087,19 @@ run cannot be an oracle.
 `main` clean at `f01ec2b`. See "This session — Sprint 8" above and
 `ROADMAP.md`. In order:
 
-1. ~~FR-EXP-009~~ — **done in #124** (`e90a5d2`), after these figures
-   were measured: a photo on any expense, through the scanner's picker and
-   vault behind `core/ports/expense_photos.dart`, stored in the row's
-   existing `receipt_image_path`, which the backup already carries.
-2. **FR-PLN-006** — spending patterns: weekday against weekend, the start
-   of a month against its end. Seasonal cycles are already FR-PLN-004's
-   Seasonal class; event-based spikes are not scheduled.
-3. **Sprint 9 — hardening** (`ROADMAP.md`, Week 14): domain coverage to
-   ≥75% (last measured 96.9%, in CI), integration tests, a pass over every
-   NFR-PER target, accessibility (4.5:1 contrast, font scaling).
-4. **The emulator pass** Sprint 8 is owed: Back up now (save dialog),
-   Restore, Export CSV and PDF, Clear all data, and the Summary card.
+Since these figures were measured, and each recorded in `ROADMAP.md`:
+**#124** a photo on any expense (FR-EXP-009), **#126** spending patterns
+(FR-PLN-006), **#127** font scaling at 2x on 320dp, and **#128**/**#129**
+the four faults the Sprint 8 emulator pass found. That pass is done —
+every flow above was walked on the device. Next, in Sprint 9
+(`ROADMAP.md`, Week 14):
+
+1. **Integration tests** over the flows the emulator pass walked by hand:
+   back up → clear → restore, with a photo.
+2. **The NFR-PER pass** — the emulator can compare, not certify (E-28);
+   the certifying numbers stay on the device checklist below.
+3. **Contrast beyond the semantic colours**: the ColorScheme's own pairs,
+   and the category palette as a non-text (3:1) colour.
 
 Still open and not blocking anything: **FR-SET-002** (languages; English
 only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
@@ -2306,6 +2307,15 @@ the app could reach — the fixture existed for tests alone, which is half of
 what Sprint 1 built it for.
 
 ## Environment — the traps, all of which have already bitten
+
+**Boot the emulator with `-gpu host` before typing into a password field.**
+Under the start script's `-gpu swiftshader_indirect`, focusing or typing
+into an obscured field kills `qemu-system-x86_64` itself (access
+violation 0xc0000005) — five times on 2026-09-27, with autofill off, the
+soft keyboard off and every input method disabled. It is not the app:
+`emulator -avd moneyora -no-snapshot-load -gpu host`, then the start script
+again for its power settings, and backup and restore ran clean. The AVD
+no longer has a screen lock, so a restart needs nobody at the keyboard.
 
 Windows 11, Flutter 3.47.2 at `D:\dev\flutter`, Android SDK at
 `D:\dev\android-sdk`.

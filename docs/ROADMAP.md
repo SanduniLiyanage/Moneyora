@@ -489,7 +489,8 @@ first screen callers of `ActivatePlan` and `RecomputePlanSpending`.
 [`HANDOFF.md`](HANDOFF.md).
 
 **Sprint 5 is complete.** FR-PLN-003's Settings control is Sprint 7's;
-FR-PLN-006's behavioural patterns were never scheduled and stay open.
+FR-PLN-006's behavioural patterns were never scheduled; they landed after
+Sprint 8 ([PR #126](https://github.com/SanduniLiyanage/Moneyora/pull/126)).
 
 ## Sprint 6 — Receipt Scanner (Weeks 10–11)
 
@@ -790,6 +791,41 @@ with its row; a scan's photo is the scan's, and view-only on the expense.
 
 Coverage to >=75% domain, integration tests, perf pass against every NFR-PER
 target, accessibility (4.5:1 contrast, font scaling).
+
+### Spending patterns (FR-PLN-006) — done ([PR #126](https://github.com/SanduniLiyanage/Moneyora/pull/126))
+
+Not hardening, but the last FR-PLN requirement. A card at the end of the
+plan review compares the average spent a day on weekdays against the
+weekend, and in the first ten days of a month against the last ten, over
+the plan's own lookback window. A side is named at 25% more a day; under
+twenty spending days it says there is too little to go on. The day cut is
+the heatmap's query, through a `DailySpendingReader` port. Seasonal cycles
+are FR-PLN-004's Seasonal class; event-based spikes are not built.
+
+### Font scaling — done ([PR #127](https://github.com/SanduniLiyanage/Moneyora/pull/127))
+
+At twice the text size on a 320x640dp phone — Android's largest font on
+the smallest supported screen — the transaction list, home, the four
+charts and both Money Plan screens overflowed or threw. Figures now go
+through `core/widgets/scale_down_text.dart`, which shrinks a figure only
+when it would not fit, and fourteen widget tests pump those screens at
+that size (`test/widget/large_text.dart` holds the two helpers).
+Contrast was already tested for the semantic colours
+(`app_theme_test.dart`).
+
+### The Sprint 8 emulator pass — done ([PR #128](https://github.com/SanduniLiyanage/Moneyora/pull/128), [PR #129](https://github.com/SanduniLiyanage/Moneyora/pull/129))
+
+Every Sprint 8 flow walked on the 320x640 AVD: backup, clear, restore
+(a wrong password refused; the photo resealed and opening), CSV and PDF,
+the summary card, the grouped list, a photo on an expense and the
+patterns card. It found four faults, all fixed: the password dialog
+overflowing with the keyboard up (every dialog with a text field now
+scrolls), #127 splitting rows evenly with their labels, the charts
+telling an emptied phone it had had a quiet month (the database summary
+was read once at launch), and the PDF's headings adrift of their columns.
+
+Still to do: integration tests, the NFR-PER pass, contrast beyond the
+semantic colours.
 
 ## Sprint 10 — Release (Week 15)
 
