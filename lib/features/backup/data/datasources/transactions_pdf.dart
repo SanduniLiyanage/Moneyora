@@ -119,6 +119,11 @@ Future<Uint8List> buildTransactionsPdf(
             headerStyle: const pw.TextStyle(fontSize: 8),
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
             cellStyle: const pw.TextStyle(fontSize: 8),
+            // Each heading over its column's edge: the package centres
+            // headings by default, which put them adrift of their cells.
+            headerAlignment: pw.Alignment.centerLeft,
+            headerAlignments: {5: pw.Alignment.centerRight},
+            cellAlignment: pw.Alignment.centerLeft,
             cellAlignments: {5: pw.Alignment.centerRight},
             border: const pw.TableBorder(
               horizontalInside: pw.BorderSide(width: 0.3),
