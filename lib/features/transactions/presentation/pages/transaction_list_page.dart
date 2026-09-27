@@ -7,7 +7,10 @@ import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/category_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/category_icons.dart';
+import '../../domain/entities/category_group.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../providers/transaction_providers.dart';
@@ -34,6 +37,9 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   /// tell two situations apart that look identical in the data: nothing
   /// recorded yet, and nothing matching what was asked for (E-22).
   TransactionType? _typeFilter;
+
+  /// FR-EXP-011's second mode. Both modes read the same filtered rows.
+  bool _byCategory = false;
 
   TransactionFilter get _filter => TransactionFilter(type: _typeFilter);
 
@@ -84,11 +90,14 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     };
     // Names each row by its category, the same way: a catalog still loading
     // leaves the note or a bare word, never a blocked list.
-    final categoryNames = <int, String>{
+    final categories = <int, CategoryOption>{
       for (final category
           in ref.watch(entryCategoriesProvider).valueOrNull ??
               const <CategoryOption>[])
-        category.id: category.name,
+        category.id: category,
+    };
+    final categoryNames = {
+      for (final MapEntry(:key, :value) in categories.entries) key: value.name,
     };
 
     return Scaffold(
@@ -100,6 +109,17 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
         // analytics, plan and Copilot work are demonstrated on, it has to stay
         // reachable with rows on screen.
         actions: [
+          // E-11 puts the toggle beside the balance; on this screen that is
+          // the app bar, and the icon shows the mode a tap would switch to.
+          IconButton(
+            onPressed: () => setState(() => _byCategory = !_byCategory),
+            icon: Icon(
+              _byCategory
+                  ? Icons.view_agenda_outlined
+                  : Icons.category_outlined,
+            ),
+            tooltip: _byCategory ? 'List by date' : 'Group by category',
+          ),
           // A transfer belongs here rather than beside the + button: it is
           // not a third kind of entry, it is moving money that is already
           // recorded, and putting it in the entry screen's type toggle would
@@ -166,6 +186,41 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                   );
           }
 
+          if (_byCategory) {
+            final groups = CategoryGroup.group(rows);
+            return ListView.builder(
+              padding: const EdgeInsets.only(bottom: 88),
+              itemCount: groups.length,
+              itemBuilder: (context, index) {
+                final group = groups[index];
+                return _CategoryGroupTile(
+                  // A group keeps its open or closed state as rows stream in
+                  // and the order shifts under it.
+                  key: ValueKey(('group', group.categoryId)),
+                  group: group,
+                  category: categories[group.categoryId],
+                  children: [
+                    for (final entry in group.entries)
+                      Dismissible(
+                        key: ValueKey(entry.transaction.id),
+                        direction: DismissDirection.endToStart,
+                        background: const _DeleteBackground(),
+                        onDismissed: (_) => _delete(entry.transaction),
+                        child: _TransactionTile(
+                          transaction: entry.transaction,
+                          accountNames: accountNames,
+                          categoryNames: categoryNames,
+                          amountCents: entry.amountCents,
+                          inGroup: true,
+                          onTap: () => _edit(entry.transaction),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            );
+          }
+
           return ListView.separated(
             // Room for the FAB, or it covers the last row — which is the row
             // someone has just added and most wants to see.
@@ -200,10 +255,20 @@ class _TransactionTile extends StatelessWidget {
     required this.transaction,
     required this.accountNames,
     required this.categoryNames,
+    this.amountCents,
+    this.inGroup = false,
     this.onTap,
   });
 
   final Transaction transaction;
+
+  /// What to show instead of the whole amount: one split part's, when the
+  /// row sits under that part's category.
+  final int? amountCents;
+
+  /// Under a category's header, where naming the category again says
+  /// nothing: the note leads instead (E-11).
+  final bool inGroup;
 
   /// Id-to-name, for naming a transfer's counterparty. FR-TRF-004.
   final Map<int, String> accountNames;
@@ -230,14 +295,18 @@ class _TransactionTile extends StatelessWidget {
     };
 
     final note = transaction.note?.trim() ?? '';
+    final date = _formatDate(transaction.date);
     final title = switch (transaction.type) {
       TransactionType.transfer => _transferLabel(),
+      _ when inGroup => note.isNotEmpty ? note : date,
       _ =>
         categoryNames[transaction.categoryId] ??
             (note.isNotEmpty ? note : 'Uncategorised'),
     };
     final showNote = note.isNotEmpty && note != title;
-    final date = _formatDate(transaction.date);
+    final subtitle = inGroup && title == date
+        ? null
+        : Text(showNote ? '$date · $note' : date);
 
     return ListTile(
       onTap: onTap,
@@ -257,9 +326,9 @@ class _TransactionTile extends StatelessWidget {
       // The note goes under the name rather than replacing it: "Groceries"
       // alone does not say it was filed under Food, and a misfiled row is
       // exactly what someone scanning the list is looking for.
-      subtitle: Text(showNote ? '$date · $note' : date),
+      subtitle: subtitle,
       trailing: Text(
-        '$sign${formatCents(transaction.amountCents)}',
+        '$sign${formatCents(amountCents ?? transaction.amountCents)}',
         style: theme.textTheme.titleMedium?.copyWith(
           color: tint,
           fontWeight: FontWeight.w600,
@@ -289,6 +358,88 @@ class _TransactionTile extends StatelessWidget {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return '${date.year}-$month-$day';
+  }
+}
+
+/// One category's header, expanding to its rows. FR-EXP-011.
+///
+/// E-11's header: the category's icon and name, how many rows it holds, and
+/// their total. Transfers get the header without a total (E-02).
+class _CategoryGroupTile extends StatelessWidget {
+  const _CategoryGroupTile({
+    required this.group,
+    required this.category,
+    required this.children,
+    super.key,
+  });
+
+  final CategoryGroup group;
+
+  /// Null for transfers, or while the catalog is still loading.
+  final CategoryOption? category;
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>()!;
+
+    final (icon, tint, name) = switch (category) {
+      _ when group.isTransfers => (
+        Icons.swap_horiz,
+        colors.transfer,
+        'Transfers',
+      ),
+      final CategoryOption category => (
+        categoryIconFor(category.icon),
+        categoryColorFor(category.colorHex, theme.brightness),
+        category.name,
+      ),
+      null => (
+        Icons.category_outlined,
+        theme.colorScheme.onSurfaceVariant,
+        'Uncategorised',
+      ),
+    };
+
+    final net = group.netCents;
+    final total = switch (net) {
+      _ when group.isTransfers => null,
+      > 0 => ('+${formatCents(net)}', colors.income),
+      < 0 => ('−${formatCents(-net)}', colors.expense),
+      _ => (formatCents(0), theme.colorScheme.onSurfaceVariant),
+    };
+
+    return ExpansionTile(
+      leading: CircleAvatar(
+        backgroundColor: tint.withValues(alpha: 0.12),
+        child: Icon(icon, color: tint, size: 20),
+      ),
+      title: Row(
+        children: [
+          Flexible(child: Text(name, overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 8),
+          Badge(
+            label: Text('${group.count}'),
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            textColor: theme.colorScheme.onSecondaryContainer,
+          ),
+        ],
+      ),
+      trailing: total == null
+          ? null
+          : Text(
+              total.$1,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: total.$2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+      childrenPadding: const EdgeInsets.only(left: 16),
+      shape: const Border(),
+      children: children,
+    );
   }
 }
 
