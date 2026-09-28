@@ -140,6 +140,8 @@ every push rather than trusting anyone to remember.
 |---|---|
 | [HANDOFF.md](docs/HANDOFF.md) | **Start here.** Project state, what is next, and the environment traps |
 | [SPEC_ERRATA.md](docs/SPEC_ERRATA.md) | **Before implementing any requirement.** Where it and a spec disagree, it wins |
+| [USER_MANUAL.md](docs/USER_MANUAL.md) | Using the app: every screen, for the person holding the phone |
+| [PRIVACY.md](docs/PRIVACY.md) | What the app stores, what can leave the phone and when; the store's privacy policy |
 | [SETUP.md](docs/SETUP.md) | Setting up a machine, or a build breaks |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Adding any feature — layer rules and conventions |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Branching, commits, releases |

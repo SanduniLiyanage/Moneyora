@@ -9,10 +9,21 @@
          them back. No exact-alarm permission: reminders are scheduled
          inexact (E-37). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Ask Moneyora, the one feature that uses the network (NFR-SEC-005).
+         Declared here rather than left to arrive through a plugin's
+         manifest, so a dependency change cannot take it away silently. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="moneyora"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
+        <!-- No Android Auto Backup: it would copy the encrypted database and
+             photos to Google Drive without the user choosing to, and their
+             key stays in this phone's keystore, so a restore elsewhere
+             leaves files nothing can open. The app's own .mora backup is
+             the way to move (FR-BAK-005, E-38). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
