@@ -23,6 +23,7 @@ class HomePage extends ConsumerWidget {
     super.key,
     this.drawer,
     this.spendingChart,
+    this.balanceBar,
     this.incomeExpenseChart,
     this.summaryCard,
     this.spendingTrendChart,
@@ -50,6 +51,11 @@ class HomePage extends ConsumerWidget {
   /// Nullable for the same reason [drawer] is: a widget test can build this
   /// screen without the analytics slice behind it.
   final Widget? spendingChart;
+
+  /// Income less expenses for the period and account the donut card
+  /// chose, composed in the same way (FR-RPT-006). Under that card, whose
+  /// filters it follows, as the reference app keeps it under its chart.
+  final Widget? balanceBar;
 
   /// FR-RPT-004's income-vs-expense bars, composed in the same way
   /// [spendingChart] is. It reads the period and account filters that render
@@ -90,6 +96,7 @@ class HomePage extends ConsumerWidget {
       body: switch (summary) {
         AsyncData() => _Ready(
           spendingChart: spendingChart,
+          balanceBar: balanceBar,
           incomeExpenseChart: incomeExpenseChart,
           summaryCard: summaryCard,
           spendingTrendChart: spendingTrendChart,
@@ -113,6 +120,7 @@ class HomePage extends ConsumerWidget {
 class _Ready extends StatelessWidget {
   const _Ready({
     required this.spendingChart,
+    required this.balanceBar,
     required this.incomeExpenseChart,
     required this.summaryCard,
     required this.spendingTrendChart,
@@ -120,6 +128,7 @@ class _Ready extends StatelessWidget {
   });
 
   final Widget? spendingChart;
+  final Widget? balanceBar;
   final Widget? incomeExpenseChart;
   final Widget? summaryCard;
   final Widget? spendingTrendChart;
@@ -135,6 +144,7 @@ class _Ready extends StatelessWidget {
         const SizedBox(height: 16),
         for (final card in [
           spendingChart,
+          balanceBar,
           incomeExpenseChart,
           summaryCard,
           spendingTrendChart,

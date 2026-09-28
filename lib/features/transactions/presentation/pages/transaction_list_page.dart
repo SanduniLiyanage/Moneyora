@@ -23,9 +23,37 @@ import 'add_transaction_page.dart';
 /// Watches rather than reads, so a transaction saved on the entry screen
 /// appears here the moment the write commits, with no refresh and no
 /// coordination between the two screens.
+///
+/// Scoped to the period and account the home screen's figures are for
+/// ([from], [to], [accountId]), with [header] — the balance for that scope,
+/// and the way to change it — above the rows. Both come from
+/// `core/router/app_router.dart`, which composes the analytics feature in,
+/// because this feature may not import that one. Built without them, the
+/// list shows everything.
 class TransactionListPage extends ConsumerStatefulWidget {
   /// Creates the list screen.
-  const TransactionListPage({super.key});
+  const TransactionListPage({
+    super.key,
+    this.from,
+    this.to,
+    this.accountId,
+    this.header,
+  });
+
+  /// The first day shown, or null for no lower bound.
+  final DateTime? from;
+
+  /// The last day shown, inclusive, or null for no upper bound.
+  final DateTime? to;
+
+  /// The one account shown, or null for all of them. FR-RPT-003.
+  final int? accountId;
+
+  /// Shown above the rows: the balance for this scope. FR-RPT-006.
+  final Widget? header;
+
+  /// Whether the list is narrowed to a period or an account.
+  bool get isScoped => from != null || to != null || accountId != null;
 
   @override
   ConsumerState<TransactionListPage> createState() =>
@@ -43,7 +71,12 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   /// FR-EXP-011's second mode. Both modes read the same filtered rows.
   bool _byCategory = false;
 
-  TransactionFilter get _filter => TransactionFilter(type: _typeFilter);
+  TransactionFilter get _filter => TransactionFilter(
+    type: _typeFilter,
+    from: widget.from,
+    to: widget.to,
+    accountId: widget.accountId,
+  );
 
   bool get _isFiltered => _typeFilter != null;
 
@@ -149,110 +182,142 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
-      body: transactions.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _Message(
-          icon: Icons.error_outline,
-          title: 'Could not load your transactions',
-          body: failureMessage(error) ?? 'Please try again.',
-        ),
-        data: (all) {
-          // A row inside its undo window is gone as far as this screen is
-          // concerned, even though nothing has been written yet (E-23).
-          final rows = all.where((t) => !pending.contains(t.id)).toList();
+      body: _WithHeader(
+        header: widget.header,
+        child: transactions.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _Message(
+            icon: Icons.error_outline,
+            title: 'Could not load your transactions',
+            body: failureMessage(error) ?? 'Please try again.',
+          ),
+          data: (all) {
+            // A row inside its undo window is gone as far as this screen is
+            // concerned, even though nothing has been written yet (E-23).
+            final rows = all.where((t) => !pending.contains(t.id)).toList();
 
-          if (rows.isEmpty) {
-            // E-22. The two empty states are genuinely different situations,
-            // and telling someone with a filter on to "add your first
-            // expense" is the bug that distinction exists to prevent.
-            return _isFiltered
-                ? _Message(
-                    icon: Icons.filter_alt_off_outlined,
-                    title: 'Nothing matches this filter',
-                    body: 'No ${_typeFilter!.name} recorded yet.',
-                    action: TextButton(
-                      onPressed: () => setState(() => _typeFilter = null),
-                      child: const Text('Show everything'),
-                    ),
-                  )
-                : const _Message(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'No transactions yet',
-                    body:
-                        'Tap Add to record your first one. Everything you '
-                        'enter stays on this phone.',
+            if (rows.isEmpty) {
+              // E-22. The two empty states are genuinely different situations,
+              // and telling someone with a filter on to "add your first
+              // expense" is the bug that distinction exists to prevent.
+              return _isFiltered
+                  ? _Message(
+                      icon: Icons.filter_alt_off_outlined,
+                      title: 'Nothing matches this filter',
+                      body: 'No ${_typeFilter!.name} recorded yet.',
+                      action: TextButton(
+                        onPressed: () => setState(() => _typeFilter = null),
+                        child: const Text('Show everything'),
+                      ),
+                    )
+                  : widget.isScoped
+                  ? const _Message(
+                      icon: Icons.event_busy_outlined,
+                      title: 'Nothing in this period',
+                      body:
+                          'Tap the balance above to choose another period or '
+                          'account, or tap Add to record one.',
+                    )
+                  : const _Message(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'No transactions yet',
+                      body:
+                          'Tap Add to record your first one. Everything you '
+                          'enter stays on this phone.',
+                    );
+            }
+
+            if (_byCategory) {
+              final groups = CategoryGroup.group(rows);
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 88),
+                itemCount: groups.length,
+                itemBuilder: (context, index) {
+                  final group = groups[index];
+                  return _CategoryGroupTile(
+                    // A group keeps its open or closed state as rows stream in
+                    // and the order shifts under it.
+                    key: ValueKey(('group', group.categoryId)),
+                    group: group,
+                    category: categories[group.categoryId],
+                    children: [
+                      for (final entry in group.entries)
+                        Dismissible(
+                          key: ValueKey(entry.transaction.id),
+                          direction: DismissDirection.endToStart,
+                          background: const _DeleteBackground(),
+                          onDismissed: (_) => _delete(entry.transaction),
+                          child: _TransactionTile(
+                            transaction: entry.transaction,
+                            accountNames: accountNames,
+                            categoryNames: categoryNames,
+                            amountCents: entry.amountCents,
+                            inGroup: true,
+                            onTap: () => _edit(entry.transaction),
+                          ),
+                        ),
+                    ],
                   );
-          }
+                },
+              );
+            }
 
-          if (_byCategory) {
-            final groups = CategoryGroup.group(rows);
+            // FR-EXP-006: by day, each day's header saying what it cost.
+            final days = DayGroup.group(rows);
             return ListView.builder(
+              // Room for the FAB, or it covers the last row — which is the row
+              // someone has just added and most wants to see.
               padding: const EdgeInsets.only(bottom: 88),
-              itemCount: groups.length,
+              itemCount: days.length,
               itemBuilder: (context, index) {
-                final group = groups[index];
-                return _CategoryGroupTile(
-                  // A group keeps its open or closed state as rows stream in
-                  // and the order shifts under it.
-                  key: ValueKey(('group', group.categoryId)),
-                  group: group,
-                  category: categories[group.categoryId],
+                final day = days[index];
+                return _DayGroupTile(
+                  // A day keeps its open or closed state as rows stream in.
+                  key: ValueKey(('day', day.day)),
+                  group: day,
                   children: [
-                    for (final entry in group.entries)
+                    for (final transaction in day.transactions)
                       Dismissible(
-                        key: ValueKey(entry.transaction.id),
+                        key: ValueKey(transaction.id),
                         direction: DismissDirection.endToStart,
                         background: const _DeleteBackground(),
-                        onDismissed: (_) => _delete(entry.transaction),
+                        onDismissed: (_) => _delete(transaction),
                         child: _TransactionTile(
-                          transaction: entry.transaction,
+                          transaction: transaction,
                           accountNames: accountNames,
                           categoryNames: categoryNames,
-                          amountCents: entry.amountCents,
-                          inGroup: true,
-                          onTap: () => _edit(entry.transaction),
+                          showDate: false,
+                          onTap: () => _edit(transaction),
                         ),
                       ),
                   ],
                 );
               },
             );
-          }
-
-          // FR-EXP-006: by day, each day's header saying what it cost.
-          final days = DayGroup.group(rows);
-          return ListView.builder(
-            // Room for the FAB, or it covers the last row — which is the row
-            // someone has just added and most wants to see.
-            padding: const EdgeInsets.only(bottom: 88),
-            itemCount: days.length,
-            itemBuilder: (context, index) {
-              final day = days[index];
-              return _DayGroupTile(
-                // A day keeps its open or closed state as rows stream in.
-                key: ValueKey(('day', day.day)),
-                group: day,
-                children: [
-                  for (final transaction in day.transactions)
-                    Dismissible(
-                      key: ValueKey(transaction.id),
-                      direction: DismissDirection.endToStart,
-                      background: const _DeleteBackground(),
-                      onDismissed: (_) => _delete(transaction),
-                      child: _TransactionTile(
-                        transaction: transaction,
-                        accountNames: accountNames,
-                        categoryNames: categoryNames,
-                        showDate: false,
-                        onTap: () => _edit(transaction),
-                      ),
-                    ),
-                ],
-              );
-            },
-          );
-        },
+          },
+        ),
       ),
+    );
+  }
+}
+
+/// [child] under [header], when there is one: the balance stays in view
+/// over an empty period, where it is the way to choose another.
+class _WithHeader extends StatelessWidget {
+  const _WithHeader({required this.header, required this.child});
+
+  final Widget? header;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = header;
+    if (top == null) return child;
+    return Column(
+      children: [
+        Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 4), child: top),
+        Expanded(child: child),
+      ],
     );
   }
 }

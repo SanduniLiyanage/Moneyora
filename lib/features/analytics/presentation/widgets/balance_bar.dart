@@ -1,0 +1,170 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/errors/failures.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/currency_utils.dart';
+import '../../domain/entities/period_summary.dart';
+import '../providers/analytics_providers.dart';
+import 'account_filter.dart';
+import 'period_selector.dart';
+
+/// Income less expenses over the chosen period and account, and the way to
+/// change either. FR-RPT-002, FR-RPT-003, FR-RPT-006.
+///
+/// The same bar on the home screen and on the transaction list, reading the
+/// one selection both follow, so the balance, the charts and the rows below
+/// always describe the same days and the same account. Green when more came
+/// in than went out; red otherwise, a balance of nothing included — the
+/// owner's rule, since nothing saved is not a result to show as good.
+/// Transfers are neither income nor spending (E-02), so they never move it.
+///
+/// Tapping it opens the period and account choices, the way the reference
+/// app's side panel does, rather than keeping two rows of chips over a list
+/// on a small phone.
+class BalanceBar extends ConsumerWidget {
+  /// Creates the bar.
+  const BalanceBar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>()!;
+    final selection = ref.watch(analyticsPeriodProvider);
+    final range = ref.watch(analyticsRangeProvider);
+    final accountId = ref.watch(analyticsAccountFilterProvider);
+    final accounts = ref.watch(accountOptionsProvider).valueOrNull;
+    final summary = ref.watch(periodSummaryProvider);
+
+    final accountName = switch (accountId) {
+      null => 'All accounts',
+      final id =>
+        accounts?.where((a) => a.id == id).firstOrNull?.name ?? 'All accounts',
+    };
+
+    final (amount, tint) = switch (summary) {
+      AsyncData(value: PeriodSummary(:final netSavingsCents)) => (
+        netSavingsCents > 0
+            ? '+${formatCents(netSavingsCents)}'
+            : netSavingsCents < 0
+            ? '−${formatCents(-netSavingsCents)}'
+            : formatCents(0),
+        netSavingsCents > 0 ? colors.income : colors.expense,
+      ),
+      AsyncError() => ('—', theme.colorScheme.onSurfaceVariant),
+      _ => ('…', theme.colorScheme.onSurfaceVariant),
+    };
+    final detail = switch (summary) {
+      AsyncData(:final value) =>
+        'In ${formatCents(value.incomeCents)} · '
+            'out ${formatCents(value.expenseCents)}',
+      AsyncError(:final error) =>
+        error is Failure ? error.message : 'The balance could not be read.',
+      _ => null,
+    };
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showBalanceFilters(context),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${periodLabel(selection, range)} · $accountName',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        // Both sides give way at the largest font on a
+                        // small phone: the label fades, the amount shrinks.
+                        Flexible(
+                          child: Text(
+                            'Balance',
+                            style: theme.textTheme.titleMedium,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.fade,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Text(
+                              amount,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: tint,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (detail != null)
+                      Text(detail, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.tune,
+                color: theme.colorScheme.primary,
+                semanticLabel: 'Change period or account',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The period and account choices, over whatever screen asked. Changes
+/// apply as they are made; the balance and everything under it follow.
+Future<void> showBalanceFilters(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Period', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              const PeriodSelector(),
+              const SizedBox(height: 16),
+              Text('Account', style: Theme.of(context).textTheme.titleMedium),
+              const AccountFilter(),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );

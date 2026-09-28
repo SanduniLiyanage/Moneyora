@@ -436,6 +436,23 @@ void main() {
       expect(find.text('Transactions'), findsOneWidget);
     });
 
+    testWidgets('Transactions opens with the balance for the chosen period', (
+      tester,
+    ) async {
+      // FR-RPT-006: the list and the home screen report one period and one
+      // account, and each says what it left over.
+      await pumpReady(tester);
+      await tester.tap(find.text('Transactions'));
+      // Not pumpAndSettle: the list's own rows come from a database this
+      // test does not fake, and their spinner never settles. The balance
+      // reads the analytics fakes, which answer at once.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Balance'), findsOneWidget);
+      expect(find.textContaining('· All accounts'), findsOneWidget);
+    });
+
     testWidgets('reaches Settings from the app bar', (tester) async {
       await pumpReady(tester);
 
