@@ -77,4 +77,4 @@ notes.
 
 ## Contact
 
-Questions about this policy: **[contact email to be added before publishing]**.
+Questions about this policy: **moneyora.app@gmail.com**.
