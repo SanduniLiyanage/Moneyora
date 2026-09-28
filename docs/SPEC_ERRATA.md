@@ -657,6 +657,19 @@ deleted (E-36). A tap opens the rule with Pause or Resume and Delete.
   first entry (E-36's template design), and an edit is a row that already
   exists.
 
+### Addendum, 2026-09-29 — the toggle moves beside the amount, with its word
+
+The owner, testing before release, could not find the recurring option. It
+was where this entry put it — a bare repeat icon, top right — and that was
+the trouble: the repeat arrows look like the transfer arrows, which sit in
+the same corner of the transaction list and of the reference app, so the
+icon read as "transfer". An icon with no word is a guess.
+
+It is now a chip labelled **Repeat**, in the empty space between the keypad
+toggle and the amount. That row already exists, so a 320dp phone gives up
+no height for it; the amount scales down to share the row, as it already
+did for long figures. Offered on a new entry only, as before.
+
 ---
 
 <a id="e-14"></a>
