@@ -245,6 +245,23 @@ jobs:
           done
           exit $fail
 
+      # The shrinker deletes any resource it cannot see used, and it cannot
+      # read Dart: the notifications' status-bar icon is named only as a
+      # string there. It was deleted from every release APK, and every
+      # alert and reminder failed with "invalid_icon", until res/raw/keep.xml
+      # named it. Debug builds do not shrink, so no other check could see
+      # this; read the APK itself.
+      - name: The notification icon survived shrinking
+        run: |
+          aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          for f in build/app/outputs/flutter-apk/app-*-release.apk; do
+            if ! "$aapt2" dump resources "$f" | grep -q 'drawable/ic_stat_moneyora'; then
+              echo "::error::$(basename "$f") has no drawable/ic_stat_moneyora: notifications will fail. Is it in res/raw/keep.xml?"
+              exit 1
+            fi
+          done
+          echo "ic_stat_moneyora is in every release APK."
+
   build-ios:
     name: Build iOS (compile only)
     runs-on: macos-latest

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resources the release build's shrinker cannot see being used, kept by name.
+
+  ic_stat_moneyora is the notifications' status-bar icon. Dart names it as a
+  string, '@drawable/ic_stat_moneyora' in flutter_local_notifier.dart, which
+  the shrinker never reads; without this file it is deleted from every
+  release APK, and every budget alert, recurring reminder and backup
+  reminder fails with "invalid_icon". Debug builds do not shrink, which is
+  why only a release build on a device showed it.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_moneyora" />
