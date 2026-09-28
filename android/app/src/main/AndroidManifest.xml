@@ -14,7 +14,7 @@
          manifest, so a dependency change cannot take it away silently. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="moneyora"
+        android:label="Moneyora"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

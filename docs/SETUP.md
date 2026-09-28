@@ -248,6 +248,39 @@ flutter run --release    # perf-realistic; use this to check NFR-PER-001 (<2s co
 
 ---
 
+## 7. A release build for the Play Console
+
+`flutter build appbundle --release` signs with the **debug key** unless
+`android/key.properties` exists. That build installs and runs, but the Play
+Console refuses it. To sign with your own upload key, once:
+
+```powershell
+# Outside the repository, so it can never be committed.
+keytool -genkey -v -keystore D:\dev\keys\moneyora-upload.jks `
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Then create `android/key.properties` (ignored by git):
+
+```properties
+storeFile=D:/dev/keys/moneyora-upload.jks
+storePassword=<the store password you chose>
+keyAlias=upload
+keyPassword=<the key password you chose>
+```
+
+Back up the `.jks` file and both passwords somewhere other than this
+machine. With Play App Signing Google holds the key that signs what users
+install, so a lost upload key can be reset through the Play Console, but
+that takes days.
+
+The launcher icon is drawn by `python scripts/draw_icon.py` and turned into
+every platform size by `dart run flutter_launcher_icons`. After running it,
+revert any change it makes to `ios/Runner.xcodeproj/project.pbxproj`: it
+rewrites an unrelated build setting.
+
+---
+
 ## Physical-device note
 
 Test on a **real Android device early**, not just the emulator. Three of your
