@@ -99,12 +99,14 @@ import 'features/money_plan/domain/repositories/money_plan_repository.dart';
 import 'features/money_plan/domain/usecases/activate_plan.dart';
 import 'features/money_plan/domain/usecases/allocate_budget.dart';
 import 'features/money_plan/domain/usecases/check_budget_alerts.dart';
+import 'features/money_plan/domain/usecases/check_plan_history.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compare_plans.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
 import 'features/money_plan/domain/usecases/detect_spending_patterns.dart';
 import 'features/money_plan/domain/usecases/recompute_plan_spending.dart';
 import 'features/money_plan/domain/usecases/respond_to_overspend.dart';
+import 'features/money_plan/domain/usecases/save_built_plan.dart';
 import 'features/money_plan/domain/usecases/save_plan.dart';
 import 'features/money_plan/domain/usecases/update_allocation.dart';
 import 'features/money_plan/domain/usecases/watch_active_plan.dart';
@@ -787,6 +789,20 @@ final moneyPlanRepositoryProvider = FutureProvider<MoneyPlanRepository>(
 /// Saves a reviewed draft, activating it by default. FR-PLN-001.
 final savePlanProvider = FutureProvider<SavePlan>(
   (ref) async => SavePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Saves a plan the user built by hand, or a generated one they edited.
+/// FR-PLN-011, E-39.
+final saveBuiltPlanProvider = FutureProvider<SaveBuiltPlan>(
+  (ref) async =>
+      SaveBuiltPlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Whether there is enough of the user's spending to suggest a plan from.
+/// E-39.
+final checkPlanHistoryProvider = FutureProvider<CheckPlanHistory>(
+  (ref) async =>
+      CheckPlanHistory(await ref.watch(monthlySpendingReaderProvider.future)),
 );
 
 /// Makes a saved plan the tracked one. FR-PLN-015.

@@ -2307,18 +2307,16 @@ as a device and is a separate, unscheduled problem — see
 
 ### Seeing the app with real data
 
-In debug builds, the Money Plan's "Nothing to plan from yet" screen carries
-a **Try it with sample data** button. It runs `dev_seed.dart`, which until
-PR #27 nothing in the app could reach — the fixture existed for tests alone,
-which is half of what Sprint 1 built it for. It sat on the transaction list
-until 2026-09-28; that is where someone checks their real money, and the
-plan is what needs history to show anything, so it moved.
+**Nothing in the app writes sample data any more** ([E-39](SPEC_ERRATA.md)).
+The debug-only **Try it with sample data** button (PRs #27, #133, #134) was
+removed on 2026-09-28: a plan generated from made-up history is meaningless
+to the person reading it. `dev_seed.dart` stays the test oracle for the
+statistics, the classifier and the allocator.
 
-It asks first, **loads once** — a second tap says the data is already there
-rather than writing an identical second copy and doubling every total —
-moves the account balance and the active plan's figures with the rows,
-signals the change bus so every screen follows, and plans again from the
-new history. Settings › Clear all data removes it.
+To see a generated plan on the emulator, record real-looking expenses by
+hand across at least one whole past month: the generator needs a month
+with spending and ten expenses in its lookback. Below that the wizard
+explains what is missing and offers **Build it yourself**.
 
 ## Environment — the traps, all of which have already bitten
 

@@ -253,8 +253,12 @@ class _AllocationRow extends StatelessWidget {
     final perDay = days > 0 ? a.allocatedCents ~/ days : 0;
     final details = <String>[
       '${formatCents(perDay)} a day',
-      if (a.expenseType case final type?) expenseTypeLabel(type),
-      '${confidenceLabel(a.confidence)} confidence',
+      // A class and a confidence come from the generator. A row the user
+      // added has neither to show (E-39): its Low is stored, not measured.
+      if (a.expenseType case final type?) ...[
+        expenseTypeLabel(type),
+        '${confidenceLabel(a.confidence)} confidence',
+      ],
       if (a.isUserModified) 'set by you',
     ];
     final colour = trackingColour(theme, progress.status);

@@ -13,6 +13,7 @@ import '../../domain/entities/allocation_progress.dart';
 import '../../domain/entities/budget_mode.dart';
 import '../../domain/entities/category_classification.dart';
 import '../../domain/entities/confidence_score.dart';
+import '../../domain/entities/plan_history.dart';
 import '../../domain/entities/plan_period.dart';
 import '../../domain/entities/spending_patterns.dart';
 
@@ -195,3 +196,27 @@ String differenceLabel(int cents) => switch (cents) {
   > 0 => '${formatCents(cents)} more',
   _ => '${formatCents(-cents)} less',
 };
+
+/// Why there is no suggested plan yet, in one or two sentences. E-39.
+///
+/// Says what is missing and when it will not be, so "not enough history"
+/// reads as a stage the app is in rather than a fault.
+String planHistoryExplanation(PlanHistory history) {
+  String expenses(int n) => '$n expense${n == 1 ? '' : 's'}';
+  final monthEnds = DateFormat.MMMMd().format(history.thisMonthEnds);
+  if (history.isEmpty) {
+    return 'You have not recorded any spending yet. Once there is a full '
+        'month of it, Moneyora can suggest a plan from how you actually '
+        'spend.';
+  }
+  if (history.expenses == 0) {
+    return 'Moneyora learns from whole months, and this one is not over. '
+        'Your ${expenses(history.expensesThisMonth)} this month start '
+        'counting after $monthEnds.';
+  }
+  final months = history.window.months;
+  return 'There ${history.expenses == 1 ? 'is' : 'are'} '
+      '${expenses(history.expenses)} in the last '
+      '${months == 1 ? 'month' : '$months months'}. Moneyora needs at least '
+      '${PlanHistory.minExpenses} to suggest a plan you can rely on.';
+}

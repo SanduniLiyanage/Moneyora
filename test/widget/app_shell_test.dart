@@ -13,6 +13,7 @@ import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/conversion_table.dart';
+import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/ports/notification_taps.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
@@ -30,6 +31,7 @@ import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.d
 import 'package:moneyora/features/auth/data/datasources/auth_local_datasource.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/check_budget_alerts.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/check_plan_history.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/active_plan_page.dart';
 import 'package:moneyora/features/money_plan/presentation/providers/money_plan_providers.dart';
 import 'package:moneyora/injection.dart';
@@ -66,6 +68,16 @@ class _NoSpendingRepository implements AnalyticsRepository {
     AnalyticsQuery query,
     TrendGranularity granularity,
   ) async => const Right([]);
+}
+
+class _NoMonths implements MonthlySpendingReader {
+  const _NoMonths();
+
+  @override
+  Future<Either<Failure, List<MonthlySpending>>> monthlySpendingByCategory({
+    required DateTime from,
+    required DateTime to,
+  }) async => const Right([]);
 }
 
 class _NoCategoryReader implements CategoryReader {
@@ -121,6 +133,11 @@ final List<Override> _noChartDataOverrides = [
   activePlanProvider.overrideWith((ref) => Stream.value(null)),
   // The plan list likewise: with no plans it shows its empty state.
   plansProvider.overrideWith((ref) => Stream.value(const [])),
+  // The plan wizard asks how much history there is (E-39): none, as on a
+  // new phone.
+  checkPlanHistoryProvider.overrideWith(
+    (ref) async => const CheckPlanHistory(_NoMonths()),
+  ),
   getSpendingByCategoryProvider.overrideWith(
     (ref) async => GetSpendingByCategory(_NoSpendingRepository()),
   ),
@@ -395,7 +412,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Plan for'), findsOneWidget);
-      expect(find.text('Total budget'), findsOneWidget);
+      // A new phone has no history to suggest from, so the way on is a
+      // plan the user builds (E-39).
+      expect(find.text('Build it yourself'), findsOneWidget);
     });
 
     testWidgets('reaches Settings from the app bar', (tester) async {

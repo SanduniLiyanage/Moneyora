@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,18 +13,22 @@ import '../../domain/entities/category_allocation.dart';
 import '../../domain/entities/confidence_score.dart';
 import '../../domain/entities/lookback_window.dart';
 import '../../domain/entities/money_plan_draft.dart';
+import '../../domain/entities/plan_line.dart';
 import '../../domain/usecases/save_plan.dart';
 import '../providers/money_plan_providers.dart';
 import '../widgets/plan_labels.dart';
+import '../widgets/plan_name_dialog.dart';
+import 'plan_editor_page.dart';
 
 /// The generated draft, for review. FR-PLN-007, FR-PLN-009, FR-PLN-010.
 ///
 /// Shows every figure with its provenance — the monthly base, the seasonal
 /// and trend factors, the class, the confidence and the reason for it —
 /// because a budget the user cannot interrogate is a budget they will not
-/// trust (E-07). Save names the plan and activates it; adjusting
-/// (FR-PLN-011) and what-if (FR-PLN-012) happen on the *saved* plan, where
-/// `UpdateAllocation` already holds the total — so a save lands there.
+/// trust (E-07). Save names the plan and activates it. Edit amounts opens
+/// the plan editor with these figures, to change them before saving
+/// (FR-PLN-011, E-39); what-if (FR-PLN-012) and the total-holding adjust
+/// happen on the *saved* plan.
 class PlanReviewPage extends ConsumerWidget {
   /// Creates the review screen for [request].
   const PlanReviewPage({required this.request, super.key});
@@ -51,9 +54,22 @@ class PlanReviewPage extends ConsumerWidget {
         final MoneyPlanDraft d when !d.isEmpty => SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: FilledButton(
-              onPressed: saving ? null : () => _save(context, ref, d),
-              child: Text(saving ? 'Saving…' : 'Save plan'),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: saving ? null : () => _edit(context, d),
+                    child: const Text('Edit amounts'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: saving ? null : () => _save(context, ref, d),
+                    child: Text(saving ? 'Saving…' : 'Save plan'),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -67,9 +83,9 @@ class PlanReviewPage extends ConsumerWidget {
     WidgetRef ref,
     MoneyPlanDraft draft,
   ) async {
-    final choice = await showDialog<({String name, bool activate})>(
-      context: context,
-      builder: (_) => _NameDialog(initial: planPeriodLabel(draft.period)),
+    final choice = await PlanNameDialog.show(
+      context,
+      initial: planPeriodLabel(draft.period),
     );
     if (choice == null || !context.mounted) return;
 
@@ -103,65 +119,17 @@ class PlanReviewPage extends ConsumerWidget {
   }
 }
 
-/// Asks what to call the plan and whether to track it now. Returns both,
-/// or null when dismissed. Saving without activating is FR-PLN-015's "June
-/// Vacation Plan" kept beside the "Regular Monthly" still being tracked.
-class _NameDialog extends StatefulWidget {
-  const _NameDialog({required this.initial});
-
-  final String initial;
-
-  @override
-  State<_NameDialog> createState() => _NameDialogState();
-}
-
-class _NameDialogState extends State<_NameDialog> {
-  late final TextEditingController _name = TextEditingController(
-    text: widget.initial,
-  );
-  bool _activate = true;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  void _submit() =>
-      Navigator.of(context).pop((name: _name.text, activate: _activate));
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    scrollable: true,
-    title: const Text('Name your plan'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _name,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Name'),
-          onSubmitted: (_) => _submit(),
-        ),
-        CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _activate,
-          onChanged: (v) => setState(() => _activate = v ?? true),
-          title: const Text('Track it now'),
-          subtitle: const Text('Untick to keep it for later.'),
-        ),
-      ],
+/// Opens the plan editor on [draft]'s figures. FR-PLN-011, E-39.
+void _edit(BuildContext context, MoneyPlanDraft draft) => unawaited(
+  context.push(
+    Routes.planEditor,
+    extra: PlanEditorArgs(
+      period: draft.period,
+      lines: [for (final a in draft.allocations) PlanLine.suggested(a)],
+      suggestedTotalCents: draft.totalCents,
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(onPressed: _submit, child: const Text('Save')),
-    ],
-  );
-}
+  ),
+);
 
 class _Draft extends StatelessWidget {
   const _Draft({required this.draft});
@@ -403,108 +371,60 @@ class _Tag extends StatelessWidget {
   }
 }
 
-/// E-21 / E-22: a plan needs history, and a first-time user has none.
-class _NothingToPlanFrom extends ConsumerWidget {
+/// E-21, E-22, E-39: nothing in the lookback to suggest a plan from. The
+/// way on is a plan the user builds, not an empty screen.
+class _NothingToPlanFrom extends StatelessWidget {
   const _NothingToPlanFrom({required this.request});
 
-  /// The request to generate again once there is history.
+  /// What the wizard asked for: its period is the plan's.
   final AllocationRequest request;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final loading = ref.watch(devSeedLoaderProvider).isLoading;
+    final months = request.lookback.months;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Icon(
+              Icons.insights_outlined,
+              size: 48,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
             Text(
-              'Nothing to plan from yet',
+              'Not enough history to suggest a plan',
+              textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'A plan is built from your spending. Add some expenses, and '
-              'this will fill in.',
+              'There is no spending in the last '
+              '${months == 1 ? 'month' : '$months months'} to learn from. '
+              'You can build this plan yourself, and Moneyora will suggest '
+              'one once it knows how you spend.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
-            // Debug builds only, and stripped from release by the constant:
-            // two years of shaped history is what lets the generator be
-            // tried by eye on a phone with none.
-            if (kDebugMode) ...[
-              const SizedBox(height: 16),
-              TextButton.icon(
-                onPressed: loading
-                    ? null
-                    : () => _loadSampleData(context, ref, request),
-                icon: loading
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.science_outlined),
-                label: const Text('Try it with sample data'),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => unawaited(
+                context.push(
+                  Routes.planEditor,
+                  extra: PlanEditorArgs(period: request.period),
+                ),
               ),
-            ],
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Build it yourself'),
+            ),
           ],
         ),
       ),
     );
   }
-}
-
-/// Asks, loads the sample history once, says what happened, and plans
-/// again from it. Debug builds only.
-Future<void> _loadSampleData(
-  BuildContext context,
-  WidgetRef ref,
-  AllocationRequest request,
-) async {
-  final go = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      scrollable: true,
-      title: const Text('Load sample data?'),
-      content: const Text(
-        'Adds two years of made-up transactions — rent, groceries, gifts, '
-        'fuel, a pet, a salary — to this phone, so a plan has history to '
-        'learn from. It is added once; Settings › Clear all data removes '
-        'it. Debug builds only.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Load'),
-        ),
-      ],
-    ),
-  );
-  if (go != true || !context.mounted) return;
-
-  final result = await ref.read(devSeedLoaderProvider.notifier).load();
-  if (!context.mounted) return;
-  final error = ref.read(devSeedLoaderProvider).error;
-  final message = switch (result) {
-    null =>
-      'Could not load the sample data: '
-          '${error is Failure ? error.message : 'please try again.'}',
-    SampleDataLoad(alreadyLoaded: true) =>
-      'The sample data is already loaded. Clear all data in Settings to '
-          'start again.',
-    SampleDataLoad(:final written) => 'Added $written sample transactions.',
-  };
-  ScaffoldMessenger.of(context)
-    ..clearSnackBars()
-    ..showSnackBar(SnackBar(content: Text(message)));
-  // The draft was generated from no history; generate it again from this.
-  if (result != null) ref.invalidate(planDraftProvider(request));
 }
 
 /// The use case's own refusal, or a failure beneath it, in its own words.

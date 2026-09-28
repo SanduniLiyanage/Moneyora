@@ -4,15 +4,20 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
+import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/calendar_settings.dart';
+import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/money_plan/domain/entities/allocation_request.dart';
 import 'package:moneyora/features/money_plan/domain/entities/budget_mode.dart';
 import 'package:moneyora/features/money_plan/domain/entities/lookback_window.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/check_plan_history.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/money_plan_page.dart';
+import 'package:moneyora/features/money_plan/presentation/pages/plan_editor_page.dart';
 import 'package:moneyora/injection.dart';
 
 /// The wizard's first step: what it builds, what it refuses, where it goes.
@@ -22,14 +27,31 @@ import 'package:moneyora/injection.dart';
 void main() {
   final now = DateTime(2026, 9, 13);
 
+  /// A month of history comfortably past E-39's threshold.
+  final enough = [
+    MonthlySpending(
+      categoryId: 1,
+      name: 'Food',
+      month: DateTime(2026, 8),
+      amountCents: 5000000,
+      transactionCount: 30,
+    ),
+  ];
+
   Widget boot(
     List<AllocationRequest> handedOn, {
     CalendarSettings calendar = CalendarSettings.defaults,
+    List<MonthlySpending>? history,
+    List<PlanEditorArgs>? toEditor,
   }) => ProviderScope(
     overrides: [
       // FR-SET-004 and FR-SET-012: how periods are cut and how far back the
       // plan looks, both read from Settings.
       calendarSettingsProvider.overrideWith((ref) => Stream.value(calendar)),
+      // E-39: whether there is enough history to suggest a plan.
+      checkPlanHistoryProvider.overrideWith(
+        (ref) async => CheckPlanHistory(_ScriptedMonths(history ?? enough)),
+      ),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light,
@@ -45,6 +67,13 @@ void main() {
             builder: (context, state) {
               handedOn.add(state.extra! as AllocationRequest);
               return const Scaffold(body: Text('review stub'));
+            },
+          ),
+          GoRoute(
+            path: Routes.planEditor,
+            builder: (context, state) {
+              toEditor?.add(state.extra! as PlanEditorArgs);
+              return const Scaffold(body: Text('editor stub'));
             },
           ),
         ],
@@ -277,4 +306,117 @@ void main() {
     expect(find.text('Enter at least one day.'), findsOneWidget);
     expect(handedOn, isEmpty);
   });
+
+  group('with too little history. E-39', () {
+    testWidgets('nothing recorded: says so, offers only to build it', (
+      tester,
+    ) async {
+      final toEditor = <PlanEditorArgs>[];
+      await tester.pumpWidget(boot([], history: const [], toEditor: toEditor));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Not enough history for a suggested plan yet'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('You have not recorded any spending yet'),
+        findsOneWidget,
+      );
+      expect(find.text('Generate plan'), findsNothing);
+      expect(find.text('Total budget'), findsNothing);
+
+      await tester.tap(find.text('Build it yourself'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('editor stub'), findsOneWidget);
+      expect(toEditor.single.period, PlanPeriod.month(2026, 10));
+      expect(toEditor.single.isBuiltByHand, isTrue);
+    });
+
+    testWidgets("this month's spending: says when it will count", (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(
+          [],
+          history: [
+            MonthlySpending(
+              categoryId: 1,
+              name: 'Food',
+              month: DateTime(2026, 9),
+              amountCents: 90000,
+              transactionCount: 12,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining(
+          'Your 12 expenses this month start counting after September 30.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a few expenses: says how many, and how many it needs', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(
+          [],
+          history: [
+            MonthlySpending(
+              categoryId: 1,
+              name: 'Food',
+              month: DateTime(2026, 8),
+              amountCents: 90000,
+              transactionCount: 4,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('There are 4 expenses in the last 6 months'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('at least 10'), findsOneWidget);
+    });
+  });
+
+  testWidgets('with enough history, building it yourself is still offered', (
+    tester,
+  ) async {
+    final toEditor = <PlanEditorArgs>[];
+    await tester.pumpWidget(boot([], toEditor: toEditor));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Total budget'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Or build it yourself'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Or build it yourself'));
+    await tester.pumpAndSettle();
+
+    expect(toEditor.single.isBuiltByHand, isTrue);
+  });
+}
+
+/// Months of spending, as the analytics query would give them.
+class _ScriptedMonths implements MonthlySpendingReader {
+  _ScriptedMonths(this.rows);
+
+  final List<MonthlySpending> rows;
+
+  @override
+  Future<Either<Failure, List<MonthlySpending>>> monthlySpendingByCategory({
+    required DateTime from,
+    required DateTime to,
+  }) async => Right(rows);
 }
