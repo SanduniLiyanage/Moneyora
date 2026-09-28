@@ -277,36 +277,49 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('shows what is in the database once it opens', (tester) async {
+    testWidgets('once it opens: shortcuts first, and Add', (tester) async {
       await tester.pumpWidget(
         bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
       );
       await tester.pumpAndSettle();
-      // Three charts sit above the summary card now (FR-RPT-001's donut,
-      // FR-RPT-004's bars and FR-RPT-005's trend lines), so it is well below
-      // the 800×600 fold and `find.text`'s default `skipOffstage: true`
-      // cannot see it until the list scrolls. `scrollUntilVisible` rather
-      // than a fixed drag, so the next chart does not move it again.
+
+      // Every part of the app, above the charts, without scrolling.
+      for (final label in [
+        'Transactions',
+        'Scan Receipt',
+        'Your plan',
+        'Create Money Plan',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+      // The database's figures are Settings' now, not the home screen's.
+      expect(find.text('Database ready'), findsNothing);
+      expect(find.text('Coming next'), findsNothing);
+    });
+
+    testWidgets('Settings › About says what is in the database', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+
       await tester.scrollUntilVisible(
-        find.text('Database ready'),
+        find.text('Database'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Database ready'), findsOneWidget);
-      // 15 expense + 3 income, per FR-EXP-003 and FR-INC-002. Scoped to the
-      // summary card: the "Coming next" list below it links to the
-      // categories screen under the same word.
+      // 15 expense + 3 income, per FR-EXP-003 and FR-INC-002.
       expect(
-        find.descendant(
-          of: find.byType(Card),
-          matching: find.text('Categories'),
-        ),
+        find.text('Version 1 · 1 account · 18 categories · 0 transactions'),
         findsOneWidget,
       );
-      expect(find.text('18'), findsOneWidget);
-      expect(find.text('Schema version'), findsOneWidget);
     });
 
     testWidgets('explains itself when the database cannot be opened', (
@@ -351,21 +364,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Two charts (FR-RPT-001's donut and FR-RPT-004's bars) now sit above
-    /// "Coming next", so that list no longer fits the 800×600 test surface
-    /// without scrolling — the same thing a real phone screen would do.
-    /// `find.text`'s default `skipOffstage: true` cannot see a tile below the
-    /// fold, so every tap on one goes through this first. The drag grew with
-    /// the second chart; it is one scroll, not a loop, so that a card
-    /// appearing above it fails here rather than silently scrolling past.
-    // `scrollUntilVisible` rather than a fixed drag: four charts now sit
-    // above this list and a fixed offset stopped reaching it at the fourth.
-    Future<void> scrollComingNextIntoView(WidgetTester tester) async {
+    /// The shortcuts sit at the top of home, above the charts; scrolled to
+    /// all the same, so a card added above them fails here rather than
+    /// hiding a tile below the 800×600 fold.
+    Future<void> tapShortcut(WidgetTester tester, String label) async {
       await tester.scrollUntilVisible(
-        find.text('Coming next'),
+        find.text(label),
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
       await tester.pumpAndSettle();
     }
 
@@ -392,10 +401,7 @@ void main() {
       // asks the device for a photo on a tap, so opening it touches no
       // platform channel.
       await pumpReady(tester);
-      await scrollComingNextIntoView(tester);
-
-      await tester.tap(find.text('Scan Receipt'));
-      await tester.pumpAndSettle();
+      await tapShortcut(tester, 'Scan Receipt');
 
       expect(find.text('Take a photo'), findsOneWidget);
       expect(find.text('Choose from gallery'), findsOneWidget);
@@ -406,15 +412,28 @@ void main() {
     ) async {
       // FR-PLN-001: "Create Money Plan" from the main navigation.
       await pumpReady(tester);
-      await scrollComingNextIntoView(tester);
-
-      await tester.tap(find.text('Create Money Plan'));
-      await tester.pumpAndSettle();
+      await tapShortcut(tester, 'Create Money Plan');
 
       expect(find.text('Plan for'), findsOneWidget);
       // A new phone has no history to suggest from, so the way on is a
       // plan the user builds (E-39).
       expect(find.text('Build it yourself'), findsOneWidget);
+    });
+
+    testWidgets('Add on home opens the entry screen, and back returns', (
+      tester,
+    ) async {
+      // SCR-001's FAB: recording an expense is the thing done most often,
+      // so it is one tap from home rather than two.
+      await pumpReady(tester);
+
+      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add'));
+      await tester.pumpAndSettle();
+      expect(find.text('New expense'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Transactions'), findsOneWidget);
     });
 
     testWidgets('reaches Settings from the app bar', (tester) async {
@@ -459,9 +478,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await scrollComingNextIntoView(tester);
-        await tester.tap(find.text(destination));
-        await tester.pumpAndSettle();
+        await tapShortcut(tester, destination);
 
         expect(
           find.byType(BackButton),
@@ -472,7 +489,10 @@ void main() {
         await tester.pageBack();
         await tester.pumpAndSettle();
 
-        expect(find.text('Database ready'), findsOneWidget);
+        expect(
+          find.widgetWithText(FloatingActionButton, 'Add'),
+          findsOneWidget,
+        );
       }
     });
 

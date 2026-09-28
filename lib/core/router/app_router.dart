@@ -31,6 +31,7 @@ import '../../features/receipt_scanner/presentation/pages/receipt_review_page.da
 import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
 import '../../features/settings/presentation/pages/exchange_rates_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/transactions/presentation/pages/add_transaction_page.dart';
 import '../../features/transactions/presentation/pages/recurring_rules_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
 import '../../features/transactions/presentation/pages/transfer_page.dart';
@@ -45,6 +46,11 @@ abstract final class Routes {
 
   /// SCR-005 — transaction list.
   static const String transactions = '/transactions';
+
+  /// SCR-002 and SCR-003 — recording an expense or income. The home
+  /// screen's Add (SCR-001's FAB) opens it here; the list opens the same
+  /// page directly. FR-EXP-001.
+  static const String addTransaction = '/transactions/add';
 
   /// SCR-010 — the money plan wizard's first step. FR-PLN-001.
   static const String moneyPlan = '/plan';
@@ -159,6 +165,11 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.transactions,
       name: 'transactions',
       builder: (context, state) => const TransactionListPage(),
+    ),
+    GoRoute(
+      path: Routes.addTransaction,
+      name: 'addTransaction',
+      builder: (context, state) => const AddTransactionPage(),
     ),
     GoRoute(
       path: Routes.moneyPlan,
