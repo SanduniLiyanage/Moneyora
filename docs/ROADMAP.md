@@ -917,14 +917,53 @@ the donut on home and at the top of the transaction list, and both share
 one choice of period and account, so the list shows what the balance
 counts. Transfers never count (E-02).
 
-### Still open
+### Beta readiness — done ([PR #146](https://github.com/SanduniLiyanage/Moneyora/pull/146))
 
-- **Beta readiness** — the app's name, the launcher icon, upload-key
-  signing and the 80 MB per-ABI CI gate (E-09) are written on
-  `chore/beta-readiness`, waiting on the owner to push them; the
-  notification small icon needs a monochrome version.
-- **Store assets** — screenshots and a feature graphic, from the emulator
-  with hand-entered data, never sample data.
+The app's name, the launcher icon, upload-key signing from an untracked
+`android/key.properties`, and the 80 MB per-ABI release gate CI had been
+printing but not enforcing ([E-09](SPEC_ERRATA.md)). The notifications now
+carry a monochrome status-bar icon of their own: Android draws only a small
+icon's alpha channel, so the launcher icon came out a filled square.
+
+Measured: **32.1 / 39.8 / 42.3 MB** per ABI, the largest at half the budget.
+
+### Two fixes the screenshots found — done ([PR #147](https://github.com/SanduniLiyanage/Moneyora/pull/147))
+
+With a real month of hand-entered spending in the app, every donut wedge
+drew its percentage and its category icon within a tenth of the radius of
+each other. The wedge keeps the percentage; the icon moves to the legend,
+where the colour already had to be looked up.
+
+**Transfer joined the home shortcuts.** Moving money between accounts —
+cash drawn from a card at an ATM — was two screens in, behind an app-bar
+icon on the transaction list, though it is as ordinary as spending. The
+grid also read one past the end of an odd-length list, which the ninth
+entry would have hit.
+
+### The release checklist — done ([PR #148](https://github.com/SanduniLiyanage/Moneyora/pull/148))
+
+[`RELEASE.md`](RELEASE.md) is the order to do the unbuildable parts in: the
+upload key, the bundle, and the two items that cost calendar time rather
+than effort — Google's 12-testers-for-14-days rule for a personal account,
+and the macOS an iOS upload needs, which the `macos-latest` runner that
+already compiles the app on every push can supply. The feature graphic is
+drawn from the launcher icon's own mark so the two cannot drift apart, and
+the contact address both the privacy policy and the listing were holding a
+placeholder for is filled in.
+
+### Still open — none of it code
+
+- **A Play Console account**, its identity verification, and the closed
+  test that has to run for fourteen days before production opens. This is
+  the longest item left in the project and nothing in the repository
+  shortens it.
+- **An Apple Developer Program membership**, if iOS is wanted.
+- **The screenshots into `store/`** — taken and reviewed on the emulator
+  from hand-entered expenses (never sample data, [E-39](SPEC_ERRATA.md)),
+  but they are retaken from the signed release build that is actually
+  submitted, since a debug banner is an automatic rejection.
+- **A run on a real Android phone.** The emulator has never caught a
+  missing runtime permission.
 
 ---
 
