@@ -197,6 +197,25 @@ inflates both totals. This is the most common bug in personal-finance apps, and
 it is invisible until someone with two accounts looks at their monthly summary
 and finds they apparently earned and spent an extra Rs 50,000.
 
+### Addendum, 2026-09-29 — one account's balance does count its transfers
+
+The owner, drawing Rs 200 of cash from a card: looking at the card, the
+Balance bar still read Rs 0.00, and a day holding only the transfer showed
+no change. The money had left the card.
+
+That is the account-balance formula above, which *does* count transfers, and
+not the analytics rule, which does not. The Balance bar and the list's day
+totals, **when one account is chosen**, now count its transfers: money out
+of it is red and lowers its balance, money into it is green and raises it.
+Across every account nothing changes — each transfer's two legs cancel, so
+they are left out rather than inflating both "in" and "out".
+
+Spending by category, income, the summary card's net savings, the trends,
+the calendar, the plan and the budget alerts still never see a transfer.
+`PeriodSummary` carries the transfer totals in fields of their own, beside
+`incomeCents` and `expenseCents` rather than inside them, so that line
+cannot be crossed by accident.
+
 ---
 
 <a id="e-03"></a>

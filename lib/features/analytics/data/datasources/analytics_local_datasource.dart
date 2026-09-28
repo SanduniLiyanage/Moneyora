@@ -18,6 +18,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../domain/entities/transfer_totals.dart';
 import '../../domain/entities/trend_point.dart';
 import '../models/category_total_model.dart';
 import '../models/daily_total_model.dart';
@@ -37,6 +38,16 @@ abstract interface class AnalyticsLocalDataSource {
   /// Totals income between [from] and [to] inclusive, for [accountId] or —
   /// when it is null — every account. FR-RPT-003.
   Future<int> incomeForPeriod({
+    required DateTime from,
+    required DateTime to,
+    int? accountId,
+  });
+
+  /// Totals the transfers into and out of [accountId] between [from] and
+  /// [to] inclusive. FR-TRF-004. Each transfer is two rows, one per account,
+  /// each carrying its own direction (E-16), so one account's legs are
+  /// exactly its rows.
+  Future<TransferTotals> transfersForPeriod({
     required DateTime from,
     required DateTime to,
     int? accountId,
@@ -308,6 +319,39 @@ SELECT COALESCE(SUM(t.amount_cents), 0) AS total_cents
 
       final rows = await _db.rawQuery(sql, args);
       return (rows.single['total_cents']! as num).toInt();
+    });
+  }
+
+  static const String _transfersForPeriod = '''
+SELECT COALESCE(SUM(CASE WHEN t.transfer_direction = 'in'
+                         THEN t.amount_cents END), 0) AS in_cents,
+       COALESCE(SUM(CASE WHEN t.transfer_direction = 'out'
+                         THEN t.amount_cents END), 0) AS out_cents
+  FROM transactions t
+ WHERE t.type = 'transfer'
+   AND t.date >= ? AND t.date <= ?
+   {account}
+''';
+
+  @override
+  Future<TransferTotals> transfersForPeriod({
+    required DateTime from,
+    required DateTime to,
+    int? accountId,
+  }) async {
+    return _guard('total the transfers for the period', () async {
+      final sql = _transfersForPeriod.replaceAll(
+        '{account}',
+        accountId == null ? '' : _accountClause,
+      );
+      final args = <Object?>[encodeIsoDay(from), encodeIsoDay(to)];
+      if (accountId != null) args.add(accountId);
+
+      final row = (await _db.rawQuery(sql, args)).single;
+      return TransferTotals(
+        inCents: (row['in_cents']! as num).toInt(),
+        outCents: (row['out_cents']! as num).toInt(),
+      );
     });
   }
 

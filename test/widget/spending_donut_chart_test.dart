@@ -15,6 +15,7 @@ import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
@@ -27,6 +28,11 @@ import 'large_text.dart';
 /// real database at all — the same shape `copilot_screen_test.dart` uses for
 /// its scripted `LlmRepository`.
 class _FakeAnalyticsRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, TransferTotals>> transfersForPeriod(
+    AnalyticsQuery query,
+  ) async => const Right(TransferTotals.none);
+
   @override
   Future<Either<Failure, List<DailyTotal>>> dailySpendingTotals(
     AnalyticsQuery query,

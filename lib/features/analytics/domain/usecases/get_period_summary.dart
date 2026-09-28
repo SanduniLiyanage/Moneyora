@@ -6,6 +6,7 @@ import '../../../../core/usecases/usecase.dart';
 import '../entities/analytics_query.dart';
 import '../entities/category_total.dart';
 import '../entities/period_summary.dart';
+import '../entities/transfer_totals.dart';
 import '../repositories/analytics_repository.dart';
 
 /// Total income, total expenses, net savings, average daily spend, the
@@ -18,6 +19,10 @@ import '../repositories/analytics_repository.dart';
 /// categories added up, the largest category *is* its biggest slice. The
 /// previous period is read with the same account filter, so the change
 /// compares like with like.
+///
+/// With one account chosen it also reads that account's transfers, which
+/// move its balance but are never income or spending (E-02, FR-TRF-004).
+/// Across every account it does not ask: each transfer's legs cancel.
 class GetPeriodSummary implements UseCase<PeriodSummary, SummaryRequest> {
   /// Creates the use case.
   const GetPeriodSummary(this._repository);
@@ -34,6 +39,9 @@ class GetPeriodSummary implements UseCase<PeriodSummary, SummaryRequest> {
 
     final spending = await _repository.spendingByCategory(params.query);
     final income = await _repository.incomeForPeriod(params.query);
+    final transfers = params.query.accountId == null
+        ? const Right<Failure, TransferTotals>(TransferTotals.none)
+        : await _repository.transfersForPeriod(params.query);
     final previous = params.previousRange == null
         ? null
         : await _repository.spendingByCategory(
@@ -44,30 +52,34 @@ class GetPeriodSummary implements UseCase<PeriodSummary, SummaryRequest> {
           );
 
     return spending.flatMap(
-      (totals) => income.flatMap((incomeCents) {
-        final int? previousCents;
-        switch (previous) {
-          case null:
-            previousCents = null;
-          case Left(value: final failure):
-            return Left(failure);
-          case Right(value: final before):
-            previousCents = _sum(before);
-        }
-        final expenseCents = _sum(totals);
-        final days = params.daysElapsed;
-        return Right(
-          PeriodSummary(
-            incomeCents: incomeCents,
-            expenseCents: expenseCents,
-            averageDailySpendCents: days == null || days < 1
-                ? null
-                : expenseCents ~/ days,
-            largestCategory: _largest(totals),
-            previousExpenseCents: previousCents,
-          ),
-        );
-      }),
+      (totals) => income.flatMap(
+        (incomeCents) => transfers.flatMap((moved) {
+          final int? previousCents;
+          switch (previous) {
+            case null:
+              previousCents = null;
+            case Left(value: final failure):
+              return Left(failure);
+            case Right(value: final before):
+              previousCents = _sum(before);
+          }
+          final expenseCents = _sum(totals);
+          final days = params.daysElapsed;
+          return Right(
+            PeriodSummary(
+              incomeCents: incomeCents,
+              expenseCents: expenseCents,
+              averageDailySpendCents: days == null || days < 1
+                  ? null
+                  : expenseCents ~/ days,
+              largestCategory: _largest(totals),
+              previousExpenseCents: previousCents,
+              transferInCents: moved.inCents,
+              transferOutCents: moved.outCents,
+            ),
+          );
+        }),
+      ),
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_summary.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_period_summary.dart';
@@ -146,9 +147,74 @@ void main() {
 
     expect(result.isLeft(), isTrue);
   });
+
+  group('transfers. FR-TRF-004, E-02', () {
+    // Rs200 of cash drawn from card 2 into cash account 1.
+    setUp(() {
+      analytics
+        ..transfers[1] = const TransferTotals(inCents: 20000, outCents: 0)
+        ..transfers[2] = const TransferTotals(inCents: 0, outCents: 20000);
+    });
+
+    test('money transferred in raises the chosen account balance', () async {
+      final summary = (await summarise(request(accountId: 1))).toNullable()!;
+
+      expect(summary.transferInCents, 20000);
+      expect(summary.balanceCents, summary.netSavingsCents + 20000);
+    });
+
+    test('money transferred out lowers it', () async {
+      final summary = (await summarise(request(accountId: 2))).toNullable()!;
+
+      expect(summary.transferOutCents, 20000);
+      expect(summary.balanceCents, summary.netSavingsCents - 20000);
+    });
+
+    test('is never income or spending', () async {
+      final scoped = (await summarise(request(accountId: 1))).toNullable()!;
+      final all = (await summarise(request())).toNullable()!;
+
+      // The fake answers per range, not per account, so the income and
+      // spending figures are the same either way: a transfer added nothing.
+      expect(scoped.incomeCents, all.incomeCents);
+      expect(scoped.expenseCents, all.expenseCents);
+      expect(scoped.netSavingsCents, all.netSavingsCents);
+    });
+
+    test('across every account is not asked for: the legs cancel', () async {
+      final summary = (await summarise(request())).toNullable()!;
+
+      expect(analytics.transferQueries, isEmpty);
+      expect(summary.transferInCents, 0);
+      expect(summary.transferOutCents, 0);
+      expect(summary.balanceCents, summary.netSavingsCents);
+    });
+
+    test('a failed read is the failure, not a balance without it', () async {
+      analytics.failTransfers = const CacheFailure('no');
+
+      final result = await summarise(request(accountId: 1));
+
+      expect(result, const Left<Failure, PeriodSummary>(CacheFailure('no')));
+    });
+  });
 }
 
 class _FakeAnalytics implements AnalyticsRepository {
+  /// Per account id; asked only when one account is chosen.
+  final Map<int, TransferTotals> transfers = {};
+  final List<AnalyticsQuery> transferQueries = [];
+  Failure? failTransfers;
+
+  @override
+  Future<Either<Failure, TransferTotals>> transfersForPeriod(
+    AnalyticsQuery query,
+  ) async {
+    transferQueries.add(query);
+    if (failTransfers case final f?) return Left(f);
+    return Right(transfers[query.accountId] ?? TransferTotals.none);
+  }
+
   final Map<DateRange, List<CategoryTotal>> spending = {};
   final Map<DateRange, int> income = {};
   final List<AnalyticsQuery> queries = [];

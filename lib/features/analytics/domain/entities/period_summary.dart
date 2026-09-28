@@ -15,6 +15,8 @@ class PeriodSummary extends Equatable {
     required this.averageDailySpendCents,
     required this.largestCategory,
     required this.previousExpenseCents,
+    this.transferInCents = 0,
+    this.transferOutCents = 0,
   });
 
   /// Money in over the period.
@@ -25,6 +27,20 @@ class PeriodSummary extends Equatable {
 
   /// [incomeCents] less [expenseCents]; negative when more went out.
   int get netSavingsCents => incomeCents - expenseCents;
+
+  /// Transferred into the chosen account over the period; always 0 across
+  /// every account, where each transfer's legs cancel. Never income (E-02).
+  final int transferInCents;
+
+  /// Transferred out of the chosen account; 0 across every account.
+  final int transferOutCents;
+
+  /// How much the chosen account gained or lost over the period: its net
+  /// savings, moved by the transfers into and out of it. Cash drawn from a
+  /// card is money gone from the card, and someone looking at the card
+  /// expects to see it go. Across every account this is [netSavingsCents].
+  /// FR-TRF-004.
+  int get balanceCents => netSavingsCents + transferInCents - transferOutCents;
 
   /// Spending per day over the days of the period that have happened, or
   /// null when there are none to divide by — all time, or a period that has
@@ -54,5 +70,7 @@ class PeriodSummary extends Equatable {
     averageDailySpendCents,
     largestCategory,
     previousExpenseCents,
+    transferInCents,
+    transferOutCents,
   ];
 }

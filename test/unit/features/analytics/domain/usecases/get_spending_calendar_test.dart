@@ -5,12 +5,18 @@ import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/spending_calendar.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_calendar.dart';
 
 /// Answers `dailySpendingTotals` from a script and records what it was asked.
 class _FakeRepository implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, TransferTotals>> transfersForPeriod(
+    AnalyticsQuery query,
+  ) async => const Right(TransferTotals.none);
+
   List<DailyTotal> totals = const [];
   Failure? failWith;
   AnalyticsQuery? askedQuery;

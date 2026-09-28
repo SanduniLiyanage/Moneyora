@@ -76,9 +76,14 @@ turned on in Settings, you get a notification before each is recorded.
 
 ### Moving money between your own accounts
 
-On **Transactions**, tap the transfer button (**Transfer between
-accounts**), choose **From** and **To**, the amount and the date. A
-transfer is not spending: it never counts in a chart or a budget. Between
+Tap **Transfer** on the home screen (or the transfer button on
+**Transactions**), choose **From** and **To**, the amount and the date —
+cash drawn from a card at an ATM, for example, is a transfer from the card
+to Cash. In the list it is two rows: a red minus on the account the money
+left, a green plus on the one it reached. Look at one account and its
+Balance and day totals move with it; look at all accounts and the two
+cancel. A transfer is not spending: it never counts in a chart or a
+budget. Between
 two currencies it also asks how much arrived, suggesting a figure from the
 exchange rates you keep in Settings; type the amount on your statement if
 the bank's differs.
