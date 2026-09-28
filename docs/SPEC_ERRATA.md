@@ -490,6 +490,28 @@ that prompted the measurement — whether to carry it before Sprint 6 — turned
 out to be much smaller than the R8 problem it uncovered, and the budget is met
 with it in.
 
+### Addendum, 2026-09-28 — the 80 MB gate, in Sprint 10 as planned
+
+CI's size step now fails the build when any per-ABI release APK reaches
+80 MB; until now it only printed the sizes. Measured locally on the Sprint 10
+branch with `flutter build apk --release --split-per-abi`:
+
+| Artefact | 2026-09-10 | 2026-09-28 |
+|---|---|---|
+| `app-armeabi-v7a-release.apk` | 27.8 MB | **32.0 MB** (33,546,842 bytes) |
+| `app-arm64-v8a-release.apk` | 35.9 MB | **39.7 MB** (41,648,632 bytes) |
+| `app-x86_64-release.apk` | 38.4 MB | **42.3 MB** (44,304,249 bytes) |
+
+Sprints 4–9 (the charts, the scanner, backup and export with the PDF
+library, notifications, biometrics) added about 4 MB per ABI. The largest
+phone artefact is at half the budget.
+
+The release build also stops being signed with the debug key when an upload
+key is configured (`android/key.properties`, never committed; `SETUP.md`
+§7). The Play Console builds each download from the app bundle for the
+phone's ABI, so these per-ABI figures are the right comparison for an
+`appbundle` upload too.
+
 ---
 
 <a id="e-10"></a>

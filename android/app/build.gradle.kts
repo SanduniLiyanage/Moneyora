@@ -1,3 +1,16 @@
+import java.util.Properties
+
+// The Play upload key, read from android/key.properties when it exists.
+// Neither that file nor the keystore it names is ever committed (both are
+// in .gitignore); docs/SETUP.md says how to make them. Without it a release
+// build is signed with the debug key, which installs and runs but cannot be
+// uploaded to the Play Console.
+val keyProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val hasUploadKey = keyProperties.getProperty("storeFile") != null
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -46,11 +59,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasUploadKey) {
+            create("upload") {
+                storeFile = file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                signingConfigs.getByName(if (hasUploadKey) "upload" else "debug")
 
             // R8 already ran on release builds - the Flutter Gradle plugin turns
             // minification on - but no project rules file was ever wired in, so

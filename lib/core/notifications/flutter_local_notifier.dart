@@ -40,7 +40,7 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
   /// never asks during initialisation.
   Future<void> _ensureInitialised() => _initialised ??= _plugin.initialize(
     settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings(_smallIcon),
       iOS: DarwinInitializationSettings(
         requestAlertPermission: false,
         requestSoundPermission: false,
@@ -204,6 +204,13 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
   @override
   Stream<String> get opened => _opened.stream;
 
+  /// Android's status-bar icon, the mark alone in white on transparent.
+  ///
+  /// Android draws only the alpha channel of a small icon, so the launcher
+  /// icon here would appear as a filled square. Drawn by
+  /// `scripts/draw_icon.py` into `res/drawable-*dpi/`.
+  static const _smallIcon = '@drawable/ic_stat_moneyora';
+
   /// The channel and presentation for [kind], showing [body].
   ///
   /// The channel's id is stable across releases — Android keeps the user's
@@ -222,6 +229,7 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
             channelDescription:
                 'When a category of your active plan reaches 80% or 100% '
                 'of its budget.',
+            icon: _smallIcon,
             importance: Importance.high,
             priority: Priority.high,
             styleInformation: BigTextStyleInformation(body),
@@ -243,6 +251,7 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
             'Recurring reminders',
             channelDescription:
                 'Before a repeating expense or income is added.',
+            icon: _smallIcon,
             styleInformation: BigTextStyleInformation(body),
           ),
           iOS: const DarwinNotificationDetails(
@@ -258,6 +267,7 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
             'backup_reminders',
             'Backup reminders',
             channelDescription: 'When nothing has been backed up for a week.',
+            icon: _smallIcon,
             importance: Importance.low,
             priority: Priority.low,
           ),

@@ -6,9 +6,10 @@
 # anything, spinner included. `FlutterNativeSplash.preserve`/`.remove` in
 # `main.dart` is what keeps this showing instead of a flash of blank/white.
 #
-# No logo image: `ic_launcher.png` is still Flutter's default icon (nothing in
-# this repo has drawn a Moneyora mark yet), and a solid brand fill says
-# nothing false. Swap in an `image:` line here once one exists.
+# No logo image: a solid brand fill, the colour of the launcher icon it
+# follows (`assets/icons/`, drawn by `scripts/draw_icon.py`). An `image:`
+# line pointing at `assets/icons/icon_foreground.png` would put the mark here
+# too.
 #
 # Colours are `AppColors.light.brand` / `AppColors.dark.brand` — see E-01 on
 # why indigo, not the SRS's green.

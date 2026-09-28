@@ -1,0 +1,13 @@
+# Launcher icons, run via `dart run flutter_launcher_icons`.
+#
+# The masters are drawn by `python scripts/draw_icon.py` (three rising bars
+# in a coin, white on AppColors.light.brand, E-01); change the drawing there
+# and regenerate, rather than editing the platform files by hand.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/icons/icon.png"
+  min_sdk_android: 26
+  adaptive_icon_background: "#3F51B5"
+  adaptive_icon_foreground: "assets/icons/icon_foreground.png"
+  remove_alpha_ios: true
