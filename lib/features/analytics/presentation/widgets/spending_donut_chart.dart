@@ -105,7 +105,11 @@ class _Slice {
 
   final String name;
 
-  /// Null for the folded "Other" wedge — it names no single category, so it
+  /// Drawn in the legend, not in the wedge: a wedge narrow enough to need
+  /// the icon is too narrow to hold it beside the percentage, and the two
+  /// were landing on top of each other. The legend has room for both.
+  ///
+  /// Null for the folded "Other" row — it names no single category, so it
   /// draws no icon rather than borrowing one that would mislead.
   final IconData? icon;
   final Color color;
@@ -169,14 +173,6 @@ class _Chart extends StatelessWidget {
                       color: _onColor(slice.color),
                       fontWeight: FontWeight.w600,
                     ),
-                    badgeWidget: slice.icon == null
-                        ? null
-                        : Icon(
-                            slice.icon,
-                            size: 14,
-                            color: _onColor(slice.color),
-                          ),
-                    badgePositionPercentageOffset: 0.6,
                   ),
               ],
             ),
@@ -194,14 +190,15 @@ class _Chart extends StatelessWidget {
     return percent < 1 ? '<1%' : '${percent.round()}%';
   }
 
-  /// White or black over [background], whichever reads — the same
-  /// black-or-white-text-on-a-colour-swatch problem every category chip
-  /// already solves via [AppColors], but here the swatch is arbitrary user
-  /// data rather than one of two fixed brand colours, so it is computed
-  /// per-slice from relative luminance instead.
-  Color _onColor(Color background) =>
-      background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
 }
+
+/// White or black over [background], whichever reads — the same
+/// black-or-white-text-on-a-colour-swatch problem every category chip
+/// already solves via [AppColors], but here the swatch is arbitrary user
+/// data rather than one of two fixed brand colours, so it is computed
+/// per-slice from relative luminance instead.
+Color _onColor(Color background) =>
+    background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
 
 class _Legend extends StatelessWidget {
   const _Legend({required this.slices});
@@ -220,14 +217,22 @@ class _Legend extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 10,
-                  height: 10,
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: slice.color,
                     shape: BoxShape.circle,
                   ),
+                  child: slice.icon == null
+                      ? null
+                      : Icon(
+                          slice.icon,
+                          size: 13,
+                          color: _onColor(slice.color),
+                        ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(slice.name, style: theme.textTheme.bodyMedium),
                 ),
