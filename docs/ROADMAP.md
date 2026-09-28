@@ -867,6 +867,51 @@ benchmark runs in every `flutter test`.
 
 Beta, bug fixes, store assets, user manual, final docs.
 
+### A plan from the user's own history, or built by hand — done ([PR #137](https://github.com/SanduniLiyanage/Moneyora/pull/137))
+
+The product owner's review: a plan generated from sample data is
+meaningless, so the debug sample-data button is gone ([E-39](SPEC_ERRATA.md)).
+The wizard suggests a plan only from at least one whole month with spending
+and ten expenses; below that it says which case the user is in and offers
+**Build it yourself**. The new plan editor serves both that and editing a
+generated plan before it is saved (FR-PLN-011): the total follows what is
+typed, against the suggested total. E-39 supersedes E-21's baseline ladder.
+
+### Budget alerts offered on save, and worded to stand alone — done ([PR #138](https://github.com/SanduniLiyanage/Moneyora/pull/138))
+
+Alerts are off by default (E-35), so the save dialog offers them while
+they are off. The notifications say which budget, which plan and what the
+next purchase means ("You've gone over your Bills budget"), and expand to
+the whole sentence.
+
+### The bug-fix pass — done ([PR #136](https://github.com/SanduniLiyanage/Moneyora/pull/136), [PR #138](https://github.com/SanduniLiyanage/Moneyora/pull/138), [PR #139](https://github.com/SanduniLiyanage/Moneyora/pull/139), [PR #140](https://github.com/SanduniLiyanage/Moneyora/pull/140))
+
+- The spending patterns left out a rent on the 1st that read as a habit
+  (#136): a category spent on two days a month or fewer is a bill.
+- The list's Undo bar covered the entry screen's Save (#138).
+- Home opened on charts and hid every feature under a "Coming next" list
+  beside a developer's database card (#139): it now opens on shortcuts,
+  with an Add button, and the database figures are in Settings › About.
+  The analytics period chips wrap instead of hiding half their options.
+- The transaction list is grouped by day, each day with its count and
+  what it cost (#140, FR-EXP-006).
+
+### The user manual and the privacy policy — done ([PR #141](https://github.com/SanduniLiyanage/Moneyora/pull/141))
+
+[`USER_MANUAL.md`](USER_MANUAL.md) and [`PRIVACY.md`](PRIVACY.md), both
+checked against the code. Writing the policy turned Android Auto Backup off
+and declared INTERNET outright. The policy's contact address is for the
+owner to fill in.
+
+### Still open
+
+- **Beta readiness** — the app's name, the launcher icon, upload-key
+  signing and the 80 MB per-ABI CI gate (E-09) are written on
+  `chore/beta-readiness`, waiting on the owner to push them; the
+  notification small icon needs a monochrome version.
+- **Store assets** — screenshots and a feature graphic, from the emulator
+  with hand-entered data, never sample data.
+
 ---
 
 ## Non-goals
