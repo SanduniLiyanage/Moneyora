@@ -10,14 +10,18 @@ import 'account_filter.dart';
 import 'period_selector.dart';
 
 /// Income less expenses over the chosen period and account, and the way to
-/// change either. FR-RPT-002, FR-RPT-003, FR-RPT-006.
+/// change either. FR-RPT-002, FR-RPT-003, FR-RPT-006, FR-TRF-004.
 ///
 /// The same bar on the home screen and on the transaction list, reading the
 /// one selection both follow, so the balance, the charts and the rows below
 /// always describe the same days and the same account. Green when more came
 /// in than went out; red otherwise, a balance of nothing included — the
 /// owner's rule, since nothing saved is not a result to show as good.
-/// Transfers are neither income nor spending (E-02), so they never move it.
+/// With one account chosen, transfers move it too: cash drawn from a card is
+/// money gone from the card and money arrived in cash, and someone looking
+/// at either expects to see it. Across every account each transfer's legs
+/// cancel, so there they change nothing. They are still never income or
+/// spending (E-02): the summary card, the charts and the plan never see them.
 ///
 /// Tapping it opens the period and account choices, the way the reference
 /// app's side panel does, rather than keeping two rows of chips over a list
@@ -43,21 +47,23 @@ class BalanceBar extends ConsumerWidget {
     };
 
     final (amount, tint) = switch (summary) {
-      AsyncData(value: PeriodSummary(:final netSavingsCents)) => (
-        netSavingsCents > 0
-            ? '+${formatCents(netSavingsCents)}'
-            : netSavingsCents < 0
-            ? '−${formatCents(-netSavingsCents)}'
+      AsyncData(value: PeriodSummary(:final balanceCents)) => (
+        balanceCents > 0
+            ? '+${formatCents(balanceCents)}'
+            : balanceCents < 0
+            ? '−${formatCents(-balanceCents)}'
             : formatCents(0),
-        netSavingsCents > 0 ? colors.income : colors.expense,
+        balanceCents > 0 ? colors.income : colors.expense,
       ),
       AsyncError() => ('—', theme.colorScheme.onSurfaceVariant),
       _ => ('…', theme.colorScheme.onSurfaceVariant),
     };
     final detail = switch (summary) {
+      // What came into and went out of the account, transfers included, so
+      // in less out is the balance above it.
       AsyncData(:final value) =>
-        'In ${formatCents(value.incomeCents)} · '
-            'out ${formatCents(value.expenseCents)}',
+        'In ${formatCents(value.incomeCents + value.transferInCents)} · '
+            'out ${formatCents(value.expenseCents + value.transferOutCents)}',
       AsyncError(:final error) =>
         error is Failure ? error.message : 'The balance could not be read.',
       _ => null,

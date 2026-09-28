@@ -12,6 +12,7 @@ import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_period_summary.dart';
@@ -135,6 +136,11 @@ void main() {
 }
 
 class _Scripted implements AnalyticsRepository {
+  @override
+  Future<Either<Failure, TransferTotals>> transfersForPeriod(
+    AnalyticsQuery query,
+  ) async => const Right(TransferTotals.none);
+
   final Map<DateRange, List<CategoryTotal>> spending = {};
   final Map<DateRange, int> income = {};
   Failure? fail;

@@ -28,8 +28,24 @@ class DayGroup extends Equatable {
   /// What came in that day, in minor units. Transfers never count (E-02).
   int get incomeCents => _sum(TransactionType.income);
 
+  /// Transferred in that day, in minor units — never income (E-02). Only
+  /// meaningful for one account's rows; across every account each
+  /// transfer's legs cancel. FR-TRF-004.
+  int get transferInCents => _transfers(TransferDirection.incoming);
+
+  /// Transferred out that day, in minor units — never spending (E-02).
+  int get transferOutCents => _transfers(TransferDirection.out);
+
   int _sum(TransactionType type) => transactions
       .where((t) => t.type == type)
+      .fold(0, (sum, t) => sum + t.amountCents);
+
+  int _transfers(TransferDirection direction) => transactions
+      .where(
+        (t) =>
+            t.type == TransactionType.transfer &&
+            t.transferDirection == direction,
+      )
       .fold(0, (sum, t) => sum + t.amountCents);
 
   /// Groups [transactions] by the calendar day each happened on, keeping

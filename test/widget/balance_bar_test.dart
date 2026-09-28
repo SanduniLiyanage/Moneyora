@@ -14,6 +14,7 @@ import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/period_selection.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_period_summary.dart';
@@ -125,6 +126,36 @@ void main() {
     expect(repository.accounts, everyElement(1));
   });
 
+  group('a transfer, cash drawn from the card. FR-TRF-004', () {
+    _Scripted drawn() => _Scripted()
+      ..transfers[1] = const TransferTotals(inCents: 20000, outCents: 0)
+      ..transfers[2] = const TransferTotals(inCents: 0, outCents: 20000);
+
+    testWidgets('on the card: gone, in red', (tester) async {
+      await tester.pumpWidget(boot(drawn(), accountId: 2));
+      await tester.pumpAndSettle();
+
+      expect(colourOf(tester, '−Rs200.00'), colours(tester).expense);
+      expect(find.text('In Rs0.00 · out Rs200.00'), findsOneWidget);
+    });
+
+    testWidgets('in cash: arrived, in green', (tester) async {
+      await tester.pumpWidget(boot(drawn(), accountId: 1));
+      await tester.pumpAndSettle();
+
+      expect(colourOf(tester, '+Rs200.00'), colours(tester).income);
+      expect(find.text('In Rs200.00 · out Rs0.00'), findsOneWidget);
+    });
+
+    testWidgets('across every account: the legs cancel', (tester) async {
+      await tester.pumpWidget(boot(drawn()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rs0.00'), findsOneWidget);
+      expect(find.text('In Rs0.00 · out Rs0.00'), findsOneWidget);
+    });
+  });
+
   testWidgets('a tap opens the period and account choices', (tester) async {
     await tester.pumpWidget(boot(_Scripted()));
     await tester.pumpAndSettle();
@@ -158,6 +189,14 @@ void main() {
 }
 
 class _Scripted implements AnalyticsRepository {
+  /// Per account id.
+  final Map<int, TransferTotals> transfers = {};
+
+  @override
+  Future<Either<Failure, TransferTotals>> transfersForPeriod(
+    AnalyticsQuery query,
+  ) async => Right(transfers[query.accountId] ?? TransferTotals.none);
+
   final Map<DateRange, List<CategoryTotal>> spending = {};
   final Map<DateRange, int> income = {};
 

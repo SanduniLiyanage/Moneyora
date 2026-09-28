@@ -275,6 +275,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                   // A day keeps its open or closed state as rows stream in.
                   key: ValueKey(('day', day.day)),
                   group: day,
+                  countTransfers: widget.accountId != null,
                   children: [
                     for (final transaction in day.transactions)
                       Dismissible(
@@ -446,21 +447,35 @@ class _TransactionTile extends StatelessWidget {
 /// One day's header, expanding to its rows. FR-EXP-006.
 ///
 /// The date, how many rows the day holds, and what it cost: spending in the
-/// expense colour, and income under it when there was any. Transfers are
-/// listed but never totalled (E-02). Open by default, the arrow on the left
+/// expense colour, and income under it when there was any. Across every
+/// account transfers are listed but not totalled (E-02); for one account
+/// they move its totals ([countTransfers]). Open by default, the arrow on the left
 /// so the total keeps the right edge the amounts below it line up with.
 class _DayGroupTile extends StatelessWidget {
-  const _DayGroupTile({required this.group, required this.children, super.key});
+  const _DayGroupTile({
+    required this.group,
+    required this.children,
+    required this.countTransfers,
+    super.key,
+  });
 
   final DayGroup group;
   final List<Widget> children;
+
+  /// Whether the day's transfers move its totals: when the list shows one
+  /// account, a transfer out of it is money gone and a transfer in is money
+  /// arrived. Across every account each transfer's legs would cancel and
+  /// only inflate both lines, so they are left out (E-02). FR-TRF-004.
+  final bool countTransfers;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>()!;
-    final spent = group.spentCents;
-    final income = group.incomeCents;
+    final spent =
+        group.spentCents + (countTransfers ? group.transferOutCents : 0);
+    final income =
+        group.incomeCents + (countTransfers ? group.transferInCents : 0);
 
     return ExpansionTile(
       initiallyExpanded: true,

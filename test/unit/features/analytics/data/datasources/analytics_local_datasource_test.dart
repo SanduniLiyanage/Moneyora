@@ -6,6 +6,7 @@ import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/database/seed/default_seed.dart';
 import 'package:moneyora/core/database/seed/dev_seed.dart';
 import 'package:moneyora/features/analytics/data/datasources/analytics_local_datasource.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -1175,6 +1176,75 @@ void main() {
       );
 
       expect(summed, (expected.single['total']! as num).toInt());
+    });
+  });
+
+  group('transfers for a period (FR-TRF-004)', () {
+    // Rs200 drawn from the card as cash on 10 August: the card's leg goes
+    // out, the cash leg comes in — two rows, each its own account's.
+    Future<void> drawCash({String date = '2026-08-10'}) async {
+      await db.insert('transactions', {
+        'account_id': card,
+        'amount_cents': 20000,
+        'type': 'transfer',
+        'transfer_direction': 'out',
+        'date': date,
+        'created_at': '${date}T00:00:00Z',
+        'updated_at': '${date}T00:00:00Z',
+      });
+      await db.insert('transactions', {
+        'account_id': cash,
+        'amount_cents': 20000,
+        'type': 'transfer',
+        'transfer_direction': 'in',
+        'date': date,
+        'created_at': '${date}T00:00:00Z',
+        'updated_at': '${date}T00:00:00Z',
+      });
+    }
+
+    Future<TransferTotals> transfersOn(int? account) =>
+        analytics.transfersForPeriod(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+          accountId: account,
+        );
+
+    test('the account the money left sees it go out', () async {
+      await drawCash();
+
+      expect(
+        await transfersOn(card),
+        const TransferTotals(inCents: 0, outCents: 20000),
+      );
+    });
+
+    test('the account it went to sees it come in', () async {
+      await drawCash();
+
+      expect(
+        await transfersOn(cash),
+        const TransferTotals(inCents: 20000, outCents: 0),
+      );
+    });
+
+    test('across every account the two legs are equal', () async {
+      await drawCash();
+
+      final all = await transfersOn(null);
+
+      expect(all.inCents, all.outCents);
+    });
+
+    test('ignores expenses and income, and other periods', () async {
+      await insertExpense(
+        categoryId: food,
+        amountCents: 50000,
+        date: '2026-08-10',
+      );
+      await drawCash(date: '2026-09-01');
+
+      expect(await transfersOn(cash), TransferTotals.none);
     });
   });
 }

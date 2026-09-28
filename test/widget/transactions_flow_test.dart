@@ -1402,6 +1402,56 @@ void main() {
       expect(find.text('Row 2'), findsOneWidget);
     });
 
+    group('a transfer moves one account. FR-TRF-004', () {
+      // Rs200 of cash drawn from the card (account 2) into cash (account 1).
+      void drawCash() => repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 2,
+          amountCents: 20000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.out,
+          counterpartyAccountId: 1,
+          date: DateTime(2026, 9, 28),
+        ),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          amountCents: 20000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.incoming,
+          counterpartyAccountId: 2,
+          date: DateTime(2026, 9, 28),
+        ),
+      ]);
+
+      testWidgets('on the card, the day lost it', (tester) async {
+        drawCash();
+        await pumpScoped(tester, accountId: 2);
+
+        // The row, and the day's total above it.
+        expect(find.text('−Rs200.00'), findsNWidgets(2));
+        expect(find.text('+Rs200.00'), findsNothing);
+      });
+
+      testWidgets('in cash, the day gained it', (tester) async {
+        drawCash();
+        await pumpScoped(tester, accountId: 1);
+
+        expect(find.text('+Rs200.00'), findsNWidgets(2));
+        expect(find.text('−Rs200.00'), findsNothing);
+      });
+
+      testWidgets('across every account, the day has no total', (tester) async {
+        drawCash();
+        await pumpScoped(tester);
+
+        // Both rows, and no total: the legs cancel (E-02).
+        expect(find.text('−Rs200.00'), findsOneWidget);
+        expect(find.text('+Rs200.00'), findsOneWidget);
+      });
+    });
+
     testWidgets('an empty period says so, and keeps the header', (
       tester,
     ) async {

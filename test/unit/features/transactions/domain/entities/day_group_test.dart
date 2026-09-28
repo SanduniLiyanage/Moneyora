@@ -61,6 +61,28 @@ void main() {
     expect(day.count, 3, reason: 'the transfer is listed, just not totalled');
   });
 
+  test('transfers are totalled apart, by direction. FR-TRF-004', () {
+    final incoming = Transaction(
+      id: 4,
+      accountId: 1,
+      amountCents: 20000,
+      type: TransactionType.transfer,
+      transferDirection: TransferDirection.incoming,
+      date: DateTime(2026, 9, 28),
+    );
+    final day = DayGroup.group([
+      row(1, DateTime(2026, 9, 28), 1000),
+      row(2, DateTime(2026, 9, 28), 30000, type: TransactionType.transfer),
+      incoming,
+    ]).single;
+
+    expect(day.transferOutCents, 30000);
+    expect(day.transferInCents, 20000);
+    // Still neither spending nor income.
+    expect(day.spentCents, 1000);
+    expect(day.incomeCents, 0);
+  });
+
   test('midnight belongs to the day it starts', () {
     final groups = DayGroup.group([
       row(1, DateTime(2026, 9, 27), 100),

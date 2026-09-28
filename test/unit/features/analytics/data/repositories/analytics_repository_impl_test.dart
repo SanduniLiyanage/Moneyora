@@ -12,6 +12,7 @@ import 'package:moneyora/features/analytics/data/models/daily_total_model.dart';
 import 'package:moneyora/features/analytics/data/models/trend_point_model.dart';
 import 'package:moneyora/features/analytics/data/repositories/analytics_repository_impl.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
+import 'package:moneyora/features/analytics/domain/entities/transfer_totals.dart';
 import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 
@@ -75,6 +76,21 @@ class _FakeDataSource implements AnalyticsLocalDataSource {
     this.accountId = accountId;
     if (throws case final failure?) throw failure;
     return income;
+  }
+
+  TransferTotals transfers = TransferTotals.none;
+
+  @override
+  Future<TransferTotals> transfersForPeriod({
+    required DateTime from,
+    required DateTime to,
+    int? accountId,
+  }) async {
+    this.from = from;
+    this.to = to;
+    this.accountId = accountId;
+    if (throws case final failure?) throw failure;
+    return transfers;
   }
 
   @override
@@ -174,6 +190,38 @@ void main() {
         expect(failure, isA<CacheFailure>());
         expect(failure.message, 'disk is full');
       }, (_) => fail('should not have returned an amount'));
+    });
+  });
+
+  group('transfers for a period (FR-TRF-004)', () {
+    test('passes the account through and returns the totals', () async {
+      final source = _FakeDataSource()
+        ..transfers = const TransferTotals(inCents: 20000, outCents: 0);
+      final repository = AnalyticsRepositoryImpl(source);
+
+      final result = await repository.transfersForPeriod(
+        AnalyticsQuery(range: august, accountId: 7),
+      );
+
+      expect(source.accountId, 7);
+      expect(
+        result,
+        const Right<Failure, TransferTotals>(
+          TransferTotals(inCents: 20000, outCents: 0),
+        ),
+      );
+    });
+
+    test('turns a cache exception into a failure at this boundary', () async {
+      final repository = AnalyticsRepositoryImpl(
+        _FakeDataSource(throws: const CacheException('disk is full')),
+      );
+
+      final result = await repository.transfersForPeriod(
+        AnalyticsQuery(range: august, accountId: 7),
+      );
+
+      expect(result.isLeft(), isTrue);
     });
   });
 
