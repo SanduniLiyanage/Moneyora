@@ -9,6 +9,7 @@ import '../../../../core/ports/category_reader.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/scale_down_text.dart';
+import '../../../../injection.dart' show notificationSettingsProvider;
 import '../../domain/entities/plan_line.dart';
 import '../../domain/entities/plan_period.dart';
 import '../../domain/usecases/save_built_plan.dart';
@@ -232,6 +233,12 @@ class _PlanEditorPageState extends ConsumerState<PlanEditorPage> {
     }
     final choice = await PlanNameDialog.show(
       context,
+      offerAlerts:
+          ref
+              .read(notificationSettingsProvider)
+              .valueOrNull
+              ?.budgetAlertsEnabled ==
+          false,
       initial: planPeriodLabel(widget.args.period),
     );
     if (choice == null || !mounted) return;
@@ -250,11 +257,15 @@ class _PlanEditorPageState extends ConsumerState<PlanEditorPage> {
 
     if (id != null) {
       _dirty = false;
+      final messenger = ScaffoldMessenger.of(context);
+      final alerts = await PlanNameDialog.alertsFor(ref, choice);
+      if (!mounted) return;
       // As the review screen: home underneath, the plan on top.
       context.go(Routes.home);
       unawaited(
         context.push(choice.activate ? Routes.activePlan : Routes.plans),
       );
+      if (alerts != null) unawaited(PlanNameDialog.turnOn(alerts, messenger));
       return;
     }
     final error = ref.read(saveBuiltPlanControllerProvider).error;

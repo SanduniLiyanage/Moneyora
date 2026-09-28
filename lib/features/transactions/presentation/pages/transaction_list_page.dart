@@ -45,11 +45,17 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
   bool get _isFiltered => _typeFilter != null;
 
-  Future<void> _edit(Transaction transaction) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => AddTransactionPage(initial: transaction),
-    ),
-  );
+  Future<void> _edit(Transaction transaction) =>
+      _open(AddTransactionPage(initial: transaction));
+
+  /// Opens [page] over the list, taking the "Transaction deleted" offer
+  /// down first: it belongs to this screen, and left up it sits over the
+  /// next screen's Save button. The deletion itself still completes.
+  Future<void> _open(Widget page) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    return Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => page));
+  }
 
   /// Hides the row and starts the undo window. E-23.
   void _delete(Transaction transaction) {
@@ -103,9 +109,6 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transactions'),
-        // No sample-data loader here: this is where someone checks their
-        // real money. It lives on the Money Plan, which is what needs history
-        // to show anything.
         actions: [
           // E-11 puts the toggle beside the balance; on this screen that is
           // the app bar, and the icon shows the mode a tap would switch to.
@@ -123,7 +126,10 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
           // recorded, and putting it in the entry screen's type toggle would
           // say otherwise.
           IconButton(
-            onPressed: () => context.push(Routes.transfer),
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              context.push(Routes.transfer);
+            },
             icon: const Icon(Icons.swap_horiz),
             tooltip: 'Transfer between accounts',
           ),
@@ -137,9 +143,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const AddTransactionPage()),
-        ),
+        onPressed: () => _open(const AddTransactionPage()),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),

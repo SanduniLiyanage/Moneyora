@@ -311,27 +311,33 @@ void main() {
           id: AppNotification.budgetAlertBase + 4,
           kind: NotificationKind.budgetAlert,
           title: 'Food is at 83% of its budget',
-          body: 'In your "September" plan. Open it to see what is left.',
+          body:
+              'About 17% is left in your "September" plan. Tap to see '
+              'where you stand.',
           payload: CheckBudgetAlerts.payload,
         ),
       );
     });
 
-    test('exactly spent says so, and names the three responses', () {
+    test('exactly spent says so, and what the next purchase means', () {
       final n = say(BudgetAlertLevel.exceeded, 100);
 
-      expect(n.title, 'Food has used its whole budget');
+      expect(n.title, "You've used your whole Food budget");
       expect(
         n.body,
-        'In your "September" plan. Open it to redistribute, adjust or '
-        'carry the overspend over.',
+        'You have reached the limit in your "September" plan. Anything '
+        'more on Food goes over.',
       );
     });
 
-    test('over says by how much', () {
+    test('over says so, by how much, and names the three responses', () {
+      final n = say(BudgetAlertLevel.exceeded, 104);
+
+      expect(n.title, "You've gone over your Food budget");
       expect(
-        say(BudgetAlertLevel.exceeded, 104).title,
-        'Food is over budget, at 104%',
+        n.body,
+        'Food is at 104% of its limit in your "September" plan. Tap to '
+        'rebalance, adjust or carry the overspend over.',
       );
     });
 

@@ -91,7 +91,7 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
         id: notification.id,
         title: notification.title,
         body: notification.body,
-        notificationDetails: _detailsFor(notification.kind),
+        notificationDetails: _detailsFor(notification.kind, notification.body),
         payload: notification.payload,
       );
       return const Right(unit);
@@ -123,7 +123,7 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
           at.hour,
           at.minute,
         ),
-        notificationDetails: _detailsFor(notification.kind),
+        notificationDetails: _detailsFor(notification.kind, notification.body),
         // Inexact: no exact-alarm permission, which Android 14 withholds
         // by default and the stores audit. A heads-up a few minutes late
         // costs nothing (E-37).
@@ -204,14 +204,18 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
   @override
   Stream<String> get opened => _opened.stream;
 
-  /// The channel and presentation for [kind].
+  /// The channel and presentation for [kind], showing [body].
   ///
   /// The channel's id is stable across releases — Android keeps the user's
   /// choices against it — and its name and description are what the phone's
   /// settings show beside the switch that silences it.
-  static NotificationDetails _detailsFor(NotificationKind kind) =>
+  ///
+  /// Alerts and reminders use the big-text style: collapsed, Android cuts
+  /// a body to one line, and theirs say what to do next, so expanding the
+  /// notification shows all of it.
+  static NotificationDetails _detailsFor(NotificationKind kind, String body) =>
       switch (kind) {
-        NotificationKind.budgetAlert => const NotificationDetails(
+        NotificationKind.budgetAlert => NotificationDetails(
           android: AndroidNotificationDetails(
             'budget_alerts',
             'Budget alerts',
@@ -220,10 +224,11 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
                 'of its budget.',
             importance: Importance.high,
             priority: Priority.high,
+            styleInformation: BigTextStyleInformation(body),
           ),
           // Shown while the app is open too: the expense that crossed the
           // threshold was most likely just entered in it.
-          iOS: DarwinNotificationDetails(
+          iOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentBanner: true,
             presentList: true,
@@ -232,14 +237,15 @@ class FlutterLocalNotifier implements LocalNotifier, NotificationTaps {
         // Its own channel, so a user can silence reminders and keep budget
         // alerts, or the other way round. Default importance: a heads-up,
         // not an interruption.
-        NotificationKind.recurringReminder => const NotificationDetails(
+        NotificationKind.recurringReminder => NotificationDetails(
           android: AndroidNotificationDetails(
             'recurring_reminders',
             'Recurring reminders',
             channelDescription:
                 'Before a repeating expense or income is added.',
+            styleInformation: BigTextStyleInformation(body),
           ),
-          iOS: DarwinNotificationDetails(
+          iOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentBanner: true,
             presentList: true,

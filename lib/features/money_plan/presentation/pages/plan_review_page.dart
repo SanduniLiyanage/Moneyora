@@ -8,6 +8,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/scale_down_text.dart';
+import '../../../../injection.dart' show notificationSettingsProvider;
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/category_allocation.dart';
 import '../../domain/entities/confidence_score.dart';
@@ -85,6 +86,12 @@ class PlanReviewPage extends ConsumerWidget {
   ) async {
     final choice = await PlanNameDialog.show(
       context,
+      offerAlerts:
+          ref
+              .read(notificationSettingsProvider)
+              .valueOrNull
+              ?.budgetAlertsEnabled ==
+          false,
       initial: planPeriodLabel(draft.period),
     );
     if (choice == null || !context.mounted) return;
@@ -101,6 +108,9 @@ class PlanReviewPage extends ConsumerWidget {
     if (!context.mounted) return;
 
     if (id != null) {
+      final messenger = ScaffoldMessenger.of(context);
+      final alerts = await PlanNameDialog.alertsFor(ref, choice);
+      if (!context.mounted) return;
       // Home underneath, the saved plan on top: back leaves to home, not to
       // a review of a draft that has already been saved. A plan saved for
       // later (FR-PLN-015) lands on the list, where it can be activated.
@@ -108,6 +118,7 @@ class PlanReviewPage extends ConsumerWidget {
       unawaited(
         context.push(choice.activate ? Routes.activePlan : Routes.plans),
       );
+      if (alerts != null) unawaited(PlanNameDialog.turnOn(alerts, messenger));
       return;
     }
 

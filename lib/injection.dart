@@ -17,6 +17,7 @@ import 'core/network/connectivity_network_info.dart';
 import 'core/network/network_info.dart';
 import 'core/notifications/flutter_local_notifier.dart';
 import 'core/ports/account_reader.dart';
+import 'core/ports/budget_alerts_switch.dart';
 import 'core/ports/calendar_settings_reader.dart';
 import 'core/ports/category_reader.dart';
 import 'core/ports/category_writer.dart';
@@ -1093,6 +1094,12 @@ final setBudgetAlertsProvider = FutureProvider<SetBudgetAlerts>(
     await ref.watch(settingsRepositoryProvider.future),
     ref.watch(localNotifierProvider),
   ),
+);
+
+/// FR-SET-007's alerts, turned on from the Money Plan when a plan is saved.
+/// The same use case as [setBudgetAlertsProvider], through its port. E-39.
+final budgetAlertsSwitchProvider = FutureProvider<BudgetAlertsSwitch>(
+  (ref) async => ref.watch(setBudgetAlertsProvider.future),
 );
 
 /// Turns recurring reminders on or off, asking permission first.

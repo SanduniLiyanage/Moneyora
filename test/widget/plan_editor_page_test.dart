@@ -7,7 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/budget_alerts_switch.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
+import 'package:moneyora/core/ports/notification_settings.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/money_plan/domain/entities/category_classification.dart';
@@ -54,12 +56,23 @@ void main() {
     ),
   );
 
-  Widget boot(PlanEditorArgs args, {_Repository? repository}) => ProviderScope(
+  Widget boot(
+    PlanEditorArgs args, {
+    _Repository? repository,
+    NotificationSettings? notifications,
+    _Switch? alerts,
+  }) => ProviderScope(
     overrides: [
       planCategoriesProvider.overrideWith((ref) => Stream.value(categories)),
       saveBuiltPlanProvider.overrideWith(
         (ref) async => SaveBuiltPlan(repository ?? _Repository()),
       ),
+      if (notifications != null)
+        notificationSettingsProvider.overrideWith(
+          (ref) => Stream.value(notifications),
+        ),
+      if (alerts != null)
+        budgetAlertsSwitchProvider.overrideWith((ref) async => alerts),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light,
@@ -68,13 +81,23 @@ void main() {
         routes: [
           GoRoute(
             path: Routes.home,
-            builder: (context, state) => Scaffold(
-              body: Center(
-                child: TextButton(
-                  onPressed: () => context.push(Routes.planEditor, extra: args),
-                  child: const Text('open'),
-                ),
-              ),
+            // Watches the notification settings as the app's alert watcher
+            // does, so the editor finds them loaded.
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) {
+                if (notifications != null) {
+                  ref.watch(notificationSettingsProvider);
+                }
+                return Scaffold(
+                  body: Center(
+                    child: TextButton(
+                      onPressed: () =>
+                          context.push(Routes.planEditor, extra: args),
+                      child: const Text('open'),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           GoRoute(
@@ -101,8 +124,17 @@ void main() {
     WidgetTester tester,
     PlanEditorArgs args, {
     _Repository? repository,
+    NotificationSettings? notifications,
+    _Switch? alerts,
   }) async {
-    await tester.pumpWidget(boot(args, repository: repository));
+    await tester.pumpWidget(
+      boot(
+        args,
+        repository: repository,
+        notifications: notifications,
+        alerts: alerts,
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
@@ -302,6 +334,113 @@ void main() {
       expect(row.isUserModified, isTrue);
     });
   });
+
+  group('budget alerts, offered on save. FR-SET-007', () {
+    const off = NotificationSettings();
+
+    Future<void> saveWithFood(WidgetTester tester) async {
+      await tester.enterText(field('Food'), '30000');
+      await tester.tap(find.text('Save plan'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('while they are off: offered, ticked, and turned on', (
+      tester,
+    ) async {
+      final alerts = _Switch();
+      await open(
+        tester,
+        PlanEditorArgs(period: october),
+        notifications: off,
+        alerts: alerts,
+      );
+      await saveWithFood(tester);
+
+      expect(find.text('Alert me near and over each limit'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(alerts.turnedOn, 1);
+      expect(find.textContaining('Budget alerts are on'), findsOneWidget);
+      expect(find.text('active plan stub'), findsOneWidget);
+    });
+
+    testWidgets('unticked, they stay off', (tester) async {
+      final alerts = _Switch();
+      await open(
+        tester,
+        PlanEditorArgs(period: october),
+        notifications: off,
+        alerts: alerts,
+      );
+      await saveWithFood(tester);
+
+      await tester.tap(find.text('Alert me near and over each limit'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(alerts.turnedOn, 0);
+    });
+
+    testWidgets('a refused permission says where it is now', (tester) async {
+      final alerts = _Switch(
+        refusal: const PermissionFailure('Allow them in Settings.'),
+      );
+      await open(
+        tester,
+        PlanEditorArgs(period: october),
+        notifications: off,
+        alerts: alerts,
+      );
+      await saveWithFood(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Allow them in Settings.'), findsOneWidget);
+    });
+
+    testWidgets('already on: not offered', (tester) async {
+      await open(
+        tester,
+        PlanEditorArgs(period: october),
+        notifications: const NotificationSettings(budgetAlertsEnabled: true),
+        alerts: _Switch(),
+      );
+      await saveWithFood(tester);
+
+      expect(find.text('Alert me near and over each limit'), findsNothing);
+    });
+
+    testWidgets('a plan kept for later: not offered', (tester) async {
+      await open(
+        tester,
+        PlanEditorArgs(period: october),
+        notifications: off,
+        alerts: _Switch(),
+      );
+      await saveWithFood(tester);
+
+      await tester.tap(find.text('Track it now'));
+      await tester.pump();
+
+      expect(find.text('Alert me near and over each limit'), findsNothing);
+    });
+  });
+}
+
+/// Counts the times alerts were turned on, or refuses as the platform may.
+class _Switch implements BudgetAlertsSwitch {
+  _Switch({this.refusal});
+
+  final Failure? refusal;
+  int turnedOn = 0;
+
+  @override
+  Future<Either<Failure, Unit>> turnOn() async {
+    turnedOn++;
+    return refusal == null ? const Right(unit) : Left(refusal!);
+  }
 }
 
 /// Records the plan saved; nothing else is reached from the editor.
