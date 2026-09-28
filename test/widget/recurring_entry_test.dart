@@ -139,6 +139,20 @@ void main() {
   FilledButton save(WidgetTester tester) =>
       tester.widget<FilledButton>(saveButton);
 
+  testWidgets('Repeat is labelled, beside the amount, not in the app bar', (
+    tester,
+  ) async {
+    // A bare icon top right looked like the transfer arrows and was not
+    // found. The word is what makes it findable.
+    await pumpEntry(tester);
+
+    expect(find.widgetWithText(FilterChip, 'Repeat'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: repeatToggle),
+      findsNothing,
+    );
+  });
+
   testWidgets('the schedule is hidden until Repeat is turned on', (
     tester,
   ) async {

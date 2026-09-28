@@ -68,7 +68,8 @@ list; **Undo** appears for a few seconds in case that was a mistake.
 
 ### Something that repeats
 
-On the same screen, under **Repeats**, set how often an entry comes round:
+On the same screen, tap **Repeat** beside the amount, then choose how often
+the entry comes round:
 rent every month, a subscription, a salary. Moneyora records each one when
 it falls due. **Recurring** (from the home screen) lists every repeat,
 where you can pause, resume or delete one. With **Recurring reminders**

@@ -333,16 +333,6 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           (false, _) => 'New expense',
         }),
         actions: [
-          // E-13: the recurring toggle, top right, as the reference app
-          // places it. A new entry only — see _repeats.
-          if (!_isEditing)
-            IconButton(
-              tooltip: _repeats ? 'Stop repeating' : 'Repeat',
-              isSelected: _repeats,
-              icon: const Icon(Icons.repeat),
-              selectedIcon: const Icon(Icons.repeat_on),
-              onPressed: _toggleRepeat,
-            ),
           // FR-RCP-001: the scanner from the add-expense flow as well as
           // the main screen. A new expense only — a receipt is never an
           // income, and an edit is a row that already exists.
@@ -386,6 +376,21 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     keypadOpen: _keypadOpen,
                     onToggleKeypad: () =>
                         setState(() => _keypadOpen = !_keypadOpen),
+                    // E-13's recurring toggle, labelled, in the space beside
+                    // the amount. It was a bare icon in the app bar, where it
+                    // looked like the transfer arrows and was not found; here
+                    // it costs no height on a small phone. A new entry only —
+                    // see _repeats.
+                    repeat: _isEditing
+                        ? null
+                        : FilterChip(
+                            tooltip: _repeats ? 'Stop repeating' : 'Repeat',
+                            avatar: const Icon(Icons.repeat),
+                            label: const Text('Repeat'),
+                            selected: _repeats,
+                            showCheckmark: false,
+                            onSelected: (_) => _toggleRepeat(),
+                          ),
                   ),
                   _TypeToggle(
                     type: _type,
@@ -662,6 +667,7 @@ class _AmountDisplay extends StatelessWidget {
     required this.type,
     required this.keypadOpen,
     required this.onToggleKeypad,
+    this.repeat,
   });
 
   final AmountExpression expression;
@@ -670,6 +676,9 @@ class _AmountDisplay extends StatelessWidget {
   /// Whether the keypad below is showing, and the way to fold or open it.
   final bool keypadOpen;
   final VoidCallback onToggleKeypad;
+
+  /// The Repeat toggle, beside the keypad's; null when editing.
+  final Widget? repeat;
 
   @override
   Widget build(BuildContext context) {
@@ -706,6 +715,8 @@ class _AmountDisplay extends StatelessWidget {
                   ),
                   onPressed: onToggleKeypad,
                 ),
+                ?repeat,
+                const SizedBox(width: 8),
                 Expanded(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
