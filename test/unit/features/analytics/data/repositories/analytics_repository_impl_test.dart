@@ -346,22 +346,32 @@ void main() {
       );
     });
 
-    test('asks for the days over every account, and hands them on', () async {
-      final source = _FakeDataSource();
-      final DailySpendingReader reader = AnalyticsRepositoryImpl(source);
+    test(
+      'asks the trend statement for days over every account, by category',
+      () async {
+        final source = _FakeDataSource();
+        final DailySpendingReader reader = AnalyticsRepositoryImpl(source);
 
-      final result = await reader.dailySpending(
-        from: DateTime(2026, 8),
-        to: DateTime(2026, 8, 31),
-      );
+        final result = await reader.dailySpending(
+          from: DateTime(2026, 8),
+          to: DateTime(2026, 8, 31),
+        );
 
-      expect(source.from, DateTime(2026, 8));
-      expect(source.to, DateTime(2026, 8, 31));
-      expect(source.accountId, isNull);
-      expect(result.getRight().toNullable(), [
-        DailySpending(day: DateTime(2026, 8, 3), amountCents: 120000),
-      ]);
-    });
+        expect(source.from, DateTime(2026, 8));
+        expect(source.to, DateTime(2026, 8, 31));
+        expect(source.accountId, isNull);
+        // The month cut's statement, so its category ids are the ones the
+        // plan classified.
+        expect(source.granularity, TrendGranularity.day);
+        expect(result.getRight().toNullable(), [
+          DailySpending(
+            day: DateTime(2026, 8, 3),
+            categoryId: 1,
+            amountCents: 120000,
+          ),
+        ]);
+      },
+    );
 
     test('turns a cache exception into a failure at this boundary', () async {
       final DailySpendingReader reader = AnalyticsRepositoryImpl(

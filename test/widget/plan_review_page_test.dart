@@ -196,6 +196,7 @@ void main() {
         d = DateTime(d.year, d.month, d.day + 1)
       )
         DailySpending(
+          categoryId: 2,
           day: d,
           amountCents:
               d.weekday == DateTime.saturday || d.weekday == DateTime.sunday
@@ -240,6 +241,23 @@ void main() {
       expect(find.text('Spending patterns'), findsOneWidget);
       expect(
         find.textContaining('Weekends cost 200% more a day than weekdays'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('leaves a bill out, and says so', (tester) async {
+      // Bills paid on the 1st of every month would make the first ten days
+      // look dearer; the card reads the everyday spending alone.
+      await review(tester, [
+        for (final start in halfYear.monthStarts)
+          DailySpending(day: start, categoryId: 1, amountCents: 4500000),
+        ...everyDay(halfYear, 1000),
+      ]);
+
+      expect(find.textContaining('Steady across the week'), findsOneWidget);
+      expect(find.textContaining('first ten days'), findsNothing);
+      expect(
+        find.text('Left out, as spent on a day or two a month: Bills.'),
         findsOneWidget,
       );
     });

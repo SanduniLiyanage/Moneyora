@@ -215,7 +215,13 @@ class _Draft extends StatelessWidget {
         for (final allocation in draft.allocations)
           _AllocationCard(allocation: allocation),
         const SizedBox(height: 8),
-        _PatternsCard(lookback: draft.lookback),
+        _PatternsCard(
+          lookback: draft.lookback,
+          names: {
+            for (final a in draft.allocations)
+              a.classification.categoryId: a.classification.statistics.name,
+          },
+        ),
       ],
     );
   }
@@ -226,15 +232,21 @@ class _Draft extends StatelessWidget {
 /// Over the same months as the figures above it, so a habit named here is
 /// one those figures learned from.
 class _PatternsCard extends ConsumerWidget {
-  const _PatternsCard({required this.lookback});
+  const _PatternsCard({required this.lookback, required this.names});
 
   final LookbackWindow lookback;
+
+  /// Category names by id, to say which were left out as bills.
+  final Map<int, String> names;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final lines = switch (ref.watch(spendingPatternsProvider(lookback))) {
-      AsyncData(:final value) => spendingPatternLines(value),
+      AsyncData(:final value) => spendingPatternLines(
+        value,
+        leftOut: [for (final id in value.leftOut) ?names[id]],
+      ),
       AsyncError(:final error) => [
         error is Failure
             ? error.message
