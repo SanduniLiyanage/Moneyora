@@ -116,6 +116,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// [amount] on a transaction row, not on its day's header: a day with
+  /// one row totals the same figure (FR-EXP-006).
+  Finder onRow(String amount) => find.descendant(
+    of: find.byType(Dismissible),
+    matching: find.text(amount),
+  );
+
+  Future<void> tapRow(WidgetTester tester, String amount) async {
+    await tester.ensureVisible(onRow(amount));
+    await tester.tap(onRow(amount));
+    await tester.pumpAndSettle();
+  }
+
   Future<void> keyIn(WidgetTester tester, String keys) async {
     for (final key in keys.split('')) {
       await tapText(tester, key);
@@ -193,7 +206,7 @@ void main() {
       // Back on the list, showing the row just written. Nothing told this
       // screen to refresh — the watch stream did.
       expect(find.text('No transactions yet'), findsNothing);
-      expect(find.text('−Rs1,590.00'), findsOneWidget);
+      expect(onRow('−Rs1,590.00'), findsOneWidget);
     });
 
     testWidgets('will not save without an amount', (tester) async {
@@ -222,7 +235,10 @@ void main() {
       expect(repository.saved.single.note, 'Groceries');
       expect(repository.saved.single.amountCents, 50000);
       // Under the category's name, not in place of it.
-      expect(find.text('Today · Groceries'), findsOneWidget);
+      // The date is the day's header (FR-EXP-006); the note sits under the
+      // row's category.
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Groceries'), findsOneWidget);
     });
 
     testWidgets('switching to income swaps the category list', (tester) async {
@@ -301,7 +317,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester, amount: '1250');
 
-      await tapText(tester, '−Rs1,250.00');
+      await tapRow(tester, '−Rs1,250.00');
 
       expect(find.text('Edit expense'), findsOneWidget);
       // Prefilled through the same text entry a user would have typed, so the
@@ -315,7 +331,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester, amount: '1250');
 
-      await tapText(tester, '−Rs1,250.00');
+      await tapRow(tester, '−Rs1,250.00');
       await tapText(tester, '⌫');
       await tapText(tester, '⌫');
       await tapText(tester, '⌫');
@@ -352,7 +368,7 @@ void main() {
       repository.saved.add(original);
 
       await pumpApp(tester);
-      await tapText(tester, '−Rs300.00');
+      await tapRow(tester, '−Rs300.00');
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
@@ -450,7 +466,7 @@ void main() {
         ),
       );
       await pumpApp(tester);
-      await tapText(tester, '−Rs300.00');
+      await tapRow(tester, '−Rs300.00');
 
       await reveal(tester, find.byTooltip('Remove photo'));
       await tester.tap(find.byTooltip('Remove photo'));
@@ -480,7 +496,7 @@ void main() {
         ),
       );
       await pumpApp(tester);
-      await tapText(tester, '−Rs300.00');
+      await tapRow(tester, '−Rs300.00');
       await reveal(tester, find.text('Photo from the receipt scan'));
 
       expect(find.text('Photo from the receipt scan'), findsOneWidget);
@@ -514,7 +530,7 @@ void main() {
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
-      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
       await tester.pumpAndSettle();
       expect(photos.discarded, isEmpty, reason: 'undo still possible');
 
@@ -616,7 +632,7 @@ void main() {
         ),
       );
       await pumpLarge(tester);
-      await tapText(tester, '−${formatCents(700)}');
+      await tapRow(tester, '−${formatCents(700)}');
 
       await tester.dragUntilVisible(
         find.byTooltip('Remove photo'),
@@ -713,10 +729,10 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
       await tester.pumpAndSettle();
 
-      expect(find.text('−Rs500.00'), findsNothing);
+      expect(onRow('−Rs500.00'), findsNothing);
       expect(find.text('Undo'), findsOneWidget);
     });
 
@@ -727,7 +743,7 @@ void main() {
       // entry screen's Save button, and a tap on Save hit the bar instead.
       await pumpApp(tester);
       await addExpense(tester);
-      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
       await tester.pumpAndSettle();
       expect(find.text('Undo'), findsOneWidget);
 
@@ -741,14 +757,14 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
       await tester.pumpAndSettle();
       await tapText(tester, 'Undo');
 
       // The point of E-23: nothing was deleted and re-inserted, so the row
       // keeps its id and any child rows it had. The delete simply never ran.
       expect(repository.deleted, isEmpty);
-      expect(find.text('−Rs500.00'), findsOneWidget);
+      expect(onRow('−Rs500.00'), findsOneWidget);
     });
 
     testWidgets('commits when the app goes to the background', (tester) async {
@@ -759,7 +775,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
       await tester.pumpAndSettle();
       expect(repository.deleted, isEmpty, reason: 'window still open');
 
@@ -782,7 +798,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
       await tester.pumpAndSettle();
       expect(repository.deleted, isEmpty, reason: 'not written yet');
 
@@ -804,14 +820,14 @@ void main() {
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
-      expect(find.text('−Rs500.00'), findsOneWidget);
+      expect(onRow('−Rs500.00'), findsOneWidget);
 
       await tapText(tester, 'Income');
-      expect(find.text('−Rs500.00'), findsNothing);
+      expect(onRow('−Rs500.00'), findsNothing);
       expect(find.text('Nothing matches this filter'), findsOneWidget);
 
       await tapText(tester, 'Expenses');
-      expect(find.text('−Rs500.00'), findsOneWidget);
+      expect(onRow('−Rs500.00'), findsOneWidget);
     });
   });
 
@@ -1138,8 +1154,132 @@ void main() {
 
       await tester.tap(find.byTooltip('List by date'));
       await tester.pumpAndSettle();
-      expect(find.byType(ExpansionTile), findsNothing);
-      expect(find.text('Food'), findsOneWidget);
+      // By date again: the groups are days now (FR-EXP-006), and Food is
+      // a row inside one, not a group of its own.
+      expect(find.byTooltip('Group by category'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(Dismissible),
+          matching: find.text('Food'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('by day. FR-EXP-006', () {
+    Transaction row(
+      int id,
+      DateTime date,
+      int cents, {
+      TransactionType type = TransactionType.expense,
+      String? note,
+    }) => Transaction(
+      id: id,
+      accountId: 1,
+      categoryId: type == TransactionType.income ? 3 : 1,
+      amountCents: cents,
+      type: type,
+      date: date,
+      note: note,
+    );
+
+    final saturday = DateTime(2026, 9, 26);
+    final sunday = DateTime(2026, 9, 27);
+
+    Finder header(DateTime day) =>
+        find.widgetWithText(ExpansionTile, dayLabel(day, DateTime.now()));
+
+    testWidgets('each day says how many, and what it cost', (tester) async {
+      repository.saved.addAll([
+        row(1, sunday, 159800, note: 'Data package'),
+        row(2, sunday, 24000, note: 'Rice'),
+        row(3, saturday, 40000, note: 'Rice and dhal'),
+      ]);
+      await pumpApp(tester);
+
+      final day = header(sunday);
+      expect(day, findsOneWidget);
+      expect(
+        find.descendant(of: day, matching: find.text('2')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: day, matching: find.text('−Rs1,838.00')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: header(saturday), matching: find.text('1')),
+        findsOneWidget,
+      );
+      // Under its day, a row names its category and its note; the date is
+      // the header's.
+      expect(find.text('Data package'), findsOneWidget);
+    });
+
+    testWidgets('income shows under the spending, and a transfer in neither', (
+      tester,
+    ) async {
+      repository.saved.addAll([
+        row(1, saturday, 40000),
+        row(2, saturday, 500000, type: TransactionType.income),
+        Transaction(
+          id: 3,
+          accountId: 1,
+          amountCents: 70000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.out,
+          date: saturday,
+        ),
+      ]);
+      await pumpApp(tester);
+
+      final day = header(saturday);
+      expect(
+        find.descendant(of: day, matching: find.text('3')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: day, matching: find.text('−Rs400.00')),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: day, matching: find.text('+Rs5,000.00')),
+        findsWidgets,
+      );
+      expect(find.textContaining('4,700'), findsNothing);
+      expect(find.textContaining('5,400'), findsNothing);
+    });
+
+    testWidgets('a day folds away, and opens again', (tester) async {
+      repository.saved.addAll([
+        row(1, sunday, 24000, note: 'Rice'),
+        row(2, saturday, 40000, note: 'Dhal'),
+      ]);
+      await pumpApp(tester);
+      expect(find.text('Rice'), findsOneWidget);
+
+      await tester.tap(find.text(dayLabel(sunday, DateTime.now())));
+      await tester.pumpAndSettle();
+      expect(find.text('Rice'), findsNothing);
+      expect(find.text('Dhal'), findsOneWidget, reason: 'other days stay open');
+
+      await tester.tap(find.text(dayLabel(sunday, DateTime.now())));
+      await tester.pumpAndSettle();
+      expect(find.text('Rice'), findsOneWidget);
+    });
+
+    test('a day is Today, Yesterday, or its weekday and date', () {
+      final now = DateTime(2026, 9, 28, 19);
+      expect(dayLabel(DateTime(2026, 9, 28), now), 'Today');
+      expect(dayLabel(DateTime(2026, 9, 27), now), 'Yesterday');
+      expect(dayLabel(DateTime(2026, 9, 24), now), 'Thursday, 24 September');
+      expect(
+        dayLabel(DateTime(2025, 12, 23), now),
+        'Tuesday, 23 December 2025',
+      );
+      // Across a month and a year boundary, yesterday is still Yesterday.
+      expect(dayLabel(DateTime(2025, 12, 31), DateTime(2026)), 'Yesterday');
     });
   });
 }

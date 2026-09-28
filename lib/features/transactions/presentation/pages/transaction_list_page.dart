@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/category_reader.dart';
@@ -11,6 +12,7 @@ import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/category_icons.dart';
 import '../../../../core/widgets/scale_down_text.dart';
 import '../../domain/entities/category_group.dart';
+import '../../domain/entities/day_group.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../providers/transaction_providers.dart';
@@ -217,25 +219,35 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             );
           }
 
-          return ListView.separated(
+          // FR-EXP-006: by day, each day's header saying what it cost.
+          final days = DayGroup.group(rows);
+          return ListView.builder(
             // Room for the FAB, or it covers the last row — which is the row
             // someone has just added and most wants to see.
             padding: const EdgeInsets.only(bottom: 88),
-            itemCount: rows.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemCount: days.length,
             itemBuilder: (context, index) {
-              final transaction = rows[index];
-              return Dismissible(
-                key: ValueKey(transaction.id),
-                direction: DismissDirection.endToStart,
-                background: const _DeleteBackground(),
-                onDismissed: (_) => _delete(transaction),
-                child: _TransactionTile(
-                  transaction: transaction,
-                  accountNames: accountNames,
-                  categoryNames: categoryNames,
-                  onTap: () => _edit(transaction),
-                ),
+              final day = days[index];
+              return _DayGroupTile(
+                // A day keeps its open or closed state as rows stream in.
+                key: ValueKey(('day', day.day)),
+                group: day,
+                children: [
+                  for (final transaction in day.transactions)
+                    Dismissible(
+                      key: ValueKey(transaction.id),
+                      direction: DismissDirection.endToStart,
+                      background: const _DeleteBackground(),
+                      onDismissed: (_) => _delete(transaction),
+                      child: _TransactionTile(
+                        transaction: transaction,
+                        accountNames: accountNames,
+                        categoryNames: categoryNames,
+                        showDate: false,
+                        onTap: () => _edit(transaction),
+                      ),
+                    ),
+                ],
               );
             },
           );
@@ -253,6 +265,7 @@ class _TransactionTile extends StatelessWidget {
     required this.categoryNames,
     this.amountCents,
     this.inGroup = false,
+    this.showDate = true,
     this.onTap,
   });
 
@@ -265,6 +278,9 @@ class _TransactionTile extends StatelessWidget {
   /// Under a category's header, where naming the category again says
   /// nothing: the note leads instead (E-11).
   final bool inGroup;
+
+  /// False under a day's header, which already says the date.
+  final bool showDate;
 
   /// Id-to-name, for naming a transfer's counterparty. FR-TRF-004.
   final Map<int, String> accountNames;
@@ -300,9 +316,11 @@ class _TransactionTile extends StatelessWidget {
             (note.isNotEmpty ? note : 'Uncategorised'),
     };
     final showNote = note.isNotEmpty && note != title;
-    final subtitle = inGroup && title == date
-        ? null
-        : Text(showNote ? '$date · $note' : date);
+    final subtitle = switch (showDate) {
+      false => showNote ? Text(note) : null,
+      _ when inGroup && title == date => null,
+      _ => Text(showNote ? '$date · $note' : date),
+    };
 
     return ListTile(
       onTap: onTap,
@@ -352,6 +370,74 @@ class _TransactionTile extends StatelessWidget {
     final day = date.day.toString().padLeft(2, '0');
     return '${date.year}-$month-$day';
   }
+}
+
+/// One day's header, expanding to its rows. FR-EXP-006.
+///
+/// The date, how many rows the day holds, and what it cost: spending in the
+/// expense colour, and income under it when there was any. Transfers are
+/// listed but never totalled (E-02). Open by default, the arrow on the left
+/// so the total keeps the right edge the amounts below it line up with.
+class _DayGroupTile extends StatelessWidget {
+  const _DayGroupTile({required this.group, required this.children, super.key});
+
+  final DayGroup group;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>()!;
+    final spent = group.spentCents;
+    final income = group.incomeCents;
+
+    return ExpansionTile(
+      initiallyExpanded: true,
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              dayLabel(group.day, DateTime.now()),
+              style: theme.textTheme.titleMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Badge(
+            label: Text('${group.count}'),
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            textColor: theme.colorScheme.onSecondaryContainer,
+          ),
+        ],
+      ),
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (spent > 0 || income == 0)
+            _Amount('−${formatCents(spent)}', color: colors.expense),
+          if (income > 0)
+            _Amount('+${formatCents(income)}', color: colors.income),
+        ],
+      ),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      children: children,
+    );
+  }
+}
+
+/// A day header's date: "Today", "Yesterday", else the weekday and date,
+/// with the year only when it is not this one.
+String dayLabel(DateTime day, DateTime now) {
+  if (DateUtils.isSameDay(day, now)) return 'Today';
+  if (DateUtils.isSameDay(day, DateTime(now.year, now.month, now.day - 1))) {
+    return 'Yesterday';
+  }
+  return day.year == now.year
+      ? DateFormat('EEEE, d MMMM').format(day)
+      : DateFormat('EEEE, d MMMM y').format(day);
 }
 
 /// One category's header, expanding to its rows. FR-EXP-011.
