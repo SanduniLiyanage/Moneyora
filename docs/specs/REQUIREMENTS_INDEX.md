@@ -242,6 +242,9 @@ once in this repo.
 | Citing an FR-ACC ID for the **account selector** on the entry screen | FR-EXP-001 names `account` as a field of recording an expense. That is the correct citation. |
 | Citing `NFR-PRT-002` for anything about receipts or app size | NFR-PRT-002 is responsive layout, 360–420 dp. |
 | Citing a **scalability** target | §5.6 has no IDs. There is nothing to cite. |
+| Citing `NFR-PER-008` for the **80 MB app size** | There is no NFR-PER-008; NFR-PER stops at 007. The size budget is §2.4, which has no IDs — cite E-09. #146's commit trailer (`6a0b9de`) did this; merged history is not rewritten, so it stays wrong there. |
+| Citing an `NFR-USA` ID for **usability or legibility** | The SRS has no usability group at all. There is nothing to cite; name the FR the screen implements. #147's trailer (`c06b620`) cited `NFR-USA-002`, and stays wrong there. |
+| Citing an **FR-NOT** ID for notifications | There is no FR-NOT group. Budget alerts are FR-SET-007, recurring reminders FR-SET-006, the backup reminder FR-BAK-006. |
 
 ---
 

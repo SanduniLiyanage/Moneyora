@@ -18,6 +18,10 @@ jobs:
       ready: ${{ steps.probe.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history, so the citation check can read the commits a
+          # pull request adds, not just the tree they produce.
+          fetch-depth: 0
 
       # Until `flutter create` has run there is no pubspec.yaml, so every
       # Flutter step below would fail on a repository that is not actually
@@ -80,8 +84,12 @@ jobs:
         run: bash scripts/check_architecture.sh
 
       # E-25 was a wrong ID that survived review because it looked like a
-      # checked fact. This is that check, run on every push.
+      # checked fact. This is that check, run on every push. On a pull
+      # request it reads the new commits' Refs: trailers too — before the
+      # merge is the last moment a wrong one can be amended.
       - name: Requirement citations exist
+        env:
+          TRAILER_RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '' }}
         run: bash scripts/check_citations.sh
 
       - name: Unit & widget tests with coverage
