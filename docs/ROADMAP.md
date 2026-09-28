@@ -787,7 +787,7 @@ photo goes through the scanner's picker and vault behind
 attached by hand is discarded when replaced, removed, abandoned or deleted
 with its row; a scan's photo is the scan's, and view-only on the expense.
 
-## Sprint 9 — Hardening (Week 14)
+## Sprint 9 — Hardening (Week 14) — done
 
 Coverage to >=75% domain, integration tests, perf pass against every NFR-PER
 target, accessibility (4.5:1 contrast, font scaling).
@@ -824,8 +824,37 @@ scrolls), #127 splitting rows evenly with their labels, the charts
 telling an emptied phone it had had a quiet month (the database summary
 was read once at launch), and the PDF's headings adrift of their columns.
 
-Still to do: integration tests, the NFR-PER pass, contrast beyond the
-semantic colours.
+### Backup, clear and restore, end to end — done ([PR #131](https://github.com/SanduniLiyanage/Moneyora/pull/131))
+
+`test/integration/backup_round_trip_test.dart` runs the flow the emulator
+pass walked by hand across two "phones" — two `ProviderContainer`s, each
+with its own database file, key and photo vault, through the real
+providers: an expense with a photo, backed up, cleared, a wrong password
+refused on the second phone, then restored with its note, its recounted
+balance and its photo opening under the second phone's key.
+
+### Contrast across the scheme's own text pairs — done ([PR #132](https://github.com/SanduniLiyanage/Moneyora/pull/132))
+
+Ten ColorScheme text pairs measured in both themes. Two were under 4.5:1
+and are fixed: the dark theme's `onError` (3.49:1, now dark text on the
+red) and the list's empty-state text at 0.6 alpha (4.45:1, now 0.7 like
+the rest of the app). The category hues are non-text colours named in
+every legend, and stay as they are.
+
+### Sample data, loaded once and offered where it is needed — done ([PR #133](https://github.com/SanduniLiyanage/Moneyora/pull/133), [PR #134](https://github.com/SanduniLiyanage/Moneyora/pull/134))
+
+The debug sample-data loader wrote its two years of rows on every tap,
+doubling every total, and moved neither balances nor the active plan. It
+now asks first, loads once, keeps both caches right and signals the change
+bus. Verifying it found a second fault: after Clear all data or a restore
+every row lost its category name until a restart, because the categories
+datasource had a private change bus; it now shares the app's. #134 moved
+the loader from the transaction list, which is for real money, to the
+Money Plan's "Nothing to plan from yet".
+
+**Sprint 9 is complete.** The NFR-PER figures that certify are the device
+checklist's ([E-28](SPEC_ERRATA.md)); the emulator's comparative
+benchmark runs in every `flutter test`.
 
 ## Sprint 10 — Release (Week 15)
 

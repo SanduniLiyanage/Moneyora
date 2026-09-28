@@ -1,12 +1,18 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-27**, `main` at `f01ec2b`, after **122
-merged pull requests** (#2–#123; #1 was closed unmerged). **Sprint 8 is
-complete** — encrypted `.mora` backup and restore, CSV and PDF export,
-Clear all data, the backup reminder and FR-RPT-006's summary card, PRs
-#116–#122; see "This session — Sprint 8" below. #123 then closed
-FR-EXP-011, open since Sprint 3.5, and #124 FR-EXP-009. Next: FR-PLN-006,
-then Sprint 9's hardening.
+State of the project as of **2026-09-28**, `main` at `ad7c2b9`, after **133
+merged pull requests** (#2–#134; #1 was closed unmerged). **Sprint 9 is
+complete** — FR-PLN-006's spending patterns, font scaling at 2x on 320dp,
+the Sprint 8 emulator pass and its fixes, the backup round trip as an
+integration test, and contrast across the ColorScheme's text pairs, PRs
+#126–#134; see [`ROADMAP.md`](ROADMAP.md)'s Sprint 9. The certifying
+NFR-PER figures stay on the device checklist below ([E-28](SPEC_ERRATA.md)).
+Next: Sprint 10, the release.
+
+Sprint 8, closed at `f01ec2b` after 122 merged pull requests: encrypted
+`.mora` backup and restore, CSV and PDF export, Clear all data, the backup
+reminder and FR-RPT-006's summary card, PRs #116–#122; #123 and #124 then
+closed FR-EXP-011 and FR-EXP-009. See "This session — Sprint 8" below.
 
 Sprint 7, closed at `a501586` after 114 merged pull requests: settings,
 auth, notifications, FR-ACC-005 and recurring entries, PRs #104–#115.
@@ -37,7 +43,8 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `f01ec2b`, with PR #123 merged.
+at `ad7c2b9`, with PR #134 merged; the coverage figure is CI's, from the
+run on that commit.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -46,15 +53,21 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2185 passing** | `flutter test` |
+| Tests | **2273 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| Domain line coverage | **not remeasured this session** — was 96.9% at `8e5085d`; `lcov` isn't on this machine, only in CI | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprint 8, whose backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 318 in `lib/`, 167 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Domain line coverage | **91.8%** (2643 of 2878 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 and 9; Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
+| Dart files | 327 in `lib/`, 172 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2092 at `a501586` (PR #115, merged) plus **93 net new**
+Tests by area: 2185 at `f01ec2b` (PR #123, merged) plus **88 net new**
+from #124–#134, not broken down by area here; each PR's description names
+its own. **No assertion was removed**; #134's list test now asserts the
+sample-data control is *absent* from the transaction list, because the
+button moved to the Money Plan.
+
+Before that: 2092 at `a501586` (PR #115, merged) plus **93 net new**
 from Sprint 8 and #123 (#116–#123), not broken down by area here; each
 PR's description names its own. #123's grouped list added 15 (10 for the
 grouping, 5 on the screen) and #122's summary card 18. **No assertion was
@@ -2083,23 +2096,16 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 8 is complete** — PRs #116–#122, and #123 closed FR-EXP-011;
-`main` clean at `f01ec2b`. See "This session — Sprint 8" above and
-`ROADMAP.md`. In order:
+**Sprint 9 is complete** — PRs #126–#134, `main` clean at `ad7c2b9`;
+each is recorded in `ROADMAP.md`'s Sprint 9. The NFR-PER figures that
+certify stay on the device checklist below (E-28); the emulator's
+comparative benchmark runs in every `flutter test`. The category palette
+is left as it is: several hues are under 3:1 on the light theme, but each
+is named beside its colour in every legend, so no chart relies on the hue
+alone.
 
-Since these figures were measured, and each recorded in `ROADMAP.md`:
-**#124** a photo on any expense (FR-EXP-009), **#126** spending patterns
-(FR-PLN-006), **#127** font scaling at 2x on 320dp, and **#128**/**#129**
-the four faults the Sprint 8 emulator pass found. That pass is done —
-every flow above was walked on the device. Next, in Sprint 9
-(`ROADMAP.md`, Week 14):
-
-1. **Integration tests** over the flows the emulator pass walked by hand:
-   back up → clear → restore, with a photo.
-2. **The NFR-PER pass** — the emulator can compare, not certify (E-28);
-   the certifying numbers stay on the device checklist below.
-3. **Contrast beyond the semantic colours**: the ColorScheme's own pairs,
-   and the category palette as a non-text (3:1) colour.
+Next, Sprint 10 (`ROADMAP.md`, Week 15): beta readiness, a bug-fix pass,
+store assets, the user manual and the final docs.
 
 Still open and not blocking anything: **FR-SET-002** (languages; English
 only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
