@@ -10,6 +10,7 @@ import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/category_writer.dart';
 import 'package:moneyora/core/ports/expense_photos.dart';
+import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/core/utils/currency_utils.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
@@ -664,6 +665,63 @@ void main() {
 
     expect(find.textContaining('sample data'), findsNothing);
     expect(find.byIcon(Icons.science_outlined), findsNothing);
+  });
+
+  group('transfer rows. FR-TRF-004, E-02', () {
+    // Cash drawn from a card: the card's leg is money gone, the cash leg
+    // money arrived. Both sit alone on today, so the day has no spending.
+    void seedTransfer() {
+      final today = DateTime.now();
+      repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 2,
+          amountCents: 20000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.out,
+          counterpartyAccountId: 1,
+          date: today,
+        ),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          amountCents: 20000,
+          type: TransactionType.transfer,
+          transferDirection: TransferDirection.incoming,
+          counterpartyAccountId: 2,
+          date: today,
+        ),
+      ]);
+    }
+
+    Color colourOf(WidgetTester tester, String text) =>
+        tester.widget<Text>(find.text(text)).style!.color!;
+
+    AppColors colours(WidgetTester tester) =>
+        Theme.of(tester.element(find.byType(TransactionListPage)))
+            .extension<AppColors>()!;
+
+    testWidgets('money leaving an account is a minus, in red', (tester) async {
+      seedTransfer();
+      await pumpApp(tester);
+
+      expect(colourOf(tester, '−Rs200.00'), colours(tester).expense);
+    });
+
+    testWidgets('money arriving is a plus, in green', (tester) async {
+      seedTransfer();
+      await pumpApp(tester);
+
+      expect(colourOf(tester, '+Rs200.00'), colours(tester).income);
+    });
+
+    testWidgets('a day of transfers alone shows no total', (tester) async {
+      seedTransfer();
+      await pumpApp(tester);
+
+      // Nothing was spent: a red "−Rs0.00" would read as a loss.
+      expect(find.text('−Rs0.00'), findsNothing);
+    });
   });
 
   group('row names', () {

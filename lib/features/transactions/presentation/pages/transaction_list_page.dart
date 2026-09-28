@@ -360,16 +360,22 @@ class _TransactionTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>()!;
 
+    final incoming =
+        transaction.transferDirection == TransferDirection.incoming;
     final (tint, sign) = switch (transaction.type) {
       TransactionType.income => (colors.income, '+'),
       TransactionType.expense => (colors.expense, '−'),
-      // A transfer is neither, and is tinted so it reads as "not spending" at
-      // a glance — E-02 on why conflating the two inflates both totals.
-      TransactionType.transfer => (
-        colors.transfer,
-        transaction.transferDirection == TransferDirection.incoming ? '+' : '−',
-      ),
+      // A transfer is neither, so its icon keeps the transfer colour and
+      // reads as "not spending" at a glance — E-02 on why conflating the two
+      // inflates both totals.
+      TransactionType.transfer => (colors.transfer, incoming ? '+' : '−'),
     };
+    // Its amount, though, says which way the money went: for the account it
+    // left, a transfer is money gone, and a minus in anything but red read
+    // as a mistake.
+    final amountTint = transaction.type == TransactionType.transfer
+        ? (incoming ? colors.income : colors.expense)
+        : tint;
 
     final note = transaction.note?.trim() ?? '';
     final date = _formatDate(transaction.date);
@@ -408,7 +414,7 @@ class _TransactionTile extends StatelessWidget {
       subtitle: subtitle,
       trailing: _Amount(
         '$sign${formatCents(amountCents ?? transaction.amountCents)}',
-        color: tint,
+        color: amountTint,
       ),
     );
   }
@@ -480,7 +486,9 @@ class _DayGroupTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (spent > 0 || income == 0)
+          // A day of transfers alone has no total, not a red "−Rs0.00":
+          // nothing was spent, and a zero with a minus reads as a loss.
+          if (spent > 0)
             _Amount('−${formatCents(spent)}', color: colors.expense),
           if (income > 0)
             _Amount('+${formatCents(income)}', color: colors.income),
