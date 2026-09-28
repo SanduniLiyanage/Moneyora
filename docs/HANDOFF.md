@@ -1,14 +1,15 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-28**, `main` at `36b3513`, after **147
-merged pull requests** (#2–#148; #1 was closed unmerged). **Sprint 10 is
+State of the project as of **2026-09-28**, `main` at `531b9b5`, after **150
+merged pull requests** (#2–#151; #1 was closed unmerged). **Sprint 10 is
 code-complete**: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
 account (#144), and the release itself — name, icon, signing and the
-80 MB gate (#146), the screenshots' two fixes (#147), and the release
-checklist (#148). **What remains is an account, a key and a wait**, none
+80 MB gate (#146), the screenshots' two fixes (#147), the release
+checklist (#148), and transfers that move the one account they touch
+(#150, #151). **What remains is an account, a key and a wait**, none
 of it code; [`RELEASE.md`](RELEASE.md) sets it out, and "What is next"
 below summarises it. See [`ROADMAP.md`](ROADMAP.md)'s Sprint 10.
 
@@ -53,8 +54,8 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `36b3513`, with PR #148 merged; the coverage figure is CI's, from the
-run on 799a4f6, the last commit to change `domain/`.
+at `531b9b5`, with PR #151 merged; the coverage figure is CI's, from the
+run on #151, the last change to `domain/`.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -63,16 +64,16 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2341 passing** | `flutter test` |
+| Tests | **2362 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| Domain line coverage | **91.5%** (2747 of 3001 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Domain line coverage | **91.5%** (2764 of 3020 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 to 10 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`); Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 336 in `lib/`, 177 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 337 in `lib/`, 177 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2273 at `ad7c2b9` (PR #134, merged) plus **68 net new**
-from #136–#144, each PR's description naming its own. **Three tests were
+Tests by area: 2273 at `ad7c2b9` (PR #134, merged) plus **89 net new**
+from #136–#151, each PR's description naming its own. **Three tests were
 removed**, deliberately: #137 took out the sample-data loader and with it
 the three tests of loading it; the empty state they sat in is now asserted
 to offer Build it yourself and to say nothing of sample data.
@@ -2120,7 +2121,7 @@ is left as it is: several hues are under 3:1 on the light theme, but each
 is named beside its colour in every legend, so no chart relies on the hue
 alone.
 
-**Sprint 10 is code-complete** — PRs #135–#148, `main` at `36b3513`.
+**Sprint 10 is code-complete** — PRs #135–#151, `main` at `531b9b5`.
 Beta readiness landed (#146): the name, the launcher icon, upload-key
 signing, the 80 MB per-ABI gate, and a monochrome status-bar icon, with
 the `Refs` trailer corrected from `NFR-SEC-001` to `E-09`. The store

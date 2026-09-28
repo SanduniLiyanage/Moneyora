@@ -951,6 +951,19 @@ drawn from the launcher icon's own mark so the two cannot drift apart, and
 the contact address both the privacy policy and the listing were holding a
 placeholder for is filled in.
 
+### Transfers that read the way money moves — done ([PR #150](https://github.com/SanduniLiyanage/Moneyora/pull/150), [PR #151](https://github.com/SanduniLiyanage/Moneyora/pull/151))
+
+The owner drew Rs 200 of cash from a card and looked at both accounts.
+A transfer's amount is now red on the account it left and green on the
+one it reached (#150); the swap icon keeps the transfer colour, so it
+still reads as moving money rather than spending it. And with one account
+chosen, the Balance bar and the day totals count that account's transfers
+(#151): the card's balance falls by 200, the cash balance rises by 200,
+and across every account the two legs cancel. Spending, income, the
+charts, the plan and the budgets still never see a transfer — an
+[E-02](SPEC_ERRATA.md) addendum says why this is that entry's own
+account-balance rule rather than an exception to it.
+
 ### Still open — none of it code
 
 - **A Play Console account**, its identity verification, and the closed
