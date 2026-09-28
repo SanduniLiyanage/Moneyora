@@ -1,8 +1,13 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-28**, `main` at `ad7c2b9`, after **133
-merged pull requests** (#2–#134; #1 was closed unmerged). **Sprint 9 is
-complete** — FR-PLN-006's spending patterns, font scaling at 2x on 320dp,
+State of the project as of **2026-09-28**, `main` at `9dbde16`, after **140
+merged pull requests** (#2–#141; #1 was closed unmerged). **Sprint 10 is
+under way**: plans only from the user's own history or built by hand
+([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
+bug-fix pass (#136, #138–#140), and the user manual and privacy policy
+(#141); see [`ROADMAP.md`](ROADMAP.md)'s Sprint 10 and "What is next" below.
+
+Sprint 9, closed at `ad7c2b9` after 133 merged pull requests — FR-PLN-006's spending patterns, font scaling at 2x on 320dp,
 the Sprint 8 emulator pass and its fixes, the backup round trip as an
 integration test, and contrast across the ColorScheme's text pairs, PRs
 #126–#134; see [`ROADMAP.md`](ROADMAP.md)'s Sprint 9. The certifying
@@ -43,7 +48,7 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `ad7c2b9`, with PR #134 merged; the coverage figure is CI's, from the
+at `9dbde16`, with PR #141 merged; the coverage figure is CI's, from the
 run on that commit.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
@@ -53,15 +58,21 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2273 passing** | `flutter test` |
+| Tests | **2331 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| Domain line coverage | **91.8%** (2643 of 2878 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 and 9; Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 327 in `lib/`, 172 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Domain line coverage | **91.5%** (2747 of 3001 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 to 10 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`); Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
+| Dart files | 335 in `lib/`, 176 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2185 at `f01ec2b` (PR #123, merged) plus **88 net new**
+Tests by area: 2273 at `ad7c2b9` (PR #134, merged) plus **58 net new**
+from #136–#141, each PR's description naming its own. **Three tests were
+removed**, deliberately: #137 took out the sample-data loader and with it
+the three tests of loading it; the empty state they sat in is now asserted
+to offer Build it yourself and to say nothing of sample data.
+
+Before that: 2185 at `f01ec2b` (PR #123, merged) plus **88 net new**
 from #124–#134, not broken down by area here; each PR's description names
 its own. **No assertion was removed**; #134's list test now asserts the
 sample-data control is *absent* from the transaction list, because the
@@ -2096,7 +2107,7 @@ run cannot be an oracle.
 
 ## What is next
 
-**Sprint 9 is complete** — PRs #126–#134, `main` clean at `ad7c2b9`;
+**Sprint 9 is complete** — PRs #126–#134, closed at `ad7c2b9`;
 each is recorded in `ROADMAP.md`'s Sprint 9. The NFR-PER figures that
 certify stay on the device checklist below (E-28); the emulator's
 comparative benchmark runs in every `flutter test`. The category palette
@@ -2104,8 +2115,25 @@ is left as it is: several hues are under 3:1 on the light theme, but each
 is named beside its colour in every legend, so no chart relies on the hue
 alone.
 
-Next, Sprint 10 (`ROADMAP.md`, Week 15): beta readiness, a bug-fix pass,
-store assets, the user manual and the final docs.
+**Sprint 10, so far** — PRs #135–#141, `main` at `9dbde16`. What is left:
+
+1. **Beta readiness, parked on a local branch.** `chore/beta-readiness`
+   holds one unpushed commit: the launcher name "Moneyora", the icon
+   (`scripts/draw_icon.py`, then `dart run flutter_launcher_icons`), and
+   release signing from an untracked `android/key.properties` (`SETUP.md`
+   §7). `git stash@{0}` holds the rest: CI's 80 MB per-ABI gate and the
+   E-09 addendum with the sizes (32.0 / 39.7 / 42.3 MB). The commit's
+   trailer says `Refs: NFR-SEC-001`, which is wrong; it should be `E-09`.
+   Pushing it waits on the owner. Add a monochrome notification small
+   icon beside it: the alerts still show Flutter's.
+2. **Store assets.** Phone screenshots and a 1024×500 feature graphic,
+   from the emulator with expenses typed in by hand. Never the sample
+   data (E-39).
+3. **The privacy policy's contact address**, a placeholder in
+   `PRIVACY.md` until the owner chooses one.
+4. **Final docs** once those land: this file, `ROADMAP.md`, and the
+   device checklist below, which is still the only place the certifying
+   NFR-PER numbers can come from.
 
 Still open and not blocking anything: **FR-SET-002** (languages; English
 only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
