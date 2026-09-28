@@ -335,16 +335,21 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester, amount: '1250');
 
+      // 1,250 corrected to 1,300: three backspaces leave "1", then 300. This
+      // test once asserted the amount was *unchanged* after three
+      // backspaces — the bug, pinned as behaviour: the keypad was seeded
+      // "1250.00" and they only removed an invisible ".00".
       await tapRow(tester, '−Rs1,250.00');
       await tapText(tester, '⌫');
       await tapText(tester, '⌫');
       await tapText(tester, '⌫');
+      await keyIn(tester, '300');
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
       expect(repository.saved, hasLength(1), reason: 'edited, not duplicated');
       expect(repository.updated.single.id, 1);
-      expect(repository.updated.single.amountCents, 125000);
+      expect(repository.updated.single.amountCents, 130000);
     });
 
     testWidgets('keeps everything the form does not show', (tester) async {

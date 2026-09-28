@@ -124,7 +124,9 @@ void main() {
     });
 
     test('backspace after an operator removes the operator', () {
-      expect(keyIn('100+<').display, '100.00');
+      // "100", not "100.00": the running total comes back as the text a
+      // person would have typed, so the next backspace removes a digit.
+      expect(keyIn('100+<').display, '100');
       expect(keyIn('100+<').pendingOperator, isNull);
     });
 
@@ -156,6 +158,51 @@ void main() {
 
     test('equals on an empty keypad does nothing', () {
       expect(keyIn('=').isEmpty, isTrue);
+    });
+  });
+
+  group('editing a stored amount', () {
+    // Found on the emulator: correcting a saved Rs4,500 to Rs4,200 gave
+    // Rs4,500,200. The keypad was seeded "4500.00", so the first three
+    // backspaces removed an invisible ".00" and every digit after that was
+    // appended to the whole amount.
+    AmountExpression edit(int storedCents, String keys) {
+      var expression = AmountExpression.fromCents(storedCents);
+      for (final key in keys.split('')) {
+        expression = switch (key) {
+          '<' => expression.backspace(),
+          '.' => expression.decimalPoint(),
+          _ => expression.digit(key),
+        };
+      }
+      return expression;
+    }
+
+    test('starts at the stored amount', () {
+      expect(edit(450000, '').valueCents, 450000);
+    });
+
+    test('each backspace removes a digit you can see', () {
+      expect(edit(450000, '<').valueCents, 45000);
+      expect(edit(450000, '<<').valueCents, 4500);
+    });
+
+    test('4,500 corrected to 4,200 is 4,200', () {
+      expect(edit(450000, '<<<200').valueCents, 420000);
+    });
+
+    test('a digit is accepted at once, not refused', () {
+      expect(edit(450000, '0').valueCents, 4500000);
+    });
+
+    test('keeps the cents it has, and only those', () {
+      expect(edit(4550, '').valueCents, 4550);
+      expect(edit(4550, '<').valueCents, 4500);
+      expect(edit(4505, '<').valueCents, 4500);
+    });
+
+    test('a result from = is edited the same way', () {
+      expect(cents('100+50=<'), 1500);
     });
   });
 
