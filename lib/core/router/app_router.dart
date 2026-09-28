@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/account_drawer.dart';
+import '../../features/analytics/presentation/providers/analytics_providers.dart';
+import '../../features/analytics/presentation/widgets/balance_bar.dart';
 import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
 import '../../features/analytics/presentation/widgets/period_summary_card.dart';
 import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
@@ -155,6 +158,7 @@ GoRouter buildRouter() => GoRouter(
       builder: (context, state) => const HomePage(
         drawer: AccountDrawer(),
         spendingChart: SpendingDonutChart(),
+        balanceBar: BalanceBar(),
         incomeExpenseChart: IncomeExpenseBars(),
         summaryCard: PeriodSummaryCard(),
         spendingTrendChart: SpendingTrendLines(),
@@ -164,7 +168,21 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.transactions,
       name: 'transactions',
-      builder: (context, state) => const TransactionListPage(),
+      // The list follows the period and account the home screen's figures
+      // are for, with their balance above it (FR-RPT-002, FR-RPT-003,
+      // FR-RPT-006): composed here, as the charts are into home, because
+      // the transactions feature may not import analytics.
+      builder: (context, state) => Consumer(
+        builder: (context, ref, _) {
+          final query = ref.watch(analyticsQueryProvider);
+          return TransactionListPage(
+            from: query.range.from,
+            to: query.range.to,
+            accountId: query.accountId,
+            header: const BalanceBar(),
+          );
+        },
+      ),
     ),
     GoRoute(
       path: Routes.addTransaction,

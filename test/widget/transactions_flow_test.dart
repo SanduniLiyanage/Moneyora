@@ -68,7 +68,10 @@ void main() {
   });
   tearDown(() => repository.dispose());
 
-  Widget boot({double textScale = 1}) => ProviderScope(
+  Widget boot({
+    double textScale = 1,
+    Widget page = const TransactionListPage(),
+  }) => ProviderScope(
     overrides: [
       entryCategoriesProvider.overrideWith(
         (ref) => Stream<List<CategoryOption>>.value(categories),
@@ -86,7 +89,7 @@ void main() {
             .copyWith(textScaler: TextScaler.linear(textScale)),
         child: child!,
       ),
-      home: const TransactionListPage(),
+      home: page,
     ),
   );
 
@@ -1282,6 +1285,76 @@ void main() {
       expect(dayLabel(DateTime(2025, 12, 31), DateTime(2026)), 'Yesterday');
     });
   });
+
+  group('scoped to a period and an account. FR-RPT-002, FR-RPT-003', () {
+    Transaction row(int id, DateTime date, {int accountId = 1}) => Transaction(
+      id: id,
+      accountId: accountId,
+      categoryId: 1,
+      amountCents: 10000 * id,
+      type: TransactionType.expense,
+      date: date,
+      note: 'Row $id',
+    );
+
+    Future<void> pumpScoped(
+      WidgetTester tester, {
+      int? accountId,
+      Widget? header,
+    }) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        boot(
+          page: TransactionListPage(
+            from: DateTime(2026, 9),
+            to: DateTime(2026, 9, 30),
+            accountId: accountId,
+            header: header,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows only the period, under its header', (tester) async {
+      repository.saved.addAll([
+        row(1, DateTime(2026, 9, 12)),
+        row(2, DateTime(2026, 8, 31)),
+        row(3, DateTime(2026, 10)),
+      ]);
+      await pumpScoped(tester, header: const Text('the balance'));
+
+      expect(find.text('the balance'), findsOneWidget);
+      expect(find.text('Row 1'), findsOneWidget);
+      expect(find.text('Row 2'), findsNothing);
+      expect(find.text('Row 3'), findsNothing);
+    });
+
+    testWidgets('and only the account chosen', (tester) async {
+      repository.saved.addAll([
+        row(1, DateTime(2026, 9, 12)),
+        row(2, DateTime(2026, 9, 13), accountId: 2),
+      ]);
+      await pumpScoped(tester, accountId: 2);
+
+      expect(find.text('Row 1'), findsNothing);
+      expect(find.text('Row 2'), findsOneWidget);
+    });
+
+    testWidgets('an empty period says so, and keeps the header', (
+      tester,
+    ) async {
+      repository.saved.add(row(1, DateTime(2026, 8, 12)));
+      await pumpScoped(tester, header: const Text('the balance'));
+
+      expect(find.text('Nothing in this period'), findsOneWidget);
+      expect(find.text('No transactions yet'), findsNothing);
+      expect(find.text('the balance'), findsOneWidget);
+    });
+  });
 }
 
 /// Records what it is asked to create and hands back an incrementing id,
@@ -1326,6 +1399,9 @@ class _FakeRepository implements TransactionRepository {
   List<Transaction> _matching(TransactionFilter filter) => saved
       .where((t) => filter.type == null || t.type == filter.type)
       .where((t) => !filter.excludeTransfers || t.affectsTotals)
+      .where((t) => filter.accountId == null || t.accountId == filter.accountId)
+      .where((t) => filter.from == null || !t.date.isBefore(filter.from!))
+      .where((t) => filter.to == null || !t.date.isAfter(filter.to!))
       .toList();
 
   @override
