@@ -1,0 +1,333 @@
+# Moneyora — User Manual
+
+Moneyora keeps track of your money on your phone, and only on your phone.
+It works with the radio off. Nothing you enter leaves the phone unless you
+choose to send it: a backup you save, an export you share, or a question
+you ask Moneyora's assistant.
+
+This manual covers the Android beta. It is written for the person using
+the app, not for developers; for those, see [`SETUP.md`](SETUP.md).
+
+---
+
+## 1. The first time you open it
+
+Moneyora opens on the **home screen**. It already has:
+
+- one account, **Cash**;
+- fifteen expense categories and three income categories, which you can
+  rename, recolour or delete.
+
+Your data is stored in an encrypted database. The key is kept in your
+phone's secure keychain, so the file is unreadable to anything else on the
+phone.
+
+**Getting around.** The **shortcuts** at the top of the home screen open
+every part of the app. The **☰** button at the top left opens your
+accounts. The **⚙** button at the top right opens Settings. The back arrow,
+or your phone's back gesture, returns to where you were.
+
+---
+
+## 2. Accounts
+
+Open **☰** to see every account with its balance, and the **Total balance**
+across the accounts you have included in it.
+
+- **Add account**: a name (such as *Cash* or *Commercial Bank savings*), a
+  type, an opening balance and the date it was true on, a currency, and
+  whether it counts towards the total.
+- **Tap an account** to change it. **Delete account** works only for an
+  account with no transactions; for one with history Moneyora says so, and
+  you can **archive** it instead, which hides it without losing anything.
+  **Show archived** brings archived accounts back into view.
+
+Moneyora will not archive your last usable account, because you would have
+nowhere to record anything.
+
+---
+
+## 3. Recording money
+
+### An expense or income
+
+Tap **Add** on the home screen (or on **Transactions**).
+
+1. Choose **Expense** or **Income**.
+2. Type the amount.
+3. Pick a category. If the one you want does not exist, tap **New** to
+   create it without leaving the screen.
+4. Pick the account it came from or went to.
+5. Change the date if it was not today, and add a **Note (optional)**.
+6. **Attach a photo** of the receipt if you want one kept with it. Photos
+   are stored encrypted, and only Moneyora can open them.
+7. Tap **Save**.
+
+To change an entry, tap it in the list. To delete one, swipe it off the
+list; **Undo** appears for a few seconds in case that was a mistake.
+
+### Something that repeats
+
+On the same screen, under **Repeats**, set how often an entry comes round:
+rent every month, a subscription, a salary. Moneyora records each one when
+it falls due. **Recurring** (from the home screen) lists every repeat,
+where you can pause, resume or delete one. With **Recurring reminders**
+turned on in Settings, you get a notification before each is recorded.
+
+### Moving money between your own accounts
+
+On **Transactions**, tap the transfer button (**Transfer between
+accounts**), choose **From** and **To**, the amount and the date. A
+transfer is not spending: it never counts in a chart or a budget. Between
+two currencies it also asks how much arrived, suggesting a figure from the
+exchange rates you keep in Settings; type the amount on your statement if
+the bank's differs.
+
+### The list
+
+**Transactions** lists everything newest first, grouped by day with each
+day's total. Filter it to expenses, income or transfers. **Group by
+category** shows each category's entries together with their total; **List
+by date** goes back.
+
+---
+
+## 4. Categories
+
+**Categories** (from the home screen) lists your categories. Tap one to
+rename it, change its icon or colour, or put it under another as a
+sub-category. **Add category** (the **+**) makes a new one.
+
+---
+
+## 5. Scanning a receipt
+
+1. Open **Scan Receipt** and choose **Take a photo** or **Choose from
+   gallery**. The text is read on your phone; the photo is never uploaded.
+2. **Review receipt** shows what was read: the merchant, the date, and
+   each item with its amount and a suggested category. Correct anything
+   that is wrong. **Split** one line into two, **Merge with next** to join
+   two, or **Discard** a line that is not a purchase.
+   To file the whole receipt under one category instead, turn on **One
+   category for the whole receipt** and choose it; the receipt is then
+   saved as a single expense.
+3. Tap **Confirm**. Each item you keep becomes its own expense, paid from
+   the account the receipt names if it names one, with the photo kept
+   beside it.
+
+Moneyora learns from your corrections: the next receipt from the same shop
+suggests the categories you chose. **Receipt history** (the clock icon on
+the scan screen) lists every scan; open one to see its photo, or
+**Re-scan** it.
+
+Receipts print in many layouts, and some will read badly. Always check the
+review screen before you confirm.
+
+---
+
+## 6. The home screen's charts
+
+Below the shortcuts, five cards show where your money went:
+
+- **Spending by category**: a ring of this period's spending.
+- **Income vs expenses**: the two side by side, and what was left.
+- **Summary**: average spent a day, your largest category, and the change
+  on the period before.
+- **Spending over time**: each category's spending as a line.
+- **Daily spending**: each day of the month shaded by how much was spent.
+
+**Day**, **Week** and **Month** on the first card change the period for
+every card; **Choose date** picks which one. You can also narrow every
+chart to one account.
+
+---
+
+## 7. The Money Plan
+
+The Money Plan works out a budget from how you have actually spent.
+
+The Money Plan works two ways. Moneyora can **suggest** a plan from how
+you have actually spent, once it knows enough about that. Or you can
+**build** one yourself, at any time, by typing a budget for each category.
+
+### When there is not enough history yet
+
+Moneyora suggests a plan only from your own spending, never from made-up
+examples. It needs at least one whole month with spending in it, and at
+least 10 expenses. Until then, **Create Money Plan** tells you what is
+missing (for example, that this month's expenses start counting when the
+month ends) and offers **Build it yourself**.
+
+### Building a plan yourself
+
+1. Open **Create Money Plan** and choose the period under **Plan for**.
+2. Tap **Build it yourself** (or **Or build it yourself**, below
+   **Generate plan**).
+3. Every expense category is listed. Type a budget for each one you want
+   to plan, and leave the rest empty: an empty category stays out of the
+   plan. The total at the top, and what it comes to a day, follow as you
+   type.
+4. Remove a category with **×**, or add one with **Add a category**.
+5. Tap **Save plan**.
+
+### Having Moneyora suggest a plan
+
+1. Open **Create Money Plan**.
+2. Under **Plan for**, choose a day, week, month, year, a number of days,
+   or a date range.
+3. Under **Total budget**, choose how the total is decided:
+   - **From your spending history**: what your usual spending adds up to;
+   - **Set a total**: a figure you choose, shared across categories in
+     proportion to your usual spending;
+   - **Suggest from income**: your income, less your fixed costs, less the
+     savings you want to keep.
+4. Tap **Generate plan**.
+
+The plan looks back over the last six months unless you change **Money
+Plan looks back** in Settings (from 1 to 24 months).
+
+### Reading the plan
+
+For every category, **Your plan** shows the amount, what that comes to a
+day, and how it was reached:
+
+- **Fixed**, **Variable** or **Seasonal**: how steady the category's
+  spending has been. A seasonal category (gifts every December, for
+  example) is only recognised with 24 months of history.
+- **Confidence**: **High**, **Medium** or **Low**, from how much history
+  there is and how much it varies. Treat a Low figure as a guess.
+- A **rising** or **falling** trend adds to or takes from the figure.
+
+At the end, **Spending patterns** says whether you spend more on weekdays
+or at weekends, and at the start or the end of a month. Bills paid on a day
+or two a month are left out of it, and it says which.
+
+**Edit amounts** lets you change the suggestion before you save it: change
+any figure, remove a category or add one. The total follows what you type,
+and the screen shows how far it is from the suggested total.
+
+### Saving a plan
+
+Tap **Save plan**, give it a name, and leave **Track it now** ticked to
+start following it. If budget alerts are off, the same box offers **Alert
+me near and over each limit**; leave it ticked and Moneyora asks your
+phone for permission to send notifications.
+
+### Following a plan
+
+**Your plan** shows each category's budget against what you have spent so
+far, green while there is room and red once it is over. Tap a category to
+change its budget; the others are recalculated so the total stays the same.
+**What if…** shows what a change would do before you make it.
+
+When a category goes over, Moneyora offers three ways to answer:
+
+- **Auto-redistribute**: take the overspend from the other categories, in
+  proportion to what each has left;
+- **Manual adjust**: take it from one category you choose;
+- **Carry over**: take it off the same category in your next plan.
+
+With budget alerts on (offered when you save a plan, or in Settings ›
+**Budget alerts**), you get a notification when a category reaches 80% of
+its budget, telling you roughly how much is left, and another when you use
+it up or go over, telling you how far over you are.
+
+### Saved plans
+
+**Saved plans** lists every plan you have kept. Open a plan's menu to
+**Activate** it, or **Compare with…** another plan, category by category.
+
+---
+
+## 8. Asking Moneyora
+
+**Ask Moneyora** answers questions such as *"How much did I spend on food
+last month?"*. It is the one feature that needs the internet, and it is
+optional.
+
+It uses Google's Gemini service, with an API key you get from Google and
+type in once (**Save key**). The key is kept in the phone's secure
+keychain. When you ask a question, Moneyora sends Google the question and
+the totals per category for the dates it needs. It never sends individual
+transactions, notes, merchants or photos. Without a key, or offline, every
+other part of the app works as normal.
+
+---
+
+## 9. Settings
+
+| Section | What it holds |
+|---|---|
+| **Appearance** | **Theme**: follow the phone, always light, or always dark. |
+| **Currency** | **Base currency** for totals, and the **Exchange rates** used to convert other currencies into it. |
+| **Calendar** | **Week starts on**, **Month starts on day** (for a month that runs from payday to payday), **Money Plan looks back**, and your **Savings target** as a percent of income. |
+| **Notifications** | **Budget alerts** and **Recurring reminders**, and when reminders come. |
+| **Security** | **Set a passcode**, and **Biometric unlock**. |
+| **Data** | **Recalculate account balances**, **Back up now**, **Restore from a backup**, **Export transactions**, **Clear all data**. |
+| **About** | What stays on the phone, and what the database holds (useful if you ever report a problem). |
+
+### Passcode and biometrics
+
+A passcode is 4 to 6 digits. After five wrong tries Moneyora makes you wait
+before trying again, and the wait grows with each further mistake.
+**Biometric unlock** lets your fingerprint or face open the app instead,
+and the passcode always works as well. If you forget the passcode, there is
+no way to recover it: keep a backup.
+
+---
+
+## 10. Backing up, restoring and exporting
+
+### Back up
+
+**Back up now** asks for a password, twice, and then where to save the
+file. A backup is a single `.mora` file holding everything: accounts,
+transactions, plans, categories and receipt photos. It is encrypted with
+your password, so it is safe to keep on Google Drive or send to yourself.
+
+**Without the password the backup cannot be opened, by anyone, including
+us.** Write it down somewhere safe.
+
+If you have not backed up for seven days, Moneyora reminds you.
+
+### Restore
+
+**Restore from a backup** opens a `.mora` file and asks for its password.
+Restoring **replaces everything on this phone** with what is in the
+backup; it does not merge the two. This is also how you move to a new
+phone: back up on the old one, install Moneyora on the new one, and restore.
+
+Your passcode is not part of a backup. Set one again on the new phone.
+
+### Export
+
+**Export transactions** saves your transactions as a **Spreadsheet (CSV)**,
+for Excel or Google Sheets, or as a **PDF** to read or print. The PDF's
+standard fonts cannot show Sinhala or Tamil letters; the CSV keeps every
+character.
+
+### Clear all data
+
+**Clear all data** deletes every account, transaction, plan and photo and
+starts again from the first-launch state. It cannot be undone, except by
+restoring a backup.
+
+---
+
+## 11. Questions
+
+**Does Moneyora need an account or a sign-in?** No. There is no Moneyora
+server.
+
+**What happens if I lose my phone?** Your data is encrypted on it. To get
+it back on another phone you need a backup file and its password.
+
+**Why does a figure in the plan look wrong?** The plan is only as good as
+the history it learns from. A Low confidence label says so. You can change
+any category's figure by hand.
+
+**The receipt scanner read something wrong.** Correct it on the review
+screen before confirming. Moneyora remembers the categories you choose.
+
+**Which phones does it run on?** Android 8.0 or later. An iPhone version is
+not part of this beta.
