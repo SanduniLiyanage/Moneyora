@@ -67,7 +67,7 @@ transactions.
 
 ## Contact details
 
-- Email: *to be chosen by the owner, as in `PRIVACY.md`*
+- Email: moneyora.app@gmail.com (the address in `PRIVACY.md`)
 - Privacy policy URL: the published copy of [`PRIVACY.md`](../PRIVACY.md)
 
 ## Data safety form (Play Console)
