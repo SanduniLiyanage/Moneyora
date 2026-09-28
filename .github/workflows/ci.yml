@@ -224,18 +224,26 @@ jobs:
           echo "::error::Release APK build failed four times over four minutes - not a transient fault"
           exit 1
 
-      # Reported, not gated. The 80 MB gate lands in Sprint 10 with store
-      # preparation (E-09); printing the number every run means it arrives to a
-      # known trend rather than to a surprise, and that a jump gets noticed on
-      # the PR that causes it.
-      - name: Report release APK sizes
+      # SRS 2.4's budget, gated since Sprint 10 (E-09): every per-ABI
+      # release APK under 80 MB. Reported for Sprints 1-9 first, so the gate
+      # arrived to a known trend (E-09's addenda record the figures) rather
+      # than to a surprise. x86_64 is gated too, though it goes to emulators and
+      # Chromebooks rather than phones: it is the largest, so a pass there
+      # is a pass everywhere.
+      - name: Release APK size gate (SRS 2.4, 80 MB per ABI)
         run: |
-          echo "SRS 2.4 budget: 80 MB per shipped ABI. Not gated until Sprint 10."
+          echo "SRS 2.4 budget: 80 MB per shipped ABI."
+          fail=0
           for f in build/app/outputs/flutter-apk/app-*-release.apk; do
             BYTES=$(stat -c%s "$f")
             awk -v n="$(basename "$f")" -v b="$BYTES" \
               'BEGIN { printf "  %-32s %6.1f MB\n", n, b/1048576 }'
+            if [ "$BYTES" -ge $((80 * 1024 * 1024)) ]; then
+              echo "::error::$(basename "$f") is over SRS 2.4's 80 MB budget (E-09)."
+              fail=1
+            fi
           done
+          exit $fail
 
   build-ios:
     name: Build iOS (compile only)

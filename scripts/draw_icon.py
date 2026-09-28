@@ -12,6 +12,11 @@ times the size and scaled down, so the edges are smooth.
                       flutter_launcher_icons insets it by 16%, which puts
                       the mark at 46% of the canvas: inside the 61% safe
                       circle, so no launcher's mask clips it.
+- ic_stat_moneyora.png  Android's notification small icon, written straight
+                      into android/app/src/main/res/drawable-*dpi/. Android
+                      draws only its alpha channel, so it is the mark alone,
+                      white on transparent: the launcher icon there would be
+                      a white square.
 """
 
 from pathlib import Path
@@ -22,7 +27,11 @@ BRAND = (0x3F, 0x51, 0xB5, 255)
 WHITE = (255, 255, 255, 255)
 SIZE = 1024
 SCALE = 4
-OUT = Path(__file__).resolve().parent.parent / "assets" / "icons"
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "assets" / "icons"
+RES = ROOT / "android" / "app" / "src" / "main" / "res"
+# 24 dp at each density.
+SMALL_ICON = {"mdpi": 24, "hdpi": 36, "xhdpi": 48, "xxhdpi": 72, "xxxhdpi": 96}
 
 
 def draw_mark(draw: ImageDraw.ImageDraw, centre: float, radius: float) -> None:
@@ -59,6 +68,12 @@ def main() -> None:
     render(True, SIZE * 0.34).convert("RGB").save(OUT / "icon.png")
     # The same mark: the adaptive icon's 16% inset is what keeps it safe.
     render(False, SIZE * 0.34).save(OUT / "icon_foreground.png")
+    # Material's 24 dp status-bar icon keeps a 2 dp margin: radius 10 of 12.
+    small = render(False, SIZE * 0.42)
+    for density, px in SMALL_ICON.items():
+        folder = RES / f"drawable-{density}"
+        folder.mkdir(parents=True, exist_ok=True)
+        small.resize((px, px), Image.LANCZOS).save(folder / "ic_stat_moneyora.png")
 
 
 if __name__ == "__main__":
