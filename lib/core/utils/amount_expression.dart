@@ -190,12 +190,27 @@ class AmountExpression {
     entry: value,
   );
 
-  /// An amount as bare keyable text — no symbol, no grouping commas.
+  /// An amount as bare keyable text — no symbol, no grouping commas, and no
+  /// decimals it does not have: 4500.00 is "4500", 45.50 is "45.5".
   ///
   /// The display groups thousands, but `entry` holds what was typed, and a
   /// comma in there would come back through `parseToCents` as noise.
-  static String _plainText(int cents) =>
-      formatCents(cents, showSymbol: false).replaceAll(',', '');
+  ///
+  /// The trailing zeros matter as much. The screen shows the formatted value,
+  /// so an entry of "4500.00" looks the same as "4500.0" and "4500." — the
+  /// first three backspaces on an edited amount changed nothing the user
+  /// could see, [digit] refused every key while two decimals were "typed",
+  /// and the digits keyed after that were appended to the whole amount:
+  /// 4,500 corrected to 4,200 saved as 4,500,200. Text a person would have
+  /// typed for the same amount has none of them.
+  static String _plainText(int cents) {
+    final text = formatCents(cents, showSymbol: false).replaceAll(',', '');
+    if (!text.contains('.')) return text;
+    final trimmed = text.replaceFirst(RegExp(r'0+$'), '');
+    return trimmed.endsWith('.')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
+  }
 
   int get _decimalsTyped {
     final point = entry.indexOf('.');
