@@ -11,18 +11,22 @@ order to do things in and the things no commit can do for you.
 
 ## The short version
 
+The owner's choice, 2026-09-29: **free distribution first** — GitHub Releases
+and the Samsung Galaxy Store. Google Play ($25, once) and the App Store
+($99 a year) stay open for later and are described below.
+
 | Step | Who | How long |
 |---|---|---|
-| Upload key generated, backed up | you, once | 5 minutes |
-| Signed `.aab` built | `flutter build appbundle --release` | 5 minutes |
-| Play Console account, identity verified | you | **1–5 days**, Google's pace |
-| Closed test, 12 testers, 14 days | you + 12 people | **14 days minimum** |
-| Production review | Google | 1–7 days |
-| Apple Developer Program | you | 1–2 days, **$99/year** |
-| iOS build and upload | needs macOS | see below |
+| Upload key generated, backed up twice | you, once | 5 minutes |
+| Four repository secrets set | you, once | 5 minutes |
+| `git tag v1.0.0` and push | you | the workflow takes ~15 minutes |
+| Galaxy Store seller account | you | free; a day or so |
+| Galaxy Store review | Samsung | several days |
+| *Later:* Google Play | you + 12 testers | $25 once; **14 days** of closed testing |
+| *Later:* App Store | you | $99/year; needs macOS (or the CI runner) |
 
-**Nothing in the code is blocking.** Every remaining item is an account, a
-payment, a person, or a calendar.
+**Nothing in the code is blocking.** Every remaining item is a key, an
+account, or a wait.
 
 ---
 
@@ -45,16 +49,89 @@ keyAlias=upload
 keyPassword=<the same password, unless you chose another>
 ```
 
-**Back up the `.jks` file and the password somewhere that is not this
-machine.** With Play App Signing, Google holds the key that signs what users
-actually install, so a lost upload key can be reset through the Play Console —
-but that takes days, and it is days you will not want to spend.
+**Back up the `.jks` file and the password in two places that are not this
+machine.** Outside Google Play there is no second chance: GitHub Releases and
+the Galaxy Store install exactly what you sign, so **this key is the app's
+identity for good**. Lose it, or its password, and no phone that installed
+Moneyora will ever accept an update from you; the only way forward is a new
+app under a new name. (Play is kinder — with Play App Signing, Google holds
+the key users' phones check, and a lost upload key can be reset, over days.
+If you move to Play later, give Play *this* key as the app signing key, so
+the installs that came from GitHub and Galaxy keep updating.)
 
 Without `key.properties` the release build still succeeds, signed with the
 debug key. It installs and runs; the Play Console refuses it. That fallback
 exists so CI and a fresh clone keep building, not as a way to ship.
 
-## 2. The bundle
+## 2. GitHub Releases
+
+The workflow in [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+builds, signs, checks and publishes. You give it the key once, then tag.
+
+**Once — the four secrets.** From the repository folder, in PowerShell:
+
+```powershell
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("D:\dev\keys\moneyora-upload.jks"))
+$b64 | gh secret set UPLOAD_KEYSTORE_BASE64
+gh secret set UPLOAD_KEY_ALIAS --body upload
+gh secret set UPLOAD_STORE_PASSWORD
+gh secret set UPLOAD_KEY_PASSWORD
+```
+
+The last two ask for the password and do not echo it, so it never lands in
+your shell history. GitHub stores secrets encrypted and never shows them
+again, not even to you.
+
+**Each release.**
+
+1. Raise the version in `pubspec.yaml`: `1.0.0+1`, then `1.0.1+2`, and so
+   on. The number after the `+` must go up every time, or phones refuse the
+   update as a downgrade.
+2. Merge that to `main`, then tag it:
+
+   ```powershell
+   git switch main; git pull
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+3. Watch **Actions › Release**. It refuses to publish if the tag and
+   `pubspec.yaml` disagree, if a secret is missing, or if the APK came out
+   signed with the debug key. When it passes, the release page has
+   `moneyora-1.0.0-arm64-v8a.apk`, `…-armeabi-v7a.apk`, `SHA256SUMS.txt`
+   and install instructions.
+
+What people see: Android warns about installing from an unknown source the
+first time, and there are no automatic updates — they come back to the
+release page for a new version.
+
+A pull request that edits the workflow runs it as a dry run (no key, no
+release; the APKs are kept as a build artefact for three days), so a broken
+pipeline shows up on its PR, not on release day.
+
+## 3. Samsung Galaxy Store
+
+A manual upload of the same APK, through Samsung's Seller Portal.
+
+1. Sign up at [seller.samsungapps.com](https://seller.samsungapps.com) with
+   a Samsung account. A seller account for free apps costs nothing.
+2. **Add new application › Android**, and upload
+   `moneyora-<version>-arm64-v8a.apk` from the GitHub release. Add the
+   armeabi-v7a one as well if the portal offers a second binary.
+3. The listing: the text is in [`store/LISTING.md`](store/LISTING.md),
+   category **Finance**; screenshots are in `store/screenshots/`, the
+   feature graphic in `store/feature-graphic.png`, and the icon in
+   `assets/icons/icon.png` (1024 px; the portal lists the sizes it wants).
+4. Privacy policy URL, which the repository being public makes free:
+   `https://github.com/SanduniLiyanage/Moneyora/blob/main/docs/PRIVACY.md`.
+5. Answer the age-rating questionnaire truthfully — no violence, no
+   gambling, no user-to-user contact — and submit. Samsung's review takes
+   several days.
+
+**Updates** are a new binary on the same app in the Seller Portal, signed
+with the same key and with a higher version number than the last.
+
+## 4. The bundle, for Play later
 
 ```powershell
 flutter build appbundle --release
@@ -74,7 +151,7 @@ flutter build apk --release --split-per-abi
 At the Sprint 10 measurement: 32.1 MB (armeabi-v7a), 39.8 MB (arm64-v8a),
 42.3 MB (x86_64). The largest is at half the budget.
 
-## 3. Google Play
+## 5. Google Play, later
 
 1. **Register** at [play.google.com/console](https://play.google.com/console)
    — $25, once, ever. A *personal* account then has to pass identity
@@ -100,7 +177,7 @@ the optional AI assistant, only on the user's own key, only when asked, and
 only category totals — never transactions. Declare it rather than claiming
 the app is entirely offline, which the INTERNET permission would contradict.
 
-## 4. Apple, and the Mac problem
+## 6. Apple, and the Mac problem
 
 **An iOS release needs macOS.** Xcode builds, signs and uploads iOS apps and
 runs on nothing else. This project has no Mac in the loop — which is why
@@ -122,17 +199,17 @@ stricter than Google's about screenshots matching the app.
 The floor is **iOS 15.5**, not the SRS's 14 — ML Kit's text recogniser
 requires it ([E-20](SPEC_ERRATA.md)). Say 15.5 in App Store Connect.
 
-## 5. Before you submit, either store
+## 7. Before you publish anywhere
 
-- [ ] Install the **release** build on a real Android phone and open every
-      screen. The emulator has never caught a missing runtime permission.
-- [ ] Take the screenshots from the release build, not a debug one — the
-      debug banner is an automatic rejection.
-- [ ] Check the privacy policy is reachable at a public URL. Both stores
-      require a link, not a file.
-- [ ] Fill in the contact address in [`PRIVACY.md`](PRIVACY.md) and
-      [`store/LISTING.md`](store/LISTING.md) — it is published, so use an
-      address you are willing to make public.
+- [ ] Install the APK from the release page on a real Android phone —
+      yours, or a friend's Samsung — and open every screen. The emulator
+      has never caught a missing runtime permission.
+- [x] Screenshots from a release build, not a debug one (the debug banner is
+      an automatic rejection): `store/screenshots/`, taken 2026-09-28.
+- [x] The privacy policy at a public URL: the repository is public, so the
+      file's GitHub page is one.
+- [x] A contact address in [`PRIVACY.md`](PRIVACY.md) and
+      [`store/LISTING.md`](store/LISTING.md): moneyora.app@gmail.com.
 - [ ] Back up the keystore. Again.
 
 ---
