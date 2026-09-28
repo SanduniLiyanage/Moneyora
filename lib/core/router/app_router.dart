@@ -22,6 +22,7 @@ import '../../features/money_plan/domain/usecases/compare_plans.dart';
 import '../../features/money_plan/presentation/pages/active_plan_page.dart';
 import '../../features/money_plan/presentation/pages/compare_plans_page.dart';
 import '../../features/money_plan/presentation/pages/money_plan_page.dart';
+import '../../features/money_plan/presentation/pages/plan_editor_page.dart';
 import '../../features/money_plan/presentation/pages/plan_list_page.dart';
 import '../../features/money_plan/presentation/pages/plan_review_page.dart';
 import '../../features/receipt_scanner/domain/entities/scanned_receipt.dart';
@@ -54,6 +55,11 @@ abstract final class Routes {
   /// without one — a deep link — it opens the first step instead, which is
   /// the only honest answer to "review what?".
   static const String moneyPlanReview = '/plan/review';
+
+  /// A plan built by hand, or a generated one being edited before it is
+  /// saved. E-39. The `PlanEditorArgs` travel as `extra`; reached without
+  /// them, it opens the wizard, which is where a period is chosen.
+  static const String planEditor = '/plan/edit';
 
   /// The active plan: adjust it, ask what-if, and (FR-PLN-013, later) watch
   /// spending against it. FR-PLN-011, FR-PLN-012.
@@ -164,6 +170,14 @@ GoRouter buildRouter() => GoRouter(
       name: 'moneyPlanReview',
       builder: (context, state) => switch (state.extra) {
         final AllocationRequest request => PlanReviewPage(request: request),
+        _ => const MoneyPlanPage(),
+      },
+    ),
+    GoRoute(
+      path: Routes.planEditor,
+      name: 'planEditor',
+      builder: (context, state) => switch (state.extra) {
+        final PlanEditorArgs args => PlanEditorPage(args: args),
         _ => const MoneyPlanPage(),
       },
     ),

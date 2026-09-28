@@ -10,15 +10,22 @@ import '../../../../injection.dart' show calendarSettingsProvider;
 import '../../domain/entities/allocation_request.dart';
 import '../../domain/entities/budget_mode.dart';
 import '../../domain/entities/lookback_window.dart';
+import '../../domain/entities/plan_history.dart';
 import '../../domain/entities/plan_period.dart';
 import '../../domain/usecases/allocate_budget.dart';
+import '../../domain/usecases/check_plan_history.dart';
+import '../providers/money_plan_providers.dart';
 import '../widgets/plan_labels.dart';
+import 'plan_editor_page.dart';
 
 /// The wizard's first step: which days to plan, and how to decide the
 /// total. FR-PLN-001, FR-PLN-002, FR-PLN-008.
 ///
 /// Builds an [AllocationRequest] and hands it to the review screen; nothing
-/// is computed or written here. The lookback is FR-PLN-003's setting
+/// is computed or written here. It first asks whether there is enough of
+/// the user's own spending to suggest a plan from (E-39): when there is
+/// not, it says why and offers the plan editor instead, and when there is,
+/// the editor is still one tap away. The lookback is FR-PLN-003's setting
 /// (FR-SET-012), read from the stored row and stated on screen with where
 /// to change it — not changed here, because two places to set one thing is
 /// one too many, and Settings is where the SRS puts it. Weeks and months
@@ -119,11 +126,25 @@ class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
     ),
   };
 
+  LookbackWindow _lookback() =>
+      LookbackWindow.before(_now, months: _calendar.planAnalysisMonths);
+
   AllocationRequest _request() => AllocationRequest(
     period: _period(),
-    lookback: LookbackWindow.before(_now, months: _calendar.planAnalysisMonths),
+    lookback: _lookback(),
     mode: _budgetMode(),
   );
+
+  /// What stops the period alone from being planned — all building by
+  /// hand needs.
+  String? _periodProblem() {
+    if (_shape == PlanPeriodType.customDays &&
+        (int.tryParse(_days.text.trim()) ?? 0) < 1) {
+      return 'Enter at least one day.';
+    }
+    if (_period().isInverted) return 'The start of the plan is after its end.';
+    return null;
+  }
 
   /// The screen's own checks before the use case's: an empty field is a
   /// different message from an out-of-range one.
@@ -171,11 +192,31 @@ class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
     context.push(Routes.moneyPlanReview, extra: _request());
   }
 
+  void _buildYourself() {
+    final problem = _periodProblem();
+    if (problem != null) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(problem)));
+      return;
+    }
+    context.push(Routes.planEditor, extra: PlanEditorArgs(period: _period()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final problem = _submitted ? _problem() : null;
     final period = _period();
+    final history = ref.watch(
+      planHistoryProvider(PlanHistoryQuery(window: _lookback(), today: _now)),
+    );
+    // A failure to count falls through to the generator, whose own
+    // refusals say what went wrong.
+    final notEnough = switch (history) {
+      AsyncData(:final value) when !value.isEnough => value,
+      _ => null,
+    };
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create Money Plan')),
@@ -227,85 +268,152 @@ class _MoneyPlanPageState extends ConsumerState<MoneyPlanPage> {
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 24),
-          Text('Total budget', style: theme.textTheme.titleMedium),
-          RadioGroup<_Mode>(
-            groupValue: _mode,
-            onChanged: (m) => setState(() => _mode = m!),
-            child: Column(
+          if (history.isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (notEnough != null)
+            _NotEnoughHistory(history: notEnough, onBuild: _buildYourself)
+          else ...[
+            Text('Total budget', style: theme.textTheme.titleMedium),
+            RadioGroup<_Mode>(
+              groupValue: _mode,
+              onChanged: (m) => setState(() => _mode = m!),
+              child: Column(
+                children: [
+                  const RadioListTile<_Mode>(
+                    value: _Mode.history,
+                    title: Text('From your spending history'),
+                    subtitle: Text('What the plan adds up to'),
+                  ),
+                  const RadioListTile<_Mode>(
+                    value: _Mode.total,
+                    title: Text('Set a total'),
+                    subtitle: Text('Shared across categories proportionally'),
+                  ),
+                  if (_mode == _Mode.total)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: TextField(
+                        controller: _total,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Total budget',
+                          prefixText: 'Rs ',
+                        ),
+                      ),
+                    ),
+                  const RadioListTile<_Mode>(
+                    value: _Mode.suggested,
+                    title: Text('Suggest from income'),
+                    subtitle: Text('Income, less fixed costs, less savings'),
+                  ),
+                  if (_mode == _Mode.suggested)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: TextField(
+                        controller: _savings,
+                        onChanged: (_) => _savingsTyped = true,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Savings target',
+                          suffixText: '% of income',
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              // FR-PLN-003, FR-SET-012. Read-only here on purpose: the number
+              // is set under Settings and only there.
+              _calendar.planAnalysisMonths == 1
+                  ? 'Based on the last month of spending — change this under '
+                        'Settings › Calendar.'
+                  : 'Based on the last ${_calendar.planAnalysisMonths} months '
+                        'of spending — change this under Settings › Calendar.',
+              style: theme.textTheme.bodySmall,
+            ),
+            if (problem != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                problem,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _generate,
+              child: const Text('Generate plan'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _buildYourself,
+              child: const Text('Or build it yourself'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Why there is no suggested plan yet, and the way on. E-39.
+class _NotEnoughHistory extends StatelessWidget {
+  const _NotEnoughHistory({required this.history, required this.onBuild});
+
+  final PlanHistory history;
+  final VoidCallback onBuild;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                const RadioListTile<_Mode>(
-                  value: _Mode.history,
-                  title: Text('From your spending history'),
-                  subtitle: Text('What the plan adds up to'),
-                ),
-                const RadioListTile<_Mode>(
-                  value: _Mode.total,
-                  title: Text('Set a total'),
-                  subtitle: Text('Shared across categories proportionally'),
-                ),
-                if (_mode == _Mode.total)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: TextField(
-                      controller: _total,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Total budget',
-                        prefixText: 'Rs ',
-                      ),
-                    ),
+                Icon(Icons.insights_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Not enough history for a suggested plan yet',
+                    style: theme.textTheme.titleMedium,
                   ),
-                const RadioListTile<_Mode>(
-                  value: _Mode.suggested,
-                  title: Text('Suggest from income'),
-                  subtitle: Text('Income, less fixed costs, less savings'),
                 ),
-                if (_mode == _Mode.suggested)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: TextField(
-                      controller: _savings,
-                      onChanged: (_) => _savingsTyped = true,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Savings target',
-                        suffixText: '% of income',
-                      ),
-                    ),
-                  ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            // FR-PLN-003, FR-SET-012. Read-only here on purpose: the number
-            // is set under Settings and only there.
-            _calendar.planAnalysisMonths == 1
-                ? 'Based on the last month of spending — change this under '
-                      'Settings › Calendar.'
-                : 'Based on the last ${_calendar.planAnalysisMonths} months '
-                      'of spending — change this under Settings › Calendar.',
-            style: theme.textTheme.bodySmall,
-          ),
-          if (problem != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
-              problem,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
+              planHistoryExplanation(history),
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Until then, build the plan yourself: pick the categories and '
+              'the amounts. Moneyora will track your spending against it '
+              'just the same.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onBuild,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Build it yourself'),
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _generate,
-            child: const Text('Generate plan'),
-          ),
-        ],
+        ),
       ),
     );
   }

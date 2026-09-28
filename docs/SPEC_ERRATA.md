@@ -54,6 +54,7 @@ follows the Resolution sections.
 | [E-36](#e-36) | A recurring rule's template cannot be deleted, and the DBD's cascade would delete the series | Resolved | FR-EXP-008, FR-INC-004 |
 | [E-37](#e-37) | FR-SET-006's reminders have no schema, and "configuration" names nothing to configure | Resolved | FR-SET-006 |
 | [E-38](#e-38) | A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have | Resolved (FR-BAK-002/003/004 deferred) | FR-BAK-001, FR-BAK-002, FR-BAK-003, FR-BAK-004, FR-BAK-005 |
+| [E-39](#e-39) | A plan with too little history: built by hand, never from sample data | Resolved (supersedes E-21's ladder) | FR-PLN-001, FR-PLN-003, FR-PLN-011 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2314,6 +2315,65 @@ what may leave the phone.
    a saved backup, which keeps the user in the loop the password needs.
    Revisit if a platform backup service (Android's Auto Backup, iCloud)
    can carry the sealed file without the app holding its password.
+
+---
+
+<a id="e-39"></a>
+
+## E-39 — A plan with too little history: built by hand, never from sample data
+
+**Severity:** High · **Affects:** SRS §7.1, E-21, E-22 ·
+**Requirement:** FR-PLN-001, FR-PLN-003, FR-PLN-011
+
+Raised 2026-09-28, from the product owner's review of the Money Plan.
+
+E-21 said what the plan screen does for a user with no history: a starter
+plan from one question (monthly income) spread across the default
+categories on *published baseline proportions*. It was never built. What
+the app offered instead, in debug builds, was a **Try it with sample
+data** button that wrote two years of made-up transactions and planned
+from them. The owner's objection is the right one: a plan generated from
+someone else's numbers, or from invented ones, is meaningless to the
+person reading it, and presenting it as "your plan" is a claim the app
+cannot stand behind. The baseline ladder has the same flaw one step
+removed: the proportions are other people's.
+
+**Resolution.**
+
+1. **No sample data in the app.** The button and its loader are removed.
+   `dev_seed.dart` stays a test fixture: the statistics, classifier and
+   allocator are still proven against it, and nothing a user can reach
+   writes it.
+2. **Suggest a plan only from enough of the user's own spending.** The
+   generator reads whole months before the current one (FR-PLN-003), so
+   the threshold is stated in those terms: at least **one whole month with
+   spending** and at least **10 expenses** in the lookback
+   (`PlanHistory`). Below it, the wizard does not offer to generate. It says
+   which case the user is in (nothing recorded yet; spending only this
+   month, which counts from the month's end; a handful of expenses, and
+   how many are needed) so "not enough history" reads as a stage, not a
+   fault.
+3. **The user can always build a plan by hand.** The plan editor lists the
+   expense categories; the user types a budget for the ones they want and
+   leaves the rest empty. It is the main action when history is short and
+   stays one tap away when it is not. Tracking, alerts and the overspend
+   responses work on a hand-built plan exactly as on a generated one. A row
+   the user added is stored with Low confidence (nothing in the history
+   supports it, which is what FR-PLN-010's Low means) and as set by the
+   user; the screens show "set by you" and no confidence label for it.
+4. **A generated plan can be edited before it is saved.** FR-PLN-011 asks
+   for this and the app offered adjustment only after saving. The review
+   screen's **Edit amounts** opens the same editor with the suggestions
+   filled in: change a figure, remove a category, add one. **One
+   departure:** FR-PLN-011 has the other allocations recalculate to hold
+   the total. In the editor the total instead follows what the user types,
+   and the screen shows how far it is from the suggested total. Fields
+   changing while someone types in a neighbouring one is disorienting, and
+   the user who opens the editor has chosen to set the figures. The
+   total-holding adjust remains on the saved plan, where it was built
+   (PR #79).
+
+E-21's ladder is superseded by points 2 and 3.
 
 ---
 
