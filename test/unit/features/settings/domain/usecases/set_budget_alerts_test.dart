@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/budget_alerts_switch.dart';
 import 'package:moneyora/core/ports/local_notifier.dart';
 import 'package:moneyora/features/settings/domain/entities/user_settings.dart';
 import 'package:moneyora/features/settings/domain/repositories/settings_repository.dart';
@@ -78,6 +79,27 @@ void main() {
       final result = await setBudgetAlerts(true);
 
       expect(result, const Left<Failure, Unit>(CacheFailure('disk full')));
+    });
+  });
+
+  group('as the switch the Money Plan turns alerts on through. E-39', () {
+    test('turnOn is turning on: the permission asked, then stored', () async {
+      final BudgetAlertsSwitch alerts = setBudgetAlerts;
+
+      final result = await alerts.turnOn();
+
+      expect(result, const Right<Failure, Unit>(unit));
+      expect(notifier.asked, 1);
+      expect(repository.saved?.budgetAlertsEnabled, isTrue);
+    });
+
+    test('and is refused the same way', () async {
+      notifier.grant = false;
+
+      final result = await (setBudgetAlerts as BudgetAlertsSwitch).turnOn();
+
+      expect(result.getLeft().toNullable(), isA<PermissionFailure>());
+      expect(repository.saved, isNull);
     });
   });
 

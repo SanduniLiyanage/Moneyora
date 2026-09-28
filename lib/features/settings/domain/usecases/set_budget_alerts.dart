@@ -1,6 +1,7 @@
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/budget_alerts_switch.dart';
 import '../../../../core/ports/local_notifier.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../repositories/settings_repository.dart';
@@ -15,7 +16,10 @@ import '../repositories/settings_repository.dart';
 /// said no, so the phone's own settings are the only way back.
 ///
 /// **Off asks nothing** and cannot be refused.
-class SetBudgetAlerts implements UseCase<Unit, bool> {
+///
+/// Also the [BudgetAlertsSwitch] the Money Plan turns alerts on through
+/// when a plan is saved (E-39).
+class SetBudgetAlerts implements UseCase<Unit, bool>, BudgetAlertsSwitch {
   /// Creates the use case over [repository] and [notifier].
   const SetBudgetAlerts(this._repository, this._notifier);
 
@@ -26,6 +30,9 @@ class SetBudgetAlerts implements UseCase<Unit, bool> {
   static const String refusedMessage =
       'Notifications are turned off for Moneyora. Allow them in your '
       "phone's settings, then turn budget alerts on again.";
+
+  @override
+  Future<Either<Failure, Unit>> turnOn() => call(true);
 
   @override
   Future<Either<Failure, Unit>> call(bool params) async {

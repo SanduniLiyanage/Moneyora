@@ -720,6 +720,23 @@ void main() {
       expect(find.text('Undo'), findsOneWidget);
     });
 
+    testWidgets('the offer does not follow onto the entry screen', (
+      tester,
+    ) async {
+      // Found on the emulator: left up, "Transaction deleted" sat over the
+      // entry screen's Save button, and a tap on Save hit the bar instead.
+      await pumpApp(tester);
+      await addExpense(tester);
+      await tester.drag(find.text('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Undo'), findsOneWidget);
+
+      await tapText(tester, 'Add');
+
+      expect(find.text('Transaction deleted'), findsNothing);
+      expect(find.text('Undo'), findsNothing);
+    });
+
     testWidgets('writes nothing at all if undo is tapped', (tester) async {
       await pumpApp(tester);
       await addExpense(tester);

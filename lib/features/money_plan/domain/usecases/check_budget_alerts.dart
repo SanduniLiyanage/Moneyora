@@ -98,19 +98,27 @@ class CheckBudgetAlerts
     return AppNotification(
       id: AppNotification.budgetAlertBase + alert.allocationId,
       kind: NotificationKind.budgetAlert,
+      // Each says which limit, in which plan, and what it means for the
+      // next purchase: a notification read on a lock screen has to stand
+      // on its own.
       title: switch (alert.level) {
         BudgetAlertLevel.warning => '$name is at $percent% of its budget',
         BudgetAlertLevel.exceeded when percent <= 100 =>
-          '$name has used its whole budget',
-        BudgetAlertLevel.exceeded => '$name is over budget, at $percent%',
+          "You've used your whole $name budget",
+        BudgetAlertLevel.exceeded => "You've gone over your $name budget",
         // Never announced: an evaluation only alerts upward.
         BudgetAlertLevel.none => name,
       },
       body: switch (alert.level) {
-        BudgetAlertLevel.exceeded =>
-          'In your "${plan.name}" plan. Open it to redistribute, adjust or '
-              'carry the overspend over.',
-        _ => 'In your "${plan.name}" plan. Open it to see what is left.',
+        BudgetAlertLevel.warning =>
+          'About ${100 - percent}% is left in your "${plan.name}" plan. '
+              'Tap to see where you stand.',
+        BudgetAlertLevel.exceeded when percent <= 100 =>
+          'You have reached the limit in your "${plan.name}" plan. Anything '
+              'more on $name goes over.',
+        _ =>
+          '$name is at $percent% of its limit in your "${plan.name}" plan. '
+              'Tap to rebalance, adjust or carry the overspend over.',
       },
       payload: payload,
     );
