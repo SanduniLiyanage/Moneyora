@@ -2,22 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/database/database_summary.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../injection.dart';
 
-/// Sprint 1's home screen.
+/// The home screen. SCR-001.
 ///
-/// Not SCR-001's full design — the balance bar and category ring are still
-/// open — but the donut chart (FR-RPT-001) arrived this session. What the
-/// rest of this screen does is prove the foundation works **on a real
-/// device**, which no unit test can: the SQLCipher file opened with a key from
-/// the platform keychain, the migration ran, and the default categories seeded.
+/// Shortcuts to every part of the app first, then the five cards that say
+/// where the money went, and an Add button for the thing done most often:
+/// recording an expense.
 ///
-/// Those three things pass in tests against an in-memory database on a laptop.
-/// Whether they work on an Android phone is a different question, and this
-/// screen is how it gets answered.
+/// It waits on the database summary before showing anything, so a database
+/// that cannot be opened (a keychain entry gone, a migration failed) says so
+/// here rather than leaving every card spinning. The summary's figures
+/// themselves are in Settings › About: they help with a support question
+/// and mean nothing to someone checking their spending.
 class HomePage extends ConsumerWidget {
   /// Creates the home screen.
   const HomePage({
@@ -89,8 +88,7 @@ class HomePage extends ConsumerWidget {
         ],
       ),
       body: switch (summary) {
-        AsyncData(:final value) => _Ready(
-          summary: value,
+        AsyncData() => _Ready(
           spendingChart: spendingChart,
           incomeExpenseChart: incomeExpenseChart,
           summaryCard: summaryCard,
@@ -100,13 +98,20 @@ class HomePage extends ConsumerWidget {
         AsyncError(:final error) => _Failed(error: error),
         _ => const Center(child: CircularProgressIndicator()),
       },
+      floatingActionButton: switch (summary) {
+        AsyncData() => FloatingActionButton.extended(
+          onPressed: () => context.push(Routes.addTransaction),
+          icon: const Icon(Icons.add),
+          label: const Text('Add'),
+        ),
+        _ => null,
+      },
     );
   }
 }
 
 class _Ready extends StatelessWidget {
   const _Ready({
-    required this.summary,
     required this.spendingChart,
     required this.incomeExpenseChart,
     required this.summaryCard,
@@ -114,7 +119,6 @@ class _Ready extends StatelessWidget {
     required this.spendingHeatmap,
   });
 
-  final DatabaseSummary summary;
   final Widget? spendingChart;
   final Widget? incomeExpenseChart;
   final Widget? summaryCard;
@@ -123,110 +127,101 @@ class _Ready extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>()!;
-
     return ListView(
-      padding: const EdgeInsets.all(16),
+      // Room under the last card for the Add button.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
       children: [
-        if (spendingChart != null) ...[
-          spendingChart!,
-          const SizedBox(height: 16),
-        ],
-        if (incomeExpenseChart != null) ...[
-          incomeExpenseChart!,
-          const SizedBox(height: 16),
-        ],
-        if (summaryCard != null) ...[summaryCard!, const SizedBox(height: 16)],
-        if (spendingTrendChart != null) ...[
-          spendingTrendChart!,
-          const SizedBox(height: 16),
-        ],
-        if (spendingHeatmap != null) ...[
-          spendingHeatmap!,
-          const SizedBox(height: 16),
-        ],
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.check_circle, color: colors.income),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Database ready',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _Stat(
-                  label: 'Schema version',
-                  value: '${summary.schemaVersion}',
-                ),
-                _Stat(label: 'Accounts', value: '${summary.accounts}'),
-                _Stat(label: 'Categories', value: '${summary.categories}'),
-                _Stat(label: 'Transactions', value: '${summary.transactions}'),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text('Coming next', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
-        for (final (label, route) in const [
-          ('Transactions', Routes.transactions),
-          ('Recurring', Routes.recurring),
-          ('Categories', Routes.categories),
-          ('Ask Moneyora', Routes.copilot),
-          ('Create Money Plan', Routes.moneyPlan),
-          ('Your plan', Routes.activePlan),
-          ('Saved plans', Routes.plans),
-          ('Scan Receipt', Routes.scanReceipt),
+        const _Shortcuts(),
+        const SizedBox(height: 16),
+        for (final card in [
+          spendingChart,
+          incomeExpenseChart,
+          summaryCard,
+          spendingTrendChart,
+          spendingHeatmap,
         ])
-          // `push`, not `go`. Every route here is top-level, and `go` replaces
-          // the location rather than stacking on it — which leaves the screen
-          // with nothing to pop, no back arrow, and a device back button that
-          // exits the app instead of returning here.
-          ListTile(
-            title: Text(label),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(route),
+          if (card != null) ...[card, const SizedBox(height: 16)],
+      ],
+    );
+  }
+}
+
+/// Every part of the app, one tap from home, most used first.
+///
+/// `push`, not `go`. Every route here is top-level, and `go` replaces the
+/// location rather than stacking on it — which leaves the screen with
+/// nothing to pop, no back arrow, and a device back button that exits the
+/// app instead of returning here.
+class _Shortcuts extends StatelessWidget {
+  const _Shortcuts();
+
+  static const List<(String, IconData, String)> _destinations = [
+    ('Transactions', Icons.receipt_long_outlined, Routes.transactions),
+    ('Scan Receipt', Icons.document_scanner_outlined, Routes.scanReceipt),
+    ('Your plan', Icons.savings_outlined, Routes.activePlan),
+    ('Create Money Plan', Icons.edit_calendar_outlined, Routes.moneyPlan),
+    ('Recurring', Icons.repeat, Routes.recurring),
+    ('Categories', Icons.category_outlined, Routes.categories),
+    ('Saved plans', Icons.folder_open_outlined, Routes.plans),
+    ('Ask Moneyora', Icons.chat_bubble_outline, Routes.copilot),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    // Two to a row, each as tall as the taller of the pair: at the largest
+    // font a long label wraps to a second line instead of overflowing.
+    return Column(
+      children: [
+        for (var i = 0; i < _destinations.length; i += 2)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _Shortcut(_destinations[i])),
+                  const SizedBox(width: 8),
+                  Expanded(child: _Shortcut(_destinations[i + 1])),
+                ],
+              ),
+            ),
           ),
       ],
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
+class _Shortcut extends StatelessWidget {
+  const _Shortcut(this.destination);
 
-  final String label;
-  final String value;
+  final (String, IconData, String) destination;
 
   @override
   Widget build(BuildContext context) {
+    final (label, icon, route) = destination;
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          // Takes what is left, so at the largest font the label wraps
-          // rather than pushing the figure off the card.
-          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push(route),
+        // The icon above its label, not beside it: beside, a 320dp phone
+        // left "Transactions" too little room and it broke mid-word.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: theme.colorScheme.primary),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelLarge,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

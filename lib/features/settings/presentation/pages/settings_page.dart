@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/notification_settings.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../injection.dart' show databaseSummaryProvider;
 import '../../domain/entities/user_settings.dart';
 import '../../domain/usecases/set_base_currency.dart';
 import '../../domain/usecases/set_first_day_of_month.dart';
@@ -474,6 +475,17 @@ class SettingsPage extends ConsumerWidget {
               onTap: busy ? null : () => _recalculate(context, ref),
             ),
             if (backupSection case final Widget section) section,
+            const _SectionHeader('About'),
+            const ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text('Moneyora'),
+              subtitle: Text(
+                'Your data stays on this phone, encrypted. Nothing leaves it '
+                'unless you back it up, export it, or ask Moneyora a '
+                'question.',
+              ),
+            ),
+            const _DatabaseSummaryTile(),
           ],
         ),
       ),
@@ -581,6 +593,36 @@ class _ReminderScheduleDialogState extends State<_ReminderScheduleDialog> {
 }
 
 /// A section label, in the style Material uses for grouped settings.
+/// What the database holds, for a support question. Moved here from the
+/// home screen, where it meant nothing to someone checking their money.
+///
+/// No spinner while it loads: the row reads "Reading…" instead, which
+/// settles.
+class _DatabaseSummaryTile extends ConsumerWidget {
+  const _DatabaseSummaryTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(databaseSummaryProvider);
+    return ListTile(
+      leading: const Icon(Icons.storage_outlined),
+      title: const Text('Database'),
+      subtitle: Text(switch (summary) {
+        AsyncData(:final value) =>
+          'Version ${value.schemaVersion} · '
+              '${_count(value.accounts, 'account')} · '
+              '${_count(value.categories, 'category', 'categories')} · '
+              '${_count(value.transactions, 'transaction')}',
+        AsyncError() => 'Could not be read.',
+        _ => 'Reading…',
+      }),
+    );
+  }
+
+  static String _count(int n, String one, [String? many]) =>
+      '$n ${n == 1 ? one : many ?? '${one}s'}';
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);
 

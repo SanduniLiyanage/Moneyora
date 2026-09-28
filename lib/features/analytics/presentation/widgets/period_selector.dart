@@ -78,23 +78,20 @@ class PeriodSelector extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-          // Six chips overflow any phone, the same reason
-          // `transaction_list_page.dart`'s type filter scrolls.
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final (label, period) in _chips)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(label),
-                      selected: selection.period == period,
-                      onSelected: (_) => _select(context, ref, period),
-                    ),
-                  ),
-              ],
-            ),
+          // Six chips do not fit one line of a phone. They wrap rather than
+          // scroll: scrolled, a 320dp screen cut the selected chip in half
+          // and hid Year, All and Custom with nothing to say they were there.
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final (label, period) in _chips)
+                ChoiceChip(
+                  label: Text(label),
+                  selected: selection.period == period,
+                  onSelected: (_) => _select(context, ref, period),
+                ),
+            ],
           ),
         ),
         IconButton(
