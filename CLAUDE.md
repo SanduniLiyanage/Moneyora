@@ -77,4 +77,6 @@ name it in the doc comment of the class that satisfies it. Check the ID
 against `docs/specs/REQUIREMENTS_INDEX.md` (or `docs/SPEC_ERRATA.md` for an
 `E-` ID) before citing it — E-25 exists because a wrong ID looked exactly like
 a checked fact, and `scripts/check_citations.sh` now catches one that doesn't
-exist in either document on every push.
+exist in either document on every push, and in a pull request's `Refs:`
+trailers before it merges. It cannot tell a real ID cited for the wrong thing
+(FR-EXP-007 is account balances, not the keypad); only reading the index can.

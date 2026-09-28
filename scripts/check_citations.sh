@@ -29,12 +29,15 @@
 # exist and one that does not is exactly the failure mode E-25 was raised for,
 # one level up.
 #
-# Commit-trailer checking is left to the human/PR-review step for now: this
-# script only sees the checked-out tree, and a merged commit's trailer cannot
-# be fixed after the fact without rewriting protected history, which
-# CLAUDE.md forbids. Catching a bad ID before it is committed is what the
-# doc-comment check buys; catching one already in `git log` is a job for a
-# reviewer, same as always.
+# Commit trailers are checked too when TRAILER_RANGE names a range of
+# commits — CI passes a pull request's. A merged commit's trailer cannot be
+# fixed without rewriting protected history, which CLAUDE.md forbids, so the
+# only useful moment to catch one is before the merge, while an amend is
+# still allowed. This was once left to the reviewer, and on 2026-09-29 four
+# invented or misapplied IDs got past review in one session (NFR-PER-008,
+# NFR-USA-002, FR-NOT-001, and FR-EXP-007 cited for something it is not);
+# two of them are in merged history for good, and the index's traps table
+# records them.
 # ─────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
 fail=0
@@ -55,7 +58,11 @@ VALID="$(mktemp)"
 trap 'rm -f "$VALID"' EXIT
 
 {
-  grep -ohE '\b(FR|NFR)-[A-Z]+-[0-9]+\b' "$INDEX"
+  # Only the IDs the index *defines* — the first column of its requirement
+  # tables — not every ID it mentions. Its traps table names IDs that do not
+  # exist precisely to warn against them, and reading those as valid let the
+  # trailer check wave through the very mistakes the table records.
+  grep -oE '^\| (FR|NFR)-[A-Z]+-[0-9]+ \|' "$INDEX" | grep -oE '(FR|NFR)-[A-Z]+-[0-9]+'
   [ -f "$COP_SRS" ] && grep -ohE '\b(FR|NFR)-[A-Z]+-[0-9]+\b' "$COP_SRS"
   [ -f "$COP_SDD" ] && grep -ohE '\b(FR|NFR)-[A-Z]+-[0-9]+\b' "$COP_SDD"
   grep -ohE '\bE-[0-9]+\b' "$ERRATA"
@@ -119,6 +126,20 @@ while IFS=: read -r file line rest; do
     ;;
   esac
 done < <(grep -rn --include='*.dart' -E '^[[:space:]]*//' lib test 2>/dev/null)
+
+# Every `Refs:` line of each commit in TRAILER_RANGE, when one is given —
+# every line, not the last: a squash merge carries each of its commits'
+# messages, and the first run of this missed #147's NFR-USA-002 by reading
+# only the final trailer.
+if [ -n "${TRAILER_RANGE:-}" ]; then
+  while IFS= read -r sha; do
+    refs="$(git log -1 --format=%B "$sha" | grep -E '^Refs:')"
+    [ -z "$refs" ] && continue
+    while IFS= read -r raw; do
+      [ -n "$raw" ] && check_citation "commit ${sha:0:7}" "Refs" "$raw"
+    done < <(grep -oE "$id_pattern" <<<"$refs")
+  done < <(git rev-list --no-merges "$TRAILER_RANGE")
+fi
 
 if [ "$fail" -eq 0 ]; then
   printf '\033[32mCitations OK\033[0m — every cited FR-/NFR-/E- ID exists.\n'
