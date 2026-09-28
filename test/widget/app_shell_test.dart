@@ -479,6 +479,7 @@ void main() {
         'Your plan',
         'Saved plans',
         'Scan Receipt',
+        'Transfer',
       ]) {
         await tester.pumpWidget(
           ProviderScope(

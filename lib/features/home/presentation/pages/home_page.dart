@@ -168,6 +168,9 @@ class _Shortcuts extends StatelessWidget {
   static const List<(String, IconData, String)> _destinations = [
     ('Transactions', Icons.receipt_long_outlined, Routes.transactions),
     ('Scan Receipt', Icons.document_scanner_outlined, Routes.scanReceipt),
+    // Moving money between accounts is as ordinary as spending it — cash
+    // drawn from a card is one tap from here, not two screens in.
+    ('Transfer', Icons.swap_horiz, Routes.transfer),
     ('Your plan', Icons.savings_outlined, Routes.activePlan),
     ('Create Money Plan', Icons.edit_calendar_outlined, Routes.moneyPlan),
     ('Recurring', Icons.repeat, Routes.recurring),
@@ -191,7 +194,13 @@ class _Shortcuts extends StatelessWidget {
                 children: [
                   Expanded(child: _Shortcut(_destinations[i])),
                   const SizedBox(width: 8),
-                  Expanded(child: _Shortcut(_destinations[i + 1])),
+                  // An odd count leaves the last row half full rather than
+                  // reading past the end of the list.
+                  Expanded(
+                    child: i + 1 < _destinations.length
+                        ? _Shortcut(_destinations[i + 1])
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
