@@ -189,7 +189,6 @@ class _Chart extends StatelessWidget {
     final percent = amountCents * 100 / totalCents;
     return percent < 1 ? '<1%' : '${percent.round()}%';
   }
-
 }
 
 /// White or black over [background], whichever reads — the same
