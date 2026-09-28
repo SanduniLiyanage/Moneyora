@@ -903,6 +903,20 @@ checked against the code. Writing the policy turned Android Auto Backup off
 and declared INTERNET outright. The policy's contact address is for the
 owner to fill in.
 
+### The store listing — done ([PR #143](https://github.com/SanduniLiyanage/Moneyora/pull/143))
+
+[`store/LISTING.md`](store/LISTING.md): the Play listing's text, the
+screenshot list, and the data-safety answers, each checked against the
+manifest and the privacy policy.
+
+### A balance for the chosen period and account — done ([PR #144](https://github.com/SanduniLiyanage/Moneyora/pull/144))
+
+Income less expenses for one period and one account, green above zero and
+red otherwise, with what came in and went out beneath it. It sits under
+the donut on home and at the top of the transaction list, and both share
+one choice of period and account, so the list shows what the balance
+counts. Transfers never count (E-02).
+
 ### Still open
 
 - **Beta readiness** — the app's name, the launcher icon, upload-key
