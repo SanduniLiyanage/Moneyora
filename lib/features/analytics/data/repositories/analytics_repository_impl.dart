@@ -140,17 +140,23 @@ class AnalyticsRepositoryImpl
     required DateTime from,
     required DateTime to,
   }) async {
-    // Every account, as the month cut above; the heatmap's own query, so
-    // E-02 and E-04 hold here because they hold there.
-    final totals = await dailySpendingTotals(
+    // The month cut above at day granularity: the same statement, so the
+    // category ids are the ones the plan classified, and E-02 and E-04 hold
+    // here because they hold there.
+    final points = await spendingTrend(
       AnalyticsQuery(
         range: DateRange(from: from, to: to),
       ),
+      TrendGranularity.day,
     );
-    return totals.map(
+    return points.map(
       (rows) => [
-        for (final t in rows)
-          DailySpending(day: t.date, amountCents: t.amountCents),
+        for (final p in rows)
+          DailySpending(
+            day: p.bucket,
+            categoryId: p.categoryId,
+            amountCents: p.amountCents,
+          ),
       ],
     );
   }

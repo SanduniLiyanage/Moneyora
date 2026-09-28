@@ -69,7 +69,12 @@ class PatternComparison extends Equatable {
 /// not built.
 ///
 /// Every day of the window counts, including the days nothing was spent: a
-/// weekend of nothing is part of what a weekend costs. The month's start is
+/// weekend of nothing is part of what a weekend costs. What does not count
+/// is a category spent on no more than [billDaysPerMonth] days in each month
+/// it appears in — a rent, a subscription, a one-off: its day is a due date
+/// or an accident, not a habit. Counted in, a rent paid on the 1st made the
+/// first ten days of a month look five times dearer than the last ten.
+/// The month's start is
 /// its first ten days and its end is its last ten, the middle left out so
 /// the two do not blur into each other in a short month. Calendar months,
 /// as the rest of the plan's statistics are.
@@ -79,6 +84,7 @@ class SpendingPatterns extends Equatable {
     required this.week,
     required this.month,
     required this.spendingDays,
+    this.leftOut = const {},
   });
 
   /// Days a month's start or end runs to.
@@ -88,14 +94,22 @@ class SpendingPatterns extends Equatable {
   /// Fewer, and one large purchase decides the answer.
   static const int minSpendingDays = 20;
 
+  /// The most days in a month a category can be spent on and still be a
+  /// bill rather than a habit. A rent is one; a bill paid in two parts, two.
+  /// Fuel every nine days is three, and a habit.
+  static const int billDaysPerMonth = 2;
+
   /// Weekdays first, the weekend (Saturday and Sunday) second.
   final PatternComparison week;
 
   /// The first [edgeDays] of each month first, the last [edgeDays] second.
   final PatternComparison month;
 
-  /// How many days in the window had any spending.
+  /// How many days in the window had any spending that counted.
   final int spendingDays;
+
+  /// The categories left out as bills or one-offs, by id.
+  final Set<int> leftOut;
 
   /// Whether there is enough history for [week] and [month] to mean
   /// anything.
@@ -106,11 +120,28 @@ class SpendingPatterns extends Equatable {
     LookbackWindow window,
     Iterable<DailySpending> days,
   ) {
+    final inWindow = [
+      for (final d in days)
+        if (DateTime(d.day.year, d.day.month, d.day.day) case final day
+            when !day.isBefore(window.from) && !day.isAfter(window.to))
+          (day: day, categoryId: d.categoryId, cents: d.amountCents),
+    ];
+
+    final daysOf = <int, Set<DateTime>>{};
+    final monthsOf = <int, Set<DateTime>>{};
+    for (final d in inWindow) {
+      (daysOf[d.categoryId] ??= {}).add(d.day);
+      (monthsOf[d.categoryId] ??= {}).add(DateTime(d.day.year, d.day.month));
+    }
+    final leftOut = {
+      for (final id in daysOf.keys)
+        if (daysOf[id]!.length <= billDaysPerMonth * monthsOf[id]!.length) id,
+    };
+
     final spent = <DateTime, int>{};
-    for (final d in days) {
-      final day = DateTime(d.day.year, d.day.month, d.day.day);
-      if (day.isBefore(window.from) || day.isAfter(window.to)) continue;
-      spent[day] = (spent[day] ?? 0) + d.amountCents;
+    for (final d in inWindow) {
+      if (leftOut.contains(d.categoryId)) continue;
+      spent[d.day] = (spent[d.day] ?? 0) + d.cents;
     }
 
     var weekdayCents = 0, weekdays = 0, weekendCents = 0, weekends = 0;
@@ -150,6 +181,7 @@ class SpendingPatterns extends Equatable {
         secondDailyCents: _average(endCents, ends),
       ),
       spendingDays: spent.values.where((c) => c > 0).length,
+      leftOut: leftOut,
     );
   }
 
@@ -158,5 +190,5 @@ class SpendingPatterns extends Equatable {
       days == 0 ? 0 : (total * 2 + days) ~/ (days * 2);
 
   @override
-  List<Object?> get props => [week, month, spendingDays];
+  List<Object?> get props => [week, month, spendingDays, leftOut];
 }

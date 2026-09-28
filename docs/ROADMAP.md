@@ -799,8 +799,15 @@ plan review compares the average spent a day on weekdays against the
 weekend, and in the first ten days of a month against the last ten, over
 the plan's own lookback window. A side is named at 25% more a day; under
 twenty spending days it says there is too little to go on. The day cut is
-the heatmap's query, through a `DailySpendingReader` port. Seasonal cycles
-are FR-PLN-004's Seasonal class; event-based spikes are not built.
+the trend lines' query at day granularity, through a `DailySpendingReader`
+port. Seasonal cycles are FR-PLN-004's Seasonal class; event-based spikes
+are not built.
+
+A category spent on no more than two days in each month it appears in —
+a rent, a subscription, a one-off — is left out, and the card names it:
+on the sample history a rent on the 1st had made the first ten days look
+587% dearer. FR-PLN-004's Fixed class is not the test, because it means a
+steady monthly *amount*, and steady groceries are still a daily habit.
 
 ### Font scaling — done ([PR #127](https://github.com/SanduniLiyanage/Moneyora/pull/127))
 

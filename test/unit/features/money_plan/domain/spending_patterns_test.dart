@@ -13,7 +13,7 @@ void main() {
   List<DailySpending> everyDay(int Function(DateTime day) cents) => [
     for (var d = 1; d <= 30; d++)
       if (cents(DateTime(2026, 6, d)) case final c when c > 0)
-        DailySpending(day: DateTime(2026, 6, d), amountCents: c),
+        DailySpending(categoryId: 2, day: DateTime(2026, 6, d), amountCents: c),
   ];
 
   bool isWeekend(DateTime d) =>
@@ -51,14 +51,19 @@ void main() {
 
   group('SpendingPatterns.from', () {
     test('the days with nothing spent count toward the average', () {
-      // One weekday with 22.00 spent, over 22 weekdays: 1.00 a day.
+      // Three weekdays with 22.00 each spent, over 22 weekdays: 3.00 a day.
       final patterns = SpendingPatterns.from(june, [
-        DailySpending(day: DateTime(2026, 6, 3), amountCents: 2200),
+        for (final d in [3, 10, 17])
+          DailySpending(
+            day: DateTime(2026, 6, d),
+            categoryId: 2,
+            amountCents: 2200,
+          ),
       ]);
 
-      expect(patterns.week.firstDailyCents, 100);
+      expect(patterns.week.firstDailyCents, 300);
       expect(patterns.week.secondDailyCents, 0);
-      expect(patterns.spendingDays, 1);
+      expect(patterns.spendingDays, 3);
     });
 
     test('an even month has no pattern', () {
@@ -113,7 +118,11 @@ void main() {
       final february = LookbackWindow(months: 1, lastMonth: DateTime(2026, 2));
       final patterns = SpendingPatterns.from(february, [
         for (var d = 19; d <= 28; d++)
-          DailySpending(day: DateTime(2026, 2, d), amountCents: 500),
+          DailySpending(
+            categoryId: 2,
+            day: DateTime(2026, 2, d),
+            amountCents: 500,
+          ),
       ]);
 
       expect(patterns.month.secondDailyCents, 500);
@@ -121,16 +130,22 @@ void main() {
     });
 
     test('rows outside the window are ignored; one day sums', () {
+      DailySpending row(DateTime day, int cents) =>
+          DailySpending(day: day, categoryId: 2, amountCents: cents);
       final patterns = SpendingPatterns.from(june, [
-        DailySpending(day: DateTime(2026, 5, 31), amountCents: 99999),
-        DailySpending(day: DateTime(2026, 7, 1), amountCents: 99999),
-        DailySpending(day: DateTime(2026, 6, 6, 14), amountCents: 400),
-        DailySpending(day: DateTime(2026, 6, 6), amountCents: 400),
+        row(DateTime(2026, 5, 31), 99999),
+        row(DateTime(2026, 7, 1), 99999),
+        row(DateTime(2026, 6, 6, 14), 400),
+        row(DateTime(2026, 6, 6), 400),
+        row(DateTime(2026, 6, 13), 800),
+        row(DateTime(2026, 6, 20), 800),
       ]);
 
-      expect(patterns.week.secondDailyCents, 100);
+      // 24.00 over June's 8 weekend days.
+      expect(patterns.week.secondDailyCents, 300);
       expect(patterns.week.firstDailyCents, 0);
-      expect(patterns.spendingDays, 1);
+      expect(patterns.spendingDays, 3);
+      expect(patterns.leftOut, isEmpty);
     });
 
     test('too few spending days is not enough history', () {
@@ -143,6 +158,73 @@ void main() {
       expect(patterns.hasEnoughHistory, isFalse);
     });
 
+    test('a rent on the 1st is a bill, not a habit, and is left out', () {
+      // Rent on the 1st (category 1) and 10.00 every day on food (category
+      // 2). Counted in, the rent would make the first ten days look
+      // hundreds of percent dearer; left out, the month is even.
+      final patterns = SpendingPatterns.from(june, [
+        DailySpending(
+          day: DateTime(2026, 6),
+          categoryId: 1,
+          amountCents: 5000000,
+        ),
+        ...everyDay((_) => 1000),
+      ]);
+
+      expect(patterns.leftOut, {1});
+      expect(patterns.month.firstDailyCents, 1000);
+      expect(patterns.month.secondDailyCents, 1000);
+      expect(patterns.month.lean, isNull);
+      expect(patterns.week.lean, isNull);
+    });
+
+    test('two days a month is a bill; three is a habit', () {
+      final spring = LookbackWindow(months: 3, lastMonth: DateTime(2026, 6));
+      List<DailySpending> monthly(int categoryId, List<int> days) => [
+        for (final month in [4, 5, 6])
+          for (final d in days)
+            DailySpending(
+              day: DateTime(2026, month, d),
+              categoryId: categoryId,
+              amountCents: 100,
+            ),
+      ];
+
+      final patterns = SpendingPatterns.from(spring, [
+        ...monthly(1, [1, 15]),
+        ...monthly(2, [1, 10, 20]),
+      ]);
+
+      expect(patterns.leftOut, {1});
+      expect(patterns.spendingDays, 9);
+    });
+
+    test('judged over the months it appears in, not the window', () {
+      // Three days in one month of three: a habit that month, not a bill
+      // spread thin.
+      final spring = LookbackWindow(months: 3, lastMonth: DateTime(2026, 6));
+      final patterns = SpendingPatterns.from(spring, [
+        for (final d in [2, 9, 16])
+          DailySpending(
+            day: DateTime(2026, 6, d),
+            categoryId: 2,
+            amountCents: 100,
+          ),
+      ]);
+
+      expect(patterns.leftOut, isEmpty);
+    });
+
+    test('a day of only left-out spending is not a spending day', () {
+      final patterns = SpendingPatterns.from(june, [
+        DailySpending(day: DateTime(2026, 6), categoryId: 1, amountCents: 900),
+        ...everyDay((d) => d.day == 1 ? 0 : 5),
+      ]);
+
+      expect(patterns.leftOut, {1});
+      expect(patterns.spendingDays, 29);
+    });
+
     test('several months together', () {
       final spring = LookbackWindow(months: 3, lastMonth: DateTime(2026, 6));
       final rows = [
@@ -151,7 +233,11 @@ void main() {
           !d.isAfter(spring.to);
           d = DateTime(d.year, d.month, d.day + 1)
         )
-          DailySpending(day: d, amountCents: isWeekend(d) ? 2000 : 1000),
+          DailySpending(
+            categoryId: 2,
+            day: d,
+            amountCents: isWeekend(d) ? 2000 : 1000,
+          ),
       ];
 
       final patterns = SpendingPatterns.from(spring, rows);

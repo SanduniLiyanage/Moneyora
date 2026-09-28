@@ -16,14 +16,25 @@ import '../../domain/entities/confidence_score.dart';
 import '../../domain/entities/plan_period.dart';
 import '../../domain/entities/spending_patterns.dart';
 
-/// What [patterns] say, one sentence each. FR-PLN-006.
+/// What [patterns] say, one sentence each, and which categories were
+/// [leftOut] of them as bills or one-offs. FR-PLN-006.
 ///
 /// Only a pattern past `PatternComparison.thresholdPercent` is named, and
 /// when neither is the answer says so rather than saying nothing: "steady"
 /// is a finding too.
-List<String> spendingPatternLines(SpendingPatterns patterns) {
+List<String> spendingPatternLines(
+  SpendingPatterns patterns, {
+  List<String> leftOut = const [],
+}) {
+  final note = [
+    if (leftOut.isNotEmpty)
+      'Left out, as spent on a day or two a month: ${leftOut.join(', ')}.',
+  ];
   if (!patterns.hasEnoughHistory) {
-    return const ['Too little spending in these months to see a pattern yet.'];
+    return [
+      'Too little spending in these months to see a pattern yet.',
+      ...note,
+    ];
   }
   final lines = [
     ?_patternLine(patterns.week, 'Weekdays', 'weekends'),
@@ -33,12 +44,14 @@ List<String> spendingPatternLines(SpendingPatterns patterns) {
       'the last ten',
     ),
   ];
-  return lines.isEmpty
-      ? const [
-          'Steady across the week and the month: no kind of day costs '
-              '${PatternComparison.thresholdPercent}% more than another.',
-        ]
-      : lines;
+  return [
+    if (lines.isEmpty)
+      'Steady across the week and the month: no kind of day costs '
+          '${PatternComparison.thresholdPercent}% more than another.'
+    else
+      ...lines,
+    ...note,
+  ];
 }
 
 String? _patternLine(PatternComparison c, String first, String second) {
