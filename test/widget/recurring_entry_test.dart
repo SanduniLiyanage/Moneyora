@@ -242,8 +242,12 @@ void main() {
     await tester.tap(repeatToggle);
     await tester.pumpAndSettle();
 
-    // Back to a month with a 31st: at most two months back from any month.
+    // Navigate to a past month with a 31st. Go back at least once so the
+    // 31st is selectable (lastDate is today, so future days in the current
+    // month are disabled and tapping them changes nothing).
     await tapText(tester, 'Today');
+    await tester.tap(find.byTooltip('Previous month'));
+    await tester.pumpAndSettle();
     for (var i = 0; i < 3 && find.text('31').evaluate().isEmpty; i++) {
       await tester.tap(find.byTooltip('Previous month'));
       await tester.pumpAndSettle();
