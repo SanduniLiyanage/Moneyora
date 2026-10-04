@@ -97,23 +97,29 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     final id = transaction.id;
     if (id == null) return;
 
-    ref.read(pendingDeletionsProvider.notifier).schedule(id, row: transaction);
+    final notifier = ref.read(pendingDeletionsProvider.notifier);
+    notifier.schedule(id, row: transaction);
 
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('Transaction deleted'),
-          // The same window the controller is counting down, so the offer
-          // disappears exactly when it stops being true.
-          duration: PendingDeletions.window,
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () =>
-                ref.read(pendingDeletionsProvider.notifier).undo(id),
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger
+        .showSnackBar(
+          SnackBar(
+            content: const Text('Transaction deleted'),
+            duration: PendingDeletions.window,
+            persist: false,
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => notifier.undo(id),
+            ),
           ),
-        ),
-      );
+        )
+        .closed
+        .then((reason) {
+          if (reason != SnackBarClosedReason.action) {
+            notifier.commit(id);
+          }
+        });
   }
 
   @override
