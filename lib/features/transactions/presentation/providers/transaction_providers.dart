@@ -296,8 +296,6 @@ final expensePhotoProvider = FutureProvider.autoDispose
 /// all until the window closes. If the app dies mid-window nothing was
 /// deleted, which is the safe direction to fail when the data is money.
 class PendingDeletions extends Notifier<Set<int>> {
-  final Map<int, Timer> _timers = {};
-
   /// The rows being deleted, for the photo each takes with it. FR-EXP-009.
   final Map<int, Transaction> _rows = {};
   AppLifecycleListener? _lifecycle;
@@ -307,81 +305,53 @@ class PendingDeletions extends Notifier<Set<int>> {
 
   @override
   Set<int> build() {
-    // Teardown cancels rather than commits, which is exactly what E-23 asks
-    // for: "if the app is killed mid-window, nothing was deleted — the safe
-    // direction to fail when the data is money."
-    //
-    // It is also the only thing that can work. This provider outlives every
-    // screen, so it is disposed only when the whole container goes, and by
-    // then `ref.read` cannot reach the use case any more. An earlier draft
-    // tried to flush here and threw "read from a ProviderContainer that was
-    // already disposed" — the framework refusing to let a write outlive the
-    // app that ordered it.
-    // Backgrounding the app commits immediately, rather than waiting out a
-    // window the user can no longer see.
-    //
-    // Without this, swiping a row away and then closing the app inside five
-    // seconds brings the row back on the next launch — correct by the letter
-    // of E-23 and indistinguishable from a bug to anyone who does not know
-    // the rule. A pause is not a kill: the user asked for the delete and the
-    // app is being shut down in an orderly way, so honouring it is both safe
-    // and what they meant.
-    //
-    // A real crash or a force-stop runs no callback at all, and there E-23's
-    // original answer still holds — nothing was written, which is the safe
-    // direction to fail when the data is someone's money.
     _lifecycle = AppLifecycleListener(onPause: _flush, onDetach: _flush);
 
     ref.onDispose(() {
       _lifecycle?.dispose();
       _lifecycle = null;
-      // Teardown of the container itself cannot commit: `ref.read` after
-      // dispose throws, which is the framework declining to let a write
-      // outlive the app that ordered it. Cancelling is E-23's safe direction.
-      for (final timer in _timers.values) {
-        timer.cancel();
-      }
-      _timers.clear();
       _rows.clear();
     });
     return const {};
   }
 
-  /// Hides [id] and schedules the write.
+  /// Hides [id] from the list. The caller drives when the write happens,
+  /// either through [commit] (on snackbar close) or [_flush] (on background).
   ///
   /// Given the [row], a photo attached to it by hand is discarded once the
   /// delete is written — never before, so an undo brings the photo back.
   void schedule(int id, {Transaction? row}) {
     if (row != null) _rows[id] = row;
     state = {...state, id};
-    _timers[id] = Timer(window, () => unawaited(_commit(id)));
   }
 
   /// Puts [id] back, and never writes.
   void undo(int id) {
-    _timers.remove(id)?.cancel();
     _rows.remove(id);
     state = {...state}..remove(id);
   }
 
+  /// Writes [id] now, if it is still pending. Idempotent: a second call
+  /// after the row has been committed or undone is a no-op.
+  void commit(int id) {
+    if (!state.contains(id)) return;
+    unawaited(_commit(id));
+  }
+
   /// Writes every pending delete now, without waiting for its window.
   void _flush() {
-    for (final id in _timers.keys.toList()) {
-      _timers.remove(id)?.cancel();
+    for (final id in state.toList()) {
       unawaited(_commit(id));
     }
   }
 
   Future<void> _commit(int id) async {
-    _timers.remove(id);
     final deleteTransaction = await ref.read(deleteTransactionProvider.future);
     final deleted = await deleteTransaction(id);
     final row = _rows.remove(id);
     if (deleted.isRight() && row != null) {
       await ref.read(discardUnusedPhotosProvider)(PhotoCleanup(before: row));
     }
-    // Only stop hiding it once the row is actually gone, or the list would
-    // show it again for the instant between the write and the next query.
     state = {...state}..remove(id);
   }
 }

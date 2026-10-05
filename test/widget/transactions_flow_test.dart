@@ -874,6 +874,24 @@ void main() {
       expect(repository.deleted, [1]);
       expect(find.text('No transactions yet'), findsOneWidget);
     });
+
+    testWidgets('the snackbar disappears when the undo window closes', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Transaction deleted'), findsOneWidget);
+      expect(find.text('Undo'), findsOneWidget);
+
+      await tester.pump(PendingDeletions.window);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Transaction deleted'), findsNothing);
+      expect(find.text('Undo'), findsNothing);
+    });
   });
 
   group('the filter', () {
