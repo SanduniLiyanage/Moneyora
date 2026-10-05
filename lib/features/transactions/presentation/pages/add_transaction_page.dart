@@ -765,12 +765,12 @@ class _TypeToggle extends StatelessWidget {
           ButtonSegment(
             value: TransactionType.expense,
             label: Text('Expense'),
-            icon: Icon(Icons.arrow_upward),
+            icon: Icon(Icons.arrow_downward),
           ),
           ButtonSegment(
             value: TransactionType.income,
             label: Text('Income'),
-            icon: Icon(Icons.arrow_downward),
+            icon: Icon(Icons.arrow_upward),
           ),
         ],
         selected: {type},

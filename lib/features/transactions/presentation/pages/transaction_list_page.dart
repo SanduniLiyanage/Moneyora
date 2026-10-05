@@ -406,8 +406,9 @@ class _TransactionTile extends StatelessWidget {
         backgroundColor: tint.withValues(alpha: 0.12),
         child: Icon(
           switch (transaction.type) {
-            TransactionType.income => Icons.arrow_downward,
-            TransactionType.expense => Icons.arrow_upward,
+            // The way the balance moves: income up, an expense down.
+            TransactionType.income => Icons.arrow_upward,
+            TransactionType.expense => Icons.arrow_downward,
             TransactionType.transfer => Icons.swap_horiz,
           },
           color: tint,
