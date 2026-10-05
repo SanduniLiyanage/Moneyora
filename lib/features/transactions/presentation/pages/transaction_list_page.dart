@@ -394,10 +394,15 @@ class _TransactionTile extends StatelessWidget {
             (note.isNotEmpty ? note : 'Uncategorised'),
     };
     final showNote = note.isNotEmpty && note != title;
+    // Two lines at most: a scanned receipt can hand back its whole text as
+    // one item's name, and a row must not fill the screen. The full note is
+    // on the edit screen, one tap away.
+    Text clipped(String text) =>
+        Text(text, maxLines: 2, overflow: TextOverflow.ellipsis);
     final subtitle = switch (showDate) {
-      false => showNote ? Text(note) : null,
+      false => showNote ? clipped(note) : null,
       _ when inGroup && title == date => null,
-      _ => Text(showNote ? '$date · $note' : date),
+      _ => clipped(showNote ? '$date · $note' : date),
     };
 
     return ListTile(
@@ -414,7 +419,7 @@ class _TransactionTile extends StatelessWidget {
           size: 20,
         ),
       ),
-      title: Text(title),
+      title: clipped(title),
       // The note goes under the name rather than replacing it: "Groceries"
       // alone does not say it was filed under Food, and a misfiled row is
       // exactly what someone scanning the list is looking for.

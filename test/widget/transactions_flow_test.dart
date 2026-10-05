@@ -767,6 +767,32 @@ void main() {
       expect(find.text('2026-09-01 · Lunch'), findsNothing);
       expect(find.text('Uncategorised'), findsOneWidget);
     });
+
+    testWidgets('a long note stops at two lines', (tester) async {
+      // A tester's scanned bus ticket, 2026-10-05: the whole OCR text came
+      // back as the item's name, and its row filled a third of the screen.
+      // The full note is still one tap away, on the edit screen.
+      const ticket =
+          'OLIAER :0412283207 Bs.56. 00 TRIP HO :8 TICKET HO: E?749 '
+          'FROM:MATARR T9HEU5 DATE g4\'18.26 TIME RUUTE HO:36g-B01 HORMAL '
+          'HB-9971 1903 COOP LINK-AKURESSA 56.80 (BUS)';
+      repository.saved.add(
+        Transaction(
+          id: 1,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 5600,
+          type: TransactionType.expense,
+          date: DateTime.now(),
+          note: ticket,
+        ),
+      );
+      await pumpApp(tester);
+
+      final note = tester.widget<Text>(find.textContaining('OLIAER'));
+      expect(note.maxLines, 2);
+      expect(note.overflow, TextOverflow.ellipsis);
+    });
   });
 
   group('the keypad', () {
