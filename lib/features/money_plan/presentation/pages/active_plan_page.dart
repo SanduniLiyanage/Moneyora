@@ -105,6 +105,7 @@ class _Plan extends ConsumerWidget {
     ];
     final spent = plan.allocations.fold(0, (s, a) => s + a.spentCents);
     final elapsed = progress.isEmpty ? 0 : progress.first.elapsedDays;
+    final ended = progress.isNotEmpty && progress.first.ended;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -136,7 +137,7 @@ class _Plan extends ConsumerWidget {
                 ),
                 Text(
                   '${formatCents(spent)} spent · '
-                  '${_dayLabel(elapsed, days)}',
+                  '${ended ? 'ended' : _dayLabel(elapsed, days)}',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 4),
