@@ -729,6 +729,60 @@ void main() {
     });
   });
 
+  group('arrows point the way the balance moves', () {
+    // The owner's call, 2026-10-05: an expense takes the balance down and
+    // an income brings it up, so the arrows say that.
+    Finder iconOnRow(String amount, IconData icon) => find.descendant(
+      of: find.ancestor(of: find.text(amount), matching: find.byType(ListTile)),
+      matching: find.byIcon(icon),
+    );
+
+    testWidgets('an expense row points down, an income row up', (tester) async {
+      final today = DateTime.now();
+      repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 1,
+          amountCents: 9000,
+          type: TransactionType.expense,
+          categoryId: 1,
+          date: today,
+        ),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          amountCents: 500000,
+          type: TransactionType.income,
+          categoryId: 3,
+          date: today,
+        ),
+      ]);
+      await pumpApp(tester);
+
+      expect(iconOnRow('−Rs90.00', Icons.arrow_downward), findsOneWidget);
+      expect(iconOnRow('−Rs90.00', Icons.arrow_upward), findsNothing);
+      expect(iconOnRow('+Rs5,000.00', Icons.arrow_upward), findsOneWidget);
+      expect(iconOnRow('+Rs5,000.00', Icons.arrow_downward), findsNothing);
+    });
+
+    testWidgets('the entry screen\'s toggle agrees with the list', (
+      tester,
+    ) async {
+      Finder onToggle(IconData icon) => find.descendant(
+        of: find.byType(SegmentedButton<TransactionType>),
+        matching: find.byIcon(icon),
+      );
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+
+      // The selected segment shows a tick in place of its icon, so each
+      // arrow is read while the other side is chosen.
+      expect(onToggle(Icons.arrow_upward), findsOneWidget);
+      await tapText(tester, 'Income');
+      expect(onToggle(Icons.arrow_downward), findsOneWidget);
+    });
+  });
+
   group('row names', () {
     testWidgets('name a row by its category. FR-EXP-006', (tester) async {
       await pumpApp(tester);
