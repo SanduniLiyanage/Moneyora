@@ -33,6 +33,7 @@ class AllocationProgress extends Equatable {
     required this.elapsedDays,
     required this.totalDays,
     required this.projectedCents,
+    required this.ended,
   });
 
   /// [allocation] on [today], for a plan over [period].
@@ -52,7 +53,8 @@ class AllocationProgress extends Equatable {
   /// on the first day one day has elapsed and the projection is thirty
   /// times the day's spend. Before the period starts nothing has elapsed
   /// and there is nothing to extrapolate from — [projectedCents] is null.
-  /// After it ends the projection is the spend itself.
+  /// After it ends the projection is the spend itself, and [ended] says so:
+  /// the last day and every day after it both read day 30 of 30.
   factory AllocationProgress.of(
     PlanAllocation allocation,
     PlanPeriod period,
@@ -73,6 +75,7 @@ class AllocationProgress extends Equatable {
       elapsedDays: elapsed,
       totalDays: totalDays,
       projectedCents: elapsed == 0 ? null : spent * totalDays ~/ elapsed,
+      ended: day.isAfter(period.to),
     );
   }
 
@@ -122,6 +125,9 @@ class AllocationProgress extends Equatable {
   /// period has begun.
   final int? projectedCents;
 
+  /// Whether the period's last day is behind us, so the figures are final.
+  final bool ended;
+
   /// How far [projectedCents] lands from the allocation: positive is a
   /// projected overspend, negative a projected underspend, null when there
   /// is no projection.
@@ -141,5 +147,6 @@ class AllocationProgress extends Equatable {
     elapsedDays,
     totalDays,
     projectedCents,
+    ended,
   ];
 }

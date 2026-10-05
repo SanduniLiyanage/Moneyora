@@ -115,6 +115,22 @@ void main() {
       expect(p.projectedCents, 2800000);
     });
 
+    test('has not ended on its last day, and has the day after', () {
+      // Both read day 30 of 30; only one of them is still running.
+      expect(on(30).ended, isFalse);
+      expect(
+        AllocationProgress.of(row(), september, DateTime(2026, 10, 1)).ended,
+        isTrue,
+      );
+    });
+
+    test('has not ended before it begins', () {
+      expect(
+        AllocationProgress.of(row(), september, DateTime(2026, 8, 30)).ended,
+        isFalse,
+      );
+    });
+
     test('is absent before the period has begun', () {
       final p = AllocationProgress.of(
         row(spent: 0),

@@ -177,15 +177,18 @@ Color trackingColour(ThemeData theme, TrackingStatus status) {
 ///
 /// The projection names the direction in words rather than with a sign,
 /// and says "on budget" at exactly zero; before the period starts there
-/// is nothing to project and the line stops at the percentage.
+/// is nothing to project and the line stops at the percentage. Once the
+/// period has ended the figure is final, not a forecast: "ended", not
+/// "heading".
 String trackingLabel(AllocationProgress p) {
   final head =
       '${formatCents(p.allocation.spentCents)} spent · ${p.percentUsed}%';
+  final verb = p.ended ? 'ended' : 'heading';
   return switch (p.projectedDifferenceCents) {
     null => head,
-    0 => '$head · heading on budget',
-    final d when d > 0 => '$head · heading ${formatCents(d)} over',
-    final d => '$head · heading ${formatCents(-d)} under',
+    0 => '$head · $verb on budget',
+    final d when d > 0 => '$head · $verb ${formatCents(d)} over',
+    final d => '$head · $verb ${formatCents(-d)} under',
   };
 }
 

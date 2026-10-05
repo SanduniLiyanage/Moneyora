@@ -472,6 +472,33 @@ void main() {
       expect(find.text('Rs64,000.00 spent · not started'), findsOneWidget);
     });
 
+    testWidgets('after the period ends it says so, and stops forecasting', (
+      tester,
+    ) async {
+      // Found on a release build on 2026-10-05: September's plan, still the
+      // active one, read "day 30 of 30" and "heading Rs700.00 over" — a
+      // forecast for a month that was over.
+      await tester.pumpWidget(
+        boot(_MemoryRepository(plan: _tracked()), now: DateTime(2026, 10, 5)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('heading'), findsNothing);
+      expect(find.text('Rs64,000.00 spent · ended'), findsOneWidget);
+      expect(
+        find.text('Rs15,000.00 spent · 33% · ended Rs30,000.00 under'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Rs24,000.00 spent · 80% · ended Rs6,000.00 under'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Rs25,000.00 spent · 100% · ended on budget'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('an expense saved elsewhere moves the row through the '
         'stream', (tester) async {
       // No local state: the transactions datasource writes the cache and
