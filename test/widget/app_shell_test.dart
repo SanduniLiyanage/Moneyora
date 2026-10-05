@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
+import 'package:go_router/go_router.dart';
 import 'package:moneyora/app.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/errors/failures.dart';
@@ -15,6 +16,7 @@ import 'package:moneyora/core/ports/category_reader.dart';
 import 'package:moneyora/core/ports/conversion_table.dart';
 import 'package:moneyora/core/ports/monthly_spending_reader.dart';
 import 'package:moneyora/core/ports/notification_taps.dart';
+import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
@@ -518,6 +520,37 @@ void main() {
           findsOneWidget,
         );
       }
+    });
+
+    testWidgets('a screen gone to rather than pushed still backs out to home', (
+      tester,
+    ) async {
+      // A tester's report, 2026-10-05: after confirming a scanned receipt
+      // the list had no back arrow, and swiping back closed the app. Saving
+      // a receipt goes to the list instead of stacking on the scanner, and
+      // a flat route table made that the only screen left. A back gesture
+      // is the system's pop, so that is what this presses.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseSummaryProvider.overrideWith((ref) => ready),
+            ..._noChartDataOverrides,
+          ],
+          child: const MoneyoraApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      GoRouter.of(
+        tester.element(find.widgetWithText(FloatingActionButton, 'Add')),
+      ).go(Routes.scanReceipt);
+      await tester.pumpAndSettle();
+      expect(find.byType(BackButton), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
     });
 
     testWidgets('the accounts panel opens from the home screen', (
