@@ -1,8 +1,10 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-09-28**, `main` at `531b9b5`, after **150
-merged pull requests** (#2–#151; #1 was closed unmerged). **Sprint 10 is
-code-complete**: plans only from the user's own history or built by hand
+State of the project as of **2026-10-05**, `main` at `2446339`, after **161
+merged pull requests** (#2–#162; #1 was closed unmerged). **Sprint 10 is
+code-complete**, and the pre-release walk on a release build has since
+fixed what only that build could show (#152–#162; "What is next" below).
+Sprint 10 itself: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
@@ -54,8 +56,8 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `531b9b5`, with PR #151 merged; the coverage figure is CI's, from the
-run on #151, the last change to `domain/`.
+at `2446339`, with PR #162 merged; the coverage figure is CI's, from the
+run on #162, the last change to `domain/`.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -64,15 +66,20 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2362 passing** | `flutter test` |
+| Tests | **2375 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| Domain line coverage | **91.5%** (2764 of 3020 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| R8 keep rules | **clean, exit 0** — ML Kit's registrar constructors ([E-09](SPEC_ERRATA.md)) | `bash scripts/check_proguard.sh` |
+| Domain line coverage | **91.5%** (2766 of 3022 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 to 10 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`); Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
 | Dart files | 337 in `lib/`, 177 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2273 at `ad7c2b9` (PR #134, merged) plus **89 net new**
+Tests by area: 2362 at `531b9b5` (PR #151, merged) plus **13 net new**
+from #152–#162, each PR's description naming its own; #160's guards are
+CI steps, not tests.
+
+Before that: 2273 at `ad7c2b9` (PR #134, merged) plus **89 net new**
 from #136–#151, each PR's description naming its own. **Three tests were
 removed**, deliberately: #137 took out the sample-data loader and with it
 the three tests of loading it; the empty state they sat in is now asserted
@@ -2127,6 +2134,40 @@ signing, the 80 MB per-ABI gate, and a monochrome status-bar icon, with
 the `Refs` trailer corrected from `NFR-SEC-001` to `E-09`. The store
 assets, the release checklist and the contact address followed in #148,
 and two defects the screenshots turned up were fixed in #147.
+
+**The pre-release walk, on the release APK (2026-09-28 to 2026-10-05),
+`main` at `2446339`.** Every defect it found was one a debug build or a
+widget test could not show, and each fix carries a test or a CI check
+that fails on the old code:
+
+- **#160 — the receipt scanner read nothing.** Every image, a real
+  receipt included, gave "Could not read that image." R8's full mode had
+  removed the no-argument constructor of every ML Kit `ComponentRegistrar`,
+  so the text recogniser was never registered. One keep rule fixes it;
+  `scripts/check_proguard.sh` and a step reading R8's `usage.txt` guard it
+  ([E-09](SPEC_ERRATA.md)'s 2026-10-05 addendum).
+- **#156 — notifications failed** with "invalid_icon": the shrinker had
+  deleted the status-bar icon. `res/raw/keep.xml`, and an `aapt2` check.
+- **#158 — Undo stayed on screen after the delete was written**, so a late
+  tap did nothing.
+- **#154, #155** — the Repeat option was a bare icon nobody found; an
+  edited amount's backspace edited a hidden "4500.00".
+- **#161** — Ask Moneyora's key screen said the key "never leaves" the
+  phone; it goes to Google with every question. It now says what
+  `PRIVACY.md` says.
+- **#162** — an ended plan still read "day 30 of 30 · heading Rs700.00
+  over". It now says "ended".
+
+Walked and working on the release APK: add, edit, income, transfer, the
+list and its balance, recurring, categories, charts, dark theme, Undo,
+receipt scan, CSV and PDF export, Back up now, the plan build-by-hand
+screen, PIN set / lock / wrong PIN / remove, and Ask Moneyora without a
+key. **Not walked, and why:** a **fresh first launch** and **restore**
+both replace the emulator's hand-entered data, so they wait for a phone
+with nothing to lose; **biometric unlock** needs an enrolled fingerprint,
+and on the emulator the row is correctly hidden; a **budget-alert
+notification** needs an active plan covering today, and the emulator's
+active plan is September's.
 
 **What is left is not code.** It is set out in [`RELEASE.md`](RELEASE.md):
 
