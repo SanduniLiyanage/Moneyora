@@ -69,11 +69,19 @@ abstract interface class MoneyPlanLocalDataSource {
 
   /// Rewrites the allocation figures of [planId]'s rows from
   /// [allocations], matched by category, in one transaction. Every category
-  /// given must already have a row.
+  /// given must already have a row. With [totalBudgetCents], the plan's
+  /// total is rewritten in the same transaction.
   Future<void> updateAllocations(
     int planId,
-    List<PlanAllocationModel> allocations,
-  );
+    List<PlanAllocationModel> allocations, {
+    int? totalBudgetCents,
+  });
+
+  /// Sets [id]'s name.
+  Future<void> rename(int id, String name);
+
+  /// Deletes [id]; `ON DELETE CASCADE` takes its allocations with it.
+  Future<void> delete(int id);
 
   /// Re-derives every `spent_amount_cents` of [planId] from history and
   /// writes it, in one transaction. FR-PLN-013, E-18.
@@ -231,10 +239,20 @@ SELECT a.id, a.category_id, c.name AS category_name,
   @override
   Future<void> updateAllocations(
     int planId,
-    List<PlanAllocationModel> allocations,
-  ) async {
+    List<PlanAllocationModel> allocations, {
+    int? totalBudgetCents,
+  }) async {
     await _guard('update the allocations of plan $planId', () async {
       await _db.transaction((txn) async {
+        if (totalBudgetCents != null) {
+          final changed = await txn.update(
+            'money_plans',
+            {'total_budget_cents': totalBudgetCents},
+            where: 'id = ?',
+            whereArgs: [planId],
+          );
+          if (changed == 0) throw CacheException('No plan with id $planId.');
+        }
         for (final a in allocations) {
           final changed = await txn.update(
             'plan_allocations',
@@ -251,6 +269,35 @@ SELECT a.id, a.category_id, c.name AS category_name,
           }
         }
       });
+    });
+
+    _notify();
+  }
+
+  @override
+  Future<void> rename(int id, String name) async {
+    await _guard('rename plan $id', () async {
+      final changed = await _db.update(
+        'money_plans',
+        {'name': name},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (changed == 0) throw CacheException('No plan with id $id.');
+    });
+
+    _notify();
+  }
+
+  @override
+  Future<void> delete(int id) async {
+    await _guard('delete plan $id', () async {
+      final deleted = await _db.delete(
+        'money_plans',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (deleted == 0) throw CacheException('No plan with id $id.');
     });
 
     _notify();

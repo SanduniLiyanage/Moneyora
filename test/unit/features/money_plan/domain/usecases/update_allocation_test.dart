@@ -16,6 +16,7 @@ class _FakeRepository implements MoneyPlanRepository {
   Failure? writeFails;
   int? writtenPlanId;
   List<PlanAllocation>? written;
+  int? writtenTotal;
 
   @override
   Future<Either<Failure, MoneyPlan?>> getById(int id) async {
@@ -26,13 +27,22 @@ class _FakeRepository implements MoneyPlanRepository {
   @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) async {
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) async {
     writtenPlanId = planId;
     written = allocations;
+    writtenTotal = totalBudgetCents;
     if (writeFails case final f?) return Left(f);
     return const Right(unit);
   }
+
+  @override
+  Future<Either<Failure, Unit>> rename(int id, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
 
   @override
   Future<Either<Failure, Unit>> activate(int id) => throw UnimplementedError();
@@ -301,24 +311,63 @@ void main() {
       expect(result.isLeft(), isTrue);
     });
 
-    test('refuses the only allocation in a plan', () async {
-      repository.plan = MoneyPlan(
-        id: 7,
-        name: 'One',
-        period: PlanPeriod.month(2026, 9),
-        totalBudgetCents: 500,
-        allocations: [_row(1, 500)],
-      );
+    group('a plan of one category', () {
+      // Was a refusal: nothing else could take up the difference. A tester
+      // on 1.0.0 built Bills alone by hand and could not change it at all.
+      setUp(() {
+        repository.plan = MoneyPlan(
+          id: 7,
+          name: 'One',
+          period: PlanPeriod.month(2026, 9),
+          totalBudgetCents: 500,
+          allocations: [_row(1, 500)],
+        );
+      });
 
-      final result = await update(
+      test('takes the figure as its total, down', () async {
+        final result = await update(
+          const UpdateAllocationRequest(
+            planId: 7,
+            categoryId: 1,
+            allocatedCents: 100,
+          ),
+        );
+
+        result.fold((f) => fail('unexpected failure: $f'), (updated) {
+          expect(updated.totalBudgetCents, 100);
+          expect(updated.allocations.single.allocatedCents, 100);
+          expect(updated.allocations.single.isUserModified, isTrue);
+        });
+        expect(repository.writtenTotal, 100);
+      });
+
+      test('and up, past the old total', () async {
+        final result = await update(
+          const UpdateAllocationRequest(
+            planId: 7,
+            categoryId: 1,
+            allocatedCents: 900,
+          ),
+        );
+
+        expect(
+          result.map((p) => p.totalBudgetCents),
+          const Right<Failure, int>(900),
+        );
+        expect(repository.writtenTotal, 900);
+      });
+    });
+
+    test('a plan of several leaves its total alone', () async {
+      await update(
         const UpdateAllocationRequest(
           planId: 7,
           categoryId: 1,
-          allocatedCents: 100,
+          allocatedCents: 400,
         ),
       );
 
-      expect(result.isLeft(), isTrue);
+      expect(repository.writtenTotal, isNull);
     });
 
     test('a failure reading or writing passes through', () async {

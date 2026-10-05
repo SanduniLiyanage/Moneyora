@@ -43,10 +43,22 @@ abstract interface class MoneyPlanRepository {
 
   /// Rewrites the allocation figures of [planId]'s rows from [allocations],
   /// matched by category, as one transaction. FR-PLN-011.
+  ///
+  /// With [totalBudgetCents], the plan's total is rewritten in the same
+  /// transaction — a plan of one category, whose total *is* that category.
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  );
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  });
+
+  /// Renames [id]. FR-PLN-015.
+  Future<Either<Failure, Unit>> rename(int id, String name);
+
+  /// Deletes [id] and its allocations. The transactions it tracked are not
+  /// touched: they are the user's record, and the plan only measured them.
+  /// FR-PLN-015.
+  Future<Either<Failure, Unit>> delete(int id);
 
   /// Re-derives every allocation's `spentCents` of [planId] from the
   /// expenses in its period and stores the result. FR-PLN-013, E-18.
