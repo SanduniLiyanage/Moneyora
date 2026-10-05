@@ -13,7 +13,10 @@ import '../../domain/usecases/respond_to_overspend.dart';
 import '../../domain/usecases/update_allocation.dart';
 import '../../domain/usecases/what_if.dart';
 import '../providers/money_plan_providers.dart';
+import '../widgets/plan_actions.dart';
 import '../widgets/plan_labels.dart';
+
+enum _PlanMenu { rename, delete }
 
 /// The active plan: what was saved, adjusted by hand, asked what-if,
 /// tracked, and answered when a category runs over. FR-PLN-011, FR-PLN-012,
@@ -55,6 +58,25 @@ class ActivePlanPage extends ConsumerWidget {
               tooltip: 'What if…',
               icon: const Icon(Icons.help_outline),
               onPressed: () => _showWhatIf(context, p),
+            ),
+          if (plan.valueOrNull case final p?)
+            PopupMenuButton<_PlanMenu>(
+              tooltip: 'More for ${p.name}',
+              onSelected: (choice) async {
+                switch (choice) {
+                  case _PlanMenu.rename:
+                    await renamePlan(context, ref, p);
+                  case _PlanMenu.delete:
+                    final deleted = await deletePlan(context, ref, p);
+                    if (deleted && context.mounted && context.canPop()) {
+                      context.pop();
+                    }
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: _PlanMenu.rename, child: Text('Rename…')),
+                PopupMenuItem(value: _PlanMenu.delete, child: Text('Delete…')),
+              ],
             ),
         ],
       ),
@@ -142,8 +164,11 @@ class _Plan extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Tap a category to change its budget; the others adjust '
-                  'to keep the total.',
+                  plan.allocations.length == 1
+                      ? 'Tap the category to change its budget, and the '
+                            'total with it.'
+                      : 'Tap a category to change its budget; the others '
+                            'adjust to keep the total.',
                   style: theme.textTheme.bodySmall,
                 ),
               ],

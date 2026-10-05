@@ -22,6 +22,7 @@ import '../../domain/entities/plan_history.dart';
 import '../../domain/entities/spending_patterns.dart';
 import '../../domain/usecases/check_plan_history.dart';
 import '../../domain/usecases/compare_plans.dart';
+import '../../domain/usecases/rename_plan.dart';
 import '../../domain/usecases/respond_to_overspend.dart';
 import '../../domain/usecases/save_built_plan.dart';
 import '../../domain/usecases/save_plan.dart';
@@ -232,6 +233,47 @@ class ActivatePlanController extends AutoDisposeAsyncNotifier<void> {
 final activatePlanControllerProvider =
     AutoDisposeAsyncNotifierProvider<ActivatePlanController, void>(
       ActivatePlanController.new,
+    );
+
+/// Renames and deletes saved plans. FR-PLN-015.
+class PlanHousekeepingController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Returns true when it was written; the failure stays in [state].
+  Future<bool> rename(int planId, String name) async {
+    final renamePlan = await ref.read(renamePlanProvider.future);
+    return _run(
+      () => renamePlan(RenamePlanRequest(planId: planId, name: name)),
+    );
+  }
+
+  /// Returns true when it was written; the failure stays in [state].
+  Future<bool> delete(int planId) async {
+    final deletePlan = await ref.read(deletePlanProvider.future);
+    return _run(() => deletePlan(planId));
+  }
+
+  Future<bool> _run(Future<Either<Failure, Unit>> Function() write) async {
+    state = const AsyncValue<void>.loading();
+    final result = await write();
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return true;
+      },
+    );
+  }
+}
+
+/// Controller for renaming and deleting a plan, from the list or the plan.
+final planHousekeepingControllerProvider =
+    AutoDisposeAsyncNotifierProvider<PlanHousekeepingController, void>(
+      PlanHousekeepingController.new,
     );
 
 /// Recounts a plan's spend from history. E-18's repair, reachable from the

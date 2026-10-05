@@ -36,6 +36,11 @@ class UpdateAllocationRequest extends Equatable {
 /// The recalculation is [AllocateBudget.distribute] — the same proportional,
 /// exact-sum arithmetic Option A uses — over the allocations that absorb
 /// the change. Which ones absorb it is the decision here, in [rebalance].
+///
+/// A plan of one category has nothing to absorb anything, and its total
+/// *is* that category: there, the figure set becomes the total too. This
+/// was a refusal until a tester on 1.0.0 built a one-category plan by hand
+/// and found it could not be changed at all.
 class UpdateAllocation implements UseCase<MoneyPlan, UpdateAllocationRequest> {
   /// Creates the use case.
   const UpdateAllocation(this._repository);
@@ -63,19 +68,25 @@ class UpdateAllocation implements UseCase<MoneyPlan, UpdateAllocationRequest> {
       final failure = validate(plan, params);
       if (failure != null) return Left(failure);
 
+      final alone = plan.allocations.length == 1;
+      final total = alone ? params.allocatedCents : plan.totalBudgetCents;
       final rebalanced = rebalance(
         plan.allocations,
         categoryId: params.categoryId,
         allocatedCents: params.allocatedCents,
-        totalCents: plan.totalBudgetCents,
+        totalCents: total,
       );
-      final written = await _repository.updateAllocations(plan.id!, rebalanced);
+      final written = await _repository.updateAllocations(
+        plan.id!,
+        rebalanced,
+        totalBudgetCents: alone ? total : null,
+      );
       return written.map(
         (_) => MoneyPlan(
           id: plan.id,
           name: plan.name,
           period: plan.period,
-          totalBudgetCents: plan.totalBudgetCents,
+          totalBudgetCents: total,
           isActive: plan.isActive,
           allocations: rebalanced,
         ),
@@ -94,14 +105,8 @@ class UpdateAllocation implements UseCase<MoneyPlan, UpdateAllocationRequest> {
         field: 'categoryId',
       );
     }
-    if (plan.allocations.length < 2) {
-      return const ValidationFailure(
-        'This is the only allocation in the plan, so nothing else can take '
-        'up the difference.',
-        field: 'categoryId',
-      );
-    }
-    if (request.allocatedCents > plan.totalBudgetCents) {
+    if (plan.allocations.length > 1 &&
+        request.allocatedCents > plan.totalBudgetCents) {
       return const ValidationFailure(
         "An allocation cannot exceed the plan's total.",
         field: 'allocatedCents',

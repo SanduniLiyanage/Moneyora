@@ -19,6 +19,7 @@ import 'package:moneyora/features/money_plan/domain/entities/money_plan.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
 import 'package:moneyora/features/money_plan/domain/repositories/money_plan_repository.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/delete_plan.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/respond_to_overspend.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/update_allocation.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/watch_active_plan.dart';
@@ -39,6 +40,7 @@ class _MemoryRepository implements MoneyPlanRepository {
   final Failure? readFails;
   final StreamController<void> _changes = StreamController<void>.broadcast();
   List<PlanAllocation>? written;
+  int? deleted;
 
   /// What the transactions datasource does after an expense write: the
   /// plan's rows change beneath the screen and the shared bus ticks.
@@ -82,17 +84,30 @@ class _MemoryRepository implements MoneyPlanRepository {
       Right(plan?.id == id ? plan : null);
 
   @override
+  Future<Either<Failure, Unit>> rename(int id, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) async {
+    deleted = id;
+    plan = null;
+    _changes.add(null);
+    return const Right(unit);
+  }
+
+  @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) async {
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) async {
     written = allocations;
     final p = plan!;
     plan = MoneyPlan(
       id: p.id,
       name: p.name,
       period: p.period,
-      totalBudgetCents: p.totalBudgetCents,
+      totalBudgetCents: totalBudgetCents ?? p.totalBudgetCents,
       isActive: p.isActive,
       allocations: allocations,
     );
@@ -177,6 +192,7 @@ void main() {
       respondToOverspendProvider.overrideWith(
         (ref) async => RespondToOverspend(repository),
       ),
+      deletePlanProvider.overrideWith((ref) async => DeletePlan(repository)),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light,
@@ -186,6 +202,11 @@ void main() {
           GoRoute(
             path: Routes.activePlan,
             builder: (context, state) => ActivePlanPage(now: now),
+          ),
+          GoRoute(
+            path: Routes.plans,
+            builder: (context, state) =>
+                const Scaffold(body: Text('the plan list')),
           ),
           GoRoute(
             path: Routes.moneyPlan,
@@ -260,6 +281,70 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('disk is full'), findsOneWidget);
+  });
+
+  group('a plan of one category', () {
+    // A tester's November plan on 1.0.0: Bills alone, built by hand. Tapping
+    // it refused every figure, because nothing else could take up the
+    // difference.
+    final bills = MoneyPlan(
+      id: 9,
+      name: 'November 2026',
+      period: PlanPeriod.month(2026, 11),
+      totalBudgetCents: 1000000,
+      isActive: true,
+      allocations: [_row(1, 'Bills', 1000000)],
+    );
+
+    testWidgets('says the total moves with it', (tester) async {
+      await tester.pumpWidget(boot(_MemoryRepository(plan: bills)));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Tap the category to change its budget, and the total with it.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('changing its budget changes the total', (tester) async {
+      final repository = _MemoryRepository(plan: bills);
+      await tester.pumpWidget(boot(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Bills'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '12000');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(repository.plan!.totalBudgetCents, 1200000);
+      // The header's total and the row's figure.
+      expect(find.text('Rs12,000.00'), findsNWidgets(2));
+      expect(find.text('Rs10,000.00'), findsNothing);
+    });
+  });
+
+  group('the plan menu. FR-PLN-015', () {
+    testWidgets('delete asks first, then the plan is gone', (tester) async {
+      final repository = _MemoryRepository(plan: _september);
+      await tester.pumpWidget(boot(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('More for September'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete…'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete September?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, 7);
+      expect(find.text('September deleted.'), findsOneWidget);
+      expect(find.text('No active plan'), findsOneWidget);
+    });
   });
 
   group('adjusting an allocation (FR-PLN-011)', () {

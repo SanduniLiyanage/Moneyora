@@ -48,11 +48,25 @@ class MoneyPlanRepositoryImpl implements MoneyPlanRepository {
   @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) => _attempt(() async {
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) => _attempt(() async {
     await _local.updateAllocations(planId, [
       for (final a in allocations) PlanAllocationModel.fromEntity(a),
-    ]);
+    ], totalBudgetCents: totalBudgetCents);
+    return unit;
+  });
+
+  @override
+  Future<Either<Failure, Unit>> rename(int id, String name) =>
+      _attempt(() async {
+        await _local.rename(id, name);
+        return unit;
+      });
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) => _attempt(() async {
+    await _local.delete(id);
     return unit;
   });
 

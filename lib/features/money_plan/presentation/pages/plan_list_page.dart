@@ -7,10 +7,12 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/money_plan.dart';
 import '../providers/money_plan_providers.dart';
+import '../widgets/plan_actions.dart';
 import '../widgets/plan_labels.dart';
 
-/// Every saved plan: which one is tracked, switching to another, and
-/// picking two to compare. FR-PLN-015; the SDD's SCR-010.
+/// Every saved plan: which one is tracked, switching to another, picking
+/// two to compare, and renaming or deleting one. FR-PLN-015; the SDD's
+/// SCR-010.
 ///
 /// The first screen to call `ActivatePlan` and `RecomputePlanSpending`.
 /// Activation is the ordinary tap — it is reversible, the list shows the
@@ -70,6 +72,8 @@ class _PlanList extends ConsumerWidget {
           onCompare: plans.length > 1
               ? () => _compare(context, plan, plans)
               : null,
+          onRename: () => renamePlan(context, ref, plan),
+          onDelete: () => deletePlan(context, ref, plan),
         ),
     ],
   );
@@ -149,6 +153,8 @@ class _PlanRow extends StatelessWidget {
     required this.onActivate,
     required this.onRecount,
     required this.onCompare,
+    required this.onRename,
+    required this.onDelete,
   });
 
   final MoneyPlan plan;
@@ -156,6 +162,8 @@ class _PlanRow extends StatelessWidget {
   final VoidCallback onActivate;
   final VoidCallback onRecount;
   final VoidCallback? onCompare;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +192,8 @@ class _PlanRow extends StatelessWidget {
             _PlanAction.activate => onActivate(),
             _PlanAction.recount => onRecount(),
             _PlanAction.compare => onCompare?.call(),
+            _PlanAction.rename => onRename(),
+            _PlanAction.delete => onDelete(),
           },
           itemBuilder: (_) => [
             if (!plan.isActive)
@@ -200,6 +210,14 @@ class _PlanRow extends StatelessWidget {
                 value: _PlanAction.compare,
                 child: Text('Compare with…'),
               ),
+            const PopupMenuItem(
+              value: _PlanAction.rename,
+              child: Text('Rename…'),
+            ),
+            const PopupMenuItem(
+              value: _PlanAction.delete,
+              child: Text('Delete…'),
+            ),
           ],
         ),
         onTap: onTap,
@@ -208,7 +226,7 @@ class _PlanRow extends StatelessWidget {
   }
 }
 
-enum _PlanAction { activate, recount, compare }
+enum _PlanAction { activate, recount, compare, rename, delete }
 
 /// Which plan to put beside [against]. Returns it, or null when dismissed.
 class _PickPlanDialog extends StatefulWidget {

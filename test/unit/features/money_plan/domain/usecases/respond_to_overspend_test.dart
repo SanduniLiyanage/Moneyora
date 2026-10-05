@@ -24,10 +24,18 @@ class _FakeRepository implements MoneyPlanRepository {
   }
 
   @override
+  Future<Either<Failure, Unit>> rename(int id, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) async {
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) async {
     writtenPlanId = planId;
     written = allocations;
     if (writeFails case final f?) return Left(f);
