@@ -367,9 +367,11 @@ class _ConnectTheAssistantState extends ConsumerState<_ConnectTheAssistant> {
         Text('Connect the assistant', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(
-          'The Copilot reads your figures on this phone and asks a language '
-          'model to explain them. It needs a free Google AI Studio key, which '
-          'is stored in this device keychain and never leaves it.',
+          'Ask Moneyora answers questions about your spending with a '
+          'language model from Google. It needs your own free Google AI '
+          'Studio key, kept in this phone\'s secure keystore. A question '
+          'sends Google what you typed and your category totals, never a '
+          'transaction.',
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 24),
@@ -395,7 +397,7 @@ class _ConnectTheAssistantState extends ConsumerState<_ConnectTheAssistant> {
         const SizedBox(height: 24),
         Text(
           'Until then, every other part of Moneyora works exactly as it does '
-          'now — the Copilot is the only feature that uses a connection.',
+          'now — Ask Moneyora is the only feature that uses a connection.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
           ),
