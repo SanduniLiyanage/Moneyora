@@ -147,6 +147,26 @@ void main() {
       );
     });
 
+    testWidgets('says what a question sends, and does not overclaim', (
+      tester,
+    ) async {
+      // The key is sent to Google with every question, so "never leaves the
+      // phone" was untrue; the screen promises what PRIVACY.md promises.
+      await tester.pumpWidget(boot(apiKey: null));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('never leaves'), findsNothing);
+      expect(find.textContaining('secure keystore'), findsOneWidget);
+      expect(find.textContaining('never a transaction'), findsOneWidget);
+    });
+
+    testWidgets('names the feature as the home screen does', (tester) async {
+      await tester.pumpWidget(boot(apiKey: null));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Copilot'), findsNothing);
+    });
+
     testWidgets('hides the key as it is typed', (tester) async {
       // It is a credential. A key read off a shoulder is a key to replace.
       await tester.pumpWidget(boot(apiKey: null));
