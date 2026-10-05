@@ -44,10 +44,18 @@ class _FakeRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, Unit>> rename(int id, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) => throw UnimplementedError();
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) => throw UnimplementedError();
 
   @override
   Stream<Either<Failure, MoneyPlan?>> watchActive() =>

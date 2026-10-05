@@ -104,8 +104,10 @@ import 'features/money_plan/domain/usecases/check_plan_history.dart';
 import 'features/money_plan/domain/usecases/classify_categories.dart';
 import 'features/money_plan/domain/usecases/compare_plans.dart';
 import 'features/money_plan/domain/usecases/compute_category_statistics.dart';
+import 'features/money_plan/domain/usecases/delete_plan.dart';
 import 'features/money_plan/domain/usecases/detect_spending_patterns.dart';
 import 'features/money_plan/domain/usecases/recompute_plan_spending.dart';
+import 'features/money_plan/domain/usecases/rename_plan.dart';
 import 'features/money_plan/domain/usecases/respond_to_overspend.dart';
 import 'features/money_plan/domain/usecases/save_built_plan.dart';
 import 'features/money_plan/domain/usecases/save_plan.dart';
@@ -810,6 +812,18 @@ final checkPlanHistoryProvider = FutureProvider<CheckPlanHistory>(
 final activatePlanProvider = FutureProvider<ActivatePlan>(
   (ref) async =>
       ActivatePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Renames a saved plan. FR-PLN-015.
+final renamePlanProvider = FutureProvider<RenamePlan>(
+  (ref) async =>
+      RenamePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
+);
+
+/// Deletes a saved plan; its transactions stay. FR-PLN-015.
+final deletePlanProvider = FutureProvider<DeletePlan>(
+  (ref) async =>
+      DeletePlan(await ref.watch(moneyPlanRepositoryProvider.future)),
 );
 
 /// The active plan, live. FR-PLN-013.

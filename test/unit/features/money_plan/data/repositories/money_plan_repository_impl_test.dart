@@ -32,6 +32,9 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   int reads = 0;
   List<AlertLevelChange>? alertChanges;
   int alertCalls = 0;
+  int? updatedTotal;
+  (int, String)? renamed;
+  int? deleted;
 
   void tick() => _changes.add(null);
 
@@ -82,12 +85,26 @@ class _FakeDataSource implements MoneyPlanLocalDataSource {
   }
 
   @override
+  Future<void> rename(int id, String name) async {
+    if (throws case final e?) throw e;
+    renamed = (id, name);
+  }
+
+  @override
+  Future<void> delete(int id) async {
+    if (throws case final e?) throw e;
+    deleted = id;
+  }
+
+  @override
   Future<void> updateAllocations(
     int planId,
-    List<PlanAllocationModel> allocations,
-  ) async {
+    List<PlanAllocationModel> allocations, {
+    int? totalBudgetCents,
+  }) async {
     if (throws case final e?) throw e;
     updated = allocations;
+    updatedTotal = totalBudgetCents;
   }
 
   @override
@@ -167,6 +184,35 @@ void main() {
       const Right<Failure, Unit>(unit),
     );
     expect(source.updated!.single.allocatedCents, 100);
+    expect(source.updatedTotal, isNull);
+
+    await repository.updateAllocations(
+      5,
+      _plan.allocations,
+      totalBudgetCents: 100,
+    );
+    expect(source.updatedTotal, 100);
+  });
+
+  test('rename and delete pass through, and a failure maps', () async {
+    final source = _FakeDataSource();
+    final repository = MoneyPlanRepositoryImpl(source);
+
+    expect(
+      await repository.rename(5, 'October'),
+      const Right<Failure, Unit>(unit),
+    );
+    expect(source.renamed, (5, 'October'));
+    expect(await repository.delete(5), const Right<Failure, Unit>(unit));
+    expect(source.deleted, 5);
+
+    final failing = MoneyPlanRepositoryImpl(
+      _FakeDataSource(throws: const CacheException('No plan with id 5.')),
+    );
+    expect(
+      await failing.delete(5),
+      const Left<Failure, Unit>(CacheFailure('No plan with id 5.')),
+    );
   });
 
   test('recomputeSpent passes the plan id through', () async {

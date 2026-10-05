@@ -305,6 +305,131 @@ void main() {
         );
       },
     );
+
+    test('with a total, writes it in the same transaction', () async {
+      final id = await plans.insert(
+        plan(
+          'Bills alone',
+          allocations: [
+            PlanAllocationModel(
+              categoryId: bills,
+              allocatedCents: 7500000,
+              confidence: ConfidenceLevel.high,
+            ),
+          ],
+        ),
+      );
+
+      await plans.updateAllocations(id, [
+        PlanAllocationModel(
+          categoryId: bills,
+          allocatedCents: 9000000,
+          confidence: ConfidenceLevel.high,
+          isUserModified: true,
+        ),
+      ], totalBudgetCents: 9000000);
+
+      final read = (await plans.getById(id))!;
+      expect(read.totalBudgetCents, 9000000);
+      expect(read.allocations.single.allocatedCents, 9000000);
+    });
+
+    test('a total that fails leaves the allocations unwritten too', () async {
+      final id = await plans.insert(plan('September'));
+
+      // The CHECK refuses a negative total; the rows written in the same
+      // transaction go back with it.
+      await expectLater(
+        plans.updateAllocations(id, [
+          PlanAllocationModel(
+            categoryId: bills,
+            allocatedCents: 1,
+            confidence: ConfidenceLevel.high,
+          ),
+        ], totalBudgetCents: -1),
+        throwsA(isA<CacheException>()),
+      );
+
+      final read = (await plans.getById(id))!;
+      expect(read.totalBudgetCents, 7500000);
+      expect(read.allocations[0].allocatedCents, 4500000);
+    });
+  });
+
+  group('rename', () {
+    test('changes the name and nothing else, and signals', () async {
+      final id = await plans.insert(plan('Septmber'));
+      final signalled = plans.changes.first;
+
+      await plans.rename(id, 'September');
+
+      await signalled;
+      final read = (await plans.getById(id))!;
+      expect(read.name, 'September');
+      expect(read.totalBudgetCents, 7500000);
+      expect(read.isActive, isTrue);
+    });
+
+    test('a plan that does not exist is an exception', () async {
+      await expectLater(
+        plans.rename(999, 'Nothing'),
+        throwsA(isA<CacheException>()),
+      );
+    });
+  });
+
+  group('delete', () {
+    test('takes the plan and its allocations, and leaves the rest', () async {
+      final kept = await plans.insert(plan('August', active: false));
+      final gone = await plans.insert(plan('September'));
+
+      await plans.delete(gone);
+
+      expect(await plans.getById(gone), isNull);
+      expect(
+        await db.query(
+          'plan_allocations',
+          where: 'plan_id = ?',
+          whereArgs: [gone],
+        ),
+        isEmpty,
+        reason: 'ON DELETE CASCADE',
+      );
+      expect((await plans.getById(kept))!.allocations, hasLength(2));
+    });
+
+    test('never touches a transaction it tracked', () async {
+      final transactions = TransactionLocalDataSourceImpl(db);
+      addTearDown(transactions.dispose);
+      final wallet =
+          (await db.query('accounts', columns: ['id'])).single['id']! as int;
+      final id = await plans.insert(plan('September'));
+      await transactions.add(
+        TransactionModel(
+          accountId: wallet,
+          categoryId: food,
+          amountCents: 30000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 14),
+        ),
+      );
+
+      await plans.delete(id);
+
+      expect(await db.query('transactions'), hasLength(1));
+    });
+
+    test('deleting the active plan leaves none active', () async {
+      final id = await plans.insert(plan('September'));
+
+      await plans.delete(id);
+
+      expect(await plans.getActive(), isNull);
+    });
+
+    test('a plan that does not exist is an exception', () async {
+      await expectLater(plans.delete(999), throwsA(isA<CacheException>()));
+    });
   });
 
   // ── FR-PLN-013, E-18: the recount ──────────────────────────────────────────

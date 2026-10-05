@@ -19,7 +19,9 @@ import 'package:moneyora/features/money_plan/domain/entities/plan_period.dart';
 import 'package:moneyora/features/money_plan/domain/repositories/money_plan_repository.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/activate_plan.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/compare_plans.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/delete_plan.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/recompute_plan_spending.dart';
+import 'package:moneyora/features/money_plan/domain/usecases/rename_plan.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/watch_plans.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/compare_plans_page.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/plan_list_page.dart';
@@ -37,6 +39,7 @@ class _MemoryRepository implements MoneyPlanRepository {
   final StreamController<void> _changes = StreamController<void>.broadcast();
   int? activated;
   int? recounted;
+  int? deleted;
 
   @override
   Stream<Either<Failure, List<MoneyPlan>>> watchAll() async* {
@@ -100,10 +103,43 @@ class _MemoryRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, Unit>> rename(int id, String name) async {
+    if (writeFails case final f?) return Left(f);
+    plans = [
+      for (final p in plans)
+        p.id == id
+            ? MoneyPlan(
+                id: p.id,
+                name: name,
+                period: p.period,
+                totalBudgetCents: p.totalBudgetCents,
+                isActive: p.isActive,
+                allocations: p.allocations,
+              )
+            : p,
+    ];
+    _changes.add(null);
+    return const Right(unit);
+  }
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) async {
+    if (writeFails case final f?) return Left(f);
+    deleted = id;
+    plans = [
+      for (final p in plans)
+        if (p.id != id) p,
+    ];
+    _changes.add(null);
+    return const Right(unit);
+  }
+
+  @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) => throw UnimplementedError();
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) => throw UnimplementedError();
 
   @override
   Stream<Either<Failure, MoneyPlan?>> watchActive() =>
@@ -152,6 +188,8 @@ void main() {
       comparePlansProvider.overrideWith(
         (ref) async => ComparePlans(repository),
       ),
+      renamePlanProvider.overrideWith((ref) async => RenamePlan(repository)),
+      deletePlanProvider.overrideWith((ref) async => DeletePlan(repository)),
     ],
     child: MaterialApp.router(
       theme: AppTheme.light,
@@ -184,6 +222,87 @@ void main() {
       ),
     ),
   );
+
+  group('rename and delete. FR-PLN-015', () {
+    // A tester on 1.0.0 had no way to remove a plan saved by mistake.
+    Future<void> choose(WidgetTester tester, String plan, String item) async {
+      await tester.tap(find.byTooltip('More for $plan'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(item));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('renames a plan, and the list follows', (tester) async {
+      await tester.pumpWidget(boot(_MemoryRepository([_monthly, _vacation])));
+      await tester.pumpAndSettle();
+
+      await choose(tester, 'June Vacation Plan', 'Rename…');
+      await tester.enterText(find.byType(TextField), 'Galle trip');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Galle trip'), findsOneWidget);
+      expect(find.text('June Vacation Plan'), findsNothing);
+      expect(find.text('Renamed to Galle trip.'), findsOneWidget);
+    });
+
+    testWidgets('a blank name is caught in the dialog', (tester) async {
+      final repository = _MemoryRepository([_monthly]);
+      await tester.pumpWidget(boot(repository));
+      await tester.pumpAndSettle();
+
+      await choose(tester, 'Regular Monthly', 'Rename…');
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Give the plan a name.'), findsOneWidget);
+      expect(repository.plans.single.name, 'Regular Monthly');
+    });
+
+    testWidgets('deleting the active plan says nothing will be tracked, and '
+        'removes it', (tester) async {
+      final repository = _MemoryRepository([_monthly, _vacation]);
+      await tester.pumpWidget(boot(repository));
+      await tester.pumpAndSettle();
+
+      await choose(tester, 'Regular Monthly', 'Delete…');
+      expect(find.text('Delete Regular Monthly?'), findsOneWidget);
+      expect(find.textContaining('Your transactions stay'), findsOneWidget);
+      expect(find.textContaining('Nothing is tracked until'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, 1);
+      expect(find.text('Regular Monthly'), findsNothing);
+      expect(find.text('Regular Monthly deleted.'), findsOneWidget);
+      expect(find.text('June Vacation Plan'), findsOneWidget);
+    });
+
+    testWidgets('an inactive plan is deleted without the tracking warning', (
+      tester,
+    ) async {
+      await tester.pumpWidget(boot(_MemoryRepository([_monthly, _vacation])));
+      await tester.pumpAndSettle();
+
+      await choose(tester, 'June Vacation Plan', 'Delete…');
+
+      expect(find.textContaining('Nothing is tracked until'), findsNothing);
+    });
+
+    testWidgets('cancelling deletes nothing', (tester) async {
+      final repository = _MemoryRepository([_monthly]);
+      await tester.pumpWidget(boot(repository));
+      await tester.pumpAndSettle();
+
+      await choose(tester, 'Regular Monthly', 'Delete…');
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(repository.deleted, isNull);
+      expect(find.text('Regular Monthly'), findsOneWidget);
+    });
+  });
 
   group('the list', () {
     testWidgets('shows every plan with its period and total, and which is '

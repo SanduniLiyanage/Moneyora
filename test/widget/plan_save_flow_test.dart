@@ -118,10 +118,18 @@ class _MemoryRepository implements MoneyPlanRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, Unit>> rename(int id, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> updateAllocations(
     int planId,
-    List<PlanAllocation> allocations,
-  ) => throw UnimplementedError();
+    List<PlanAllocation> allocations, {
+    int? totalBudgetCents,
+  }) => throw UnimplementedError();
 }
 
 void main() {
