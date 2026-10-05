@@ -83,6 +83,9 @@ jobs:
       - name: Clean Architecture boundaries
         run: bash scripts/check_architecture.sh
 
+      - name: R8 keeps ML Kit's registrar constructors (E-09)
+        run: bash scripts/check_proguard.sh
+
       # E-25 was a wrong ID that survived review because it looked like a
       # checked fact. This is that check, run on every push. On a pull
       # request it reads the new commits' Refs: trailers too — before the
@@ -269,6 +272,27 @@ jobs:
             fi
           done
           echo "ic_stat_moneyora is in every release APK."
+
+      # ML Kit creates its component registrars by reflection, through the
+      # no-argument constructor. R8's full mode removed every one of them,
+      # and the receipt scanner failed on every image in release builds
+      # while debug read receipts fine (E-09). The rule that prevents it is
+      # checked above; this checks that it worked, from R8's own list of
+      # what it removed.
+      - name: ML Kit's registrars kept their constructors
+        run: |
+          usage=build/app/outputs/mapping/release/usage.txt
+          [ -f "$usage" ] || { echo "::error::$usage missing: did R8 run?"; exit 1; }
+          hits=$(awk '
+            /^[^ ]/ { reg = ($0 ~ /^com\.google\.mlkit\..*Registrar:$/) ? $0 : "" ; next }
+            reg != "" && /<init>\(\)/ { print reg " " $0 }
+          ' "$usage")
+          if [ -n "$hits" ]; then
+            echo "::error::R8 removed ML Kit registrar constructors; the receipt scanner will fail on every image:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "Every ML Kit registrar kept its constructor."
 
   build-ios:
     name: Build iOS (compile only)

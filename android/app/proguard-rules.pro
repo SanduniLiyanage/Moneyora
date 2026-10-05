@@ -41,3 +41,30 @@
 -dontwarn com.google.mlkit.vision.text.devanagari.**
 -dontwarn com.google.mlkit.vision.text.japanese.**
 -dontwarn com.google.mlkit.vision.text.korean.**
+
+# ---------------------------------------------------------------------------
+# ML Kit's component registrars keep their constructors (E-09)
+# ---------------------------------------------------------------------------
+#
+# ML Kit wires itself together at startup: MlKitInitProvider reads registrar
+# class names from the manifest and creates each one by reflection, through
+# its no-argument constructor. firebase-components ships the rule meant to
+# protect them:
+#
+#   -keep class * implements com.google.firebase.components.ComponentRegistrar
+#
+# That keeps the class and nothing in it. R8's full mode, the default since
+# AGP 8, no longer keeps a default constructor implicitly, so it is removed,
+# discovery skips every registrar without a word, and the text recogniser
+# is never registered. The scanner then failed on every image in a release
+# build with "Could not read that image." (a NullPointerException in the
+# plugin), while debug builds, which do not run R8, read receipts fine.
+#
+# Keeping more of ML Kit does not fix it, and is worse: keep the text
+# registrar's constructor but not the common one's and the app crashes at
+# launch, "Unsatisfied dependency ... ExecutorSelector". The constructors
+# are the whole problem, so they are the whole rule.
+# scripts/check_proguard.sh fails CI if it goes.
+-keep class * implements com.google.firebase.components.ComponentRegistrar {
+    <init>();
+}
