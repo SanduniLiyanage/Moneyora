@@ -164,170 +164,179 @@ GoRouter buildRouter() => GoRouter(
         spendingTrendChart: SpendingTrendLines(),
         spendingHeatmap: SpendingHeatmap(),
       ),
-    ),
-    GoRoute(
-      path: Routes.transactions,
-      name: 'transactions',
-      // The list follows the period and account the home screen's figures
-      // are for, with their balance above it (FR-RPT-002, FR-RPT-003,
-      // FR-RPT-006): composed here, as the charts are into home, because
-      // the transactions feature may not import analytics.
-      builder: (context, state) => Consumer(
-        builder: (context, ref, _) {
-          final query = ref.watch(analyticsQueryProvider);
-          return TransactionListPage(
-            from: query.range.from,
-            to: query.range.to,
-            accountId: query.accountId,
-            header: const BalanceBar(),
-          );
-        },
-      ),
-    ),
-    GoRoute(
-      path: Routes.addTransaction,
-      name: 'addTransaction',
-      builder: (context, state) => const AddTransactionPage(),
-    ),
-    GoRoute(
-      path: Routes.moneyPlan,
-      name: 'moneyPlan',
-      builder: (context, state) => const MoneyPlanPage(),
-    ),
-    GoRoute(
-      path: Routes.moneyPlanReview,
-      name: 'moneyPlanReview',
-      builder: (context, state) => switch (state.extra) {
-        final AllocationRequest request => PlanReviewPage(request: request),
-        _ => const MoneyPlanPage(),
-      },
-    ),
-    GoRoute(
-      path: Routes.planEditor,
-      name: 'planEditor',
-      builder: (context, state) => switch (state.extra) {
-        final PlanEditorArgs args => PlanEditorPage(args: args),
-        _ => const MoneyPlanPage(),
-      },
-    ),
-    GoRoute(
-      path: Routes.activePlan,
-      name: 'activePlan',
-      builder: (context, state) => const ActivePlanPage(),
-    ),
-    GoRoute(
-      path: Routes.plans,
-      name: 'plans',
-      builder: (context, state) => const PlanListPage(),
-    ),
-    GoRoute(
-      path: Routes.recurring,
-      name: 'recurring',
-      builder: (context, state) => const RecurringRulesPage(),
-    ),
-    GoRoute(
-      path: Routes.comparePlans,
-      name: 'comparePlans',
-      // Both ids come from the query so the screen is a plain link. One
-      // that is missing or not a number opens the list rather than
-      // crashing — the same rule the form routes apply to `extra`.
-      builder: (context, state) => switch ((
-        int.tryParse(state.uri.queryParameters['a'] ?? ''),
-        int.tryParse(state.uri.queryParameters['b'] ?? ''),
-      )) {
-        (final int a, final int b) => ComparePlansPage(
-          request: ComparePlansRequest(leftId: a, rightId: b),
+      // Every other screen sits under home, so the stack below any of them
+      // is never empty. Reached with `go` — a saved receipt goes to the
+      // list — a screen in a flat table was the only page left: no back
+      // arrow, and a back swipe closed the app. Paths are unchanged.
+      routes: <RouteBase>[
+        GoRoute(
+          path: _child(Routes.transactions),
+          name: 'transactions',
+          // The list follows the period and account the home screen's figures
+          // are for, with their balance above it (FR-RPT-002, FR-RPT-003,
+          // FR-RPT-006): composed here, as the charts are into home, because
+          // the transactions feature may not import analytics.
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) {
+              final query = ref.watch(analyticsQueryProvider);
+              return TransactionListPage(
+                from: query.range.from,
+                to: query.range.to,
+                accountId: query.accountId,
+                header: const BalanceBar(),
+              );
+            },
+          ),
         ),
-        _ => const PlanListPage(),
-      },
-    ),
-    GoRoute(
-      path: Routes.scanReceipt,
-      name: 'scanReceipt',
-      builder: (context, state) => const ScanReceiptPage(),
-    ),
-    GoRoute(
-      path: Routes.scanReceiptReview,
-      name: 'scanReceiptReview',
-      builder: (context, state) => switch (state.extra) {
-        final ScannedReceipt scanned => ReceiptReviewPage(scanned: scanned),
-        _ => const ScanReceiptPage(),
-      },
-    ),
-    GoRoute(
-      path: Routes.receiptHistory,
-      name: 'receiptHistory',
-      builder: (context, state) => const ReceiptHistoryPage(),
-    ),
-    GoRoute(
-      path: Routes.settings,
-      name: 'settings',
-      // The Security rows (FR-SET-005) are the auth feature's and the
-      // backup rows (FR-SET-009) the backup feature's, composed in here for
-      // the reason the home screen's panel is.
-      builder: (context, state) => const SettingsPage(
-        securitySection: SecuritySettingsSection(),
-        backupSection: BackupSettingsSection(),
-      ),
-    ),
-    GoRoute(
-      path: Routes.exchangeRates,
-      name: 'exchangeRates',
-      builder: (context, state) => const ExchangeRatesPage(),
-    ),
-    GoRoute(
-      path: Routes.passcode,
-      name: 'passcode',
-      builder: (context, state) => PasscodeFlowPage(
-        flow: switch (state.extra) {
-          final PasscodeFlow flow => flow,
-          _ => PasscodeFlow.set,
-        },
-      ),
-    ),
-    // One route, and nothing else in the app reaches into the feature. Taking
-    // the Copilot out again is deleting this entry (NFR-REL-004).
-    GoRoute(
-      path: Routes.copilot,
-      name: 'copilot',
-      builder: (context, state) => const CopilotPage(),
-    ),
-    GoRoute(
-      path: Routes.transfer,
-      name: 'transfer',
-      builder: (context, state) => const TransferPage(),
-    ),
-    GoRoute(
-      path: Routes.accountForm,
-      name: 'accountForm',
-      // `extra` is untyped by go_router, so the cast is checked rather than
-      // assumed: anything that is not an Account — including the null a deep
-      // link brings — opens the form empty rather than crashing.
-      builder: (context, state) => AccountFormPage(
-        initial: state.extra is Account ? state.extra! as Account : null,
-      ),
-    ),
-    GoRoute(
-      path: Routes.categories,
-      name: 'categories',
-      builder: (context, state) => const CategoryListPage(),
-    ),
-    GoRoute(
-      path: Routes.categoryForm,
-      name: 'categoryForm',
-      // `extra` carries either the `Category` being edited, or the
-      // `CategoryType` a new one should start as — the list page's two tabs
-      // hand back whichever the user was looking at. Anything else,
-      // including the null a deep link brings, opens a new expense category.
-      builder: (context, state) => switch (state.extra) {
-        final Category category => CategoryFormPage(initial: category),
-        final CategoryType type => CategoryFormPage(initialType: type),
-        _ => const CategoryFormPage(),
-      },
+        GoRoute(
+          path: _child(Routes.addTransaction),
+          name: 'addTransaction',
+          builder: (context, state) => const AddTransactionPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.moneyPlan),
+          name: 'moneyPlan',
+          builder: (context, state) => const MoneyPlanPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.moneyPlanReview),
+          name: 'moneyPlanReview',
+          builder: (context, state) => switch (state.extra) {
+            final AllocationRequest request => PlanReviewPage(request: request),
+            _ => const MoneyPlanPage(),
+          },
+        ),
+        GoRoute(
+          path: _child(Routes.planEditor),
+          name: 'planEditor',
+          builder: (context, state) => switch (state.extra) {
+            final PlanEditorArgs args => PlanEditorPage(args: args),
+            _ => const MoneyPlanPage(),
+          },
+        ),
+        GoRoute(
+          path: _child(Routes.activePlan),
+          name: 'activePlan',
+          builder: (context, state) => const ActivePlanPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.plans),
+          name: 'plans',
+          builder: (context, state) => const PlanListPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.recurring),
+          name: 'recurring',
+          builder: (context, state) => const RecurringRulesPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.comparePlans),
+          name: 'comparePlans',
+          // Both ids come from the query so the screen is a plain link. One
+          // that is missing or not a number opens the list rather than
+          // crashing — the same rule the form routes apply to `extra`.
+          builder: (context, state) => switch ((
+            int.tryParse(state.uri.queryParameters['a'] ?? ''),
+            int.tryParse(state.uri.queryParameters['b'] ?? ''),
+          )) {
+            (final int a, final int b) => ComparePlansPage(
+              request: ComparePlansRequest(leftId: a, rightId: b),
+            ),
+            _ => const PlanListPage(),
+          },
+        ),
+        GoRoute(
+          path: _child(Routes.scanReceipt),
+          name: 'scanReceipt',
+          builder: (context, state) => const ScanReceiptPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.scanReceiptReview),
+          name: 'scanReceiptReview',
+          builder: (context, state) => switch (state.extra) {
+            final ScannedReceipt scanned => ReceiptReviewPage(scanned: scanned),
+            _ => const ScanReceiptPage(),
+          },
+        ),
+        GoRoute(
+          path: _child(Routes.receiptHistory),
+          name: 'receiptHistory',
+          builder: (context, state) => const ReceiptHistoryPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.settings),
+          name: 'settings',
+          // The Security rows (FR-SET-005) are the auth feature's and the
+          // backup rows (FR-SET-009) the backup feature's, composed in here for
+          // the reason the home screen's panel is.
+          builder: (context, state) => const SettingsPage(
+            securitySection: SecuritySettingsSection(),
+            backupSection: BackupSettingsSection(),
+          ),
+        ),
+        GoRoute(
+          path: _child(Routes.exchangeRates),
+          name: 'exchangeRates',
+          builder: (context, state) => const ExchangeRatesPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.passcode),
+          name: 'passcode',
+          builder: (context, state) => PasscodeFlowPage(
+            flow: switch (state.extra) {
+              final PasscodeFlow flow => flow,
+              _ => PasscodeFlow.set,
+            },
+          ),
+        ),
+        // One route, and nothing else in the app reaches into the feature. Taking
+        // the Copilot out again is deleting this entry (NFR-REL-004).
+        GoRoute(
+          path: _child(Routes.copilot),
+          name: 'copilot',
+          builder: (context, state) => const CopilotPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.transfer),
+          name: 'transfer',
+          builder: (context, state) => const TransferPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.accountForm),
+          name: 'accountForm',
+          // `extra` is untyped by go_router, so the cast is checked rather than
+          // assumed: anything that is not an Account — including the null a deep
+          // link brings — opens the form empty rather than crashing.
+          builder: (context, state) => AccountFormPage(
+            initial: state.extra is Account ? state.extra! as Account : null,
+          ),
+        ),
+        GoRoute(
+          path: _child(Routes.categories),
+          name: 'categories',
+          builder: (context, state) => const CategoryListPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.categoryForm),
+          name: 'categoryForm',
+          // `extra` carries either the `Category` being edited, or the
+          // `CategoryType` a new one should start as — the list page's two tabs
+          // hand back whichever the user was looking at. Anything else,
+          // including the null a deep link brings, opens a new expense category.
+          builder: (context, state) => switch (state.extra) {
+            final Category category => CategoryFormPage(initial: category),
+            final CategoryType type => CategoryFormPage(initialType: type),
+            _ => const CategoryFormPage(),
+          },
+        ),
+      ],
     ),
   ],
   errorBuilder: (context, state) => _RouteNotFound(location: state.uri.path),
 );
+
+/// [path] as a route under home: `/plan` is `plan` there.
+String _child(String path) => path.substring(1);
 
 /// Shown for a path with no route.
 ///
