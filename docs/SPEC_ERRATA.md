@@ -531,6 +531,36 @@ key is configured (`android/key.properties`, never committed; `SETUP.md`
 phone's ABI, so these per-ABI figures are the right comparison for an
 `appbundle` upload too.
 
+### Addendum, 2026-10-05 — R8 left the receipt scanner unable to read anything
+
+In every release build the scanner answered every image, a real receipt
+included, with "Could not read that image." Debug builds read the same
+receipt. Logcat had the plugin's method call failing on a
+`NullPointerException` in an obfuscated class.
+
+ML Kit wires itself up at launch: `MlKitInitProvider` reads its registrar
+class names from the manifest and creates each by reflection, through the
+no-argument constructor. The only rule protecting them, from
+firebase-components, is `-keep class * implements ComponentRegistrar`. That
+keeps the class but not its members, and R8's full mode (the default since
+AGP 8; this project is on 9.1) no longer keeps a default constructor unless
+a rule names it. R8 removed every registrar's constructor, discovery skipped
+them all without logging anything, and the text recogniser was never
+registered: the null the plugin then dereferenced.
+
+Keeping more of ML Kit was tried first and made it worse. With the
+`com.google.mlkit.vision.text` package kept whole, the text registrar's
+constructor survived but the common registrar's did not. The app then
+crashed at launch with "Unsatisfied dependency … ExecutorSelector". The
+constructors are the whole cause, so the fix is one rule,
+`-keep class * implements ComponentRegistrar { <init>(); }`.
+
+Like the original failure in this entry, a check that ran only on debug
+builds could not see this. CI now guards it twice:
+`scripts/check_proguard.sh` fails if the rule is removed, and after the
+release build a step reads R8's `usage.txt` and fails if any ML Kit
+registrar's constructor was removed anyway.
+
 ---
 
 <a id="e-10"></a>
