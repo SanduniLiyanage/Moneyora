@@ -201,11 +201,45 @@ void main() {
       expect(find.text('Active'), findsOneWidget);
     });
 
+    testWidgets('the active plan leads, with the way into it', (tester) async {
+      // With no "Your plan" on the home screen, this list is how the
+      // tracked plan is reached.
+      final vacationActive = MoneyPlan(
+        id: _vacation.id,
+        name: _vacation.name,
+        period: _vacation.period,
+        totalBudgetCents: _vacation.totalBudgetCents,
+        isActive: true,
+        allocations: _vacation.allocations,
+      );
+      final monthlyInactive = MoneyPlan(
+        id: _monthly.id,
+        name: _monthly.name,
+        period: _monthly.period,
+        totalBudgetCents: _monthly.totalBudgetCents,
+        isActive: false,
+        allocations: _monthly.allocations,
+      );
+      await tester.pumpWidget(
+        boot(_MemoryRepository([monthlyInactive, vacationActive])),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('June Vacation Plan')).dy,
+        lessThan(tester.getTopLeft(find.text('Regular Monthly')).dy),
+      );
+      expect(
+        find.text('Tap the active plan to see your spending against it.'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('with no plans, says so and offers the wizard', (tester) async {
       await tester.pumpWidget(boot(_MemoryRepository([])));
       await tester.pumpAndSettle();
 
-      expect(find.text('No saved plans'), findsOneWidget);
+      expect(find.text('No budget plans yet'), findsOneWidget);
       await tester.tap(find.text('Create Money Plan'));
       await tester.pumpAndSettle();
       expect(find.text('wizard'), findsOneWidget);

@@ -292,13 +292,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Every part of the app, above the charts, without scrolling.
-      for (final label in [
-        'Transactions',
-        'Scan Receipt',
-        'Your plan',
-        'Create Money Plan',
-      ]) {
+      for (final label in ['Transactions', 'Scan Receipt', 'Budget plans']) {
         expect(find.text(label), findsOneWidget);
+      }
+      // One door for plans, the owner's call on 1.0.0: three tiles for one
+      // thing confused a tester.
+      for (final gone in ['Your plan', 'Create Money Plan', 'Saved plans']) {
+        expect(find.text(gone), findsNothing);
       }
       expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
       // The database's figures are Settings' now, not the home screen's.
@@ -418,9 +418,14 @@ void main() {
     testWidgets('reaches the money plan wizard from the home screen', (
       tester,
     ) async {
-      // FR-PLN-001: "Create Money Plan" from the main navigation.
+      // FR-PLN-001: "Create Money Plan" from the main navigation, through
+      // Budget plans since 1.0.0's testers found three plan tiles too many.
       await pumpReady(tester);
-      await tapShortcut(tester, 'Create Money Plan');
+      await tapShortcut(tester, 'Budget plans');
+      await tester.tap(
+        find.widgetWithText(FloatingActionButton, 'Create Money Plan'),
+      );
+      await tester.pumpAndSettle();
 
       expect(find.text('Plan for'), findsOneWidget);
       // A new phone has no history to suggest from, so the way on is a
@@ -483,9 +488,7 @@ void main() {
       // next.
       for (final destination in const [
         'Ask Moneyora',
-        'Create Money Plan',
-        'Your plan',
-        'Saved plans',
+        'Budget plans',
         'Scan Receipt',
         'Transfer',
       ]) {

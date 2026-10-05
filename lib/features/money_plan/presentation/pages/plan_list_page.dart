@@ -26,7 +26,7 @@ class PlanListPage extends ConsumerWidget {
     final plans = ref.watch(plansProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Saved plans')),
+      appBar: AppBar(title: const Text('Budget plans')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(Routes.moneyPlan),
         icon: const Icon(Icons.add),
@@ -55,11 +55,28 @@ class _PlanList extends ConsumerWidget {
 
   final List<MoneyPlan> plans;
 
+  /// The active plan first: with no "Your plan" on the home screen, this
+  /// list is how it is reached, so it leads.
+  List<MoneyPlan> get _activeFirst => [
+    for (final p in plans)
+      if (p.isActive) p,
+    for (final p in plans)
+      if (!p.isActive) p,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
     children: [
-      for (final plan in plans)
+      if (plans.any((p) => p.isActive))
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Text(
+            'Tap the active plan to see your spending against it.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      for (final plan in _activeFirst)
         _PlanRow(
           plan: plan,
           onTap: plan.isActive
@@ -261,11 +278,12 @@ class _NoPlans extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('No saved plans', style: theme.textTheme.titleMedium),
+            Text('No budget plans yet', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'Every plan you save is kept here, so you can switch between '
-              'them or compare two.',
+              'Tap Create Money Plan to build one yourself, or to have one '
+              'suggested from your spending. Every plan you save is kept '
+              'here.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
