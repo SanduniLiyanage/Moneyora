@@ -16,6 +16,7 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/period_selection.dart';
 import '../../domain/repositories/analytics_repository.dart';
 import '../providers/analytics_providers.dart';
+import 'interval_picker.dart';
 
 /// The earliest date any analytics picker offers — the same floor
 /// `add_transaction_page.dart` and `account_form_page.dart` already use.
@@ -68,7 +69,7 @@ class PeriodSelector extends ConsumerWidget {
     ('Month', AnalyticsPeriod.month),
     ('Year', AnalyticsPeriod.year),
     ('All', AnalyticsPeriod.all),
-    ('Custom', AnalyticsPeriod.custom),
+    ('Interval', AnalyticsPeriod.custom),
   ];
 
   @override
@@ -150,22 +151,17 @@ class PeriodSelector extends ConsumerWidget {
     PeriodSelection selection,
   ) async {
     final existing = selection.customRange;
-    final picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: existing == null
-          ? null
-          : DateTimeRange(start: existing.from, end: existing.to),
-      firstDate: _pickerFloor,
-      lastDate: DateTime.now(),
+    final picked = await showIntervalPicker(
+      context,
+      initial: existing,
+      first: _pickerFloor,
+      last: DateTime.now(),
     );
     // Cancelled: leave the selection exactly as it was, rather than switching
     // to a Custom period with no interval behind it.
     if (picked == null) return;
     ref
         .read(analyticsPeriodProvider.notifier)
-        .update(
-          (it) =>
-              it.withCustomRange(DateRange(from: picked.start, to: picked.end)),
-        );
+        .update((it) => it.withCustomRange(picked));
   }
 }

@@ -9,6 +9,7 @@ import '../../features/analytics/presentation/pages/reports_page.dart';
 import '../../features/analytics/presentation/providers/analytics_providers.dart';
 import '../../features/analytics/presentation/widgets/balance_bar.dart';
 import '../../features/analytics/presentation/widgets/filter_panel.dart';
+import '../../features/analytics/presentation/widgets/period_stepper.dart';
 import '../../features/analytics/presentation/widgets/spending_overview.dart';
 import '../../features/auth/presentation/pages/passcode_flow_page.dart';
 import '../../features/auth/presentation/widgets/security_settings_section.dart';
@@ -185,11 +186,18 @@ GoRouter buildRouter() => GoRouter(
           builder: (context, state) => Consumer(
             builder: (context, ref, _) {
               final query = ref.watch(analyticsQueryProvider);
-              return TransactionListPage(
-                from: query.range.from,
-                to: query.range.to,
-                accountId: query.accountId,
-                header: const BalanceBar(),
+              // A sideways swipe steps the period, as on home; ‹ › above
+              // the balance do the same for anyone who does not swipe.
+              return PeriodSwipe(
+                child: TransactionListPage(
+                  from: query.range.from,
+                  to: query.range.to,
+                  accountId: query.accountId,
+                  header: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [PeriodStepper(), BalanceBar()],
+                  ),
+                ),
               );
             },
           ),

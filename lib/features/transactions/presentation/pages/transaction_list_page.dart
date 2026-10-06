@@ -80,16 +80,55 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
   bool get _isFiltered => _typeFilter != null;
 
-  Future<void> _edit(Transaction transaction) =>
-      _open(AddTransactionPage(initial: transaction));
+  /// Opens [transaction] to change it. Its Delete comes back here, so the
+  /// row goes with the same undo window as one deleted from the list.
+  Future<void> _edit(Transaction transaction) async {
+    final deleted = await _open<bool>(AddTransactionPage(initial: transaction));
+    if (deleted == true && mounted) _delete(transaction);
+  }
 
   /// Opens [page] over the list, taking the "Transaction deleted" offer
   /// down first: it belongs to this screen, and left up it sits over the
   /// next screen's Save button. The deletion itself still completes.
-  Future<void> _open(Widget page) {
+  Future<T?> _open<T>(Widget page) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     return Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => page));
+        .push(MaterialPageRoute<T>(builder: (_) => page));
+  }
+
+  /// A held row's choices. A sideways swipe on this screen steps the period,
+  /// as on home, so deleting moved here from a swipe on 2026-10-06.
+  Future<void> _offer(Transaction transaction) async {
+    final choice = await showModalBottomSheet<_RowChoice>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit'),
+              onTap: () => Navigator.of(context).pop(_RowChoice.edit),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Delete'),
+              onTap: () => Navigator.of(context).pop(_RowChoice.delete),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case _RowChoice.edit:
+        await _edit(transaction);
+      case _RowChoice.delete:
+        _delete(transaction);
+      case null:
+        break;
+    }
   }
 
   /// Hides the row and starts the undo window. E-23.
@@ -184,7 +223,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _open(const AddTransactionPage()),
+        onPressed: () => _open<void>(const AddTransactionPage()),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
@@ -221,8 +260,8 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                       icon: Icons.event_busy_outlined,
                       title: 'Nothing in this period',
                       body:
-                          'Tap the balance above to choose another period or '
-                          'account, or tap Add to record one.',
+                          'Swipe sideways for another period, tap the balance '
+                          'to choose an account, or tap Add to record one.',
                     )
                   : const _Message(
                       icon: Icons.receipt_long_outlined,
@@ -248,19 +287,15 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                     category: categories[group.categoryId],
                     children: [
                       for (final entry in group.entries)
-                        Dismissible(
+                        TransactionRow(
                           key: ValueKey(entry.transaction.id),
-                          direction: DismissDirection.endToStart,
-                          background: const _DeleteBackground(),
-                          onDismissed: (_) => _delete(entry.transaction),
-                          child: _TransactionTile(
-                            transaction: entry.transaction,
-                            accountNames: accountNames,
-                            categoryNames: categoryNames,
-                            amountCents: entry.amountCents,
-                            inGroup: true,
-                            onTap: () => _edit(entry.transaction),
-                          ),
+                          transaction: entry.transaction,
+                          accountNames: accountNames,
+                          categoryNames: categoryNames,
+                          amountCents: entry.amountCents,
+                          inGroup: true,
+                          onTap: () => _edit(entry.transaction),
+                          onLongPress: () => _offer(entry.transaction),
                         ),
                     ],
                   );
@@ -284,18 +319,14 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                   countTransfers: widget.accountId != null,
                   children: [
                     for (final transaction in day.transactions)
-                      Dismissible(
+                      TransactionRow(
                         key: ValueKey(transaction.id),
-                        direction: DismissDirection.endToStart,
-                        background: const _DeleteBackground(),
-                        onDismissed: (_) => _delete(transaction),
-                        child: _TransactionTile(
-                          transaction: transaction,
-                          accountNames: accountNames,
-                          categoryNames: categoryNames,
-                          showDate: false,
-                          onTap: () => _edit(transaction),
-                        ),
+                        transaction: transaction,
+                        accountNames: accountNames,
+                        categoryNames: categoryNames,
+                        showDate: false,
+                        onTap: () => _edit(transaction),
+                        onLongPress: () => _offer(transaction),
                       ),
                   ],
                 );
@@ -330,8 +361,12 @@ class _WithHeader extends StatelessWidget {
 }
 
 /// One row. Amount on the right, coloured by what it did to the balance.
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({
+///
+/// Public so a test can tell a row's amount from its day's total.
+class TransactionRow extends StatelessWidget {
+  /// Creates the row.
+  const TransactionRow({
+    super.key,
     required this.transaction,
     required this.accountNames,
     required this.categoryNames,
@@ -339,6 +374,7 @@ class _TransactionTile extends StatelessWidget {
     this.inGroup = false,
     this.showDate = true,
     this.onTap,
+    this.onLongPress,
   });
 
   final Transaction transaction;
@@ -360,7 +396,11 @@ class _TransactionTile extends StatelessWidget {
   /// Id-to-name, for naming what an expense or income was for. FR-EXP-006.
   final Map<int, String> categoryNames;
 
+  /// Opens the row to change it.
   final VoidCallback? onTap;
+
+  /// Offers to change or delete it.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -407,6 +447,7 @@ class _TransactionTile extends StatelessWidget {
 
     return ListTile(
       onTap: onTap,
+      onLongPress: onLongPress,
       leading: CircleAvatar(
         backgroundColor: tint.withValues(alpha: 0.12),
         child: Icon(
@@ -631,26 +672,8 @@ class _Amount extends StatelessWidget {
   );
 }
 
-/// What shows behind a row being swiped away.
-class _DeleteBackground extends StatelessWidget {
-  const _DeleteBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
-
-    return ColoredBox(
-      color: colors.expense,
-      child: const Align(
-        alignment: Alignment.centerRight,
-        child: Padding(
-          padding: EdgeInsets.only(right: 24),
-          child: Icon(Icons.delete_outline, color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
+/// What a held row offers.
+enum _RowChoice { edit, delete }
 
 class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.selected, required this.onSelected});

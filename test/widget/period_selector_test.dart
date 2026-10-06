@@ -22,6 +22,7 @@ import 'package:moneyora/features/analytics/domain/entities/trend_point.dart';
 import 'package:moneyora/features/analytics/domain/repositories/analytics_repository.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/presentation/providers/analytics_providers.dart';
+import 'package:moneyora/features/analytics/presentation/widgets/interval_picker.dart';
 import 'package:moneyora/features/analytics/presentation/widgets/period_selector.dart';
 import 'package:moneyora/features/analytics/presentation/widgets/spending_donut_chart.dart';
 import 'package:moneyora/injection.dart';
@@ -157,7 +158,7 @@ void main() {
       await tester.pumpWidget(boot());
       await tester.pumpAndSettle();
 
-      for (final label in ['Day', 'Week', 'Month', 'Year', 'All', 'Custom']) {
+      for (final label in ['Day', 'Week', 'Month', 'Year', 'All', 'Interval']) {
         expect(find.widgetWithText(ChoiceChip, label), findsOneWidget);
       }
       // "Choose Date" is the button, not a seventh chip.
@@ -307,7 +308,7 @@ void main() {
       expect(repository.asked, [DateRange.month(2026, 9)]);
     });
 
-    testWidgets('is disabled for All and Custom, which no date anchors', (
+    testWidgets('is disabled for All and Interval, which no date anchors', (
       tester,
     ) async {
       await tester.pumpWidget(boot());
@@ -327,26 +328,26 @@ void main() {
   });
 
   group('Custom Interval', () {
-    testWidgets('the chip opens the range picker rather than selecting an '
+    testWidgets('the chip opens the interval calendar rather than selecting an '
         'interval that does not exist yet', (tester) async {
       await tester.pumpWidget(boot());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Custom'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Interval'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(DateRangePickerDialog), findsOneWidget);
+      expect(find.byType(IntervalPickerDialog), findsOneWidget);
     });
 
-    testWidgets('cancelling the range picker does not switch period', (
+    testWidgets('cancelling the calendar does not switch period', (
       tester,
     ) async {
       await tester.pumpWidget(boot());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Custom'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Interval'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
       expect(selectionOf(tester).period, AnalyticsPeriod.month);

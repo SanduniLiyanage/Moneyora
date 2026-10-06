@@ -1011,8 +1011,10 @@ over several PRs:
    for the period before or after, **Balance** opening the list, and big
    **−** and **+**. The other four charts and the amounts by category
    moved to **Reports** in the menu.
-3. **The list and the interval.** A swipe on the list steps the period,
-   and Interval opens a calendar that swipes between months.
+3. **The list and the interval** — done (#177). A swipe on the list steps
+   the period, with ‹ › above its balance. Deleting moved from a swipe on
+   the row to holding it, and to a bin on the edit screen, with the same
+   Undo. Interval opens a calendar that swipes between months.
 4. **Entry.** New expense or New income: the keypad first, then a
    category grid that saves on a tap.
 

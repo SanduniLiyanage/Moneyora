@@ -8,9 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/widgets/account_icons.dart';
 import '../../../../core/widgets/side_panel.dart';
 import '../../domain/entities/period_selection.dart';
-import '../../domain/repositories/analytics_repository.dart';
 import '../providers/analytics_providers.dart';
 import 'account_filter.dart';
+import 'interval_picker.dart';
 import 'period_selector.dart';
 
 /// The earliest date the panel's pickers offer, as everywhere else.
@@ -118,21 +118,16 @@ class FilterPanel extends ConsumerWidget {
     PeriodSelection selection,
   ) async {
     final existing = selection.customRange;
-    final picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: existing == null
-          ? null
-          : DateTimeRange(start: existing.from, end: existing.to),
-      firstDate: _pickerFloor,
-      lastDate: DateTime.now(),
+    final picked = await showIntervalPicker(
+      context,
+      initial: existing,
+      first: _pickerFloor,
+      last: DateTime.now(),
     );
     if (picked == null || !context.mounted) return;
     ref
         .read(analyticsPeriodProvider.notifier)
-        .update(
-          (it) =>
-              it.withCustomRange(DateRange(from: picked.start, to: picked.end)),
-        );
+        .update((it) => it.withCustomRange(picked));
     closeSidePanel(context);
   }
 
