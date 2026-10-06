@@ -127,6 +127,13 @@ Money is stored as **integer minor units** (cents), never `double`. See §6.
 - Reusable widget with no business logic → `lib/core/widgets/`
 - Widget that knows about one entity → that feature's `presentation/widgets/`
 - SQL → `data/datasources/` or `core/database/`. Nowhere else. Enforced.
+- A new screen → a path constant in `Routes`, and a `GoRoute` in
+  `core/router/app_router.dart` **under home's `routes:`**, with its path
+  made relative (`_child(Routes.x)`). Every screen sits above home, so a
+  `go` to it still leaves home beneath and back returns there; a top-level
+  route reached with `go` was the only page left, and the system back closed
+  the app (PR #165). Open screens with `push` unless the stack below should
+  be cleared.
 - **A read whose feature slice does not exist yet** → `core/database/`, for as
   long as that is true. `core/database/entry_catalog.dart` did this for the
   entry screen's category and account lists — the one place the build order in

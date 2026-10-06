@@ -15,18 +15,18 @@ The owner's choice, 2026-09-29: **free distribution first** — GitHub Releases
 and the Samsung Galaxy Store. Google Play ($25, once) and the App Store
 ($99 a year) stay open for later and are described below.
 
-| Step | Who | How long |
-|---|---|---|
-| Upload key generated, backed up twice | you, once | 5 minutes |
-| Four repository secrets set | you, once | 5 minutes |
-| `git tag v1.0.0` and push | you | the workflow takes ~15 minutes |
-| Galaxy Store seller account | you | free; a day or so |
-| Galaxy Store review | Samsung | several days |
-| *Later:* Google Play | you + 12 testers | $25 once; **14 days** of closed testing |
-| *Later:* App Store | you | $99/year; needs macOS (or the CI runner) |
+| Step | Who | How long | Status |
+|---|---|---|---|
+| Upload key generated, backed up twice | you, once | 5 minutes | **Done** |
+| Four repository secrets set | you, once | 5 minutes | **Done** |
+| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06) |
+| Galaxy Store seller account | you | free; a day or so | Next |
+| Galaxy Store review | Samsung | several days | |
+| *Later:* Google Play | you + 12 testers | $25 once; **14 days** of closed testing | |
+| *Later:* App Store | you | $99/year; needs macOS (or the CI runner) | |
 
-**Nothing in the code is blocking.** Every remaining item is a key, an
-account, or a wait.
+**Nothing in the code is blocking.** Every remaining item is an account or a
+wait.
 
 ---
 
@@ -216,9 +216,11 @@ requires it ([E-20](SPEC_ERRATA.md)). Say 15.5 in App Store Connect.
 
 ## 7. Before you publish anywhere
 
-- [ ] Install the APK from the release page on a real Android phone —
-      yours, or a friend's Samsung — and open every screen. The emulator
-      has never caught a missing runtime permission.
+- [x] Install the APK from the release page on a real Android phone. The
+      owner and a tester installed 1.0.0 from GitHub on their own phones;
+      what they found is 1.0.1. Still to try on a phone rather than the
+      emulator: a fresh first launch, a restore, biometric unlock and a
+      budget-alert notification.
 - [x] Screenshots from a release build, not a debug one (the debug banner is
       an automatic rejection): `store/screenshots/`, taken 2026-09-28;
       the home screen and the list retaken from 1.0.1 on 2026-10-06, for

@@ -92,7 +92,10 @@ the bank's differs.
 ### The list
 
 **Transactions** lists everything newest first, grouped by day with each
-day's total. Filter it to expenses, income or transfers. **Group by
+day's total. An expense shows a red arrow pointing down and income a green
+arrow pointing up, the way each moves your balance; a transfer shows the
+two-way arrows. **All**, **Expenses** and **Income** at the top filter the
+list, and tapping the balance chooses the period and the account. **Group by
 category** shows each category's entries together with their total; **List
 by date** goes back.
 

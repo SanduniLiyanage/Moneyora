@@ -1,19 +1,21 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-10-05**, `main` at `2446339`, after **161
-merged pull requests** (#2–#162; #1 was closed unmerged). **Sprint 10 is
-code-complete**, and the pre-release walk on a release build has since
-fixed what only that build could show (#152–#162; "What is next" below).
-Sprint 10 itself: plans only from the user's own history or built by hand
+State of the project as of **2026-10-06**, `main` at `3a0b71c`, after **169
+merged pull requests** (#2–#170; #1 was closed unmerged). **Moneyora is
+released**: [1.0.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.0)
+on GitHub Releases on 2026-10-05, after a walk of the release APK fixed
+what only that build could show (#152–#162), and
+[1.0.1](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.1) on
+2026-10-06 from the first testers' feedback (#164–#170). "What is next"
+below has both. Sprint 10 itself: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
 account (#144), and the release itself — name, icon, signing and the
 80 MB gate (#146), the screenshots' two fixes (#147), the release
 checklist (#148), and transfers that move the one account they touch
-(#150, #151). **What remains is an account, a key and a wait**, none
-of it code; [`RELEASE.md`](RELEASE.md) sets it out, and "What is next"
-below summarises it. See [`ROADMAP.md`](ROADMAP.md)'s Sprint 10.
+(#150, #151). See [`ROADMAP.md`](ROADMAP.md)'s Sprint 10 and "After
+release".
 
 Sprint 9, closed at `ad7c2b9` after 133 merged pull requests — FR-PLN-006's spending patterns, font scaling at 2x on 320dp,
 the Sprint 8 emulator pass and its fixes, the backup round trip as an
@@ -56,8 +58,8 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `2446339`, with PR #162 merged; the coverage figure is CI's, from the
-run on #162, the last change to `domain/`.
+at `3a0b71c`, with PR #170 merged; the coverage figure is CI's, from its
+run on `main` at that commit (the last change to `domain/` was #167).
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -66,16 +68,22 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2375 passing** | `flutter test` |
+| Tests | **2404 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | R8 keep rules | **clean, exit 0** — ML Kit's registrar constructors ([E-09](SPEC_ERRATA.md)) | `bash scripts/check_proguard.sh` |
-| Domain line coverage | **91.5%** (2766 of 3022 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Domain line coverage | **91.5%** (2776 of 3034 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 to 10 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`); Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 337 in `lib/`, 177 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 340 in `lib/`, 178 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2362 at `531b9b5` (PR #151, merged) plus **13 net new**
+Tests by area: 2375 at `2446339` (PR #162, merged) plus **29 net new**
+from #164–#170, each PR's description naming its own. One assertion
+changed meaning: `update_allocation_test`'s "refuses the only allocation
+in a plan" became "a plan of one category takes the figure as its total",
+because that refusal was the defect ([E-40](SPEC_ERRATA.md)).
+
+Before that: 2362 at `531b9b5` (PR #151, merged) plus **13 net new**
 from #152–#162, each PR's description naming its own; #160's guards are
 CI steps, not tests.
 
@@ -2169,28 +2177,50 @@ and on the emulator the row is correctly hidden; a **budget-alert
 notification** needs an active plan covering today, and the emulator's
 active plan is September's.
 
-**What is left is not code.** It is set out in [`RELEASE.md`](RELEASE.md):
+**Released.** The owner made the upload key and set the four release
+secrets; `v1.0.0` (2026-10-05) and `v1.0.1` (2026-10-06) are on GitHub
+Releases, each built and signed by the release workflow from its tag.
 
-1. **A Play Console account** — $25, identity verification over days, and
+**1.0.1 — the first testers' round (#164–#170), `main` at `3a0b71c`.**
+The owner and a tester installed 1.0.0 from GitHub on their own phones:
+
+- **#165 — a back swipe closed the app.** Confirming a receipt called
+  `context.go(Routes.transactions)`, and in a flat route table that left
+  the list as the only page. Every route now sits under home in
+  `app_router.dart`; paths are unchanged and `push` behaves as before. A
+  test goes to a screen and presses the system back.
+- **#164 — arrows follow the balance**: an expense red and down, income
+  green and up (the owner's call).
+- **#166 — a long note stops at two lines** in the list. A scanned bus
+  ticket had come back as one item named with the ticket's whole text.
+- **#167, #168 — plans** ([E-40](SPEC_ERRATA.md)): one "Budget plans"
+  tile in place of three, Rename and Delete, and a one-category plan whose
+  budget can change, the total with it.
+- **#169** — version 1.0.1+2, and `RELEASE.md` on how an installed copy
+  updates. **#170** — the README rewritten for the released app.
+
+The 1.0.1 release APK was checked on the emulator before tagging: the one
+tile, the list with the active plan first, the plan's menu, a one-category
+budget saved without refusal, the system back from a plan to home, and the
+arrows.
+
+**What is left.** [`RELEASE.md`](RELEASE.md) sets out the accounts:
+
+1. **The Samsung Galaxy Store** submission (§3) — free, and it updates
+   installed copies by itself, which GitHub Releases cannot.
+2. **A Play Console account** — $25, identity verification over days, and
    then the rule that decides the launch date: a personal account
    registered after November 2023 must run a **closed test with twelve
    testers for fourteen continuous days** before it may apply for
-   production. Nothing in this repository shortens that; the twelve
-   people are worth lining up before the bundle is ready.
-2. **An Apple Developer Program membership** ($99/year) if iOS is wanted,
+   production. Nothing in this repository shortens that.
+3. **An Apple Developer Program membership** ($99/year) if iOS is wanted,
    and a macOS machine to upload from — or the `macos-latest` CI runner
-   that already compiles the app on every push, which can archive and
-   upload with an App Store Connect API key and is the cheap way out.
-3. **The upload keystore**, generated once by the owner and backed up off
-   this machine (`SETUP.md` §7). It is deliberately not in the repository
-   and deliberately not generated by anyone else.
-4. **Screenshots from the submitted build.** The set in `build/shots/` was
-   taken on the emulator from hand-entered expenses (never sample data,
-   E-39) and is what the listing was written against, but the ones
-   uploaded come from the signed release build: a debug banner is an
-   automatic rejection.
-5. **A run on a real Android phone**, which stays on the device checklist
-   below — the emulator has never caught a missing runtime permission.
+   that already compiles the app on every push.
+4. **On a phone, not the emulator:** a fresh first launch, a restore,
+   biometric unlock and a budget-alert notification.
+5. **The bus ticket.** Fixing the parser needs the ticket's photo as a
+   fixture: `adb push` it to `/sdcard/Download`, scan it in a debug build,
+   and keep the `[receipt-ocr]` rows the console prints.
 
 Still open and not blocking anything: **FR-SET-002** (languages; English
 only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which

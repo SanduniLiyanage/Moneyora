@@ -964,19 +964,43 @@ charts, the plan and the budgets still never see a transfer — an
 [E-02](SPEC_ERRATA.md) addendum says why this is that entry's own
 account-balance rule rather than an exception to it.
 
-### Still open — none of it code
+## After release — 1.0.0 and 1.0.1
 
+**1.0.0** was published on GitHub Releases on 2026-10-05, signed with the
+owner's upload key, after a walk of the release APK that fixed what only a
+shrunk build could show: the receipt scanner reading nothing because R8
+removed ML Kit's registrar constructors (#160, an
+[E-09](SPEC_ERRATA.md) addendum), Undo staying offered after the delete
+was written (#158), Ask Moneyora's key screen overclaiming (#161), and an
+ended plan still forecasting (#162).
+
+**1.0.1**, published 2026-10-06, is the first round of testers' feedback
+from their own phones:
+
+- **Back never leaves the app** (#165). Confirming a receipt went to the
+  list and replaced the whole stack; every screen now sits above home.
+- **Arrows follow the balance** (#164): an expense points down in red,
+  income up in green — the owner's call.
+- **A long note stops at two lines** (#166): a scanned bus ticket had put
+  its whole text in one row.
+- **Plans, one door** (#167, #168; [E-40](SPEC_ERRATA.md)): a single
+  Budget plans tile, Rename and Delete, and a one-category plan whose
+  budget can be changed.
+- **How an installed copy updates**, in [`RELEASE.md`](RELEASE.md) (#169).
+
+### Still open
+
+- **The bus ticket.** It came back as one item named with the whole
+  ticket's text. Fixing the parser needs that photo as a fixture.
+- **On a phone, not the emulator:** a fresh first launch and a restore
+  (both replace the emulator's hand-entered data), biometric unlock (the
+  emulator has no fingerprint enrolled) and a budget-alert notification.
+- **The Samsung Galaxy Store** submission ([`RELEASE.md`](RELEASE.md) §3):
+  free, and it updates installed copies by itself.
 - **A Play Console account**, its identity verification, and the closed
   test that has to run for fourteen days before production opens. This is
-  the longest item left in the project and nothing in the repository
-  shortens it.
+  the longest item left and nothing in the repository shortens it.
 - **An Apple Developer Program membership**, if iOS is wanted.
-- **The screenshots into `store/`** — taken and reviewed on the emulator
-  from hand-entered expenses (never sample data, [E-39](SPEC_ERRATA.md)),
-  but they are retaken from the signed release build that is actually
-  submitted, since a debug banner is an automatic rejection.
-- **A run on a real Android phone.** The emulator has never caught a
-  missing runtime permission.
 
 ---
 
