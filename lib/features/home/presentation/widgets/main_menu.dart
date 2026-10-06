@@ -22,6 +22,9 @@ class MainMenu extends StatelessWidget {
 
   static const List<(String, IconData, String)> _screens = [
     ('Transactions', Icons.receipt_long_outlined, Routes.transactions),
+    // The charts that were under home's ring before it became the reference
+    // app's: none was dropped.
+    ('Reports', Icons.bar_chart_outlined, Routes.reports),
     ('Scan receipt', Icons.document_scanner_outlined, Routes.scanReceipt),
     ('Transfer', Icons.swap_horiz, Routes.transfer),
     ('Budget plans', Icons.savings_outlined, Routes.plans),

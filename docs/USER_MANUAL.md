@@ -22,12 +22,14 @@ Your data is stored in an encrypted database. The key is kept in your
 phone's secure keychain, so the file is unreadable to anything else on the
 phone.
 
-**Getting around.** Three buttons sit at the top of the home screen:
+**Getting around.** The home screen shows where your money went this
+month (section 6). Under it, **−** records an expense and **+** records
+income. Three buttons sit at the top:
 
 - the **filter** button at the top left opens a panel where you choose the
-  account and the period the home screen shows (see section 6);
+  account and the period the home screen shows;
 - **⇄** at the top right starts a transfer between your accounts;
-- **⋮** beside it opens the **menu**: Transactions, Scan receipt,
+- **⋮** beside it opens the **menu**: Transactions, Reports, Scan receipt,
   Transfer, Budget plans, Recurring, Categories, Accounts, Ask Moneyora,
   and Settings last.
 
@@ -59,9 +61,10 @@ nowhere to record anything.
 
 ### An expense or income
 
-Tap **Add** on the home screen (or on **Transactions**).
+Tap **−** on the home screen for an expense or **+** for income (or **Add**
+on **Transactions**).
 
-1. Choose **Expense** or **Income**.
+1. Check **Expense** or **Income** at the top.
 2. Type the amount.
 3. Pick a category. If the one you want does not exist, tap **New** to
    create it without leaving the screen.
@@ -143,18 +146,19 @@ review screen before you confirm.
 
 ---
 
-## 6. The home screen's charts
+## 6. The home screen and Reports
 
-Five cards show where your money went:
+The home screen is a ring of the period's spending. Around it, each
+category you spent on shows its icon and its share of the total. In the
+middle, income is in green and spending in red.
 
-- **Spending by category**: a ring of this period's spending.
-- **Income vs expenses**: the two side by side, and what was left.
-- **Summary**: average spent a day, your largest category, and the change
-  on the period before.
-- **Spending over time**: each category's spending as a line.
-- **Daily spending**: each day of the month shaded by how much was spent.
+- **‹** and **›** beside the period's name step to the period before or
+  after. **Swiping** the ring sideways does the same: towards the left for
+  the next period, towards the right for the one before.
+- **Balance** under the ring is what came in less what went out. Tap it
+  to see the transactions behind it.
 
-The **filter** button at the top left chooses what every card shows:
+The **filter** button at the top left chooses what home and Reports show:
 
 - **an account**, or **All accounts**;
 - **Day**, **Week**, **Month**, **Year** or **All**;
@@ -162,7 +166,16 @@ The **filter** button at the top left chooses what every card shows:
 - **Choose date**, which moves the period to the day you pick: with
   **Month** chosen, picking 3 March shows March.
 
-The panel closes as you choose, and the cards change with it.
+The panel closes as you choose, and the screen changes with it.
+
+**Reports** (in the menu) has every chart for the same period and account:
+
+- **Spending by category**: the ring with each category's amount.
+- **Income vs expenses**: the two side by side, and what was left.
+- **Summary**: average spent a day, your largest category, and the change
+  on the period before.
+- **Spending over time**: each category's spending as a line.
+- **Daily spending**: each day of the month shaded by how much was spent.
 
 ---
 

@@ -38,10 +38,18 @@ class AddTransactionPage extends ConsumerStatefulWidget {
   /// One screen for both. An edit form that is a separate screen drifts from
   /// the entry form it is supposed to mirror, and the divergence always shows
   /// up as a field you can set when creating and not when correcting.
-  const AddTransactionPage({super.key, this.initial});
+  const AddTransactionPage({
+    super.key,
+    this.initial,
+    this.type = TransactionType.expense,
+  });
 
   /// The transaction being edited, or null when recording a new one.
   final Transaction? initial;
+
+  /// What a new entry starts as: home's − opens an expense and its + an
+  /// income. Ignored when editing, where the row says what it is.
+  final TransactionType type;
 
   @override
   ConsumerState<AddTransactionPage> createState() => _AddTransactionPageState();
@@ -125,7 +133,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _amount = initial == null
         ? AmountExpression.empty()
         : AmountExpression.fromCents(initial.amountCents);
-    _type = initial?.type ?? TransactionType.expense;
+    _type = initial?.type ?? widget.type;
     _categoryId = initial?.categoryId;
     _accountId = initial?.accountId;
     _date = initial?.date ?? DateTime.now();

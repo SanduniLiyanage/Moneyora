@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/period_summary.dart';
@@ -23,12 +25,15 @@ import 'period_selector.dart';
 /// cancel, so there they change nothing. They are still never income or
 /// spending (E-02): the summary card, the charts and the plan never see them.
 ///
-/// Tapping it opens the period and account choices, the way the reference
-/// app's side panel does, rather than keeping two rows of chips over a list
-/// on a small phone.
+/// On home, tapping it opens the transaction list for the same period and
+/// account, as the reference app's Balance does ([opensList]). On the list,
+/// where there is no side panel, it opens the period and account choices.
 class BalanceBar extends ConsumerWidget {
   /// Creates the bar.
-  const BalanceBar({super.key});
+  const BalanceBar({super.key, this.opensList = false});
+
+  /// Whether a tap opens the transaction list rather than the choices.
+  final bool opensList;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,7 +78,10 @@ class BalanceBar extends ConsumerWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => showBalanceFilters(context),
+        onTap: opensList
+            // push, so the list stacks on home and back returns here.
+            ? () => context.push(Routes.transactions)
+            : () => showBalanceFilters(context),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
           child: Row(
@@ -130,9 +138,11 @@ class BalanceBar extends ConsumerWidget {
               ),
               const SizedBox(width: 4),
               Icon(
-                Icons.tune,
+                opensList ? Icons.chevron_right : Icons.tune,
                 color: theme.colorScheme.primary,
-                semanticLabel: 'Change period or account',
+                semanticLabel: opensList
+                    ? 'Open the transactions'
+                    : 'Change period or account',
               ),
             ],
           ),

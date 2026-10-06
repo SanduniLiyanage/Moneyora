@@ -1001,16 +1001,19 @@ The owner uses Monefy every day, and testers agree its flow is smoother.
 Home and entry are being rebuilt in its shape, in Moneyora's own colours,
 over several PRs:
 
-1. **The panels.** The filter button at the top left opens the account
-   and period choices, which used to be on the chart's card. **⇄** at the
-   top right starts a transfer. **⋮** opens a menu of every screen with
-   Settings last. **Accounts** opens in place in that menu. The tiles on
-   home are gone.
-2. **Home.** The donut with category icons and percentages around it,
-   **Balance** opening the list, big **−** and **+**, a swipe for the
-   previous or next period, and an interval calendar that swipes between
-   months.
-3. **Entry.** New expense or New income: the keypad first, then a
+1. **The panels** — done (#175). The filter button at the top left opens
+   the account and period choices, which used to be on the chart's card.
+   **⇄** at the top right starts a transfer. **⋮** opens a menu of every
+   screen with Settings last. **Accounts** opens in place in that menu.
+   The tiles on home are gone.
+2. **Home** — done (#176). The ring with each category's icon and share
+   around it and income and spending in its middle, **‹ ›** and a swipe
+   for the period before or after, **Balance** opening the list, and big
+   **−** and **+**. The other four charts and the amounts by category
+   moved to **Reports** in the menu.
+3. **The list and the interval.** A swipe on the list steps the period,
+   and Interval opens a calendar that swipes between months.
+4. **Entry.** New expense or New income: the keypad first, then a
    category grid that saves on a tap.
 
 ### Still open

@@ -9,10 +9,11 @@ import '../widgets/main_menu.dart';
 
 /// The home screen. SCR-001.
 ///
-/// The cards that say where the money went, an Add button for the thing done
-/// most often, and a panel on each side, as in the reference app the owner
-/// uses: on the left which account and which days, on the right every other
-/// screen.
+/// The reference app the owner uses, in Moneyora's colours: a ring of where
+/// the money went, the balance under it, − and + for the two things done
+/// most often, and a panel on each side — on the left which account and
+/// which days, on the right every other screen. The other charts are under
+/// Reports in that menu.
 ///
 /// It waits on the database summary before showing anything, so a database
 /// that cannot be opened (a keychain entry gone, a migration failed) says so
@@ -27,10 +28,6 @@ class HomePage extends ConsumerWidget {
     this.accounts,
     this.spendingChart,
     this.balanceBar,
-    this.incomeExpenseChart,
-    this.summaryCard,
-    this.spendingTrendChart,
-    this.spendingHeatmap,
   });
 
   /// The left panel, opened from the filter icon: the period and account
@@ -53,36 +50,17 @@ class HomePage extends ConsumerWidget {
   /// same way [filterPanel] is, and for the same reason.
   final Widget? accounts;
 
-  /// FR-RPT-001's donut chart, composed in from `features/analytics/` the
+  /// FR-RPT-001's spending ring, composed in from `features/analytics/` the
   /// same way [filterPanel] is, and for the same architectural reason.
   ///
   /// Nullable for the same reason [filterPanel] is: a widget test can build
   /// this screen without the analytics slice behind it.
   final Widget? spendingChart;
 
-  /// Income less expenses for the period and account the donut card
-  /// chose, composed in the same way (FR-RPT-006). Under that card, whose
-  /// filters it follows, as the reference app keeps it under its chart.
+  /// Income less expenses for the period and account the ring shows,
+  /// composed in the same way (FR-RPT-006). Under the ring, as the reference
+  /// app keeps its Balance; a tap opens the transactions behind it.
   final Widget? balanceBar;
-
-  /// FR-RPT-004's income-vs-expense bars, composed in the same way
-  /// [spendingChart] is. It reads the period and account filters that render
-  /// on the donut's card, so it is placed directly below it.
-  final Widget? incomeExpenseChart;
-
-  /// FR-RPT-006's headline figures, composed in the same way and placed
-  /// below the bars, whose income, expenses and net savings it restates
-  /// beside the three figures they cannot show.
-  final Widget? summaryCard;
-
-  /// FR-RPT-005's trend lines, composed in the same way and placed below the
-  /// bars: third of the three charts that read the one filter row on the
-  /// donut's card.
-  final Widget? spendingTrendChart;
-
-  /// FR-RPT-009's calendar heatmap, composed in the same way and placed
-  /// below the lines: fourth and last of the Sprint 4 charts.
-  final Widget? spendingHeatmap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -126,59 +104,113 @@ class HomePage extends ConsumerWidget {
         AsyncData() => _Ready(
           spendingChart: spendingChart,
           balanceBar: balanceBar,
-          incomeExpenseChart: incomeExpenseChart,
-          summaryCard: summaryCard,
-          spendingTrendChart: spendingTrendChart,
-          spendingHeatmap: spendingHeatmap,
         ),
         AsyncError(:final error) => _Failed(error: error),
         _ => const Center(child: CircularProgressIndicator()),
-      },
-      floatingActionButton: switch (summary) {
-        AsyncData() => FloatingActionButton.extended(
-          onPressed: () => context.push(Routes.addTransaction),
-          icon: const Icon(Icons.add),
-          label: const Text('Add'),
-        ),
-        _ => null,
       },
     );
   }
 }
 
+/// The ring, the balance under it, and − and + at the bottom: the reference
+/// app's home, where the two things done most often are the two biggest
+/// buttons on the screen.
 class _Ready extends StatelessWidget {
-  const _Ready({
-    required this.spendingChart,
-    required this.balanceBar,
-    required this.incomeExpenseChart,
-    required this.summaryCard,
-    required this.spendingTrendChart,
-    required this.spendingHeatmap,
-  });
+  const _Ready({required this.spendingChart, required this.balanceBar});
 
   final Widget? spendingChart;
   final Widget? balanceBar;
-  final Widget? incomeExpenseChart;
-  final Widget? summaryCard;
-  final Widget? spendingTrendChart;
-  final Widget? spendingHeatmap;
+
+  /// The least the ring can be drawn in and still say anything.
+  static const double _ringFloor = 280;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      // Room under the last card for the Add button.
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-      children: [
-        for (final card in [
-          spendingChart,
-          balanceBar,
-          incomeExpenseChart,
-          summaryCard,
-          spendingTrendChart,
-          spendingHeatmap,
-        ])
-          if (card != null) ...[card, const SizedBox(height: 16)],
-      ],
+    final chart = spendingChart;
+    final balance = balanceBar;
+    final below = [
+      if (balance != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: balance,
+        ),
+      const _EntryButtons(),
+    ];
+
+    return SafeArea(
+      top: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // A short screen, or the largest font, leaves the ring too little
+          // room beside everything under it. Then it keeps its floor and the
+          // screen scrolls, rather than drawing a ring the size of a coin.
+          // What is under it grows with the text; the ring does not.
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final roomy = constraints.maxHeight >= _ringFloor + 230 * textScale;
+          if (roomy) {
+            return Column(
+              children: [
+                if (chart != null) Expanded(child: chart) else const Spacer(),
+                ...below,
+              ],
+            );
+          }
+          return ListView(
+            children: [
+              if (chart != null) SizedBox(height: _ringFloor, child: chart),
+              ...below,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// − for an expense, + for income. FR-EXP-001, FR-INC-001.
+class _EntryButtons extends StatelessWidget {
+  const _EntryButtons();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>()!;
+
+    Widget button({
+      required IconData icon,
+      required String tooltip,
+      required Color color,
+      required String route,
+    }) => IconButton.filled(
+      icon: Icon(icon, size: 40),
+      tooltip: tooltip,
+      // push, so the entry screen stacks on home and saving returns here.
+      onPressed: () => context.push(route),
+      style: IconButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        fixedSize: const Size.square(72),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          button(
+            icon: Icons.remove,
+            tooltip: 'New expense',
+            color: colors.expense,
+            route: Routes.addTransaction,
+          ),
+          button(
+            icon: Icons.add,
+            tooltip: 'New income',
+            color: colors.income,
+            route: Routes.addIncome,
+          ),
+        ],
+      ),
     );
   }
 }
