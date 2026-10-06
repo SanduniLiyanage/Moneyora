@@ -40,10 +40,17 @@ line, learns from your corrections, and keeps the photo encrypted beside
 the expenses.
 
 **See where the money went**
+- Home is one screen: a ring of this month's spending, each category's
+  icon and share around it, and big − and + to record an expense or income
+- Swipe sideways for the month before or after, or pick any dates
 - Every day's spending at a glance, grouped by day with its total
 - Spending by category, income against expenses, trends over time, and a
   calendar of your spending days
 - Filter by day, week, month, year or any dates, and by account
+
+**Recording takes seconds**
+Type the amount on the calculator keypad, then tap a category from a grid
+of icons. That's it: the expense is recorded.
 
 **Everything else you'd expect**
 - Accounts in any currency, with transfers between them
@@ -84,6 +91,7 @@ Answers that follow from `PRIVACY.md`:
 
 Phone screenshots (at least 2, 16:9 or 9:16) are taken on the emulator from
 data typed in by hand, never the sample data ([E-39](../SPEC_ERRATA.md)):
-home with its shortcuts, the list by day, a suggested plan with its
-confidence labels, the plan editor, a receipt under review, and an
-overspend notification. A 1024×500 feature graphic goes with them.
+home with its spending ring, New expense with its keypad, the list by
+day, a suggested plan with its confidence labels, the plan editor, a
+receipt under review, and an overspend notification. A 1024×500
+feature graphic goes with them.
