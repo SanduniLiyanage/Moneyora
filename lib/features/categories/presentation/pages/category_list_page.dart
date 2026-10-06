@@ -11,9 +11,9 @@ import '../providers/category_providers.dart';
 
 /// Managing categories. FR-EXP-004, FR-EXP-005.
 ///
-/// A page rather than a drawer, unlike `AccountDrawer` — this is a screen a
-/// user visits deliberately to organise their categories, not a panel they
-/// pop in and out of while entering a transaction.
+/// A page rather than a section of the menu, unlike `AccountsSection` — this
+/// is a screen a user visits deliberately to organise their categories, not
+/// a list they glance at for a balance.
 ///
 /// Expense and income are shown as separate tabs rather than one long list
 /// with both mixed in, the same reasoning the entry screen's category chips

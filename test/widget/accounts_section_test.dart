@@ -10,10 +10,10 @@ import 'package:moneyora/core/ports/exchange_rate.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
-import 'package:moneyora/features/accounts/presentation/widgets/account_drawer.dart';
+import 'package:moneyora/features/accounts/presentation/widgets/accounts_section.dart';
 import 'package:moneyora/injection.dart';
 
-/// The account panel FR-ACC-003 asks for, over a scripted account list.
+/// The accounts FR-ACC-003 asks for, over a scripted account list.
 ///
 /// The arithmetic behind the total is tested in
 /// `account_totals_test.dart`; what is checked here is what a person can
@@ -38,9 +38,9 @@ void main() {
     includeInTotal: includeInTotal,
   );
 
-  /// Builds the drawer open, with [accounts] behind it.
+  /// Builds the section, with [accounts] behind it.
   ///
-  /// Rendered as a Scaffold's drawer rather than bare, so the test exercises
+  /// Rendered in a side panel's list rather than bare, so the test exercises
   /// the widget in the position it actually occupies.
   Widget boot({
     List<Account>? accounts,
@@ -67,13 +67,16 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light,
-        home: const Scaffold(drawer: AccountDrawer(), body: SizedBox()),
+        home: const Scaffold(
+          endDrawer: Drawer(child: _InMenu()),
+          body: SizedBox(),
+        ),
       ),
     );
   }
 
   Future<void> openDrawer(WidgetTester tester) async {
-    tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+    tester.state<ScaffoldState>(find.byType(Scaffold)).openEndDrawer();
     await tester.pumpAndSettle();
   }
 
@@ -333,7 +336,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(boot(hold: true));
-      tester.state<ScaffoldState>(find.byType(Scaffold)).openDrawer();
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openEndDrawer();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -452,4 +455,13 @@ void main() {
       expect(find.text('No accounts yet.'), findsNothing);
     });
   });
+}
+
+/// Where the section sits in the app: in the menu's list, under Accounts.
+class _InMenu extends StatelessWidget {
+  const _InMenu();
+
+  @override
+  Widget build(BuildContext context) =>
+      ListView(children: const [AccountsSection()]);
 }

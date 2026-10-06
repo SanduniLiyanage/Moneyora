@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../injection.dart';
+import '../widgets/main_menu.dart';
 
 /// The home screen. SCR-001.
 ///
-/// Shortcuts to every part of the app first, then the five cards that say
-/// where the money went, and an Add button for the thing done most often:
-/// recording an expense.
+/// The cards that say where the money went, an Add button for the thing done
+/// most often, and a panel on each side, as in the reference app the owner
+/// uses: on the left which account and which days, on the right every other
+/// screen.
 ///
 /// It waits on the database summary before showing anything, so a database
 /// that cannot be opened (a keychain entry gone, a migration failed) says so
@@ -21,7 +23,8 @@ class HomePage extends ConsumerWidget {
   /// Creates the home screen.
   const HomePage({
     super.key,
-    this.drawer,
+    this.filterPanel,
+    this.accounts,
     this.spendingChart,
     this.balanceBar,
     this.incomeExpenseChart,
@@ -30,26 +33,31 @@ class HomePage extends ConsumerWidget {
     this.spendingHeatmap,
   });
 
-  /// The side panel opened from the app bar, if one was supplied.
+  /// The left panel, opened from the filter icon: the period and account
+  /// every figure on home is for (FR-RPT-002, FR-RPT-003).
   ///
   /// Passed in by `core/router/app_router.dart` rather than constructed here,
-  /// because the panel FR-ACC-003 asks for belongs to the accounts feature and
-  /// `features/home/` importing `features/accounts/` is what rule 4 of
+  /// because the panel belongs to the analytics feature and `features/home/`
+  /// importing `features/analytics/` is what rule 4 of
   /// `scripts/check_architecture.sh` forbids. The router already names every
   /// feature's pages, so composing one more widget there is the shape the
   /// project already uses — the same reason `injection.dart` is the only file
   /// allowed to name a concrete `data/` class.
   ///
-  /// Nullable so a widget test can build this screen without the accounts
+  /// Nullable so a widget test can build this screen without the analytics
   /// slice behind it.
-  final Widget? drawer;
+  final Widget? filterPanel;
+
+  /// The accounts and their balances (FR-ACC-003), opened in place under the
+  /// right panel's Accounts item. Composed in from `features/accounts/` the
+  /// same way [filterPanel] is, and for the same reason.
+  final Widget? accounts;
 
   /// FR-RPT-001's donut chart, composed in from `features/analytics/` the
-  /// same way [drawer] is composed in from `features/accounts/`, and for the
-  /// same architectural reason.
+  /// same way [filterPanel] is, and for the same architectural reason.
   ///
-  /// Nullable for the same reason [drawer] is: a widget test can build this
-  /// screen without the analytics slice behind it.
+  /// Nullable for the same reason [filterPanel] is: a widget test can build
+  /// this screen without the analytics slice behind it.
   final Widget? spendingChart;
 
   /// Income less expenses for the period and account the donut card
@@ -81,15 +89,36 @@ class HomePage extends ConsumerWidget {
     final summary = ref.watch(databaseSummaryProvider);
 
     return Scaffold(
-      drawer: drawer,
+      drawer: filterPanel,
+      endDrawer: MainMenu(accounts: accounts),
       appBar: AppBar(
+        // Supplied rather than left to the defaults, which would draw the
+        // same three-line icon on both sides for two different panels.
+        leading: filterPanel == null
+            ? null
+            : Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  tooltip: 'Period and account',
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
+        automaticallyImplyLeading: false,
         title: const Text('Moneyora'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            // push, not go — see the note on the destination list below.
-            onPressed: () => context.push(Routes.settings),
-            tooltip: 'Settings',
+            icon: const Icon(Icons.swap_horiz),
+            // push, not go, so the screen stacks on home and its back arrow
+            // returns here.
+            onPressed: () => context.push(Routes.transfer),
+            tooltip: 'Transfer',
+          ),
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'Menu',
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
+            ),
           ),
         ],
       ),
@@ -140,8 +169,6 @@ class _Ready extends StatelessWidget {
       // Room under the last card for the Add button.
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
       children: [
-        const _Shortcuts(),
-        const SizedBox(height: 16),
         for (final card in [
           spendingChart,
           balanceBar,
@@ -152,94 +179,6 @@ class _Ready extends StatelessWidget {
         ])
           if (card != null) ...[card, const SizedBox(height: 16)],
       ],
-    );
-  }
-}
-
-/// Every part of the app, one tap from home, most used first.
-///
-/// `push`, so each screen stacks on home and its back arrow returns here.
-class _Shortcuts extends StatelessWidget {
-  const _Shortcuts();
-
-  static const List<(String, IconData, String)> _destinations = [
-    ('Transactions', Icons.receipt_long_outlined, Routes.transactions),
-    ('Scan Receipt', Icons.document_scanner_outlined, Routes.scanReceipt),
-    // Moving money between accounts is as ordinary as spending it — cash
-    // drawn from a card is one tap from here, not two screens in.
-    ('Transfer', Icons.swap_horiz, Routes.transfer),
-    // One door for plans, the owner's call on 1.0.0: "Your plan", "Create
-    // Money Plan" and "Saved plans" were three tiles for one thing. The
-    // list marks the active plan, opens it, and creates a new one.
-    ('Budget plans', Icons.savings_outlined, Routes.plans),
-    ('Recurring', Icons.repeat, Routes.recurring),
-    ('Categories', Icons.category_outlined, Routes.categories),
-    ('Ask Moneyora', Icons.chat_bubble_outline, Routes.copilot),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    // Two to a row, each as tall as the taller of the pair: at the largest
-    // font a long label wraps to a second line instead of overflowing.
-    return Column(
-      children: [
-        for (var i = 0; i < _destinations.length; i += 2)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _Shortcut(_destinations[i])),
-                  const SizedBox(width: 8),
-                  // An odd count leaves the last row half full rather than
-                  // reading past the end of the list.
-                  Expanded(
-                    child: i + 1 < _destinations.length
-                        ? _Shortcut(_destinations[i + 1])
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Shortcut extends StatelessWidget {
-  const _Shortcut(this.destination);
-
-  final (String, IconData, String) destination;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, icon, route) = destination;
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push(route),
-        // The icon above its label, not beside it: beside, a 320dp phone
-        // left "Transactions" too little room and it broke mid-word.
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: theme.colorScheme.primary),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelLarge,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

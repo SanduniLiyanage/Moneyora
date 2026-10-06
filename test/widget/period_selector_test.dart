@@ -119,7 +119,13 @@ void main() {
     ],
     child: MaterialApp(
       theme: AppTheme.light,
-      home: const Scaffold(body: SpendingDonutChart()),
+      // The chips over the chart they filter, as the transaction list's
+      // sheet shows them; home chooses in its side panel instead.
+      home: Scaffold(
+        body: ListView(
+          children: const [PeriodSelector(), SpendingDonutChart()],
+        ),
+      ),
     ),
   );
 

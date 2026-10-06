@@ -988,6 +988,31 @@ from their own phones:
   budget can be changed.
 - **How an installed copy updates**, in [`RELEASE.md`](RELEASE.md) (#169).
 
+**1.0.2** makes Ask Moneyora answer again. Google shut down
+`gemini-2.0-flash` on 2026-06-01, so every question to 1.0.0 and 1.0.1
+failed. It now asks `gemini-3.5-flash` and falls back to the newest Flash
+model when that one is busy or out of quota. It replays Gemini 3's thought
+signatures and answers in the base currency (#172, #174). **Change API
+key** replaces a key that Google turned down.
+
+### The reference-app layout — in progress
+
+The owner uses Monefy every day, and testers agree its flow is smoother.
+Home and entry are being rebuilt in its shape, in Moneyora's own colours,
+over several PRs:
+
+1. **The panels.** The filter button at the top left opens the account
+   and period choices, which used to be on the chart's card. **⇄** at the
+   top right starts a transfer. **⋮** opens a menu of every screen with
+   Settings last. **Accounts** opens in place in that menu. The tiles on
+   home are gone.
+2. **Home.** The donut with category icons and percentages around it,
+   **Balance** opening the list, big **−** and **+**, a swipe for the
+   previous or next period, and an interval calendar that swipes between
+   months.
+3. **Entry.** New expense or New income: the keypad first, then a
+   category grid that saves on a tap.
+
 ### Still open
 
 - **The bus ticket.** It came back as one item named with the whole

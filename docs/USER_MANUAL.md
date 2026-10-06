@@ -22,21 +22,29 @@ Your data is stored in an encrypted database. The key is kept in your
 phone's secure keychain, so the file is unreadable to anything else on the
 phone.
 
-**Getting around.** The **shortcuts** at the top of the home screen open
-every part of the app. The **☰** button at the top left opens your
-accounts. The **⚙** button at the top right opens Settings. The back arrow,
-or your phone's back gesture, returns to where you were.
+**Getting around.** Three buttons sit at the top of the home screen:
+
+- the **filter** button at the top left opens a panel where you choose the
+  account and the period the home screen shows (see section 6);
+- **⇄** at the top right starts a transfer between your accounts;
+- **⋮** beside it opens the **menu**: Transactions, Scan receipt,
+  Transfer, Budget plans, Recurring, Categories, Accounts, Ask Moneyora,
+  and Settings last.
+
+The back arrow, or your phone's back gesture, returns to where you were.
 
 ---
 
 ## 2. Accounts
 
-Open **☰** to see every account with its balance, and the **Total balance**
-across the accounts you have included in it.
+Open **⋮** and tap **Accounts**. It opens in place: every account with its
+balance, and the **Total balance** across the accounts you have included
+in it. The first row, **Add**, has **⇄** for a transfer and **+** for a
+new account.
 
-- **Add account**: a name (such as *Cash* or *Commercial Bank savings*), a
-  type, an opening balance and the date it was true on, a currency, and
-  whether it counts towards the total.
+- **+** adds an account: a name (such as *Cash* or *Commercial Bank
+  savings*), a type, an opening balance and the date it was true on, a
+  currency, and whether it counts towards the total.
 - **Tap an account** to change it. **Delete account** works only for an
   account with no transactions; for one with history Moneyora says so, and
   you can **archive** it instead, which hides it without losing anything.
@@ -71,14 +79,15 @@ list; **Undo** appears for a few seconds in case that was a mistake.
 On the same screen, tap **Repeat** beside the amount, then choose how often
 the entry comes round:
 rent every month, a subscription, a salary. Moneyora records each one when
-it falls due. **Recurring** (from the home screen) lists every repeat,
+it falls due. **Recurring** (in the menu) lists every repeat,
 where you can pause, resume or delete one. With **Recurring reminders**
 turned on in Settings, you get a notification before each is recorded.
 
 ### Moving money between your own accounts
 
-Tap **Transfer** on the home screen (or the transfer button on
-**Transactions**), choose **From** and **To**, the amount and the date —
+Tap **⇄** at the top of the home screen (or **Transfer** in the menu, or
+the transfer button on **Transactions**), choose **From** and **To**, the
+amount and the date —
 cash drawn from a card at an ATM, for example, is a transfer from the card
 to Cash. In the list it is two rows: a red minus on the account the money
 left, a green plus on the one it reached. Look at one account and its
@@ -103,7 +112,7 @@ by date** goes back.
 
 ## 4. Categories
 
-**Categories** (from the home screen) lists your categories. Tap one to
+**Categories** (in the menu) lists your categories. Tap one to
 rename it, change its icon or colour, or put it under another as a
 sub-category. **Add category** (the **+**) makes a new one.
 
@@ -111,8 +120,8 @@ sub-category. **Add category** (the **+**) makes a new one.
 
 ## 5. Scanning a receipt
 
-1. Open **Scan Receipt** and choose **Take a photo** or **Choose from
-   gallery**. The text is read on your phone; the photo is never uploaded.
+1. Open **Scan receipt** in the menu and choose **Take a photo** or
+   **Choose from gallery**. The text is read on your phone; the photo is never uploaded.
 2. **Review receipt** shows what was read: the merchant, the date, and
    each item with its amount and a suggested category. Correct anything
    that is wrong. **Split** one line into two, **Merge with next** to join
@@ -136,7 +145,7 @@ review screen before you confirm.
 
 ## 6. The home screen's charts
 
-Below the shortcuts, five cards show where your money went:
+Five cards show where your money went:
 
 - **Spending by category**: a ring of this period's spending.
 - **Income vs expenses**: the two side by side, and what was left.
@@ -145,9 +154,15 @@ Below the shortcuts, five cards show where your money went:
 - **Spending over time**: each category's spending as a line.
 - **Daily spending**: each day of the month shaded by how much was spent.
 
-**Day**, **Week** and **Month** on the first card change the period for
-every card; **Choose date** picks which one. You can also narrow every
-chart to one account.
+The **filter** button at the top left chooses what every card shows:
+
+- **an account**, or **All accounts**;
+- **Day**, **Week**, **Month**, **Year** or **All**;
+- **Interval**, for any run of days you pick;
+- **Choose date**, which moves the period to the day you pick: with
+  **Month** chosen, picking 3 March shows March.
+
+The panel closes as you choose, and the cards change with it.
 
 ---
 
@@ -169,7 +184,7 @@ month ends) and offers **Build it yourself**.
 
 ### Building a plan yourself
 
-1. Open **Budget plans** on the home screen, tap **Create Money Plan**,
+1. Open **Budget plans** in the menu, tap **Create Money Plan**,
    and choose the period under **Plan for**.
 2. Tap **Build it yourself** (or **Or build it yourself**, below
    **Generate plan**).

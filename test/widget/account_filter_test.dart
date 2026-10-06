@@ -21,6 +21,7 @@ import 'package:moneyora/features/analytics/domain/repositories/analytics_reposi
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/presentation/providers/analytics_providers.dart';
 import 'package:moneyora/features/analytics/presentation/widgets/account_filter.dart';
+import 'package:moneyora/features/analytics/presentation/widgets/period_selector.dart';
 import 'package:moneyora/features/analytics/presentation/widgets/spending_donut_chart.dart';
 import 'package:moneyora/injection.dart';
 
@@ -128,10 +129,7 @@ void main() {
             (ref) async => GetSpendingByCategory(repository),
           ),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const Scaffold(body: SpendingDonutChart()),
-        ),
+        child: MaterialApp(theme: AppTheme.light, home: const _Filters()),
       );
 
   int? filterOf(WidgetTester tester) =>
@@ -290,10 +288,7 @@ void main() {
               (ref) async => GetSpendingByCategory(repository),
             ),
           ],
-          child: MaterialApp(
-            theme: AppTheme.light,
-            home: const Scaffold(body: SpendingDonutChart()),
-          ),
+          child: MaterialApp(theme: AppTheme.light, home: const _Filters()),
         ),
       );
       await tester.pumpAndSettle();
@@ -302,4 +297,17 @@ void main() {
       expect(find.text(allAccountsLabel), findsOneWidget);
     });
   });
+}
+
+/// The filters over the chart they narrow, as the transaction list's sheet
+/// shows them; home chooses in its side panel instead.
+class _Filters extends StatelessWidget {
+  const _Filters();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: ListView(
+      children: const [PeriodSelector(), AccountFilter(), SpendingDonutChart()],
+    ),
+  );
 }

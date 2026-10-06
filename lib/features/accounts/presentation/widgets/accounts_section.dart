@@ -8,25 +8,29 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
+import '../../../../core/widgets/scale_down_text.dart';
+import '../../../../core/widgets/side_panel.dart';
 import '../../../../injection.dart' show conversionTableProvider;
 import '../../domain/entities/account.dart';
 import '../../domain/entities/account_totals.dart';
 import '../providers/account_providers.dart';
 
-/// The side panel of accounts and their balances. FR-ACC-003.
+/// The accounts and their balances, inside the menu's Accounts item.
+/// FR-ACC-003.
 ///
-/// Attached by `core/router/app_router.dart` rather than imported by the home
-/// screen, because a feature importing another feature is what rule 4 of
-/// `scripts/check_architecture.sh` forbids. The router is already the place
-/// that names every feature's pages, the same way `injection.dart` is the one
-/// place allowed to name concrete `data/` classes.
+/// The menu on the right of home opens it in place, the way the reference
+/// app does: a row to add a transfer or an account, then each account with
+/// its balance, then the total. Composed into the menu by
+/// `core/router/app_router.dart` rather than imported by the home screen,
+/// because a feature importing another feature is what rule 4 of
+/// `scripts/check_architecture.sh` forbids.
 ///
 /// Archived accounts are hidden by default (FR-ACC-004) — that is what
 /// archiving is for — and shown behind a toggle, because an account that can
 /// be hidden and never seen again cannot be restored.
-class AccountDrawer extends ConsumerWidget {
-  /// Creates the drawer.
-  const AccountDrawer({super.key});
+class AccountsSection extends ConsumerWidget {
+  /// Creates the section.
+  const AccountsSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,26 +38,31 @@ class AccountDrawer extends ConsumerWidget {
     final accounts = ref.watch(accountsProvider(showArchived));
     // The base currency and the user's rates, from the settings feature
     // through its port (FR-ACC-005): the total is meaningless without them,
-    // so the panel waits for both rather than drawing a figure it would
+    // so the section waits for both rather than drawing a figure it would
     // then correct.
     final table = ref.watch(conversionTableProvider);
 
-    return Drawer(
-      child: SafeArea(
-        child: switch ((accounts, table)) {
-          (AsyncData(value: final list), AsyncData(value: final rates)) =>
-            _Accounts(
-              accounts: list,
-              table: rates,
-              showingArchived: showArchived,
-            ),
-          (AsyncError(:final error), _) ||
-          (_, AsyncError(:final error)) => _Problem(error: error),
-          _ => const Center(child: CircularProgressIndicator()),
-        },
+    return switch ((accounts, table)) {
+      (AsyncData(value: final list), AsyncData(value: final rates)) =>
+        _Accounts(accounts: list, table: rates, showingArchived: showArchived),
+      (AsyncError(:final error), _) ||
+      (_, AsyncError(:final error)) => _Problem(error: error),
+      _ => const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
       ),
-    );
+    };
   }
+}
+
+/// Closes the menu, then opens [route] over home.
+///
+/// Closed first: pushing over an open panel leaves it open underneath, so
+/// coming back lands on a screen with the panel still covering it.
+void _open(BuildContext context, String route, {Object? extra}) {
+  final router = GoRouter.of(context);
+  closeSidePanel(context);
+  router.push(route, extra: extra);
 }
 
 class _Accounts extends ConsumerWidget {
@@ -79,39 +88,20 @@ class _Accounts extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _AddRow(),
+        // E-22 lists the accounts surface as one whose empty state "cannot
+        // occur": the seed creates a Cash account and ArchiveAccount refuses
+        // to archive the last one. That reasoning holds for the default list
+        // and not for this one — turning the archived filter on with nothing
+        // archived empties it, which E-22's table does not cover. So there
+        // are two empty states here, per its own rule that "nothing yet" and
+        // "nothing matching the filter" are different sentences.
+        if (accounts.isEmpty)
+          _NoAccounts(showingArchived: showingArchived)
+        else
+          for (final account in accounts)
+            _AccountTile(account: account, baseCurrency: table.baseCurrency),
         _Total(totals: totals),
-        const Divider(height: 1),
-        Expanded(
-          // E-22 lists the accounts surface as one whose empty state "cannot
-          // occur": the seed creates a Cash account and ArchiveAccount refuses
-          // to archive the last one. That reasoning holds for the default
-          // list and not for this one — turning the archived filter on with
-          // nothing archived empties it, which E-22's table does not cover.
-          // So there are two empty states here, per its own rule that "nothing
-          // yet" and "nothing matching the filter" are different sentences.
-          child: accounts.isEmpty
-              ? _NoAccounts(showingArchived: showingArchived)
-              : ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: accounts.length,
-                  itemBuilder: (context, index) => _AccountTile(
-                    account: accounts[index],
-                    baseCurrency: table.baseCurrency,
-                  ),
-                ),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.add),
-          title: const Text('Add account'),
-          onTap: () {
-            // Close the panel first. Pushing over an open drawer leaves it
-            // open underneath, so returning from the form lands on a screen
-            // with the panel still covering it.
-            Navigator.of(context).pop();
-            context.push(Routes.accountForm);
-          },
-        ),
         SwitchListTile(
           value: showingArchived,
           onChanged: (next) =>
@@ -120,10 +110,9 @@ class _Accounts extends ConsumerWidget {
           title: const Text('Show archived'),
           dense: true,
         ),
-        if (totals.hasUnconverted) ...[
-          const Divider(height: 1),
+        if (totals.hasUnconverted)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: Text(
               // E-34's fallback, which is E-25's rule kept for the accounts
               // it still applies to: saying what was left out, why, and what
@@ -141,10 +130,34 @@ class _Accounts extends ConsumerWidget {
               ),
             ),
           ),
-        ],
       ],
     );
   }
+}
+
+/// The reference app's first row: move money between accounts, or add one.
+class _AddRow extends StatelessWidget {
+  const _AddRow();
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    title: const Text('Add'),
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.swap_horiz),
+          tooltip: 'New transfer',
+          onPressed: () => _open(context, Routes.transfer),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          tooltip: 'New account',
+          onPressed: () => _open(context, Routes.accountForm),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Total extends StatelessWidget {
@@ -157,8 +170,10 @@ class _Total extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>()!;
 
+    // The label above the figure rather than beside it: beside, a large
+    // balance at the largest font has nowhere to go in a panel.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -168,13 +183,13 @@ class _Total extends StatelessWidget {
               color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             formatCents(
               totals.totalCents,
               currency: CurrencyFormat.forCode(totals.baseCurrency),
             ),
-            style: theme.textTheme.headlineSmall?.copyWith(
+            style: theme.textTheme.titleLarge?.copyWith(
               // Owing money overall is worth seeing at a glance, and the
               // income/expense pair is the vocabulary the rest of the app
               // already uses for that.
@@ -211,10 +226,7 @@ class _AccountTile extends StatelessWidget {
             : accountIconFor(account.icon),
       ),
       title: Text(account.name),
-      onTap: () {
-        Navigator.of(context).pop();
-        context.push(Routes.accountForm, extra: account);
-      },
+      onTap: () => _open(context, Routes.accountForm, extra: account),
       // Two things can want the second line, and archived is the one that
       // changes what the row means — a currency label beside a closed account
       // answers a question nobody is asking.
@@ -228,11 +240,14 @@ class _AccountTile extends StatelessWidget {
           Text(currency.toUpperCase()),
         _ => null,
       },
-      trailing: Text(
+      // Shrinks rather than taking the row: at the largest font a panel
+      // has no room for a full balance beside the name.
+      trailing: ScaleDownText(
         formatCents(
           balance,
           currency: CurrencyFormat.forCode(account.currency),
         ),
+        maxWidthFactor: 0.35,
         style: theme.textTheme.bodyMedium?.copyWith(
           color: balance < 0 ? colors.expense : null,
         ),
@@ -240,11 +255,7 @@ class _AccountTile extends StatelessWidget {
     );
   }
 
-  /// A recognisable icon per account type.
-  ///
-  /// Not FR-ACC-006's twenty-plus icon catalogue — that is the account form's
-  /// business, and arrives with it. This maps the six types the entity already
-  /// has so the drawer is scannable rather than six identical rows.
+  /// A recognisable icon per account type, for a row with no icon key.
   IconData _iconFor(AccountType type) => switch (type) {
     AccountType.cash => Icons.payments_outlined,
     AccountType.bank => Icons.account_balance_outlined,
@@ -269,7 +280,7 @@ class _NoAccounts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.all(16),
     child: Text(
       showingArchived
           // Not "nothing here" — the reason it is empty is the good news.
@@ -290,9 +301,8 @@ class _Problem extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.error_outline,
