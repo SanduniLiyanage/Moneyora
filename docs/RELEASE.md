@@ -220,7 +220,9 @@ requires it ([E-20](SPEC_ERRATA.md)). Say 15.5 in App Store Connect.
       yours, or a friend's Samsung — and open every screen. The emulator
       has never caught a missing runtime permission.
 - [x] Screenshots from a release build, not a debug one (the debug banner is
-      an automatic rejection): `store/screenshots/`, taken 2026-09-28.
+      an automatic rejection): `store/screenshots/`, taken 2026-09-28;
+      the home screen and the list retaken from 1.0.1 on 2026-10-06, for
+      the Budget plans tile and the arrows.
 - [x] The privacy policy at a public URL: the repository is public, so the
       file's GitHub page is one.
 - [x] A contact address in [`PRIVACY.md`](PRIVACY.md) and
