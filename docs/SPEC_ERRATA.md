@@ -55,6 +55,7 @@ follows the Resolution sections.
 | [E-37](#e-37) | FR-SET-006's reminders have no schema, and "configuration" names nothing to configure | Resolved | FR-SET-006 |
 | [E-38](#e-38) | A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have | Resolved (FR-BAK-002/003/004 deferred) | FR-BAK-001, FR-BAK-002, FR-BAK-003, FR-BAK-004, FR-BAK-005 |
 | [E-39](#e-39) | A plan with too little history: built by hand, never from sample data | Resolved (supersedes E-21's ladder) | FR-PLN-001, FR-PLN-003, FR-PLN-011 |
+| [E-40](#e-40) | Plans after the first release: one door, delete and rename, and a plan of one category | Resolved | FR-PLN-001, FR-PLN-011, FR-PLN-015 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2458,6 +2459,48 @@ removed: the proportions are other people's.
    (PR #79).
 
 E-21's ladder is superseded by points 2 and 3.
+
+---
+
+<a id="e-40"></a>
+
+## E-40 — Plans after the first release: one door, delete and rename, and a plan of one category
+
+**Severity:** Medium · **Affects:** SDD SCR-001, SCR-010, E-39 ·
+**Requirement:** FR-PLN-001, FR-PLN-011, FR-PLN-015
+
+Raised 2026-10-05, from the owner and a tester using 1.0.0 on their own
+phones.
+
+1. **Three home tiles for one thing.** The home screen offered "Your
+   plan", "Create Money Plan" and "Saved plans", and both found them
+   confusing. FR-PLN-001 asks for Create Money Plan "accessible from the
+   main navigation menu"; the SDD gives each screen its own entry.
+2. **A saved plan could not be removed or renamed.** FR-PLN-015 asks for
+   multiple named plans and a comparison, and says nothing of deleting
+   one, so a plan saved by mistake stayed for good.
+3. **A plan of one category could not be edited at all.** FR-PLN-011 has
+   the other allocations recalculate to hold the total; with no other
+   allocation, every figure was refused. Plans built by hand (E-39) are
+   often one category.
+
+**Resolution.**
+
+1. **One door: "Budget plans".** The home screen has a single tile, where
+   "Your plan" was. The list puts the active plan first and says that
+   tapping it shows the spending against it; **Create Money Plan** is its
+   button. FR-PLN-001 is met one tap further in, from the same main
+   navigation (PR #168).
+2. **Rename and Delete** are in the menu of each plan in the list and of
+   the plan itself. Deleting removes the plan and its allocations
+   (`ON DELETE CASCADE`) and never a transaction. The confirmation says
+   when the active plan is going and nothing will be tracked, and when an
+   overspend chosen to carry over (E-33) will have nowhere to come off
+   (PR #167).
+3. **A plan of one category takes the figure as its total.** The category
+   is the plan, so changing its budget changes the plan's total too,
+   written in the same transaction; the screen says so. Plans of several
+   categories keep FR-PLN-011's total-holding rule (PR #167).
 
 ---
 

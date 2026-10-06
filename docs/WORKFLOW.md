@@ -45,16 +45,22 @@ which is a far stronger signal than a README claiming the feature exists.
 
 ### Protecting main
 
-GitHub -> Settings -> Branches -> Add rule for `main`:
+`main` is guarded by a repository ruleset, **protect-main** (GitHub ->
+Settings -> Rules -> Rulesets):
 
-- Require a pull request before merging
-- Require status checks to pass -> select **Analyze & Test**
-- Require branches to be up to date before merging
+- a pull request is required to merge;
+- the three CI checks must pass: **Analyze & Test**, **Build Android APK**
+  and **Build iOS (compile only)**;
+- `main` cannot be deleted or force-pushed.
+
+It does not require a branch to be up to date with `main` first. When two
+pull requests touch the same files, merge `main` into the second and let CI
+run on the combination before merging it.
 
 Yes, this makes you open a PR against your own repository. That is the point:
-the rule is what guarantees `flutter analyze` and the layer check ran before
-anything reached `main`, on the day you are tired and would have pushed
-directly.
+the rule is what guarantees `flutter analyze`, the tests and the release
+build ran before anything reached `main`, on the day you are tired and would
+have pushed directly. Merging past it as an admin defeats it; don't.
 
 ## 2. Commit messages — Conventional Commits
 
@@ -103,6 +109,7 @@ dart format .
 flutter analyze
 flutter test
 bash scripts/check_architecture.sh
+bash scripts/check_citations.sh   # every FR-/NFR-/E- ID you cited exists
 
 git add -p                    # stage in hunks; you WILL catch a stray debug print
 git commit
@@ -123,15 +130,23 @@ your own code in a different medium catches a startling amount — leftover
 
 ## 4. Tags and releases
 
-Tag every sprint milestone (SRS 8.2) on `main`:
+A tag on `main` is a release: pushing `v<major>.<minor>.<patch>` runs
+`.github/workflows/release.yml`, which builds, signs and publishes the APKs
+on GitHub Releases. So tag only what you mean people to install.
 
 ```powershell
-git tag -a v0.1.0-M1 -m "M1 Foundation: schema + navigation"
-git push origin v0.1.0-M1
+git switch main; git pull
+git tag v1.0.1                # must match pubspec.yaml's version, or the workflow refuses
+git push origin v1.0.1
 ```
 
-`v<major>.<minor>.<patch>` — bump minor per completed milestone, patch for
-fixes. This gives you a demoable build for every checkpoint.
+Raise `pubspec.yaml`'s version in a pull request first — patch for fixes,
+minor for new features — and the build number after the `+` every time, or
+phones refuse the update. [`RELEASE.md`](RELEASE.md) has the whole
+procedure, and how people who already have the app get the new one.
+
+The sprint milestones of SRS 8.2 were never tagged; the history and
+[`ROADMAP.md`](ROADMAP.md) record them instead. The first tag is `v1.0.0`.
 
 ## 5. What must never enter git
 
@@ -140,8 +155,8 @@ Already covered by `.gitignore`, but know *why*:
 | Item | Why |
 |---|---|
 | `.env`, API keys | Git history is permanent. A key pushed once is a key burned — rotating is the only fix. |
-| `*.jks`, `key.properties` | Whoever holds your upload keystore controls your Play Store listing. |
-| `google-services.json` | Ties to a live Firebase project. |
+| `*.jks`, `key.properties` | The upload key is the app's identity: every update must be signed with it, and whoever holds it can publish as you. It lives outside the repository and in the four release secrets ([`RELEASE.md`](RELEASE.md) §1–2). |
+| `google-services.json` | Ignored in case Firebase is ever added; the app uses none today. |
 | `build/`, `.dart_tool/` | Generated; bloats clones. |
 | **`pubspec.lock`** | The exception: **DO commit it.** For apps it pins the exact dependency graph, so your build and CI's build are identical. (The repo's original `.gitignore` had `*.lock`, which would have silently dropped it. Fixed.) |
 
