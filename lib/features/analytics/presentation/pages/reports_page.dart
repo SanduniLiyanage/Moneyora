@@ -11,9 +11,9 @@ import '../widgets/spending_trend_lines.dart';
 /// Every chart, for the period and account home shows.
 /// FR-RPT-001, FR-RPT-004, FR-RPT-005, FR-RPT-006, FR-RPT-009.
 ///
-/// Home became the ring, the balance and the − and + of the reference app
-/// on 2026-10-06. The cards that were under its ring moved here, in the
-/// order they had, so none was lost: the amounts by category, income
+/// Home became one screen — the ring, the balance, − and + — on
+/// 2026-10-06. The cards that were under its ring moved here, in the order
+/// they had, so none was lost: the amounts by category, income
 /// against spending, the summary, the lines over time and the calendar.
 class ReportsPage extends StatelessWidget {
   /// Creates the screen.

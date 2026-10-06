@@ -92,7 +92,7 @@ void main() {
     await tester.pumpWidget(boot());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Income'));
+    await tester.tap(find.byTooltip('Switch to income'));
     await tester.pumpAndSettle();
 
     expect(find.text('New income'), findsOneWidget);

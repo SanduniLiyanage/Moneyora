@@ -26,7 +26,7 @@ import 'period_selector.dart';
 /// spending (E-02): the summary card, the charts and the plan never see them.
 ///
 /// On home, tapping it opens the transaction list for the same period and
-/// account, as the reference app's Balance does ([opensList]). On the list,
+/// account ([opensList]): the balance is what the rows add up to. On the list,
 /// where there is no side panel, it opens the period and account choices.
 class BalanceBar extends ConsumerWidget {
   /// Creates the bar.

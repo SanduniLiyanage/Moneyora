@@ -315,7 +315,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The reference app's home, the owner's call on 2026-10-06: the tiles
+      // One screen, the owner's call on 2026-10-06: the tiles
       // went to the menu, the other charts to Reports.
       expect(find.text('Scan receipt'), findsNothing);
       expect(find.text('Budget plans'), findsNothing);
@@ -498,7 +498,7 @@ void main() {
     testWidgets('Balance opens the transactions for the same period', (
       tester,
     ) async {
-      // The reference app's Balance. The list reads the same period and
+      // The balance opens what it adds up. The list reads the same period and
       // account, which its own test above checks.
       await pumpReady(tester);
 
@@ -565,7 +565,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('New expense'), findsOneWidget);
 
-      await tester.pageBack();
+      // Cancel, in words; the system back
+      // gesture does the same.
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('New expense'), findsOneWidget);
     });
@@ -731,7 +733,7 @@ void main() {
     testWidgets('the left panel chooses the period, and closes', (
       tester,
     ) async {
-      // FR-RPT-002 from the filter icon, as the reference app does it: one
+      // FR-RPT-002 from the filter icon, as a side panel: one
       // tap, and what it changed is what is on the screen.
       await pumpReady(tester);
 

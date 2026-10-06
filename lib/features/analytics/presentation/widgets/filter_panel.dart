@@ -18,11 +18,12 @@ final DateTime _pickerFloor = DateTime(2000);
 
 /// Every account and every period, one tap each.
 ///
-/// Opened from the filter icon at the top left of home, the way the
-/// reference app keeps these in a side panel rather than in rows of chips
-/// over the chart. Each choice closes the panel, so what the person sees
-/// next is its result. Composed into home by `core/router/app_router.dart`,
-/// because `features/home/` may not import this feature.
+/// Opened from the filter icon at the top left of home: a side panel
+/// rather than rows of chips over the chart, which on a small phone pushed
+/// the chart itself below the fold. Each choice closes the panel, so what
+/// the person sees next is its result. Composed into home by
+/// `core/router/app_router.dart`, because `features/home/` may not import
+/// this feature.
 class FilterPanel extends ConsumerWidget {
   /// Creates the panel.
   const FilterPanel({super.key});

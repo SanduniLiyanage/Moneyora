@@ -12,8 +12,11 @@ import '../../../../core/ports/category_reader.dart';
 import '../../../../core/ports/expense_photos.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/category_palette.dart';
 import '../../../../core/utils/amount_expression.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/account_icons.dart';
+import '../../../../core/widgets/category_icons.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/recurring_rule.dart';
 import '../../domain/entities/transaction.dart';
@@ -28,9 +31,11 @@ import '../widgets/recurrence_labels.dart';
 /// One screen for both, because they differ by a single field: which set of
 /// categories is offered. Two near-identical screens would drift.
 ///
-/// The order down the page is the order of the decision: how much, what for,
-/// then the details most entries never touch. Save is reachable without
-/// scrolling.
+/// One question at a time, top to bottom: the date, the amount in a bar
+/// with the account it comes from, a note, the keypad, and CHOOSE CATEGORY
+/// at the bottom. The category is the last step, not a field: choosing it
+/// records the entry and returns to where it was opened from. Repeat, a
+/// photo and the receipt scanner are the small icons beside the note.
 class AddTransactionPage extends ConsumerStatefulWidget {
   /// Creates the entry screen, empty for a new transaction or filled from
   /// [initial] to edit an existing one.
@@ -62,6 +67,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   int? _accountId;
   late DateTime _date;
   late final TextEditingController _note;
+  final _noteFocus = FocusNode();
 
   /// E-13's recurring toggle, and the schedule it opens. FR-EXP-008,
   /// FR-INC-004. Offered on a new entry only: an edit is a row that already
@@ -73,12 +79,11 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
   /// Whether the keypad is showing.
   ///
-  /// On a short phone the keypad and Save leave the details list a sliver:
-  /// the second row of category chips peeks out beneath the first, and the
-  /// date and the Repeat choices are out of reach. So the keypad folds away
-  /// when the user reaches for the details — dragging the list, or turning
-  /// Repeat on — and comes back from the amount, where the number it types
-  /// is shown.
+  /// On a short phone the keypad and CHOOSE CATEGORY leave the details a
+  /// sliver: the Repeat choices and a photo are out of reach. So the keypad
+  /// folds away when the user reaches for the details — dragging them,
+  /// typing a note, or turning Repeat on — and comes back from the amount,
+  /// where the number it types is shown.
   bool _keypadOpen = true;
 
   /// The Repeat section, so turning it on can bring it into view.
@@ -98,6 +103,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
   bool get _isEditing => widget.initial != null;
 
+  bool get _isExpense => _type == TransactionType.expense;
+
   void _toggleRepeat() {
     setState(() {
       _repeats = !_repeats;
@@ -107,15 +114,18 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final section = _repeatKey.currentContext;
       if (section != null && section.mounted) {
+        // Only as far as its end: the note and the icons beside it stay
+        // in view where there is room for both.
         Scrollable.ensureVisible(
           section,
           duration: const Duration(milliseconds: 200),
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
         );
       }
     });
   }
 
-  /// Folds the keypad away when the user drags the details list.
+  /// Folds the keypad away when the user drags the details.
   ///
   /// Only a drag: a scroll with no drag behind it is the framework bringing
   /// something into view, which is no sign the user is done typing.
@@ -125,6 +135,27 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     }
     return false;
   }
+
+  /// The system keyboard and the keypad do not both fit: typing a note
+  /// folds the keypad, and the amount brings it back.
+  void _onNoteFocus() {
+    if (_noteFocus.hasFocus && _keypadOpen) {
+      setState(() => _keypadOpen = false);
+    }
+  }
+
+  void _openKeypad() {
+    _noteFocus.unfocus();
+    if (!_keypadOpen) setState(() => _keypadOpen = true);
+  }
+
+  /// Expense to income and back: the icon at the top right. The chosen
+  /// category belongs to the other list, and an expense filed under Salary
+  /// is not worth allowing, so it is cleared.
+  void _switchType() => setState(() {
+    _type = _isExpense ? TransactionType.income : TransactionType.expense;
+    _categoryId = null;
+  });
 
   @override
   void initState() {
@@ -138,6 +169,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _accountId = initial?.accountId;
     _date = initial?.date ?? DateTime.now();
     _note = TextEditingController(text: initial?.note ?? '');
+    _noteFocus.addListener(_onNoteFocus);
     _interval = TextEditingController(text: '7');
     _photoPath = initial?.receiptImagePath;
     _discardUnused = ref.read(discardUnusedPhotosProvider);
@@ -150,20 +182,17 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       unawaited(_discardUnused(PhotoCleanup(keptHere: {..._keptHere})));
     }
     _note.dispose();
+    _noteFocus.dispose();
     _interval.dispose();
     super.dispose();
   }
 
-  /// The entry's own fields are complete.
-  bool get _entryComplete =>
-      (_amount.valueCents ?? 0) > 0 &&
-      _categoryId != null &&
-      _accountId != null;
+  /// There is an amount to record, and an account to record it in: the
+  /// category is the step CHOOSE CATEGORY takes.
+  bool get _canChoose => (_amount.valueCents ?? 0) > 0 && _accountId != null;
 
-  bool get _canSave => _entryComplete && (!_repeats || _repeatProblem == null);
-
-  RecurringRuleRequest _request() => RecurringRuleRequest(
-    first: _build(),
+  RecurringRuleRequest _request({int? categoryId}) => RecurringRuleRequest(
+    first: _build(categoryId: categoryId),
     frequency: _frequency,
     intervalDays: int.tryParse(_interval.text.trim()),
     endDate: _endDate,
@@ -172,28 +201,31 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   /// Why the schedule cannot be saved, in `CreateRecurringRule`'s own
   /// words, or null. The same check the use case runs on save, called as
   /// the user changes the schedule — a monthly start past the 28th is said
-  /// here, not discovered on tapping Save. Only once the entry is complete,
-  /// so the amount's and category's own gaps are not repeated under the
-  /// schedule.
-  String? get _repeatProblem {
-    if (!_repeats || !_entryComplete) return null;
-    return CreateRecurringRule.validate(_request())?.message;
+  /// here, not discovered after choosing a category. Until one is chosen it
+  /// is checked against [categoryId], since the schedule's rules do not
+  /// depend on which.
+  String? _repeatProblem({int? categoryId}) {
+    if (!_repeats || !_canChoose) return null;
+    final id = _categoryId ?? categoryId;
+    if (id == null) return null;
+    return CreateRecurringRule.validate(_request(categoryId: id))?.message;
   }
 
-  /// The row this screen would write.
+  /// The row this screen would write, with [categoryId] in place of the
+  /// chosen category when one is given.
   ///
   /// An edit starts from the row being edited, not from a blank one: the
   /// update writes every column, so anything this form does not show — the
   /// time, split parts, the receipt link and photo, the recurring link —
   /// would otherwise be written back as empty. Editing a split's category
   /// used to delete its parts that way.
-  Transaction _build() {
+  Transaction _build({int? categoryId}) {
     final initial = widget.initial;
     return Transaction(
       // Carried through so save() knows this is an edit rather than an entry.
       id: initial?.id,
       accountId: _accountId!,
-      categoryId: _categoryId,
+      categoryId: categoryId ?? _categoryId,
       amountCents: _amount.valueCents!,
       type: _type,
       date: _date,
@@ -201,36 +233,44 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       splits: initial?.splits ?? const [],
       receiptScanId: initial?.receiptScanId,
-      // A photo belongs on an expense (FR-EXP-009); the row is not offered
+      // A photo belongs on an expense (FR-EXP-009); the icon is not offered
       // on an income, so switching to one leaves the photo behind.
-      receiptImagePath: _type == TransactionType.expense ? _photoPath : null,
+      receiptImagePath: _isExpense ? _photoPath : null,
       recurringRuleId: initial?.recurringRuleId,
       isRecurring: initial?.isRecurring ?? false,
     );
   }
 
-  /// Opens the inline category form. E-13.
-  ///
-  /// A category created here is selected immediately, so the flow the user
-  /// started — adding this entry — never leaves the screen it was on.
-  Future<void> _addCategory(BuildContext context) async {
-    final id = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) =>
-          _QuickAddCategorySheet(isExpense: _type == TransactionType.expense),
+  /// CHOOSE CATEGORY: the grid, then the entry is recorded with the
+  /// category tapped. FR-EXP-001, FR-INC-001.
+  Future<void> _chooseCategory() async {
+    // A sum still open — "1,250 + 340" — is finished first, as = would.
+    setState(() => _amount = _amount.evaluated());
+    if (!_canChoose) return;
+    _noteFocus.unfocus();
+
+    final id = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        builder: (_) =>
+            _CategoryGrid(isExpense: _isExpense, selectedId: _categoryId),
+      ),
     );
     if (id == null || !mounted) return;
 
-    // entryCategoriesProvider is a live stream (E-27) that already carries
-    // the new row through the same write CategoryListPage would see, but the
-    // signal is asynchronous. Waiting for it here means the id below never
-    // briefly outruns the list it needs to appear in — otherwise the build
-    // below's own "category no longer exists" guard, meant for a deleted
-    // category, would clear a category that only hasn't arrived yet.
+    // A category made from the grid arrives on the live list a moment
+    // after its id; waiting for it means the build's "category no longer
+    // exists" guard never clears one that only has not arrived yet.
     await _awaitCategory(id);
     if (!mounted) return;
+
     setState(() => _categoryId = id);
+    final problem = _repeatProblem();
+    if (problem != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(problem)));
+      return;
+    }
+    await _save();
   }
 
   /// Completes once [entryCategoriesProvider] carries a category with [id].
@@ -251,6 +291,39 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       }
     });
     return completer.future;
+  }
+
+  /// The account the amount comes from or goes to: the icon at the left of
+  /// the amount. FR-EXP-001.
+  Future<void> _chooseAccount(List<AccountOption> accounts) async {
+    final id = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final account in accounts)
+              ListTile(
+                leading: Icon(accountIconFor(account.icon)),
+                title: Text(account.name),
+                subtitle: Text(
+                  formatCents(
+                    account.balanceCents,
+                    currency: CurrencyFormat.forCode(account.currency),
+                  ),
+                ),
+                selected: account.id == _accountId,
+                trailing: account.id == _accountId
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.of(context).pop(account.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (id != null && mounted) setState(() => _accountId = id);
   }
 
   /// Asks where from, then keeps the photo. FR-EXP-009.
@@ -331,9 +404,20 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final categoriesAsync = ref.watch(entryCategoriesProvider);
     final accountsAsync = ref.watch(entryAccountsProvider);
     final saving = ref.watch(saveTransactionControllerProvider).isLoading;
+    final tint = _isExpense ? colors.expense : colors.income;
+    final onBar = theme.appBarTheme.foregroundColor ?? colors.onBrand;
 
     return Scaffold(
       appBar: AppBar(
+        // Cancel in words rather than an arrow: what it does to the
+        // half-typed entry is the thing worth saying.
+        leadingWidth: 96,
+        leading: TextButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          style: TextButton.styleFrom(foregroundColor: onBar),
+          child: const Text('Cancel'),
+        ),
+        centerTitle: true,
         title: Text(switch ((_isEditing, _type)) {
           (true, TransactionType.income) => 'Edit income',
           (true, _) => 'Edit expense',
@@ -341,15 +425,6 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           (false, _) => 'New expense',
         }),
         actions: [
-          // FR-RCP-001: the scanner from the add-expense flow as well as
-          // the main screen. A new expense only — a receipt is never an
-          // income, and an edit is a row that already exists.
-          if (!_isEditing && _type == TransactionType.expense)
-            IconButton(
-              tooltip: 'Scan Receipt',
-              icon: const Icon(Icons.document_scanner_outlined),
-              onPressed: () => context.push(Routes.scanReceipt),
-            ),
           // Back to the list with the answer, which deletes the row with its
           // undo window (E-23): a mistaken tap is one more tap to take back.
           if (_isEditing)
@@ -358,6 +433,14 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               icon: const Icon(Icons.delete_outline),
               onPressed: () => Navigator.of(context).pop(true),
             ),
+          // Up for income, down for an expense: the way each moves the
+          // balance, as the list's arrows say. Transfers are their own
+          // screen — they have no category.
+          IconButton(
+            tooltip: _isExpense ? 'Switch to income' : 'Switch to expense',
+            icon: const Icon(Icons.swap_vert),
+            onPressed: _switchType,
+          ),
         ],
       ),
       body: categoriesAsync.when(
@@ -367,156 +450,210 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _CatalogError(message: failureMessage(error)),
           data: (accounts) {
-            // Default to the first account rather than making the user choose
-            // on a fresh install where there is only one. Sprint 3 adds the
-            // selector, when there is something to select between.
+            // Default to the first account rather than making the user
+            // choose on a fresh install where there is only one.
             _accountId ??= accounts.isEmpty ? null : accounts.first.id;
+            final account = accounts
+                .where((a) => a.id == _accountId)
+                .firstOrNull;
+
+            // The schedule's own refusal, if it has one, checked against the
+            // first category of the list until one is chosen. While there
+            // is one, CHOOSE CATEGORY waits: the Repeat section says why.
+            final repeatProblem = _repeatProblem(
+              categoryId: allCategories
+                  .where((c) => c.isExpense == _isExpense)
+                  .firstOrNull
+                  ?.id,
+            );
 
             // An edit of a transaction whose category was since deleted would
-            // otherwise show nothing selected and silently save a null.
+            // otherwise show it chosen and silently save a dangling id.
             if (_categoryId != null &&
                 !allCategories.any((c) => c.id == _categoryId)) {
               _categoryId = null;
             }
 
-            final categories = allCategories
-                .where((c) => c.isExpense == (_type == TransactionType.expense))
-                .toList();
-
             return SafeArea(
               child: Column(
                 children: [
-                  _AmountDisplay(
-                    expression: _amount,
-                    type: _type,
-                    keypadOpen: _keypadOpen,
-                    onToggleKeypad: () =>
-                        setState(() => _keypadOpen = !_keypadOpen),
-                    // E-13's recurring toggle, labelled, in the space beside
-                    // the amount. It was a bare icon in the app bar, where it
-                    // looked like the transfer arrows and was not found; here
-                    // it costs no height on a small phone. A new entry only —
-                    // see _repeats.
-                    repeat: _isEditing
-                        ? null
-                        : FilterChip(
-                            tooltip: _repeats ? 'Stop repeating' : 'Repeat',
-                            avatar: const Icon(Icons.repeat),
-                            label: const Text('Repeat'),
-                            selected: _repeats,
-                            showCheckmark: false,
-                            onSelected: (_) => _toggleRepeat(),
-                          ),
-                  ),
-                  _TypeToggle(
-                    type: _type,
-                    onChanged: (next) => setState(() {
-                      _type = next;
-                      // The chosen category belongs to the other list now,
-                      // and an expense filed under Salary is not worth
-                      // allowing.
-                      _categoryId = null;
-                    }),
-                  ),
                   Expanded(
                     child: NotificationListener<ScrollStartNotification>(
                       onNotification: _onDetailsScroll,
                       child: ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                         children: [
-                          _CategoryPicker(
-                            categories: categories,
-                            selectedId: _categoryId,
-                            onSelected: (id) =>
-                                setState(() => _categoryId = id),
-                            onAddNew: () => _addCategory(context),
+                          Center(
+                            child: _DateButton(
+                              date: _date,
+                              onChanged: (next) => setState(() => _date = next),
+                            ),
                           ),
                           const SizedBox(height: 8),
-                          _DateField(
-                            date: _date,
-                            onChanged: (next) => setState(() => _date = next),
+                          _AmountBar(
+                            expression: _amount,
+                            tint: tint,
+                            account: account,
+                            onAccount: accounts.length < 2
+                                ? null
+                                : () => _chooseAccount(accounts),
+                            onBackspace: () =>
+                                setState(() => _amount = _amount.backspace()),
+                            onTap: _openKeypad,
                           ),
-                          if (_repeats)
-                            _RepeatSection(
-                              key: _repeatKey,
-                              frequency: _frequency,
-                              onFrequency: (next) =>
-                                  setState(() => _frequency = next),
-                              interval: _interval,
-                              onIntervalChanged: () => setState(() {}),
-                              startDate: _date,
-                              endDate: _endDate,
-                              onEndDate: (next) =>
-                                  setState(() => _endDate = next),
-                              problem: _repeatProblem,
-                              // From the schedule alone: the entry may not
-                              // have an amount yet.
-                              summary: describeRecurrence(
-                                RecurringRule.startingOn(
-                                  _date,
-                                  frequency: _frequency,
-                                  intervalDays: int.tryParse(
-                                    _interval.text.trim(),
-                                  ),
-                                  endDate: _endDate,
+                          if ((_amount.valueCents ?? 0) < 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'That comes to less than nothing.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: tint,
                                 ),
                               ),
                             ),
-                          TextField(
+                          if (accounts.isEmpty)
+                            // E-22: a surface with nothing in it says what
+                            // belongs here.
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'No accounts yet.',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          _NoteRow(
                             controller: _note,
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: const InputDecoration(
-                              labelText: 'Note (optional)',
-                              border: OutlineInputBorder(),
-                            ),
+                            focusNode: _noteFocus,
+                            // A new entry only — see _repeats.
+                            repeat: _isEditing
+                                ? null
+                                : IconButton(
+                                    tooltip: _repeats
+                                        ? 'Stop repeating'
+                                        : 'Repeat',
+                                    isSelected: _repeats,
+                                    icon: const Icon(Icons.repeat),
+                                    selectedIcon: Icon(
+                                      Icons.repeat_on,
+                                      color: tint,
+                                    ),
+                                    onPressed: _toggleRepeat,
+                                  ),
+                            // A photo belongs on an expense. Once there is
+                            // one it is shown below, with its own replace
+                            // and remove; a scan's is the scan record's, and
+                            // changed nowhere.
+                            photo:
+                                _isExpense &&
+                                    _photoPath == null &&
+                                    widget.initial?.receiptScanId == null
+                                ? IconButton(
+                                    tooltip: 'Attach a photo',
+                                    icon: const Icon(
+                                      Icons.add_a_photo_outlined,
+                                    ),
+                                    onPressed: _attachPhoto,
+                                  )
+                                : null,
+                            // FR-RCP-001: the scanner from the add-expense
+                            // flow as well as the menu. A new expense only —
+                            // a receipt is never an income, and an edit is a
+                            // row that already exists.
+                            scan: !_isEditing && _isExpense
+                                ? IconButton(
+                                    tooltip: 'Scan Receipt',
+                                    icon: const Icon(
+                                      Icons.document_scanner_outlined,
+                                    ),
+                                    onPressed: () =>
+                                        context.push(Routes.scanReceipt),
+                                  )
+                                : null,
                           ),
-                          const SizedBox(height: 8),
-                          _AccountPicker(
-                            accounts: accounts,
-                            selectedId: _accountId,
-                            onSelected: (id) => setState(() => _accountId = id),
-                          ),
-                          const SizedBox(height: 8),
-                          if (_type == TransactionType.expense)
-                            _PhotoField(
-                              path: _photoPath,
-                              // A scan's photo is the scan record's, shared
-                              // by every expense the receipt produced: it is
-                              // shown here, and changed nowhere.
-                              fromScan: widget.initial?.receiptScanId != null,
-                              onAttach: _attachPhoto,
-                              onRemove: () => setState(() => _photoPath = null),
+                          if (_isExpense && _photoPath != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: _PhotoField(
+                                path: _photoPath!,
+                                fromScan: widget.initial?.receiptScanId != null,
+                                onAttach: _attachPhoto,
+                                onRemove: () =>
+                                    setState(() => _photoPath = null),
+                              ),
                             ),
-                          const SizedBox(height: 16),
+                          if (_repeats)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: _RepeatSection(
+                                key: _repeatKey,
+                                frequency: _frequency,
+                                onFrequency: (next) =>
+                                    setState(() => _frequency = next),
+                                interval: _interval,
+                                onIntervalChanged: () => setState(() {}),
+                                startDate: _date,
+                                endDate: _endDate,
+                                onEndDate: (next) =>
+                                    setState(() => _endDate = next),
+                                problem: repeatProblem,
+                                // From the schedule alone: the entry may not
+                                // have an amount yet.
+                                summary: describeRecurrence(
+                                  RecurringRule.startingOn(
+                                    _date,
+                                    frequency: _frequency,
+                                    intervalDays: int.tryParse(
+                                      _interval.text.trim(),
+                                    ),
+                                    endDate: _endDate,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
                   ),
                   if (_keypadOpen)
-                    AmountKeypad(
-                      // Under 720dp tall — a 640dp phone left the details a
-                      // 40dp sliver at 64 — keys drop to the 48dp minimum
-                      // target, which buys two full rows of categories.
-                      keyHeight: MediaQuery.sizeOf(context).height < 720
-                          ? 48
-                          : 64,
-                      expression: _amount,
-                      onChanged: (next) => setState(() => _amount = next),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: AmountKeypad(
+                        // Under 720dp tall the keys drop to the 48dp minimum
+                        // target, which keeps the date, the amount and the
+                        // note in view on a 640dp phone.
+                        keyHeight: MediaQuery.sizeOf(context).height < 720
+                            ? 48
+                            : 60,
+                        accent: tint,
+                        expression: _amount,
+                        onChanged: (next) => setState(() => _amount = next),
+                      ),
                     ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
                     child: SizedBox(
                       width: double.infinity,
-                      child: FilledButton(
-                        // Disabled rather than hidden: a button that vanishes
-                        // leaves the user hunting for it, while a greyed one
-                        // says "there is something still to do".
-                        onPressed: _canSave && !saving ? _save : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _type == TransactionType.expense
-                              ? colors.expense
-                              : colors.income,
+                      child: OutlinedButton(
+                        // Disabled rather than hidden until there is an
+                        // amount: a button that vanishes leaves the user
+                        // hunting for it, while a greyed one says "there is
+                        // something still to do".
+                        onPressed:
+                            _canChoose && repeatProblem == null && !saving
+                            ? _chooseCategory
+                            : null,
+                        style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(52),
+                          foregroundColor: theme.colorScheme.onSurface,
+                          side: BorderSide(
+                            color: _canChoose && repeatProblem == null
+                                ? tint.withValues(alpha: 0.6)
+                                : theme.disabledColor,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                         child: saving
                             ? const SizedBox.square(
@@ -525,7 +662,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Save'),
+                            : const Text(
+                                'CHOOSE CATEGORY',
+                                style: TextStyle(letterSpacing: 0.8),
+                              ),
                       ),
                     ),
                   ),
@@ -539,7 +679,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   }
 }
 
-/// The photo on an expense: attach, view, replace, remove. FR-EXP-009.
+/// The photo on an expense: view, replace, remove. FR-EXP-009. Attaching
+/// the first is the camera icon beside the note.
 class _PhotoField extends StatelessWidget {
   const _PhotoField({
     required this.path,
@@ -548,25 +689,13 @@ class _PhotoField extends StatelessWidget {
     required this.onRemove,
   });
 
-  final String? path;
+  final String path;
   final bool fromScan;
   final VoidCallback onAttach;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final path = this.path;
-    if (path == null) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          onPressed: onAttach,
-          icon: const Icon(Icons.add_a_photo_outlined),
-          label: const Text('Attach a photo'),
-        ),
-      );
-    }
-
     return Row(
       children: [
         _PhotoThumbnail(
@@ -676,64 +805,121 @@ class _PhotoPage extends ConsumerWidget {
   );
 }
 
-/// The running total, in the colour of what it will become.
-class _AmountDisplay extends StatelessWidget {
-  const _AmountDisplay({
-    required this.expression,
-    required this.type,
-    required this.keypadOpen,
-    required this.onToggleKeypad,
-    this.repeat,
-  });
+/// The date, at the top, defaulting to today because that is what almost
+/// every entry is.
+class _DateButton extends StatelessWidget {
+  const _DateButton({required this.date, required this.onChanged});
 
-  final AmountExpression expression;
-  final TransactionType type;
-
-  /// Whether the keypad below is showing, and the way to fold or open it.
-  final bool keypadOpen;
-  final VoidCallback onToggleKeypad;
-
-  /// The Repeat toggle, beside the keypad's; null when editing.
-  final Widget? repeat;
+  final DateTime date;
+  final ValueChanged<DateTime> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>()!;
-    final tint = type == TransactionType.expense
-        ? colors.expense
-        : colors.income;
+    final now = DateTime.now();
+    // The year only when it is not this one: "Tuesday, 6 October" is the
+    // whole answer almost every time.
+    final format = date.year == now.year
+        ? DateFormat('EEEE, d MMMM')
+        : DateFormat('EEEE, d MMMM y');
 
-    // AddTransaction.validate is the same check the use case will run on save,
-    // called here so the message appears as the user types rather than after
-    // they commit — one rule, two moments.
+    return TextButton.icon(
+      style: TextButton.styleFrom(foregroundColor: theme.colorScheme.onSurface),
+      icon: const Icon(Icons.calendar_today_outlined),
+      label: Text(format.format(date)),
+      onPressed: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date,
+          firstDate: DateTime(2000),
+          // No future dates: AddTransaction rejects them anyway, and a picker
+          // that offers what the validator refuses is a trap.
+          lastDate: now,
+        );
+        if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
+/// The amount, in a bar the colour of what it will become, with the account
+/// it comes from at its left and backspace at its right.
+class _AmountBar extends StatelessWidget {
+  const _AmountBar({
+    required this.expression,
+    required this.tint,
+    required this.account,
+    required this.onAccount,
+    required this.onBackspace,
+    required this.onTap,
+  });
+
+  final AmountExpression expression;
+  final Color tint;
+
+  /// Where the money comes from or goes to; null while there is none.
+  final AccountOption? account;
+
+  /// Opens the account choice; null when there is nothing to choose between.
+  final VoidCallback? onAccount;
+  final VoidCallback onBackspace;
+
+  /// Brings the keypad back when it has folded away.
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const onTint = Colors.white;
     final value = expression.valueCents;
-    final warning = value != null && value < 0
-        ? 'That comes to less than nothing.'
-        : null;
+    final account = this.account;
 
-    return InkWell(
-      // The number is where the keypad types, so it is where the keypad is
-      // brought back from.
-      onTap: keypadOpen ? null : onToggleKeypad,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(4, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  tooltip: keypadOpen ? 'Hide keypad' : 'Show keypad',
-                  icon: Icon(
-                    keypadOpen ? Icons.keyboard_hide_outlined : Icons.dialpad,
+    return Material(
+      color: tint,
+      borderRadius: BorderRadius.circular(6),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 76,
+          child: Row(
+            children: [
+              Tooltip(
+                message: 'Account: ${account?.name ?? 'none'}',
+                child: InkWell(
+                  onTap: onAccount,
+                  child: SizedBox(
+                    width: 68,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          accountIconFor(account?.icon ?? ''),
+                          color: onTint,
+                        ),
+                        const SizedBox(height: 2),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            account?.currency ?? '',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: onTint,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  onPressed: onToggleKeypad,
                 ),
-                ?repeat,
-                const SizedBox(width: 8),
-                Expanded(
+              ),
+              Container(
+                width: 1,
+                height: 52,
+                color: onTint.withValues(alpha: 0.5),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
@@ -741,111 +927,233 @@ class _AmountDisplay extends StatelessWidget {
                       expression.pendingOperator == null && value != null
                           ? formatCents(value)
                           : expression.display,
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        color: tint,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: onTint,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
-            if (warning != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  warning,
-                  style: theme.textTheme.bodySmall?.copyWith(color: tint),
-                ),
               ),
-          ],
+              IconButton(
+                tooltip: 'Backspace',
+                color: onTint,
+                icon: const Icon(Icons.backspace_outlined),
+                onPressed: onBackspace,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Expense or income. Transfers are their own screen — they have no category.
-class _TypeToggle extends StatelessWidget {
-  const _TypeToggle({required this.type, required this.onChanged});
+/// "Add note", with the small extras beside it: Repeat, a photo, the
+/// receipt scanner. Each is null where it does not apply.
+class _NoteRow extends StatelessWidget {
+  const _NoteRow({
+    required this.controller,
+    required this.focusNode,
+    required this.repeat,
+    required this.photo,
+    required this.scan,
+  });
 
-  final TransactionType type;
-  final ValueChanged<TransactionType> onChanged;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final Widget? repeat;
+  final Widget? photo;
+  final Widget? scan;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SegmentedButton<TransactionType>(
-        segments: const [
-          ButtonSegment(
-            value: TransactionType.expense,
-            label: Text('Expense'),
-            icon: Icon(Icons.arrow_downward),
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'Add note',
+              prefixIcon: Icon(Icons.edit_outlined),
+            ),
           ),
-          ButtonSegment(
-            value: TransactionType.income,
-            label: Text('Income'),
-            icon: Icon(Icons.arrow_upward),
+        ),
+        ?repeat,
+        ?photo,
+        ?scan,
+      ],
+    );
+  }
+}
+
+/// The categories of an expense or an income, as a grid of their icons.
+/// Tapping one answers it; the entry screen then records the entry.
+/// FR-EXP-003, FR-INC-002.
+class _CategoryGrid extends ConsumerWidget {
+  const _CategoryGrid({required this.isExpense, required this.selectedId});
+
+  final bool isExpense;
+
+  /// Marked, when an edit already has one.
+  final int? selectedId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final categories = (ref.watch(entryCategoriesProvider).valueOrNull ?? [])
+        .where((c) => c.isExpense == isExpense)
+        .toList();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Choose category')),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => GridView.count(
+            padding: const EdgeInsets.all(12),
+            // Four across a phone, more on anything wider; never so narrow
+            // a name cannot fit under its icon.
+            crossAxisCount: (constraints.maxWidth / 88).floor().clamp(3, 8),
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 4,
+            childAspectRatio: 0.78,
+            children: [
+              for (final category in categories)
+                _CategoryTile(
+                  category: category,
+                  selected: category.id == selectedId,
+                  onTap: () => Navigator.of(context).pop(category.id),
+                ),
+              // E-13: a missing category is made here, without leaving the
+              // entry, and chosen at once.
+              _NewCategoryTile(isExpense: isExpense),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: categories.isEmpty
+          // E-22: a surface with nothing in it says what belongs here.
+          ? Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'No categories yet. Tap New to make one.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({
+    required this.category,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final CategoryOption category;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = categoryColorFor(category.colorHex, theme.brightness);
+    final onColor = color.computeLuminance() > 0.5
+        ? Colors.black
+        : Colors.white;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        children: [
+          const SizedBox(height: 4),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: selected
+                  ? Border.all(color: theme.colorScheme.onSurface, width: 3)
+                  : null,
+            ),
+            child: Icon(categoryIconFor(category.icon), color: onColor),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            // One word too long for the tile shrinks rather than breaking
+            // mid-word ("Communicatio / ns"); several wrap between words.
+            child: category.name.trim().contains(' ')
+                ? Text(
+                    category.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium,
+                  )
+                : Align(
+                    alignment: Alignment.topCenter,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        category.name,
+                        maxLines: 1,
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ),
+                  ),
           ),
         ],
-        selected: {type},
-        onSelectionChanged: (selection) => onChanged(selection.first),
       ),
     );
   }
 }
 
-/// The category row. FR-EXP-003.
-class _CategoryPicker extends StatelessWidget {
-  const _CategoryPicker({
-    required this.categories,
-    required this.selectedId,
-    required this.onSelected,
-    required this.onAddNew,
-  });
+class _NewCategoryTile extends StatelessWidget {
+  const _NewCategoryTile({required this.isExpense});
 
-  final List<CategoryOption> categories;
-  final int? selectedId;
-  final ValueChanged<int> onSelected;
-
-  /// E-13 — opens the inline form, without leaving the entry flow.
-  final VoidCallback onAddNew;
+  final bool isExpense;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () async {
+        final id = await showModalBottomSheet<int>(
+          context: context,
+          isScrollControlled: true,
+          builder: (context) => _QuickAddCategorySheet(isExpense: isExpense),
+        );
+        // Made, so chosen: the entry the user started is what they came for.
+        if (id != null && context.mounted) Navigator.of(context).pop(id);
+      },
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (categories.isEmpty)
-            // E-22: a surface with nothing in it says what belongs here.
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'No categories yet.',
-                style: theme.textTheme.bodyMedium,
-              ),
+          const SizedBox(height: 4),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: theme.colorScheme.primary, width: 2),
             ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final category in categories)
-                ChoiceChip(
-                  label: Text(category.name),
-                  selected: category.id == selectedId,
-                  onSelected: (_) => onSelected(category.id),
-                ),
-              ActionChip(
-                avatar: const Icon(Icons.add, size: 18),
-                label: const Text('New'),
-                onPressed: onAddNew,
-              ),
-            ],
+            child: Icon(Icons.add, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: Text(
+              'New',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelMedium,
+            ),
           ),
         ],
       ),
@@ -945,48 +1253,6 @@ class _QuickAddCategorySheetState
                   )
                 : const Text('Add category'),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The account row. FR-EXP-001.
-class _AccountPicker extends StatelessWidget {
-  const _AccountPicker({
-    required this.accounts,
-    required this.selectedId,
-    required this.onSelected,
-  });
-
-  final List<AccountOption> accounts;
-  final int? selectedId;
-  final ValueChanged<int> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (accounts.isEmpty) {
-      // E-22: a surface with nothing in it says what belongs here.
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text('No accounts yet.', style: theme.textTheme.bodyMedium),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final account in accounts)
-            ChoiceChip(
-              label: Text(account.name),
-              selected: account.id == selectedId,
-              onSelected: (_) => onSelected(account.id),
-            ),
         ],
       ),
     );
@@ -1097,37 +1363,6 @@ class _RepeatSection extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// The date, defaulting to today because that is what almost every entry is.
-class _DateField extends StatelessWidget {
-  const _DateField({required this.date, required this.onChanged});
-
-  final DateTime date;
-  final ValueChanged<DateTime> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final isToday = DateUtils.isSameDay(date, DateTime.now());
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.calendar_today_outlined),
-      title: Text(isToday ? 'Today' : '${date.year}-${date.month}-${date.day}'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: date,
-          firstDate: DateTime(2000),
-          // No future dates: AddTransaction rejects them anyway, and a picker
-          // that offers what the validator refuses is a trap.
-          lastDate: DateTime.now(),
-        );
-        if (picked != null) onChanged(picked);
-      },
     );
   }
 }

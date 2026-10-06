@@ -130,23 +130,38 @@ void main() {
     for (final key in '4500'.split('')) {
       await tapText(tester, key);
     }
-    await tapText(tester, 'Rent');
   }
 
   final repeatToggle = find.byTooltip('Repeat');
-  final saveButton = find.widgetWithText(FilledButton, 'Save');
+  final chooseButton = find.widgetWithText(OutlinedButton, 'CHOOSE CATEGORY');
 
-  FilledButton save(WidgetTester tester) =>
-      tester.widget<FilledButton>(saveButton);
+  OutlinedButton choice(WidgetTester tester) =>
+      tester.widget<OutlinedButton>(chooseButton);
 
-  testWidgets('Repeat is labelled, beside the amount, not in the app bar', (
-    tester,
-  ) async {
+  /// CHOOSE CATEGORY, then [category]: the step that records the entry.
+  Future<void> choose(WidgetTester tester, String category) async {
+    await tester.tap(chooseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(category));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Repeat is beside the note, not in the app bar', (tester) async {
     // A bare icon top right looked like the transfer arrows and was not
-    // found. The word is what makes it findable.
+    // found. Beside the note, with the photo and the scanner, is where the
+    // owner chose to keep the extras an entry seldom needs.
     await pumpEntry(tester);
 
-    expect(find.widgetWithText(FilterChip, 'Repeat'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.byType(TextField),
+          matching: find.byType(Row),
+        ),
+        matching: repeatToggle,
+      ),
+      findsOneWidget,
+    );
     expect(
       find.descendant(of: find.byType(AppBar), matching: repeatToggle),
       findsNothing,
@@ -189,7 +204,8 @@ void main() {
     expect(find.byType(AmountKeypad), findsNothing);
     expect(find.text('Monthly').hitTestable(), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Show keypad'));
+    // Back from the amount, where the number it types is shown.
+    await tester.tap(find.text('Rs4,500.00'));
     await tester.pumpAndSettle();
     expect(find.byType(AmountKeypad), findsOneWidget);
   });
@@ -217,8 +233,7 @@ void main() {
       await tapText(tester, 'Weekly');
     }
 
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
+    await choose(tester, 'Rent');
 
     expect(rules.first!.amountCents, 450000);
     expect(rules.first!.categoryId, 1);
@@ -245,7 +260,8 @@ void main() {
     // Navigate to a past month with a 31st. Go back at least once so the
     // 31st is selectable (lastDate is today, so future days in the current
     // month are disabled and tapping them changes nothing).
-    await tapText(tester, 'Today');
+    await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Previous month'));
     await tester.pumpAndSettle();
     for (var i = 0; i < 3 && find.text('31').evaluate().isEmpty; i++) {
@@ -262,11 +278,11 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(save(tester).onPressed, isNull);
+    expect(choice(tester).onPressed, isNull);
 
     // Any other frequency is fine from the 31st.
     await tapText(tester, 'Yearly');
-    expect(save(tester).onPressed, isNotNull);
+    expect(choice(tester).onPressed, isNotNull);
   });
 
   testWidgets('every N days takes its interval from the field', (tester) async {
@@ -297,11 +313,10 @@ void main() {
       find.text('A custom repeat needs an interval of at least one day.'),
       findsOneWidget,
     );
-    expect(save(tester).onPressed, isNull);
+    expect(choice(tester).onPressed, isNull);
 
     await typeInterval('14');
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
+    await choose(tester, 'Rent');
 
     expect(rules.rule!.frequency, RecurrenceFrequency.customDays);
     expect(rules.rule!.intervalDays, 14);
@@ -309,17 +324,16 @@ void main() {
 
   testWidgets('income repeats too (FR-INC-004)', (tester) async {
     await pumpEntry(tester);
-    await tapText(tester, 'Income');
+    await tester.tap(find.byTooltip('Switch to income'));
+    await tester.pumpAndSettle();
     for (final key in '2500'.split('')) {
       await tapText(tester, key);
     }
-    await tapText(tester, 'Salary');
     await tester.tap(repeatToggle);
     await tester.pumpAndSettle();
     await tapText(tester, 'Weekly');
 
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
+    await choose(tester, 'Salary');
 
     expect(rules.first!.type, TransactionType.income);
     expect(rules.rule!.frequency, RecurrenceFrequency.weekly);

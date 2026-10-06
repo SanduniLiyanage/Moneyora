@@ -72,9 +72,7 @@ void main() {
     expect(find.text('Mar 4, 2026 – May 6, 2026'), findsOneWidget);
   });
 
-  testWidgets('a swipe turns the month, as the reference app does', (
-    tester,
-  ) async {
+  testWidgets('a swipe turns the month', (tester) async {
     await open(tester);
 
     await tester.fling(find.byType(PageView), const Offset(300, 0), 1000);

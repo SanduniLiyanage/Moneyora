@@ -9,9 +9,9 @@ import '../widgets/main_menu.dart';
 
 /// The home screen. SCR-001.
 ///
-/// The reference app the owner uses, in Moneyora's colours: a ring of where
-/// the money went, the balance under it, − and + for the two things done
-/// most often, and a panel on each side — on the left which account and
+/// One screen, no scrolling: a ring of where the money went, the balance
+/// under it, − and + for the two things done most often, and a panel on
+/// each side — on the left which account and
 /// which days, on the right every other screen. The other charts are under
 /// Reports in that menu.
 ///
