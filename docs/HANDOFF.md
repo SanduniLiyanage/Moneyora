@@ -1,13 +1,16 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-10-06**, `main` at `3a0b71c`, after **169
-merged pull requests** (#2–#170; #1 was closed unmerged). **Moneyora is
-released**: [1.0.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.0)
+State of the project as of **2026-10-07**, `main` at `9e549ce` plus the
+1.1.0 release PR, after **178 merged pull requests** (#2–#180; #1 and
+#178 were closed unmerged). **Moneyora is released**:
+[1.0.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.0)
 on GitHub Releases on 2026-10-05, after a walk of the release APK fixed
-what only that build could show (#152–#162), and
+what only that build could show (#152–#162);
 [1.0.1](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.1) on
-2026-10-06 from the first testers' feedback (#164–#170). "What is next"
-below has both. Sprint 10 itself: plans only from the user's own history or built by hand
+2026-10-06 from the first testers' feedback (#164–#170); and
+[1.1.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.1.0) on
+2026-10-07: Ask Moneyora answering again (#172–#174) and the new home and
+entry (#175–#179). "What is next" below has all three. Sprint 10 itself: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
@@ -58,8 +61,8 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `3a0b71c`, with PR #170 merged; the coverage figure is CI's, from its
-run on `main` at that commit (the last change to `domain/` was #167).
+at `9e549ce`, with PR #179 merged; the coverage figure is CI's, from its
+run on that commit (the last change to `domain/` was #176).
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -68,16 +71,24 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2404 passing** | `flutter test` |
+| Tests | **2462 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | R8 keep rules | **clean, exit 0** — ML Kit's registrar constructors ([E-09](SPEC_ERRATA.md)) | `bash scripts/check_proguard.sh` |
-| Domain line coverage | **91.5%** (2776 of 3034 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Domain line coverage | **91.5%** (2796 of 3055 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
 | Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 to 10 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`); Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 340 in `lib/`, 178 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Dart files | 347 in `lib/`, 180 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2375 at `2446339` (PR #162, merged) plus **29 net new**
+Tests by area: 2404 at `3a0b71c` (PR #170, merged) plus **58 net new**
+from #171–#179, each PR's description naming its own. Assertions that
+changed shape rather than growing: the shell tests reach every screen
+through the menu instead of home's tiles; the list's delete tests hold a
+row instead of swiping it; the entry tests record through CHOOSE
+CATEGORY instead of Save; and the period chips' tests use Interval and
+its calendar instead of Custom and Flutter's range picker.
+
+Before that: 2375 at `2446339` (PR #162, merged) plus **29 net new**
 from #164–#170, each PR's description naming its own. One assertion
 changed meaning: `update_allocation_test`'s "refuses the only allocation
 in a plan" became "a plan of one category takes the figure as its total",
@@ -2026,71 +2037,33 @@ See [`COPILOT.md`](COPILOT.md) for what it is scoped to and why.
 
 ```
 lib/
-├── core/
-│   ├── database/
-│   │   ├── migrations/
-│   │   │   ├── v1_initial.dart          13 tables, 11 indexes, errata-corrected
-│   │   │   ├── v2_carry_over.dart       + plan_allocations.carry_over_cents (E-33)
-│   │   │   └── v3_receipt_scanner.dart  + receipt_number; keyword_dictionary
-│   │   │                                recreated with its cascade (E-31)
-│   │   ├── database_change_bus.dart     one "something was written" signal
-│   │   ├── database_helper.dart         SQLCipher open + migration runner
-│   │   ├── database_summary.dart        row counts (SQL lives here, not in DI)
-│   │   ├── encryption_key_store.dart    AES-256 key -> platform keychain
-│   │   └── seed/
-│   │       ├── default_seed.dart        15 expense + 3 income categories
-│   │       ├── dev_seed.dart            >500 synthetic transactions, 24 months
-│   │       └── keyword_seed.dart        200+ keyword -> category rows, re-applied
-│   │                                    on every open when it has grown
-│   ├── errors/          Failure + Exception hierarchies
-│   ├── network/         network_info.dart      — the abstract check
-│   │                    connectivity_network_info.dart — its implementation
-│   ├── ports/           contracts two features share (see ARCHITECTURE §5):
-│   │                    account_reader, account_type, category_reader,
-│   │                    category_writer, expense_writer, income_reader,
-│   │                    monthly_spending_reader, spending_by_category_reader
-│   ├── router/          go_router, 16 routes: 15 real screens, 1 stub
-│   ├── theme/           indigo/amber, contrast-verified light + dark
-│   ├── usecases/        UseCase<T, Params> base
-│   ├── utils/           currency_utils, date_utils, amount_expression
-│   └── widgets/         account_icons.dart — E-26's 25-icon catalogue
+├── core/          database (SQLCipher, migrations v1–v6, seeds), errors,
+│                  network, ports shared between features, router (every
+│                  screen under home), theme, utils, widgets
 ├── features/
-│   ├── accounts/        full slice: panel, form, icons, archive, delete
-│   │                    + account_totals.dart, the entity carrying E-25's
-│   │                    "what the total left out" line
-│   ├── analytics/       full slice: 4 aggregates, both filters, 5 charts on
-│   │                    the home screen. Sprint 4.
-│   ├── categories/      full slice: list/management screen, create-and-edit
-│   │                    form with icon + colour pickers and parent dropdown
-│   ├── copilot/         all three layers. The only http in the application
-│   ├── home/            Sprint 1 proof screen, still the home route
-│   ├── money_plan/      full slice: 4 engine stages, saved plan, wizard,
-│   │                    tracking, overspend responses, list + comparison.
-│   │                    Sprint 5.
-│   ├── receipt_scanner/ full slice: picker + ML Kit seams, parser,
-│   │                    categoriser, review, confirm + learn, history,
-│   │                    re-scan, encrypted photo vault. Sprint 6.
-│   └── transactions/    full slice: keypad entry, list, filter, edit, undo
-│                        + AddExpenses, the ExpenseWriter port's implementation
+│   ├── accounts/        the Accounts section of the menu, form, icons,
+│   │                    archive, delete, totals across currencies
+│   ├── analytics/       aggregates; home's ring, ‹ › and swipe; the left
+│   │                    filter panel and the Interval calendar; Reports
+│   ├── auth/            passcode, lockout, biometrics
+│   ├── backup/          encrypted .mora backup and restore, CSV/PDF export
+│   ├── categories/      list and form, icons, colours, one level of nesting
+│   ├── copilot/         Ask Moneyora: the only http in the application
+│   ├── home/            home and its right-hand menu
+│   ├── money_plan/      the plan engine, wizard, editor, tracking, alerts
+│   ├── receipt_scanner/ ML Kit, parser, categoriser, review, history
+│   ├── settings/        settings, exchange rates, notifications
+│   └── transactions/    entry, list, transfers, recurring rules
 ├── app.dart          MaterialApp.router
 ├── injection.dart    Riverpod providers = the DI container
 └── main.dart         ProviderScope
 ```
 
-**Not started — scaffold directories with zero `.dart` files:** `auth/`,
-`backup/`, `settings/`, plus `core/constants/` and `core/extensions/`. An
-empty directory is *not started*; none of these is in progress. `auth/` and
-`settings/` are Sprint 7's; `backup/` is Sprint 8's. `presentation/widgets`
-is empty in most slices, and that is not a gap: everything the screens need
-lives in `presentation/pages` and the `core/widgets`/`core/theme`
-catalogues, the same shape `accounts/` settled on; `money_plan/` and
-`receipt_scanner/` each hold one shared widget there.
-
-The one route with no screen behind it is `settings`, a stub until
-Sprint 7. The fifteen real ones are `home`, `transactions`, `moneyPlan`,
-`moneyPlanReview`, `activePlan`, `plans`, `comparePlans`, `scanReceipt`,
-`scanReceiptReview`, `receiptHistory`, `copilot`, `transfer`,
-`accountForm`, `categories` and `categoryForm`.
+Every feature directory is built; there are no stubs and no placeholder
+routes. Home is one screen: the ring, the balance, − and +, with the
+period and account in a panel on the left and every other screen in a
+menu on the right (#175–#177). New expense and New income ask one thing
+at a time and record on a tap in the category grid (#179).
 
 Test and coverage figures are in **the table at the top of this file**, which
 is the only place they are written down. CI runs format, analyze, the
@@ -2203,6 +2176,30 @@ The 1.0.1 release APK was checked on the emulator before tagging: the one
 tile, the list with the active plan first, the plan's menu, a one-category
 budget saved without refusal, the system back from a plan to home, and the
 arrows.
+
+**1.1.0 (2026-10-07), `main` at `9e549ce` plus the version.** Two
+changes, and 1.0.2 was never tagged; it shipped inside this release:
+
+- **Ask Moneyora answers again** (#172–#174). Google shut down
+  `gemini-2.0-flash`; it now asks `gemini-3.5-flash`, falls back to the
+  newest Flash model when that one is busy or out of quota, replays
+  Gemini 3's thought signatures, and answers in the base currency.
+  **Change API key** replaces a key Google turned down.
+- **Home and entry, rebuilt** at the owner's request (#175–#179):
+  - the ring of spending with icons and shares, and ‹ › and a swipe for
+    the period;
+  - Balance opening the list, and big − and +;
+  - the filter panel on the left and the menu on the right, with
+    Accounts opening in place;
+  - Reports for the other charts;
+  - a swipe on the list, and deleting by holding a row;
+  - the Interval calendar;
+  - New expense and New income: date, amount bar, note, keypad, then
+    CHOOSE CATEGORY.
+
+The release APK was checked on the emulator before tagging: the ring, the
+list, Reports and New expense, and those screens are the new
+screenshots.
 
 **What is left.** [`RELEASE.md`](RELEASE.md) sets out the accounts:
 

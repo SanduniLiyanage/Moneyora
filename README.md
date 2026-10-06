@@ -13,9 +13,9 @@ off.
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-<img src="store/screenshots/1-home.png" width="240" alt="The home screen: shortcuts to Transactions, Scan Receipt, Transfer, Budget plans, Recurring, Categories and Ask Moneyora, above the spending chart">
-<img src="store/screenshots/3-transactions-by-day.png" width="240" alt="The transaction list grouped by day, with the balance for the chosen period above it">
-<img src="store/screenshots/4-plan-from-your-own-history.png" width="240" alt="Create Money Plan explaining there is not enough history for a suggested plan yet, and offering Build it yourself">
+<img src="store/screenshots/1-home.png" width="240" alt="The home screen: a ring of September's spending with each category's icon and share around it, income and spending in the middle, the balance below, and large minus and plus buttons">
+<img src="store/screenshots/6-new-expense.png" width="240" alt="New expense: the date at the top, Rs2,500.00 in a red amount bar with the Cash account at its left, a note with Repeat, photo and scan icons beside it, the keypad, and CHOOSE CATEGORY">
+<img src="store/screenshots/3-transactions-by-day.png" width="240" alt="The transaction list for September, grouped by day, with the period's arrows and its balance above it">
 
 </div>
 
@@ -85,13 +85,20 @@ phone.
 
 ## Everything else
 
+- **Home** — one screen: a ring of the period's spending with each
+  category's icon and share around it, the balance under it, and big **−**
+  and **+** to record an expense or income. Swipe sideways for the period
+  before or after; the filter button picks an account, a period or any
+  dates.
+- **Recording** — type the amount on a calculator keypad, then tap a
+  category in a grid of icons: that records it.
 - **Accounts** — cash, cards and bank accounts, each with its balance; other
   currencies counted at rates you enter.
 - **Transfers** between your own accounts, which move each account's balance
   without counting as spending.
 - **Recurring** expenses and income, with an optional reminder before each.
 - **Categories** you can add, rename, recolour and nest one level deep.
-- **Charts** — spending by category, income against expenses, trends over
+- **Reports** — spending by category, income against expenses, trends over
   time and a spending calendar, for any period and any account.
 - **Budget plans** — every plan you have kept, the active one first: rename,
   delete, compare two side by side.

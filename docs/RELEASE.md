@@ -19,7 +19,7 @@ and the Samsung Galaxy Store. Google Play ($25, once) and the App Store
 |---|---|---|---|
 | Upload key generated, backed up twice | you, once | 5 minutes | **Done** |
 | Four repository secrets set | you, once | 5 minutes | **Done** |
-| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06) |
+| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06), `v1.1.0` (2026-10-07) |
 | Galaxy Store seller account | you | free; a day or so | Next |
 | Galaxy Store review | Samsung | several days | |
 | *Later:* Google Play | you + 12 testers | $25 once; **14 days** of closed testing | |
@@ -84,8 +84,8 @@ again, not even to you.
 
 **Each release.**
 
-1. Raise the version in `pubspec.yaml`: `1.0.0+1`, then `1.0.1+2`, and so
-   on. The number after the `+` must go up every time, or phones refuse the
+1. Raise the version in `pubspec.yaml`: `1.0.0+1`, then `1.0.1+2`, then
+   `1.1.0+4` (`1.0.2+3` was never tagged), and so on. The number after the `+` must go up every time, or phones refuse the
    update as a downgrade.
 2. Merge that to `main`, then tag it:
 
@@ -223,8 +223,8 @@ requires it ([E-20](SPEC_ERRATA.md)). Say 15.5 in App Store Connect.
       budget-alert notification.
 - [x] Screenshots from a release build, not a debug one (the debug banner is
       an automatic rejection): `store/screenshots/`, taken 2026-09-28;
-      the home screen and the list retaken from 1.0.1 on 2026-10-06, for
-      the Budget plans tile and the arrows.
+      the home screen, the list and the new expense screen retaken from
+      1.1.0 on 2026-10-07, for the new home and entry.
 - [x] The privacy policy at a public URL: the repository is public, so the
       file's GitHub page is one.
 - [x] A contact address in [`PRIVACY.md`](PRIVACY.md) and

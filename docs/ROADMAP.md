@@ -964,7 +964,7 @@ charts, the plan and the budgets still never see a transfer — an
 [E-02](SPEC_ERRATA.md) addendum says why this is that entry's own
 account-balance rule rather than an exception to it.
 
-## After release — 1.0.0 and 1.0.1
+## After release — 1.0.0 to 1.1.0
 
 **1.0.0** was published on GitHub Releases on 2026-10-05, signed with the
 owner's upload key, after a walk of the release APK that fixed what only a
@@ -988,12 +988,17 @@ from their own phones:
   budget can be changed.
 - **How an installed copy updates**, in [`RELEASE.md`](RELEASE.md) (#169).
 
-**1.0.2** makes Ask Moneyora answer again. Google shut down
+**1.1.0**, published 2026-10-07, carries two changes. Version 1.0.2 was
+prepared for the first and never tagged; it shipped inside 1.1.0.
+
+The first makes Ask Moneyora answer again. Google shut down
 `gemini-2.0-flash` on 2026-06-01, so every question to 1.0.0 and 1.0.1
 failed. It now asks `gemini-3.5-flash` and falls back to the newest Flash
 model when that one is busy or out of quota. It replays Gemini 3's thought
 signatures and answers in the base currency (#172, #174). **Change API
 key** replaces a key that Google turned down.
+
+The second is the new home and entry, below.
 
 ### Home and entry, rebuilt — done (#175 to #177, #179)
 
