@@ -1,6 +1,5 @@
-/// The home screen's spending ring, in the reference app's shape: each
-/// category's icon and share around the ring, income and spending in its
-/// middle. FR-RPT-001.
+/// The home screen's spending ring: each category's icon and share around
+/// the ring, income and spending in its middle. FR-RPT-001.
 library;
 
 import 'dart:math' as math;

@@ -16,14 +16,12 @@ import 'package:flutter/material.dart';
 /// ## Where these values come from
 ///
 /// The brand is **indigo**, not the green in SRS §4.1. The stakeholder
-/// rejected green during requirements gathering because it would read as a
-/// copy of Monefy, the reference app, and the instruction did not reach the
-/// document. See E-01.
+/// rejected green during requirements gathering, and the instruction did
+/// not reach the document. See E-01.
 ///
 /// The semantic trio is unchanged from SRS §4.1: green for money in, red for
-/// money out, teal for transfers. That is a cross-cultural finance convention
-/// rather than a Monefy trait, and inverting it would cost comprehension for
-/// nothing.
+/// money out, teal for transfers. That is a cross-cultural finance
+/// convention, and inverting it would cost comprehension for nothing.
 ///
 /// ## Every pair here is measured, not assumed
 ///

@@ -9,8 +9,8 @@ import '../../domain/repositories/analytics_repository.dart';
 /// Asks for a run of days between [first] and [last], starting on the
 /// month of [initial] when there is one. Null when cancelled.
 ///
-/// The reference app's interval: one month at a time, a sideways swipe for
-/// the next, and two taps for the first and last day. Flutter's own range
+/// One month at a time, a sideways swipe for the next, and two taps for
+/// the first and last day. Flutter's own range
 /// picker scrolls every month in one long column on a phone, and a year back
 /// was a long way down it.
 Future<DateRange?> showIntervalPicker(

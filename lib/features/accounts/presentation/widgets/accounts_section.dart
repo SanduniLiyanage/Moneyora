@@ -135,7 +135,7 @@ class _Accounts extends ConsumerWidget {
   }
 }
 
-/// The reference app's first row: move money between accounts, or add one.
+/// The first row: move money between accounts, or add one.
 class _AddRow extends StatelessWidget {
   const _AddRow();
 

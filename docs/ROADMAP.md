@@ -995,11 +995,11 @@ model when that one is busy or out of quota. It replays Gemini 3's thought
 signatures and answers in the base currency (#172, #174). **Change API
 key** replaces a key that Google turned down.
 
-### The reference-app layout — in progress
+### The reference-app layout — done (#175 to #178)
 
-The owner uses Monefy every day, and testers agree its flow is smoother.
-Home and entry are being rebuilt in its shape, in Moneyora's own colours,
-over several PRs:
+At the owner's request, after testers' feedback, home and entry were
+rebuilt so the things done most often take the fewest taps, over several
+PRs:
 
 1. **The panels** — done (#175). The filter button at the top left opens
    the account and period choices, which used to be on the chart's card.
@@ -1015,8 +1015,13 @@ over several PRs:
    the period, with ‹ › above its balance. Deleting moved from a swipe on
    the row to holding it, and to a bin on the edit screen, with the same
    Undo. Interval opens a calendar that swipes between months.
-4. **Entry.** New expense or New income: the keypad first, then a
-   category grid that saves on a tap.
+4. **Entry** — done (#178). New expense and New income are laid out as
+   one question at a time: Cancel, the title and a switch at the top; the
+   date; the amount in a bar the colour of what it will become, with the
+   account at its left and ⌫ at its right; a note, with Repeat, a photo
+   and the scanner as small icons beside it; the 1-to-9 keypad with =;
+   and CHOOSE CATEGORY, which opens the grid of category icons and
+   records the entry on a tap.
 
 ### Still open
 
