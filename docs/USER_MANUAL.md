@@ -74,8 +74,9 @@ on **Transactions**).
    are stored encrypted, and only Moneyora can open them.
 7. Tap **Save**.
 
-To change an entry, tap it in the list. To delete one, swipe it off the
-list; **Undo** appears for a few seconds in case that was a mistake.
+To change an entry, tap it in the list. To delete one, tap it and then the
+bin at the top, or press and hold it in the list and choose **Delete**.
+**Undo** appears for a few seconds in case that was a mistake.
 
 ### Something that repeats
 
@@ -107,9 +108,11 @@ the bank's differs.
 day's total. An expense shows a red arrow pointing down and income a green
 arrow pointing up, the way each moves your balance; a transfer shows the
 two-way arrows. **All**, **Expenses** and **Income** at the top filter the
-list, and tapping the balance chooses the period and the account. **Group by
-category** shows each category's entries together with their total; **List
-by date** goes back.
+list. It shows the same period and account as the home screen. **Swipe**
+sideways, or use **‹** and **›**, for the period before or after, and tap
+the balance to choose another period or account. **Group by category**
+shows each category's entries together with their total; **List by date**
+goes back.
 
 ---
 
@@ -162,7 +165,9 @@ The **filter** button at the top left chooses what home and Reports show:
 
 - **an account**, or **All accounts**;
 - **Day**, **Week**, **Month**, **Year** or **All**;
-- **Interval**, for any run of days you pick;
+- **Interval**, for any run of days: on its calendar, swipe between
+  months, tap the first day, then the last (it can be in another month),
+  and tap **OK**;
 - **Choose date**, which moves the period to the day you pick: with
   **Month** chosen, picking 3 March shows March.
 

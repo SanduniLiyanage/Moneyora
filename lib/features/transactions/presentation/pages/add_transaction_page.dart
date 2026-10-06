@@ -350,6 +350,14 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               icon: const Icon(Icons.document_scanner_outlined),
               onPressed: () => context.push(Routes.scanReceipt),
             ),
+          // Back to the list with the answer, which deletes the row with its
+          // undo window (E-23): a mistaken tap is one more tap to take back.
+          if (_isEditing)
+            IconButton(
+              tooltip: 'Delete',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
         ],
       ),
       body: categoriesAsync.when(

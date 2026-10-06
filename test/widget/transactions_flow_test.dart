@@ -123,13 +123,23 @@ void main() {
   /// [amount] on a transaction row, not on its day's header: a day with
   /// one row totals the same figure (FR-EXP-006).
   Finder onRow(String amount) => find.descendant(
-    of: find.byType(Dismissible),
+    of: find.byType(TransactionRow),
     matching: find.text(amount),
   );
 
   Future<void> tapRow(WidgetTester tester, String amount) async {
     await tester.ensureVisible(onRow(amount));
     await tester.tap(onRow(amount));
+    await tester.pumpAndSettle();
+  }
+
+  /// Holds the row, then Delete. A sideways swipe steps the period since
+  /// 2026-10-06, so this is how a row leaves the list.
+  Future<void> deleteRow(WidgetTester tester, String amount) async {
+    await tester.ensureVisible(onRow(amount));
+    await tester.longPress(onRow(amount));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
   }
 
@@ -539,7 +549,7 @@ void main() {
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
       expect(photos.discarded, isEmpty, reason: 'undo still possible');
 
@@ -875,7 +885,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
 
       expect(onRow('−Rs500.00'), findsNothing);
@@ -889,7 +899,7 @@ void main() {
       // entry screen's Save button, and a tap on Save hit the bar instead.
       await pumpApp(tester);
       await addExpense(tester);
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
       expect(find.text('Undo'), findsOneWidget);
 
@@ -903,7 +913,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
       await tapText(tester, 'Undo');
 
@@ -921,7 +931,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
       expect(repository.deleted, isEmpty, reason: 'window still open');
 
@@ -944,7 +954,7 @@ void main() {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
       expect(repository.deleted, isEmpty, reason: 'not written yet');
 
@@ -955,13 +965,63 @@ void main() {
       expect(find.text('No transactions yet'), findsOneWidget);
     });
 
+    testWidgets('a sideways swipe on a row deletes nothing', (tester) async {
+      // The swipe steps the period now, as on home. A row it used to take
+      // away stays put.
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      expect(onRow('−Rs500.00'), findsOneWidget);
+      expect(find.text('Undo'), findsNothing);
+    });
+
+    testWidgets('a held row offers Edit as well', (tester) async {
+      await pumpApp(tester);
+      await addExpense(tester);
+
+      await tester.longPress(onRow('−Rs500.00'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit expense'), findsOneWidget);
+    });
+
+    testWidgets('Delete on the edit screen has the same undo window', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await addExpense(tester);
+      await tapRow(tester, '−Rs500.00');
+
+      await tester.tap(find.byTooltip('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(onRow('−Rs500.00'), findsNothing);
+      expect(find.text('Undo'), findsOneWidget);
+      expect(repository.deleted, isEmpty, reason: 'not written yet');
+
+      await tapText(tester, 'Undo');
+      expect(onRow('−Rs500.00'), findsOneWidget);
+    });
+
+    testWidgets('a new entry has no Delete', (tester) async {
+      await pumpApp(tester);
+      await tapText(tester, 'Add');
+
+      expect(find.byTooltip('Delete'), findsNothing);
+    });
+
     testWidgets('the snackbar disappears when the undo window closes', (
       tester,
     ) async {
       await pumpApp(tester);
       await addExpense(tester);
 
-      await tester.drag(onRow('−Rs500.00'), const Offset(-500, 0));
+      await deleteRow(tester, '−Rs500.00');
       await tester.pumpAndSettle();
       expect(find.text('Transaction deleted'), findsOneWidget);
       expect(find.text('Undo'), findsOneWidget);
@@ -1323,7 +1383,7 @@ void main() {
       expect(find.byTooltip('Group by category'), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byType(Dismissible),
+          of: find.byType(TransactionRow),
           matching: find.text('Food'),
         ),
         findsOneWidget,
