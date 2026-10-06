@@ -105,6 +105,21 @@ What people see: Android warns about installing from an unknown source the
 first time, and there are no automatic updates — they come back to the
 release page for a new version.
 
+**How someone who already has Moneyora gets the update.** They download
+the new APK from the release page and open it. Android offers **Update**,
+not Install, and keeps every transaction, plan and setting, because two
+things hold: the new APK is signed with the **same upload key**, and its
+build number (after the `+`) is **higher** than the one installed. Break
+either and Android refuses ("App not installed"), and the only way past is
+to uninstall, which deletes their data unless they made a backup first.
+Never uninstall to "fix" an update.
+
+Nothing tells them an update exists. Post the release where your testers
+are, with what changed. Someone who wants to be told can add the
+repository to [Obtainium](https://github.com/ImranR98/Obtainium), a free
+app that watches GitHub Releases and offers each new APK. The Galaxy Store
+(§3), and Play later, update installed copies by themselves.
+
 A pull request that edits the workflow runs it as a dry run (no key, no
 release; the APKs are kept as a build artefact for three days), so a broken
 pipeline shows up on its PR, not on release day.
