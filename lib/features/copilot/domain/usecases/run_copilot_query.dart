@@ -84,7 +84,9 @@ class RunCopilotQuery implements UseCase<CopilotAnswer, String> {
       // that the rest of the app still works; saying it in both places puts
       // the same sentence on screen twice.
       return const Left(
-        NetworkFailure('The Copilot needs a connection, so it is offline too.'),
+        NetworkFailure(
+          'Ask Moneyora needs a connection, so it is offline too.',
+        ),
       );
     }
 
@@ -115,7 +117,7 @@ class RunCopilotQuery implements UseCase<CopilotAnswer, String> {
         case ToolCallsRequested(:final calls):
           for (final call in calls) {
             final (result, ran) = await _run(call);
-            history.add(ToolExchange(call: call, result: result));
+            history.add(ToolExchange(call: call, result: result, turn: turn));
             // Only what actually ran is shown to the user. A trace that listed
             // attempts would say the agent consulted something it never read.
             if (ran) trace.add(call);

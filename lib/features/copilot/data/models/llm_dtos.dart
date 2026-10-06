@@ -13,6 +13,7 @@
 /// real request and fails if any raw-row field appears in it (FR-COP-011).
 library;
 
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/agent_tool.dart';
 import '../../domain/entities/llm_step.dart';
 import '../../domain/entities/tool_call.dart';
@@ -42,18 +43,33 @@ class GeminiDtos {
       '\n'
       'Answer in two or three sentences. Always say which period and which '
       'category a number refers to. You receive only totals, never individual '
-      'transactions, and you must never ask for individual transactions.';
+      'transactions, and you must never ask for individual transactions.\n'
+      '\n'
+      'You can see only what your tools return: how much was spent in each '
+      'category over a period. You cannot see account balances, accounts or '
+      'income. If asked for one of those, say so in one sentence, and suggest '
+      'a question about spending you can answer instead.';
 
   /// Composes the outbound request.
   ///
-  /// [history] is replayed as the conversation it was: each of the model's own
-  /// calls, then the aggregate it received. A `functionResponse` sent without
-  /// the `functionCall` it answers is a reply to a question the transcript
-  /// never contains.
+  /// [history] is replayed as the conversation it was: each of the model's
+  /// replies with every call it made, then one turn from the user with the
+  /// aggregate for each. A `functionResponse` sent without the `functionCall`
+  /// it answers is a reply to a question the transcript never contains.
+  ///
+  /// Each call goes back with the `thoughtSignature` and `id` it came with.
+  /// Gemini 3 refuses a replayed call that lost its signature (a 400), and a
+  /// reply's calls split across several model turns are not the reply it
+  /// signed.
+  ///
+  /// With [today], the instruction says what day it is: "last month" means
+  /// nothing to a model that does not know the date, and it guesses one from
+  /// its training instead.
   static Map<String, dynamic> buildRequestBody({
     required String question,
     required List<AgentTool> tools,
     required List<ToolExchange> history,
+    DateTime? today,
   }) {
     final contents = <Map<String, dynamic>>[
       {
@@ -64,28 +80,33 @@ class GeminiDtos {
       },
     ];
 
-    for (final exchange in history) {
+    for (final turn in _byTurn(history)) {
       contents.add({
         'role': 'model',
         'parts': [
-          {
-            'functionCall': {
-              'name': exchange.call.toolName,
-              'args': exchange.call.args,
+          for (final exchange in turn)
+            {
+              'functionCall': {
+                'name': exchange.call.toolName,
+                'args': exchange.call.args,
+                'id': ?exchange.call.id,
+              },
+              'thoughtSignature': ?exchange.call.signature,
             },
-          },
         ],
       });
       contents.add({
-        'role': 'function',
+        'role': 'user',
         'parts': [
-          {
-            'functionResponse': {
-              'name': exchange.result.toolName,
-              // Aggregate-only by contract, and by the test that guards it.
-              'response': exchange.result.aggregate,
+          for (final exchange in turn)
+            {
+              'functionResponse': {
+                'name': exchange.result.toolName,
+                'id': ?exchange.call.id,
+                // Aggregate-only by contract, and by the test that guards it.
+                'response': exchange.result.aggregate,
+              },
             },
-          },
         ],
       });
     }
@@ -93,7 +114,11 @@ class GeminiDtos {
     return {
       'system_instruction': {
         'parts': [
-          {'text': systemInstruction},
+          {
+            'text': today == null
+                ? systemInstruction
+                : '$systemInstruction\n\nToday is ${encodeIsoDay(today)}.',
+          },
         ],
       },
       'contents': contents,
@@ -110,6 +135,19 @@ class GeminiDtos {
         },
       ],
     };
+  }
+
+  /// [history] in runs of one model reply each, in order.
+  static List<List<ToolExchange>> _byTurn(List<ToolExchange> history) {
+    final turns = <List<ToolExchange>>[];
+    for (final exchange in history) {
+      if (turns.isEmpty || turns.last.first.turn != exchange.turn) {
+        turns.add([exchange]);
+      } else {
+        turns.last.add(exchange);
+      }
+    }
+    return turns;
   }
 
   /// Reads one turn of the model's reply.
@@ -147,12 +185,16 @@ class GeminiDtos {
         final name = call['name'];
         if (name is! String || name.isEmpty) continue;
         final args = call['args'];
+        final id = call['id'];
+        final signature = part['thoughtSignature'];
         calls.add(
           ToolCall(
             toolName: name,
             args: args is Map
                 ? args.map((key, value) => MapEntry('$key', value))
                 : const {},
+            id: id is String ? id : null,
+            signature: signature is String ? signature : null,
           ),
         );
         continue;

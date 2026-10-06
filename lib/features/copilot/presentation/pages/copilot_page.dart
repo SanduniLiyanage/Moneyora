@@ -46,7 +46,18 @@ class _CopilotPageState extends ConsumerState<CopilotPage> {
     final hasKey = ref.watch(copilotHasKeyProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ask Moneyora')),
+      appBar: AppBar(
+        title: const Text('Ask Moneyora'),
+        actions: [
+          // The only way to correct a mistyped key, or move to a new one.
+          if (hasKey case AsyncData(value: true))
+            IconButton(
+              tooltip: 'Change API key',
+              icon: const Icon(Icons.key_outlined),
+              onPressed: () => unawaited(removeCopilotApiKey(ref)),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: switch (hasKey) {
           AsyncData(value: false) => const _ConnectTheAssistant(),

@@ -260,16 +260,21 @@ another.
 
 ## 8. Asking Moneyora
 
-**Ask Moneyora** answers questions such as *"How much did I spend on food
-last month?"*. It is the one feature that needs the internet, and it is
-optional.
+**Ask Moneyora** answers questions about your spending, such as *"How much
+did I spend on food last month?"* or *"What were my three biggest
+categories this month?"*. It sees only how much was spent in each category,
+so it cannot tell you an account's balance or your income. It is the one
+feature that needs the internet, and it is optional.
 
-It uses Google's Gemini service, with an API key you get from Google and
-type in once (**Save key**). The key is kept in the phone's secure
-keychain. When you ask a question, Moneyora sends Google the question and
-the totals per category for the dates it needs. It never sends individual
-transactions, notes, merchants or photos. Without a key, or offline, every
-other part of the app works as normal.
+It uses Google's Gemini service, with a free API key you get from Google AI
+Studio and type in once (**Save key**). The key is kept in the phone's
+secure keychain. To correct a mistyped key or use a new one, tap the key
+button at the top (**Change API key**) and enter it again.
+
+When you ask a question, Moneyora sends Google the question, today's date
+and the totals per category for the dates it needs. It never sends
+individual transactions, notes, merchants or photos. Without a key, or
+offline, every other part of the app works as normal.
 
 ---
 

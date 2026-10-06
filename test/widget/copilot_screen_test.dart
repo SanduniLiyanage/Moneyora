@@ -124,6 +124,40 @@ void main() {
     await tester.tap(find.text('Ask'));
   }
 
+  group('changing the key', () {
+    // A tester on 1.0.1 could not fix a mistyped key: once saved, nothing
+    // on screen could change it, and the error said to look in Settings.
+    testWidgets('clears it and asks for a new one', (tester) async {
+      final store = InMemoryLlmApiKeyStore('mistyped');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            llmApiKeyStoreProvider.overrideWithValue(store),
+            networkInfoProvider.overrideWithValue(
+              _FakeNetwork(connected: true),
+            ),
+          ],
+          child: MaterialApp(theme: AppTheme.light, home: const CopilotPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Ask'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Change API key'));
+      await tester.pumpAndSettle();
+
+      expect(await store.read(), isNull);
+      expect(find.text('Connect the assistant'), findsOneWidget);
+    });
+
+    testWidgets('is not offered before there is a key', (tester) async {
+      await tester.pumpWidget(boot(apiKey: null));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Change API key'), findsNothing);
+    });
+  });
+
   group('before a key exists', () {
     testWidgets('asks for one instead of offering a question box', (
       tester,
