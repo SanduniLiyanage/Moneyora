@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -126,10 +127,95 @@ void main() {
       expect(instruction['text'], endsWith('Today is 2026-10-06.'));
     });
 
-    test('asks the current Flash model by its alias, not a dated name', () {
+    test('asks a stable model first, and the newest Flash after it', () {
       // 1.0.1 asked `gemini-2.0-flash`, which Google shut down on 2026-06-01:
-      // every question failed. The alias follows each new Flash release.
-      expect(GeminiRemoteDataSource.defaultModel, 'gemini-flash-latest');
+      // every question failed. The alias for the newest Flash answered 503
+      // "high demand" in testing; the stable one answered in two seconds.
+      expect(GeminiRemoteDataSource.defaultModel, 'gemini-3.5-flash');
+      expect(GeminiRemoteDataSource.fallbackModel, 'gemini-flash-latest');
+    });
+
+    test('tells the model the currency, in the app\'s own style', () async {
+      // Told only "integer cents", it answered in dollars: "$8,400.00" for
+      // a month of food in rupees.
+      late http.Request seen;
+      final source = GeminiRemoteDataSource(
+        MockClient((request) async {
+          seen = request;
+          return http.Response(answerBody('ok'), 200);
+        }),
+        InMemoryLlmApiKeyStore('test-key'),
+        baseCurrency: () async => 'LKR',
+      );
+
+      await ask(source);
+
+      final text =
+          ((((jsonDecode(seen.body) as Map)['system_instruction']
+                              as Map)['parts']
+                          as List)
+                      .single
+                  as Map)['text']
+              as String;
+      expect(text, contains('LKR'));
+      expect(text, contains('Rs8,400.00'));
+    });
+
+    test('asks for little thinking', () async {
+      // Gemini 3 thinks at "high" by default: tens of seconds a reply.
+      late http.Request seen;
+      final source = sourceReturning((request) {
+        seen = request;
+        return http.Response(answerBody('ok'), 200);
+      });
+
+      await ask(source);
+
+      final config =
+          (jsonDecode(seen.body) as Map<String, dynamic>)['generationConfig']
+              as Map;
+      expect((config['thinkingConfig'] as Map)['thinkingLevel'], 'low');
+    });
+
+    for (final (status, why) in const [
+      (503, 'too busy'),
+      (429, 'out of quota for that model'),
+    ]) {
+      test('a model $why ($status) passes the question to the other', () async {
+        final asked = <String>[];
+        final source = sourceReturning((request) {
+          asked.add(request.url.path);
+          return asked.length == 1
+              ? http.Response('{"error":{"code":$status}}', status)
+              : http.Response(answerBody('ok'), 200);
+        });
+
+        final step = await ask(source);
+
+        expect((step as FinalAnswer).text, 'ok');
+        expect(asked.last, contains(GeminiRemoteDataSource.fallbackModel));
+      });
+    }
+
+    test('the model that answered is asked first next time', () async {
+      // A conversation stays with the model that started it: its calls'
+      // signatures mean nothing to another, and the busy one is still busy.
+      // 1.0.2's test build went back to the busy model on the second turn
+      // and waited on it until the timeout.
+      final asked = <String>[];
+      final source = sourceReturning((request) {
+        asked.add(request.url.path);
+        return request.url.path.contains(GeminiRemoteDataSource.defaultModel)
+            ? http.Response('{"error":{"code":503}}', 503)
+            : http.Response(answerBody('ok'), 200);
+      });
+
+      await ask(source);
+      asked.clear();
+      await ask(source);
+
+      expect(asked, hasLength(1));
+      expect(asked.single, contains(GeminiRemoteDataSource.fallbackModel));
     });
 
     test('a model that is gone falls back to the pinned stable one', () async {
@@ -484,6 +570,27 @@ void main() {
       final source = sourceReturning((_) => throw const SocketLikeException());
 
       await expectLater(ask(source), throwsA(isA<ServerException>()));
+    });
+
+    test('a reply that never comes says it took too long', () async {
+      // Not "could not reach": it was reached, and was slow. The difference
+      // tells the user that trying again may work.
+      final source = GeminiRemoteDataSource(
+        MockClient((_) => Completer<http.Response>().future),
+        InMemoryLlmApiKeyStore('test-key'),
+        timeout: const Duration(milliseconds: 10),
+      );
+
+      await expectLater(
+        ask(source),
+        throwsA(
+          isA<ServerException>().having(
+            (e) => e.message,
+            'message',
+            contains('took too long'),
+          ),
+        ),
+      );
     });
 
     test('a body that is not JSON at all', () async {

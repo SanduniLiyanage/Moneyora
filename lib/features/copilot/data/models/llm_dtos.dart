@@ -13,6 +13,7 @@
 /// real request and fails if any raw-row field appears in it (FR-COP-011).
 library;
 
+import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/agent_tool.dart';
 import '../../domain/entities/llm_step.dart';
@@ -70,7 +71,16 @@ class GeminiDtos {
     required List<AgentTool> tools,
     required List<ToolExchange> history,
     DateTime? today,
+    CurrencyFormat? currency,
   }) {
+    final context = [
+      systemInstruction,
+      if (currency != null)
+        'Every amount is in ${currency.code}. Write amounts the way this app '
+            'does, for example ${formatCents(840000, currency: currency)}, '
+            'and never in another currency.',
+      if (today != null) 'Today is ${encodeIsoDay(today)}.',
+    ].join('\n\n');
     final contents = <Map<String, dynamic>>[
       {
         'role': 'user',
@@ -114,14 +124,15 @@ class GeminiDtos {
     return {
       'system_instruction': {
         'parts': [
-          {
-            'text': today == null
-                ? systemInstruction
-                : '$systemInstruction\n\nToday is ${encodeIsoDay(today)}.',
-          },
+          {'text': context},
         ],
       },
       'contents': contents,
+      // Gemini 3 thinks at "high" unless told otherwise, which on a busy day
+      // is tens of seconds a reply. Totals by category need little of it.
+      'generationConfig': {
+        'thinkingConfig': {'thinkingLevel': 'low'},
+      },
       'tools': [
         {
           'function_declarations': [

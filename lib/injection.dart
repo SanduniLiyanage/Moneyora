@@ -1447,6 +1447,10 @@ final geminiRemoteDataSourceProvider = Provider<GeminiRemoteDataSource>(
   (ref) => GeminiRemoteDataSource(
     ref.watch(httpClientProvider),
     ref.watch(llmApiKeyStoreProvider),
+    // The currency the totals are in, read at question time so a change in
+    // Settings applies to the next question.
+    baseCurrency: () async =>
+        (await ref.read(conversionTableProvider.future)).baseCurrency,
   ),
 );
 
