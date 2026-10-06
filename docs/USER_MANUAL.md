@@ -166,7 +166,8 @@ month ends) and offers **Build it yourself**.
 
 ### Building a plan yourself
 
-1. Open **Create Money Plan** and choose the period under **Plan for**.
+1. Open **Budget plans** on the home screen, tap **Create Money Plan**,
+   and choose the period under **Plan for**.
 2. Tap **Build it yourself** (or **Or build it yourself**, below
    **Generate plan**).
 3. Every expense category is listed. Type a budget for each one you want
@@ -178,7 +179,7 @@ month ends) and offers **Build it yourself**.
 
 ### Having Moneyora suggest a plan
 
-1. Open **Create Money Plan**.
+1. Open **Budget plans** and tap **Create Money Plan**.
 2. Under **Plan for**, choose a day, week, month, year, a number of days,
    or a date range.
 3. Under **Total budget**, choose how the total is decided:
@@ -221,10 +222,13 @@ phone for permission to send notifications.
 
 ### Following a plan
 
-**Your plan** shows each category's budget against what you have spent so
-far, green while there is room and red once it is over. Tap a category to
-change its budget; the others are recalculated so the total stays the same.
-**What if…** shows what a change would do before you make it.
+In **Budget plans**, tap the plan marked **Active**. It shows each
+category's budget against what you have spent so far, green while there is
+room and red once it is over. Tap a category to change its budget; the
+others are recalculated so the total stays the same. In a plan of one
+category, the total changes with it. **What if…** shows what a change would
+do before you make it. Once the plan's period has ended it says **ended**,
+and what each category finished at.
 
 When a category goes over, Moneyora offers three ways to answer:
 
@@ -238,10 +242,16 @@ With budget alerts on (offered when you save a plan, or in Settings ›
 its budget, telling you roughly how much is left, and another when you use
 it up or go over, telling you how far over you are.
 
-### Saved plans
+### Budget plans
 
-**Saved plans** lists every plan you have kept. Open a plan's menu to
-**Activate** it, or **Compare with…** another plan, category by category.
+**Budget plans** lists every plan you have kept, the active one first.
+Open a plan's menu (**⋮**) to **Activate** it, **Compare with…** another
+plan category by category, **Rename…** it or **Delete…** it. The same
+**Rename…** and **Delete…** are in the menu of the plan itself.
+
+Deleting a plan removes its budgets. Your transactions stay exactly as
+they are. If it was the active plan, nothing is tracked until you activate
+another.
 
 ---
 

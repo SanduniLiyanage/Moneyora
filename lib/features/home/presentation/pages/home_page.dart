@@ -158,10 +158,7 @@ class _Ready extends StatelessWidget {
 
 /// Every part of the app, one tap from home, most used first.
 ///
-/// `push`, not `go`. Every route here is top-level, and `go` replaces the
-/// location rather than stacking on it — which leaves the screen with
-/// nothing to pop, no back arrow, and a device back button that exits the
-/// app instead of returning here.
+/// `push`, so each screen stacks on home and its back arrow returns here.
 class _Shortcuts extends StatelessWidget {
   const _Shortcuts();
 
@@ -171,11 +168,12 @@ class _Shortcuts extends StatelessWidget {
     // Moving money between accounts is as ordinary as spending it — cash
     // drawn from a card is one tap from here, not two screens in.
     ('Transfer', Icons.swap_horiz, Routes.transfer),
-    ('Your plan', Icons.savings_outlined, Routes.activePlan),
-    ('Create Money Plan', Icons.edit_calendar_outlined, Routes.moneyPlan),
+    // One door for plans, the owner's call on 1.0.0: "Your plan", "Create
+    // Money Plan" and "Saved plans" were three tiles for one thing. The
+    // list marks the active plan, opens it, and creates a new one.
+    ('Budget plans', Icons.savings_outlined, Routes.plans),
     ('Recurring', Icons.repeat, Routes.recurring),
     ('Categories', Icons.category_outlined, Routes.categories),
-    ('Saved plans', Icons.folder_open_outlined, Routes.plans),
     ('Ask Moneyora', Icons.chat_bubble_outline, Routes.copilot),
   ];
 
