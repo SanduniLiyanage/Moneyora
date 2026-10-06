@@ -95,9 +95,6 @@ class PeriodSelection extends Equatable {
   /// [rangeWith] under the schema's default calendar.
   DateRange get range => rangeWith(CalendarSettings.defaults);
 
-  /// This selection with [period] chosen, keeping the anchor and any custom
-  /// interval already picked — switching to Week and back to Month must
-  /// return to the month the user was looking at, not to today.
   /// The period of the same kind just before this one — last month for a
   /// month, last week for a week — or null for all time, which has none.
   /// FR-RPT-006's month-over-month change is read against it.
@@ -124,6 +121,28 @@ class PeriodSelection extends Equatable {
     },
   };
 
+  /// The period of the same kind just after this one, or null for all time.
+  /// A swipe forward on home and on the list (FR-RPT-002).
+  ///
+  /// The mirror of [previous], clamped the same way, so stepping back and
+  /// then on returns to the same days.
+  PeriodSelection? get next => switch (period) {
+    AnalyticsPeriod.day => withAnchor(_shift(anchor, days: 1)),
+    AnalyticsPeriod.week => withAnchor(_shift(anchor, days: 7)),
+    AnalyticsPeriod.month => withAnchor(_monthAfter(anchor)),
+    AnalyticsPeriod.year => withAnchor(_sameDayIn(anchor.year + 1, anchor)),
+    AnalyticsPeriod.all => null,
+    AnalyticsPeriod.custom => switch (customRange) {
+      null => withAnchor(_shift(anchor, days: 1)),
+      final range => withCustomRange(
+        DateRange(
+          from: _shift(range.to, days: 1),
+          to: _shift(range.to, days: _days(range)),
+        ),
+      ),
+    },
+  };
+
   static DateTime _shift(DateTime date, {required int days}) =>
       DateTime(date.year, date.month, date.day + days);
 
@@ -136,6 +155,22 @@ class PeriodSelection extends Equatable {
     );
   }
 
+  static DateTime _monthAfter(DateTime date) {
+    final lastDay = DateTime(date.year, date.month + 2, 0).day;
+    return DateTime(
+      date.year,
+      date.month + 1,
+      date.day > lastDay ? lastDay : date.day,
+    );
+  }
+
+  /// [date]'s day and month in [year], with 29 February as the 28th when
+  /// [year] has none: `DateTime` would roll it into March.
+  static DateTime _sameDayIn(int year, DateTime date) {
+    final lastDay = DateTime(year, date.month + 1, 0).day;
+    return DateTime(year, date.month, date.day > lastDay ? lastDay : date.day);
+  }
+
   static int _days(DateRange range) =>
       DateTime.utc(range.to.year, range.to.month, range.to.day)
           .difference(
@@ -144,6 +179,9 @@ class PeriodSelection extends Equatable {
           .inDays +
       1;
 
+  /// This selection with [period] chosen, keeping the anchor and any custom
+  /// interval already picked — switching to Week and back to Month must
+  /// return to the month the user was looking at, not to today.
   PeriodSelection withPeriod(AnalyticsPeriod period) =>
       PeriodSelection(period: period, anchor: anchor, customRange: customRange);
 

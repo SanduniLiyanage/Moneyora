@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:moneyora/app.dart';
 import 'package:moneyora/core/database/database_summary.dart';
 import 'package:moneyora/core/errors/failures.dart';
@@ -306,7 +307,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('once it opens: the charts, Add, and a panel each side', (
+    testWidgets('once it opens: the ring, the balance, − and +', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -314,13 +315,19 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The tiles went to the menu on 2026-10-06, at the owner's request.
+      // The reference app's home, the owner's call on 2026-10-06: the tiles
+      // went to the menu, the other charts to Reports.
       expect(find.text('Scan receipt'), findsNothing);
       expect(find.text('Budget plans'), findsNothing);
+      expect(find.text('Income vs expenses'), findsNothing);
       expect(find.byTooltip('Period and account'), findsOneWidget);
       expect(find.byTooltip('Transfer'), findsOneWidget);
       expect(find.byTooltip('Menu'), findsOneWidget);
-      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+      expect(find.byTooltip('Previous period'), findsOneWidget);
+      expect(find.text('Balance'), findsOneWidget);
+      expect(find.byTooltip('New expense'), findsOneWidget);
+      expect(find.byTooltip('New income'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
       // The database's figures are Settings' now, not the home screen's.
       expect(find.text('Database ready'), findsNothing);
       expect(find.text('Coming next'), findsNothing);
@@ -380,7 +387,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await scrollToEnd(tester);
+    // Roomy enough for the ring above everything, or scrolled to the end
+    // when the largest font leaves it too little.
+    if (find.byType(Scrollable).evaluate().isNotEmpty) {
+      await scrollToEnd(tester);
+    }
+    expect(find.byTooltip('New income').hitTestable(), findsOneWidget);
   });
 
   testWidgets('both panels hold at the largest font on a 320dp phone', (
@@ -474,20 +486,88 @@ void main() {
       expect(find.text('Build it yourself'), findsOneWidget);
     });
 
-    testWidgets('Add on home opens the entry screen, and back returns', (
-      tester,
-    ) async {
-      // SCR-001's FAB: recording an expense is the thing done most often,
-      // so it is one tap from home rather than two.
+    testWidgets('+ on home opens a new income', (tester) async {
       await pumpReady(tester);
 
-      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add'));
+      await tester.tap(find.byTooltip('New income'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New income'), findsOneWidget);
+    });
+
+    testWidgets('Balance opens the transactions for the same period', (
+      tester,
+    ) async {
+      // The reference app's Balance. The list reads the same period and
+      // account, which its own test above checks.
+      await pumpReady(tester);
+
+      await tester.tap(find.text('Balance'));
+      // Not pumpAndSettle: the list's rows come from a database this test
+      // does not fake, and their spinner never settles.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.widgetWithText(AppBar, 'Transactions'), findsOneWidget);
+    });
+
+    testWidgets('the arrows and a swipe step the period. FR-RPT-002', (
+      tester,
+    ) async {
+      await pumpReady(tester);
+      final now = DateTime.now();
+      final thisMonth = DateFormat.yMMMM().format(
+        DateTime(now.year, now.month),
+      );
+      final lastMonth = DateFormat.yMMMM().format(
+        DateTime(now.year, now.month - 1),
+      );
+      expect(find.text(thisMonth), findsOneWidget);
+
+      // Nothing after this month can hold anything yet.
+      final next = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.chevron_right),
+      );
+      expect(next.onPressed, isNull);
+
+      await tester.tap(find.byTooltip('Previous period'));
+      await tester.pumpAndSettle();
+      expect(find.text(lastMonth), findsOneWidget);
+
+      // Towards the left is the next period, as a page turns.
+      await tester.fling(find.text(lastMonth), const Offset(-300, 0), 1000);
+      await tester.pumpAndSettle();
+      expect(find.text(thisMonth), findsOneWidget);
+    });
+
+    testWidgets('Reports holds the charts that left home', (tester) async {
+      await pumpReady(tester);
+
+      await tapInMenu(tester, 'Reports');
+
+      expect(find.text('Spending by category'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Income vs expenses'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Income vs expenses'), findsOneWidget);
+    });
+
+    testWidgets('− on home opens the entry screen, and back returns', (
+      tester,
+    ) async {
+      // SCR-001: recording an expense is the thing done most often, so it
+      // is one tap from home rather than two.
+      await pumpReady(tester);
+
+      await tester.tap(find.byTooltip('New expense'));
       await tester.pumpAndSettle();
       expect(find.text('New expense'), findsOneWidget);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+      expect(find.byTooltip('New expense'), findsOneWidget);
     });
 
     testWidgets('Transactions opens with the balance for the chosen period', (
@@ -516,6 +596,7 @@ void main() {
 
       const order = [
         'Transactions',
+        'Reports',
         'Scan receipt',
         'Transfer',
         'Budget plans',
@@ -597,10 +678,7 @@ void main() {
         await tester.pageBack();
         await tester.pumpAndSettle();
 
-        expect(
-          find.widgetWithText(FloatingActionButton, 'Add'),
-          findsOneWidget,
-        );
+        expect(find.byTooltip('New expense'), findsOneWidget);
       }
     });
 
@@ -623,16 +701,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      GoRouter.of(
-        tester.element(find.widgetWithText(FloatingActionButton, 'Add')),
-      ).go(Routes.scanReceipt);
+      GoRouter.of(tester.element(find.byTooltip('New expense')))
+          .go(Routes.scanReceipt);
       await tester.pumpAndSettle();
       expect(find.byType(BackButton), findsOneWidget);
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+      expect(find.byTooltip('New expense'), findsOneWidget);
     });
 
     testWidgets('the transfer icon at the top opens a transfer', (
@@ -648,7 +725,7 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+      expect(find.byTooltip('New expense'), findsOneWidget);
     });
 
     testWidgets('the left panel chooses the period, and closes', (

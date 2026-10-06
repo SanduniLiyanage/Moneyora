@@ -5,14 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
 import '../../features/accounts/presentation/widgets/accounts_section.dart';
+import '../../features/analytics/presentation/pages/reports_page.dart';
 import '../../features/analytics/presentation/providers/analytics_providers.dart';
 import '../../features/analytics/presentation/widgets/balance_bar.dart';
 import '../../features/analytics/presentation/widgets/filter_panel.dart';
-import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
-import '../../features/analytics/presentation/widgets/period_summary_card.dart';
-import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
-import '../../features/analytics/presentation/widgets/spending_heatmap.dart';
-import '../../features/analytics/presentation/widgets/spending_trend_lines.dart';
+import '../../features/analytics/presentation/widgets/spending_overview.dart';
 import '../../features/auth/presentation/pages/passcode_flow_page.dart';
 import '../../features/auth/presentation/widgets/security_settings_section.dart';
 import '../../features/backup/presentation/widgets/backup_settings_section.dart';
@@ -35,6 +32,7 @@ import '../../features/receipt_scanner/presentation/pages/receipt_review_page.da
 import '../../features/receipt_scanner/presentation/pages/scan_receipt_page.dart';
 import '../../features/settings/presentation/pages/exchange_rates_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/transactions/domain/entities/transaction.dart';
 import '../../features/transactions/presentation/pages/add_transaction_page.dart';
 import '../../features/transactions/presentation/pages/recurring_rules_page.dart';
 import '../../features/transactions/presentation/pages/transaction_list_page.dart';
@@ -51,10 +49,19 @@ abstract final class Routes {
   /// SCR-005 — transaction list.
   static const String transactions = '/transactions';
 
-  /// SCR-002 and SCR-003 — recording an expense or income. The home
-  /// screen's Add (SCR-001's FAB) opens it here; the list opens the same
-  /// page directly. FR-EXP-001.
+  /// SCR-002 and SCR-003 — recording an expense or income. FR-EXP-001.
+  ///
+  /// An expense unless `?type=income` says otherwise: home's − opens
+  /// [addTransaction] and its + opens [addIncome]. The list opens the same
+  /// page directly.
   static const String addTransaction = '/transactions/add';
+
+  /// [addTransaction] with income chosen. FR-INC-001.
+  static const String addIncome = '$addTransaction?type=income';
+
+  /// Every chart, for the period and account home shows. FR-RPT-004,
+  /// FR-RPT-005, FR-RPT-006, FR-RPT-009.
+  static const String reports = '/reports';
 
   /// SCR-010 — the money plan wizard's first step. FR-PLN-001.
   static const String moneyPlan = '/plan';
@@ -152,21 +159,16 @@ GoRouter buildRouter() => GoRouter(
       path: Routes.home,
       name: 'home',
       // The period and account panel (FR-RPT-002, FR-RPT-003), the accounts
-      // (FR-ACC-003), the donut chart (FR-RPT-001), the income-vs-expense
-      // bars (FR-RPT-004), the trend lines (FR-RPT-005) and the heatmap
-      // (FR-RPT-009) are composed in here rather than imported by the home
+      // (FR-ACC-003), the spending ring (FR-RPT-001) and the balance
+      // (FR-RPT-006) are composed in here rather than imported by the home
       // screen, which would be one feature importing another. This file
       // already names every feature's pages, so it is where the app is
       // assembled.
       builder: (context, state) => const HomePage(
         filterPanel: FilterPanel(),
         accounts: AccountsSection(),
-        spendingChart: SpendingDonutChart(),
-        balanceBar: BalanceBar(),
-        incomeExpenseChart: IncomeExpenseBars(),
-        summaryCard: PeriodSummaryCard(),
-        spendingTrendChart: SpendingTrendLines(),
-        spendingHeatmap: SpendingHeatmap(),
+        spendingChart: SpendingOverview(),
+        balanceBar: BalanceBar(opensList: true),
       ),
       // Every other screen sits under home, so the stack below any of them
       // is never empty. Reached with `go` — a saved receipt goes to the
@@ -195,7 +197,16 @@ GoRouter buildRouter() => GoRouter(
         GoRoute(
           path: _child(Routes.addTransaction),
           name: 'addTransaction',
-          builder: (context, state) => const AddTransactionPage(),
+          builder: (context, state) => AddTransactionPage(
+            type: state.uri.queryParameters['type'] == 'income'
+                ? TransactionType.income
+                : TransactionType.expense,
+          ),
+        ),
+        GoRoute(
+          path: _child(Routes.reports),
+          name: 'reports',
+          builder: (context, state) => const ReportsPage(),
         ),
         GoRoute(
           path: _child(Routes.moneyPlan),

@@ -306,4 +306,79 @@ void main() {
       expect(pick(AnalyticsPeriod.all, DateTime(2026, 9, 1)).previous, isNull);
     });
   });
+
+  group('the period after, for a swipe forward. FR-RPT-002', () {
+    PeriodSelection pick(AnalyticsPeriod period, DateTime anchor) =>
+        PeriodSelection(period: period, anchor: anchor);
+
+    test('a day, a week and a year step on one of themselves', () {
+      final day = DateTime(2026, 2, 28);
+      expect(
+        pick(AnalyticsPeriod.day, day).next!.range,
+        DateRange.day(DateTime(2026, 3, 1)),
+      );
+      expect(
+        pick(AnalyticsPeriod.week, day).next!.range,
+        DateRange.week(DateTime(2026, 3, 7), firstWeekday: DateTime.sunday),
+      );
+      expect(pick(AnalyticsPeriod.year, day).next!.range, DateRange.year(2027));
+    });
+
+    test('a month steps to the whole month after, from its last day', () {
+      // 31 January on one month is 28 February, not 3 March.
+      expect(
+        pick(AnalyticsPeriod.month, DateTime(2026, 1, 31)).next!.range,
+        DateRange.month(2026, 2),
+      );
+      expect(
+        pick(AnalyticsPeriod.month, DateTime(2025, 12, 15)).next!.range,
+        DateRange.month(2026, 1),
+      );
+    });
+
+    test('a year from 29 February lands in the year after', () {
+      expect(
+        pick(AnalyticsPeriod.year, DateTime(2028, 2, 29)).next!.range,
+        DateRange.year(2029),
+      );
+    });
+
+    test('a month cut on the 25th stays cut on the 25th', () {
+      const calendar = CalendarSettings(firstDayOfMonth: 25);
+      final now = pick(AnalyticsPeriod.month, DateTime(2026, 8, 26));
+
+      expect(
+        now.next!.rangeWith(calendar),
+        DateRange(from: DateTime(2026, 9, 25), to: DateTime(2026, 10, 24)),
+      );
+    });
+
+    test('a custom range steps on by its own length', () {
+      final picked = PeriodSelection.monthOf(DateTime(2026, 9, 1))
+          .withCustomRange(
+            DateRange(from: DateTime(2026, 9, 10), to: DateTime(2026, 9, 19)),
+          );
+
+      expect(
+        picked.next!.range,
+        DateRange(from: DateTime(2026, 9, 20), to: DateTime(2026, 9, 29)),
+      );
+    });
+
+    test('next undoes previous, for every period that has both', () {
+      for (final period in [
+        AnalyticsPeriod.day,
+        AnalyticsPeriod.week,
+        AnalyticsPeriod.month,
+        AnalyticsPeriod.year,
+      ]) {
+        final start = pick(period, DateTime(2026, 3, 18));
+        expect(start.previous!.next!.range, start.range, reason: '$period');
+      }
+    });
+
+    test('all time has none', () {
+      expect(pick(AnalyticsPeriod.all, DateTime(2026, 9, 1)).next, isNull);
+    });
+  });
 }
