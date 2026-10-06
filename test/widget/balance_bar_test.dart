@@ -81,7 +81,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The reference app's own figures: 1,018,900 − 1,002,650.
+    // Figures large enough to need grouping: 1,018,900 − 1,002,650.
     expect(find.text('+Rs16,250.00'), findsOneWidget);
     expect(colourOf(tester, '+Rs16,250.00'), colours(tester).income);
     expect(find.text('September 2026 · All accounts'), findsOneWidget);

@@ -61,26 +61,40 @@ nowhere to record anything.
 
 ### An expense or income
 
-Tap **−** on the home screen for an expense or **+** for income (or **Add**
-on **Transactions**).
+Tap **−** on the home screen for **New expense**, or **+** for **New
+income** (or **Add** on **Transactions**).
 
-1. Check **Expense** or **Income** at the top.
-2. Type the amount.
-3. Pick a category. If the one you want does not exist, tap **New** to
-   create it without leaving the screen.
-4. Pick the account it came from or went to.
-5. Change the date if it was not today, and add a **Note (optional)**.
-6. **Attach a photo** of the receipt if you want one kept with it. Photos
-   are stored encrypted, and only Moneyora can open them.
-7. Tap **Save**.
+1. Type the amount on the keypad. It adds, subtracts, multiplies and
+   divides: 1250 **+** 340 is recorded as 1,590. **=** finishes a sum,
+   and **⌫** in the amount bar removes the last digit.
+2. If it was not today, tap the date at the top to change it.
+3. The icon at the left of the amount is the account. Tap it to choose
+   another, such as Cash or a card.
+4. **Add note** if you want to.
+5. Tap **CHOOSE CATEGORY**, then the category. That records the entry and
+   takes you back. If the category you want does not exist, tap **New** at
+   the end of the grid. The new category is created, and the entry is
+   recorded in it.
 
-To change an entry, tap it in the list. To delete one, tap it and then the
-bin at the top, or press and hold it in the list and choose **Delete**.
-**Undo** appears for a few seconds in case that was a mistake.
+The icon at the top right switches between an expense and an income.
+**Cancel** leaves without recording anything.
+
+Beside the note are three small icons:
+
+- **Repeat** (see below);
+- the **camera**, to keep a photo of the receipt with the expense. Photos
+  are stored encrypted, and only Moneyora can open them;
+- the **scanner**, to read a whole receipt instead (section 5).
+
+To change an entry, tap it in the list, change what you need, then tap
+CHOOSE CATEGORY and its category (the current one is ringed). To delete
+one, tap it and then the bin at the top, or press and hold it in the list
+and choose **Delete**. **Undo** appears for a few seconds in case that was
+a mistake.
 
 ### Something that repeats
 
-On the same screen, tap **Repeat** beside the amount, then choose how often
+On the same screen, tap **Repeat** beside the note, then choose how often
 the entry comes round:
 rent every month, a subscription, a salary. Moneyora records each one when
 it falls due. **Recurring** (in the menu) lists every repeat,

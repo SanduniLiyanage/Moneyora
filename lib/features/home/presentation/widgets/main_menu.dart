@@ -6,8 +6,8 @@ import '../../../../core/widgets/side_panel.dart';
 
 /// The right panel of home: every part of the app, Settings last.
 ///
-/// Opened from ⋮ at the top right, the way the reference app keeps its
-/// screens out of the way of its chart. It replaced the grid of tiles at the
+/// Opened from ⋮ at the top right, which keeps every other screen out of
+/// the way of the chart. It replaced the grid of tiles at the
 /// top of home on 2026-10-06, at the owner's request.
 class MainMenu extends StatelessWidget {
   /// Creates the menu, with [accounts] under its Accounts item.

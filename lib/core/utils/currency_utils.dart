@@ -70,7 +70,7 @@ class CurrencyFormat {
 /// ```
 ///
 /// Grouping is applied to the whole part with commas, which is the convention
-/// in Sri Lanka and matches how the reference app renders amounts.
+/// in Sri Lanka.
 ///
 /// A negative sign goes **before** the symbol (`-Rs500.00`) rather than after
 /// it, because `Rs-500.00` reads as a typo.
