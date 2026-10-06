@@ -4,11 +4,13 @@
 /// `docs/ARCHITECTURE.md` §3; `LlmRepositoryImpl` converts.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../../../../core/errors/exceptions.dart';
+import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/agent_tool.dart';
 import '../../domain/entities/llm_step.dart';
 import '../../domain/entities/tool_exchange.dart';
@@ -48,44 +50,60 @@ class GeminiRemoteDataSource {
     this._keyStore, {
     this.model = defaultModel,
     this.fallback = fallbackModel,
-    this.timeout = const Duration(seconds: 20),
+    this.timeout = const Duration(seconds: 40),
     DateTime Function()? clock,
+    this._baseCurrency,
   }) : _clock = clock ?? DateTime.now;
 
   final DateTime Function() _clock;
 
+  /// The ISO code totals are expressed in. Without it the model was told
+  /// only "cents", and answered in dollars.
+  final Future<String> Function()? _baseCurrency;
+
   final http.Client _client;
   final LlmApiKeyStore _keyStore;
 
-  /// The model to reason with.
+  /// The model asked first.
   ///
   /// Configurable rather than fixed: model names are retired on a schedule
   /// that has nothing to do with this repository, and a hard-coded one turns
   /// into a feature that stops working for no visible reason.
   final String model;
 
-  /// How long to wait before giving up.
-  ///
-  /// Under NFR-PER-001's six seconds for a typical query, this looks generous;
-  /// it is a ceiling for the worst case, not a target. A request still running
-  /// after twenty seconds will not produce a useful answer, and the user is
-  /// looking at a spinner the whole time.
-  final Duration timeout;
-
-  /// What [model] falls back to when Google answers that it does not exist.
+  /// The model asked when [model] is gone (404), out of quota (429) or too
+  /// busy (503). Free-tier quotas are per model, so the other has its own.
   final String fallback;
 
-  /// The current Flash model, by Google's alias for it, which moves to each
-  /// new Flash release.
+  /// How long to wait for one reply before giving up.
   ///
-  /// 1.0.0 and 1.0.1 asked for `gemini-2.0-flash` by name. Google shut it down
-  /// on 2026-06-01, and every question failed with "could not answer that",
-  /// on an app that cannot update itself.
-  static const String defaultModel = 'gemini-flash-latest';
+  /// A ceiling for the worst case, not a target: a question takes two or
+  /// three replies, and on a busy day Gemini takes tens of seconds over
+  /// one. Twenty seconds gave up on replies that were coming.
+  final Duration timeout;
 
-  /// A dated stable model on the free tier, asked only if [defaultModel]
-  /// is ever withdrawn.
-  static const String fallbackModel = 'gemini-3.5-flash';
+  /// The model that answered last, asked first next time.
+  ///
+  /// A conversation stays with the model that started it: the signatures it
+  /// attaches to its calls mean nothing to another model, and going back to
+  /// one that was too busy a moment ago only waits on it again.
+  String? _answering;
+
+  /// A dated stable Flash model on the free tier.
+  ///
+  /// 1.0.0 and 1.0.1 asked for `gemini-2.0-flash`, which Google shut down on
+  /// 2026-06-01: every question failed. The alias that follows the newest
+  /// Flash release was tried first in its place, and in testing answered 503
+  /// "high demand" while this one answered in two seconds.
+  static const String defaultModel = 'gemini-3.5-flash';
+
+  /// Google's alias for the newest Flash model: the way on when
+  /// [defaultModel] is retired, busy or out of quota.
+  static const String fallbackModel = 'gemini-flash-latest';
+
+  /// The statuses another model may answer differently: gone, out of quota,
+  /// too busy.
+  static const Set<int> _worthTheOther = {404, 429, 503};
 
   static const String _host = 'generativelanguage.googleapis.com';
 
@@ -108,17 +126,25 @@ class GeminiRemoteDataSource {
         tools: tools,
         history: history,
         today: _clock(),
+        currency: switch (await _baseCurrency?.call()) {
+          final code? => CurrencyFormat.forCode(code),
+          null => null,
+        },
       ),
     );
 
-    var response = await _post(model, apiKey, body);
-    // 404 is a model Google no longer serves, not a question it could not
-    // answer: the one status worth a second request.
-    if (response.statusCode == 404 && fallback != model) {
-      response = await _post(fallback, apiKey, body);
+    final first = _answering ?? model;
+    final other = first == model ? fallback : model;
+
+    var asked = first;
+    var response = await _post(first, apiKey, body);
+    if (_worthTheOther.contains(response.statusCode) && other != first) {
+      asked = other;
+      response = await _post(other, apiKey, body);
     }
 
     if (response.statusCode != 200) throw _statusException(response);
+    _answering = asked;
 
     final Map<String, dynamic> decoded;
     try {
@@ -155,8 +181,14 @@ class GeminiRemoteDataSource {
             body: body,
           )
           .timeout(timeout);
+    } on TimeoutException catch (e) {
+      // Reached, and waited on: a busy model, not a missing connection.
+      throw ServerException(
+        'The assistant took too long to answer. Try again.',
+        cause: e,
+      );
     } on Exception catch (e) {
-      // Any transport problem: no route, DNS, TLS, timeout. The message says
+      // Any other transport problem: no route, DNS, TLS. The message says
       // nothing about the cause because none of it helps the reader.
       throw ServerException('Could not reach the assistant.', cause: e);
     }
