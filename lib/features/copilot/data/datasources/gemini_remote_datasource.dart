@@ -47,8 +47,12 @@ class GeminiRemoteDataSource {
     this._client,
     this._keyStore, {
     this.model = defaultModel,
+    this.fallback = fallbackModel,
     this.timeout = const Duration(seconds: 20),
-  });
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now;
+
+  final DateTime Function() _clock;
 
   final http.Client _client;
   final LlmApiKeyStore _keyStore;
@@ -68,9 +72,20 @@ class GeminiRemoteDataSource {
   /// looking at a spinner the whole time.
   final Duration timeout;
 
-  /// The current free-tier Flash model. See [model] on why this is a default
-  /// and not a constant.
-  static const String defaultModel = 'gemini-2.0-flash';
+  /// What [model] falls back to when Google answers that it does not exist.
+  final String fallback;
+
+  /// The current Flash model, by Google's alias for it, which moves to each
+  /// new Flash release.
+  ///
+  /// 1.0.0 and 1.0.1 asked for `gemini-2.0-flash` by name. Google shut it down
+  /// on 2026-06-01, and every question failed with "could not answer that",
+  /// on an app that cannot update itself.
+  static const String defaultModel = 'gemini-flash-latest';
+
+  /// A dated stable model on the free tier, asked only if [defaultModel]
+  /// is ever withdrawn.
+  static const String fallbackModel = 'gemini-3.5-flash';
 
   static const String _host = 'generativelanguage.googleapis.com';
 
@@ -83,39 +98,27 @@ class GeminiRemoteDataSource {
     final apiKey = await _keyStore.read();
     if (apiKey == null || apiKey.isEmpty) {
       throw const ServerException(
-        'The Copilot has no API key yet. Add one in Settings.',
+        'Ask Moneyora has no API key yet. Add one on the Ask Moneyora screen.',
       );
     }
 
-    final uri = Uri.https(_host, '/v1beta/models/$model:generateContent');
     final body = jsonEncode(
       GeminiDtos.buildRequestBody(
         question: question,
         tools: tools,
         history: history,
+        today: _clock(),
       ),
     );
 
-    final http.Response response;
-    try {
-      response = await _client
-          .post(
-            uri,
-            headers: {
-              'Content-Type': 'application/json',
-              // Not `?key=` — a URL is logged in places a header is not.
-              'x-goog-api-key': apiKey,
-            },
-            body: body,
-          )
-          .timeout(timeout);
-    } on Exception catch (e) {
-      // Any transport problem: no route, DNS, TLS, timeout. The message says
-      // nothing about the cause because none of it helps the reader.
-      throw ServerException('Could not reach the assistant.', cause: e);
+    var response = await _post(model, apiKey, body);
+    // 404 is a model Google no longer serves, not a question it could not
+    // answer: the one status worth a second request.
+    if (response.statusCode == 404 && fallback != model) {
+      response = await _post(fallback, apiKey, body);
     }
 
-    if (response.statusCode != 200) throw _statusException(response.statusCode);
+    if (response.statusCode != 200) throw _statusException(response);
 
     final Map<String, dynamic> decoded;
     try {
@@ -138,27 +141,62 @@ class GeminiRemoteDataSource {
     }
   }
 
-  /// Maps an HTTP status onto a message, keeping the code for the repository.
+  Future<http.Response> _post(String model, String apiKey, String body) async {
+    final uri = Uri.https(_host, '/v1beta/models/$model:generateContent');
+    try {
+      return await _client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              // Not `?key=` — a URL is logged in places a header is not.
+              'x-goog-api-key': apiKey,
+            },
+            body: body,
+          )
+          .timeout(timeout);
+    } on Exception catch (e) {
+      // Any transport problem: no route, DNS, TLS, timeout. The message says
+      // nothing about the cause because none of it helps the reader.
+      throw ServerException('Could not reach the assistant.', cause: e);
+    }
+  }
+
+  /// Maps a failed reply onto a message, keeping the code for the repository.
   ///
-  /// 429 is the one worth separating: it is the free tier's daily limit, it
-  /// resolves by waiting, and telling the user to "try again" now would be
-  /// advice that cannot work.
-  static ServerException _statusException(int status) => switch (status) {
-    429 => ServerException(
-      'The assistant has used up its quota for now.',
-      statusCode: status,
-    ),
-    401 || 403 => ServerException(
-      'The Copilot API key was rejected. Check it in Settings.',
-      statusCode: status,
-    ),
-    >= 500 => ServerException(
-      'The assistant is having trouble. Try again shortly.',
-      statusCode: status,
-    ),
-    _ => ServerException(
-      'The assistant could not answer that.',
-      statusCode: status,
-    ),
-  };
+  /// 429 is the one worth separating by status: it is the free tier's daily
+  /// limit, it resolves by waiting, and telling the user to "try again" now
+  /// would be advice that cannot work. A mistyped key arrives as a 400 whose
+  /// body names `API_KEY_INVALID`, not as a 401, so the body is read for it.
+  static ServerException _statusException(http.Response response) {
+    final status = response.statusCode;
+    if (status == 401 ||
+        status == 403 ||
+        response.body.contains('API_KEY_INVALID')) {
+      return ServerException(
+        'Google did not accept the API key. Check it, or enter it again with '
+        'Change API key.',
+        statusCode: status,
+      );
+    }
+    return switch (status) {
+      429 => ServerException(
+        'The assistant has used up its quota for now. Try again later.',
+        statusCode: status,
+      ),
+      404 => ServerException(
+        'The assistant is not available to this version of Moneyora. '
+        'Update the app.',
+        statusCode: status,
+      ),
+      >= 500 => ServerException(
+        'The assistant is having trouble. Try again shortly.',
+        statusCode: status,
+      ),
+      _ => ServerException(
+        'The assistant could not answer that ($status).',
+        statusCode: status,
+      ),
+    };
+  }
 }

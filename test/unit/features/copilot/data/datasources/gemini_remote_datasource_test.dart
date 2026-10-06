@@ -102,7 +102,58 @@ void main() {
       expect(seen.url.path, endsWith(':generateContent'));
     });
 
-    test('replays the tool history as a conversation', () async {
+    test('tells the model what day it is', () async {
+      // "Last month" means nothing to a model that does not know the date;
+      // it guesses one from its training, and the totals come back empty.
+      late http.Request seen;
+      final source = GeminiRemoteDataSource(
+        MockClient((request) async {
+          seen = request;
+          return http.Response(answerBody('ok'), 200);
+        }),
+        InMemoryLlmApiKeyStore('test-key'),
+        clock: () => DateTime(2026, 10, 6, 21, 30),
+      );
+
+      await ask(source);
+
+      final instruction =
+          (((jsonDecode(seen.body) as Map)['system_instruction']
+                          as Map)['parts']
+                      as List)
+                  .single
+              as Map;
+      expect(instruction['text'], endsWith('Today is 2026-10-06.'));
+    });
+
+    test('asks the current Flash model by its alias, not a dated name', () {
+      // 1.0.1 asked `gemini-2.0-flash`, which Google shut down on 2026-06-01:
+      // every question failed. The alias follows each new Flash release.
+      expect(GeminiRemoteDataSource.defaultModel, 'gemini-flash-latest');
+    });
+
+    test('a model that is gone falls back to the pinned stable one', () async {
+      final asked = <String>[];
+      final source = sourceReturning((request) {
+        asked.add(request.url.path);
+        return asked.length == 1
+            ? http.Response('{"error":{"code":404,"status":"NOT_FOUND"}}', 404)
+            : http.Response(answerBody('ok'), 200);
+      });
+
+      final step = await ask(source);
+
+      expect((step as FinalAnswer).text, 'ok');
+      expect(asked, hasLength(2));
+      expect(asked.first, contains(GeminiRemoteDataSource.defaultModel));
+      expect(asked.last, contains(GeminiRemoteDataSource.fallbackModel));
+    });
+
+    test('replays each turn together: its calls with their signatures and '
+        'ids, then their results from the user', () async {
+      // Gemini 3 refuses a function call replayed without the
+      // thoughtSignature it came with (a 400), and expects a turn's calls
+      // in one model turn, answered in one user turn.
       late http.Request seen;
       final source = sourceReturning((request) {
         seen = request;
@@ -110,13 +161,15 @@ void main() {
       });
 
       await source.reason(
-        question: 'and July?',
+        question: 'Food in August and July?',
         tools: tools,
         history: const [
           ToolExchange(
             call: ToolCall(
               toolName: 'get_spending_by_category',
               args: {'from': '2026-08-01', 'to': '2026-08-31'},
+              id: 'call-1',
+              signature: 'sig-A',
             ),
             result: ToolResult(
               toolName: 'get_spending_by_category',
@@ -125,15 +178,73 @@ void main() {
               },
             ),
           ),
+          ToolExchange(
+            call: ToolCall(
+              toolName: 'get_spending_by_category',
+              args: {'from': '2026-07-01', 'to': '2026-07-31'},
+              id: 'call-2',
+            ),
+            result: ToolResult(
+              toolName: 'get_spending_by_category',
+              aggregate: {
+                'totals_cents': {'Food': 2900000},
+              },
+            ),
+          ),
         ],
       );
 
-      final body = jsonDecode(seen.body) as Map<String, dynamic>;
-      final roles = (body['contents']! as List)
-          .map((c) => (c as Map)['role'])
-          .toList();
+      final contents =
+          (jsonDecode(seen.body) as Map<String, dynamic>)['contents']! as List;
+      expect(contents.map((c) => (c as Map)['role']), [
+        'user',
+        'model',
+        'user',
+      ]);
 
-      expect(roles, ['user', 'model', 'function']);
+      final calls = (contents[1] as Map)['parts'] as List;
+      expect(calls, hasLength(2));
+      expect((calls[0] as Map)['thoughtSignature'], 'sig-A');
+      expect(((calls[0] as Map)['functionCall'] as Map)['id'], 'call-1');
+      expect((calls[1] as Map).containsKey('thoughtSignature'), isFalse);
+
+      final results = (contents[2] as Map)['parts'] as List;
+      expect(results, hasLength(2));
+      expect(((results[1] as Map)['functionResponse'] as Map)['id'], 'call-2');
+    });
+
+    test('a later turn is replayed as a turn of its own', () async {
+      late http.Request seen;
+      final source = sourceReturning((request) {
+        seen = request;
+        return http.Response(answerBody('ok'), 200);
+      });
+
+      await source.reason(
+        question: 'q',
+        tools: tools,
+        history: const [
+          ToolExchange(
+            call: ToolCall(toolName: 'a', args: {}),
+            result: ToolResult(toolName: 'a', aggregate: {}),
+          ),
+          ToolExchange(
+            call: ToolCall(toolName: 'b', args: {}),
+            result: ToolResult(toolName: 'b', aggregate: {}),
+            turn: 1,
+          ),
+        ],
+      );
+
+      final contents =
+          (jsonDecode(seen.body) as Map<String, dynamic>)['contents']! as List;
+      expect(contents.map((c) => (c as Map)['role']), [
+        'user',
+        'model',
+        'user',
+        'model',
+        'user',
+      ]);
     });
   });
 
@@ -233,6 +344,37 @@ void main() {
         'b',
       ]);
     });
+
+    test('a call keeps the signature and id it came with', () async {
+      final source = sourceReturning(
+        (_) => http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'functionCall': {
+                        'id': 'call-1',
+                        'name': 'get_spending_by_category',
+                        'args': <String, dynamic>{},
+                      },
+                      'thoughtSignature': 'sig-A',
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          200,
+        ),
+      );
+
+      final call = ((await ask(source)) as ToolCallsRequested).calls.single;
+
+      expect(call.id, 'call-1');
+      expect(call.signature, 'sig-A');
+    });
   });
 
   group('what can go wrong', () {
@@ -244,17 +386,58 @@ void main() {
         apiKey: null,
       );
 
+      // It says where the key goes: on the Ask Moneyora screen. It said
+      // Settings, where there is no such field.
       await expectLater(
         ask(source),
         throwsA(
           isA<ServerException>().having(
             (e) => e.message,
             'message',
-            contains('Settings'),
+            allOf(contains('Ask Moneyora'), isNot(contains('Settings'))),
           ),
         ),
       );
     });
+
+    test(
+      'a key Google calls invalid is a rejected key, though it is a 400',
+      () async {
+        // Gemini answers a mistyped key with 400 INVALID_ARGUMENT, reason
+        // API_KEY_INVALID, not 401 — which read as "could not answer that".
+        final source = sourceReturning(
+          (_) => http.Response(
+            jsonEncode({
+              'error': {
+                'code': 400,
+                'message': 'API key not valid. Please pass a valid API key.',
+                'status': 'INVALID_ARGUMENT',
+                'details': [
+                  {
+                    '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+                    'reason': 'API_KEY_INVALID',
+                  },
+                ],
+              },
+            }),
+            400,
+          ),
+        );
+
+        await expectLater(
+          ask(source),
+          throwsA(
+            isA<ServerException>()
+                .having((e) => e.message, 'message', contains('key'))
+                .having(
+                  (e) => e.message,
+                  'message',
+                  isNot(contains('Settings')),
+                ),
+          ),
+        );
+      },
+    );
 
     test('a spent quota keeps its 429, so it can be told apart', () async {
       // The repository needs the code: waiting fixes a 429 and fixes nothing

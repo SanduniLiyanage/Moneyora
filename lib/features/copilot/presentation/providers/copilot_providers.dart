@@ -59,7 +59,15 @@ final copilotProvider = AsyncNotifierProvider<CopilotNotifier, CopilotAnswer?>(
 /// It takes a [WidgetRef] because the only caller is the screen that collects
 /// the key.
 Future<void> saveCopilotApiKey(WidgetRef ref, String key) async {
-  await ref.read(llmApiKeyStoreProvider).write(key);
+  await ref.read(llmApiKeyStoreProvider).write(key.trim());
+  ref.invalidate(copilotHasKeyProvider);
+}
+
+/// Forgets the stored key, and any answer given with it, so the screen asks
+/// for a new one.
+Future<void> removeCopilotApiKey(WidgetRef ref) async {
+  await ref.read(llmApiKeyStoreProvider).clear();
+  ref.read(copilotProvider.notifier).clear();
   ref.invalidate(copilotHasKeyProvider);
 }
 

@@ -38,7 +38,8 @@ own encrypted backup (below).
 3. **A question you ask Ask Moneyora (optional).** This is the only feature
    that uses the internet, and it is off until you enter your own Google
    Gemini API key. When you ask a question, Moneyora sends Google:
-   - the question you typed; and
+   - the question you typed;
+   - today's date, so that "last month" means the right month; and
    - the total spent in each category for the dates the question needs.
 
    It never sends individual transactions, notes, merchant names, account

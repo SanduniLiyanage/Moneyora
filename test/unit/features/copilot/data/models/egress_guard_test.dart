@@ -129,7 +129,9 @@ void main() {
 
     test('every tool result follows the call it answers', () {
       // A functionResponse without its functionCall is a reply to a question
-      // the transcript does not contain, and providers reject it.
+      // the transcript does not contain, and providers reject it. The
+      // results come back from the user, as Gemini's current API has them;
+      // the older "function" role is not one it documents.
       final body = GeminiDtos.buildRequestBody(
         question: 'anything',
         tools: tools,
@@ -140,8 +142,12 @@ void main() {
       expect(contents.map((c) => (c as Map)['role']), [
         'user',
         'model',
-        'function',
+        'user',
       ]);
+      expect(
+        ((contents[2] as Map)['parts'] as List).single,
+        contains('functionResponse'),
+      );
     });
 
     test('the model turn repeats the arguments the model chose', () {

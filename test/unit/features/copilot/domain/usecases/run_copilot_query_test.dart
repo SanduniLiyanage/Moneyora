@@ -234,6 +234,29 @@ void main() {
         ]);
       });
     });
+
+    test('each exchange records the reply that asked for it', () async {
+      // Calls asked for together are replayed together: Gemini 3 signs a
+      // reply, not each call in it.
+      final llm = _ScriptedLlm([
+        const Right(
+          ToolCallsRequested([
+            ToolCall(toolName: 'get_spending_by_category', args: {}),
+            ToolCall(toolName: 'get_spending_by_category', args: {}),
+          ]),
+        ),
+        const Right(
+          ToolCallsRequested([
+            ToolCall(toolName: 'get_spending_by_category', args: {}),
+          ]),
+        ),
+        const Right(FinalAnswer('Done.')),
+      ]);
+
+      await RunCopilotQuery(llm, network, tools: [spending]).call(question);
+
+      expect(llm.historySeen.last.map((e) => e.turn), [0, 0, 1]);
+    });
   });
 
   group('offline (FR-COP-013/014)', () {

@@ -15,7 +15,7 @@ import 'tool_result.dart';
 /// indistinguishable without the call beside them.
 class ToolExchange extends Equatable {
   /// Pairs [call] with the [result] running it produced.
-  const ToolExchange({required this.call, required this.result});
+  const ToolExchange({required this.call, required this.result, this.turn = 0});
 
   /// What the model asked for.
   final ToolCall call;
@@ -23,6 +23,10 @@ class ToolExchange extends Equatable {
   /// What running it produced — aggregates only (FR-COP-010).
   final ToolResult result;
 
+  /// Which of the model's replies asked for [call], counting from 0. Calls
+  /// asked for together are replayed together, as one reply.
+  final int turn;
+
   @override
-  List<Object?> get props => [call, result];
+  List<Object?> get props => [call, result, turn];
 }
