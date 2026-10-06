@@ -218,6 +218,27 @@ void main() {
     child: const MoneyoraApp(),
   );
 
+  /// Opens the menu at the top right of home, then [label] in it.
+  ///
+  /// Scrolled to all the same, so an item added above it fails here rather
+  /// than hiding the rest below the 800×600 fold.
+  Future<void> tapInMenu(WidgetTester tester, String label) async {
+    await tester.tap(find.byTooltip('Menu'));
+    await tester.pumpAndSettle();
+    final menu = find.descendant(
+      of: find.byType(Drawer),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text(label),
+      100,
+      scrollable: menu.first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+  }
+
   group('a tapped budget alert opens the plan it is about. FR-SET-007', () {
     Widget bootWithTaps(_ScriptedTaps taps) => ProviderScope(
       overrides: [
@@ -285,21 +306,20 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('once it opens: shortcuts first, and Add', (tester) async {
+    testWidgets('once it opens: the charts, Add, and a panel each side', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
       );
       await tester.pumpAndSettle();
 
-      // Every part of the app, above the charts, without scrolling.
-      for (final label in ['Transactions', 'Scan Receipt', 'Budget plans']) {
-        expect(find.text(label), findsOneWidget);
-      }
-      // One door for plans, the owner's call on 1.0.0: three tiles for one
-      // thing confused a tester.
-      for (final gone in ['Your plan', 'Create Money Plan', 'Saved plans']) {
-        expect(find.text(gone), findsNothing);
-      }
+      // The tiles went to the menu on 2026-10-06, at the owner's request.
+      expect(find.text('Scan receipt'), findsNothing);
+      expect(find.text('Budget plans'), findsNothing);
+      expect(find.byTooltip('Period and account'), findsOneWidget);
+      expect(find.byTooltip('Transfer'), findsOneWidget);
+      expect(find.byTooltip('Menu'), findsOneWidget);
       expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
       // The database's figures are Settings' now, not the home screen's.
       expect(find.text('Database ready'), findsNothing);
@@ -313,8 +333,7 @@ void main() {
         bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.settings_outlined));
-      await tester.pumpAndSettle();
+      await tapInMenu(tester, 'Settings');
 
       await tester.scrollUntilVisible(
         find.text('Database'),
@@ -364,25 +383,47 @@ void main() {
     await scrollToEnd(tester);
   });
 
+  testWidgets('both panels hold at the largest font on a 320dp phone', (
+    tester,
+  ) async {
+    useLargeTextOnSmallPhone(tester);
+    await tester.pumpWidget(bootWithAccounts());
+    await tester.pumpAndSettle();
+
+    // Each panel scrolled to its last row, so every row is laid out once
+    // at 2x text in 304dp; an overflow throws.
+    Future<void> scrollPanelTo(String label) async {
+      await tester.scrollUntilVisible(
+        find.text(label),
+        100,
+        scrollable: find
+            .descendant(
+              of: find.byType(Drawer),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.byTooltip('Period and account'));
+    await tester.pumpAndSettle();
+    await scrollPanelTo('Choose date');
+    // The scrim, in the 16dp the panel leaves of a 320dp screen.
+    await tester.tapAt(const Offset(316, 300));
+    await tester.pumpAndSettle();
+
+    await tapInMenu(tester, 'Accounts');
+    await scrollPanelTo('Show archived');
+    await scrollPanelTo('Settings');
+    expect(find.text('Settings'), findsOneWidget);
+  });
+
   group('shell', () {
     Future<void> pumpReady(WidgetTester tester) async {
       await tester.pumpWidget(
         bootApp(databaseSummaryProvider.overrideWith((ref) => ready)),
       );
-      await tester.pumpAndSettle();
-    }
-
-    /// The shortcuts sit at the top of home, above the charts; scrolled to
-    /// all the same, so a card added above them fails here rather than
-    /// hiding a tile below the 800×600 fold.
-    Future<void> tapShortcut(WidgetTester tester, String label) async {
-      await tester.scrollUntilVisible(
-        find.text(label),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(label));
       await tester.pumpAndSettle();
     }
 
@@ -405,11 +446,11 @@ void main() {
     testWidgets('reaches the receipt scanner from the home screen', (
       tester,
     ) async {
-      // FR-RCP-001: "Scan Receipt" from the main screen. The screen only
-      // asks the device for a photo on a tap, so opening it touches no
-      // platform channel.
+      // FR-RCP-001: "Scan Receipt" from the main screen, in its menu. The
+      // screen only asks the device for a photo on a tap, so opening it
+      // touches no platform channel.
       await pumpReady(tester);
-      await tapShortcut(tester, 'Scan Receipt');
+      await tapInMenu(tester, 'Scan receipt');
 
       expect(find.text('Take a photo'), findsOneWidget);
       expect(find.text('Choose from gallery'), findsOneWidget);
@@ -421,7 +462,7 @@ void main() {
       // FR-PLN-001: "Create Money Plan" from the main navigation, through
       // Budget plans since 1.0.0's testers found three plan tiles too many.
       await pumpReady(tester);
-      await tapShortcut(tester, 'Budget plans');
+      await tapInMenu(tester, 'Budget plans');
       await tester.tap(
         find.widgetWithText(FloatingActionButton, 'Create Money Plan'),
       );
@@ -446,7 +487,7 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.text('Transactions'), findsOneWidget);
+      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
     });
 
     testWidgets('Transactions opens with the balance for the chosen period', (
@@ -455,6 +496,8 @@ void main() {
       // FR-RPT-006: the list and the home screen report one period and one
       // account, and each says what it left over.
       await pumpReady(tester);
+      await tester.tap(find.byTooltip('Menu'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Transactions'));
       // Not pumpAndSettle: the list's own rows come from a database this
       // test does not fake, and their spinner never settles. The balance
@@ -466,11 +509,47 @@ void main() {
       expect(find.textContaining('· All accounts'), findsOneWidget);
     });
 
-    testWidgets('reaches Settings from the app bar', (tester) async {
+    testWidgets('the menu holds every screen, Settings last', (tester) async {
+      await pumpReady(tester);
+      await tester.tap(find.byTooltip('Menu'));
+      await tester.pumpAndSettle();
+
+      const order = [
+        'Transactions',
+        'Scan receipt',
+        'Transfer',
+        'Budget plans',
+        'Recurring',
+        'Categories',
+        'Accounts',
+        'Ask Moneyora',
+        'Settings',
+      ];
+      final menu = find.byType(Drawer);
+      final tops = [
+        for (final label in order)
+          tester
+              .getTopLeft(find.descendant(of: menu, matching: find.text(label)))
+              .dy,
+      ];
+      for (var i = 1; i < tops.length; i++) {
+        expect(
+          tops[i],
+          greaterThan(tops[i - 1]),
+          reason: '${order[i]} should be below ${order[i - 1]}',
+        );
+      }
+      // One door for plans, the owner's call on 1.0.0: three tiles for one
+      // thing confused a tester.
+      for (final gone in ['Your plan', 'Create Money Plan', 'Saved plans']) {
+        expect(find.text(gone), findsNothing);
+      }
+    });
+
+    testWidgets('reaches Settings from the menu', (tester) async {
       await pumpReady(tester);
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
-      await tester.pumpAndSettle();
+      await tapInMenu(tester, 'Settings');
 
       // The real screen, not the placeholder it replaced: the settings route
       // was the router's last one without a page behind it. The first row,
@@ -489,7 +568,7 @@ void main() {
       for (final destination in const [
         'Ask Moneyora',
         'Budget plans',
-        'Scan Receipt',
+        'Scan receipt',
         'Transfer',
       ]) {
         await tester.pumpWidget(
@@ -507,7 +586,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tapShortcut(tester, destination);
+        await tapInMenu(tester, destination);
 
         expect(
           find.byType(BackButton),
@@ -556,34 +635,76 @@ void main() {
       expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
     });
 
-    testWidgets('the accounts panel opens from the home screen', (
+    testWidgets('the transfer icon at the top opens a transfer', (
+      tester,
+    ) async {
+      // The owner's call: moving money between accounts is one tap from
+      // home, beside the menu rather than inside it.
+      await pumpReady(tester);
+
+      await tester.tap(find.byTooltip('Transfer'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BackButton), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+    });
+
+    testWidgets('the left panel chooses the period, and closes', (
+      tester,
+    ) async {
+      // FR-RPT-002 from the filter icon, as the reference app does it: one
+      // tap, and what it changed is what is on the screen.
+      await pumpReady(tester);
+
+      await tester.tap(find.byTooltip('Period and account'));
+      await tester.pumpAndSettle();
+      for (final label in ['All accounts', 'Day', 'Week', 'Month', 'Year']) {
+        expect(find.text(label), findsWidgets);
+      }
+      for (final label in ['All', 'Interval', 'Choose date']) {
+        expect(find.text(label), findsOneWidget);
+      }
+
+      await tester.tap(find.text('Year'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Interval'), findsNothing, reason: 'still open');
+      final year = '${DateTime.now().year}';
+      // The donut's caption, and the balance under it.
+      expect(find.text(year), findsWidgets);
+      expect(find.text('$year · All accounts'), findsOneWidget);
+    });
+
+    testWidgets('the accounts open in place under Accounts in the menu', (
       tester,
     ) async {
       // FR-ACC-003 asks for the accounts to be reachable "from the main
-      // screen". The panel belongs to the accounts feature and the home
-      // screen must not import it, so `app_router.dart` composes the two —
-      // which means this wiring is only ever exercised through the real
-      // router, as it is here.
+      // screen". They belong to the accounts feature and the home screen
+      // must not import it, so `app_router.dart` composes the two — which
+      // means this wiring is only ever exercised through the real router,
+      // as it is here.
       await tester.pumpWidget(bootWithAccounts());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
+      await tapInMenu(tester, 'Accounts');
 
+      expect(find.byTooltip('New transfer'), findsOneWidget);
+      expect(find.byTooltip('New account'), findsOneWidget);
       expect(find.text('Total balance'), findsOneWidget);
       expect(find.text('Cash'), findsOneWidget);
       expect(find.text('Rs1,250.00'), findsNWidgets(2));
     });
 
-    testWidgets('the panel opens an empty form for a new account', (
+    testWidgets('+ beside the accounts opens an empty form for a new one', (
       tester,
     ) async {
       await tester.pumpWidget(bootWithAccounts());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Add account'));
+      await tapInMenu(tester, 'Accounts');
+      await tester.tap(find.byTooltip('New account'));
       await tester.pumpAndSettle();
 
       expect(find.text('New account'), findsOneWidget);
@@ -595,8 +716,7 @@ void main() {
       await tester.pumpWidget(bootWithAccounts());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
+      await tapInMenu(tester, 'Accounts');
       await tester.tap(find.text('Cash'));
       await tester.pumpAndSettle();
 

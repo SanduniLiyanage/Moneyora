@@ -1,7 +1,7 @@
 /// The home screen's spending-by-category donut chart. FR-RPT-001.
 ///
 /// SDD SCR-001 draws this on the home screen, not a separate report screen,
-/// so it is composed there the way `AccountDrawer` is — passed in from
+/// so it is composed there the way `AccountsSection` is — passed in from
 /// `core/router/app_router.dart`, which already names every feature's pages,
 /// rather than `features/home/` importing `features/analytics/`
 /// (`check_architecture.sh` rule 4).
@@ -20,7 +20,6 @@ import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/category_total.dart';
 import '../providers/analytics_providers.dart';
-import 'account_filter.dart';
 import 'period_selector.dart';
 
 /// A fixed height for every state (loading, empty, error, drawn), so the
@@ -69,10 +68,9 @@ class SpendingDonutChart extends ConsumerWidget {
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
-            const SizedBox(height: 8),
-            const PeriodSelector(),
-            const AccountFilter(),
-            const SizedBox(height: 8),
+            // The period and account are chosen in the panel at the top
+            // left of home, not on this card.
+            const SizedBox(height: 12),
             switch ((totals, categories)) {
               (AsyncError(:final error), _) => _Problem(error: error),
               (_, AsyncError(:final error)) => _Problem(error: error),

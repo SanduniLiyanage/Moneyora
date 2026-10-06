@@ -4,9 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
-import '../../features/accounts/presentation/widgets/account_drawer.dart';
+import '../../features/accounts/presentation/widgets/accounts_section.dart';
 import '../../features/analytics/presentation/providers/analytics_providers.dart';
 import '../../features/analytics/presentation/widgets/balance_bar.dart';
+import '../../features/analytics/presentation/widgets/filter_panel.dart';
 import '../../features/analytics/presentation/widgets/income_expense_bars.dart';
 import '../../features/analytics/presentation/widgets/period_summary_card.dart';
 import '../../features/analytics/presentation/widgets/spending_donut_chart.dart';
@@ -150,13 +151,16 @@ GoRouter buildRouter() => GoRouter(
     GoRoute(
       path: Routes.home,
       name: 'home',
-      // The accounts panel (FR-ACC-003), the donut chart (FR-RPT-001), the
-      // income-vs-expense bars (FR-RPT-004), the trend lines (FR-RPT-005)
-      // and the heatmap (FR-RPT-009) are composed in here rather than imported by the home screen, which
-      // would be one feature importing another. This file already names
-      // every feature's pages, so it is where the app is assembled.
+      // The period and account panel (FR-RPT-002, FR-RPT-003), the accounts
+      // (FR-ACC-003), the donut chart (FR-RPT-001), the income-vs-expense
+      // bars (FR-RPT-004), the trend lines (FR-RPT-005) and the heatmap
+      // (FR-RPT-009) are composed in here rather than imported by the home
+      // screen, which would be one feature importing another. This file
+      // already names every feature's pages, so it is where the app is
+      // assembled.
       builder: (context, state) => const HomePage(
-        drawer: AccountDrawer(),
+        filterPanel: FilterPanel(),
+        accounts: AccountsSection(),
         spendingChart: SpendingDonutChart(),
         balanceBar: BalanceBar(),
         incomeExpenseChart: IncomeExpenseBars(),
