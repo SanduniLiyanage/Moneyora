@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -44,6 +46,12 @@ import '../widgets/receipt_thumbnail.dart';
 /// 88.00 off = Rs262.00` — so a discount the parser applied can be
 /// checked against the paper. A line the scan missed is added below the
 /// rest.
+///
+/// **Debug builds only:** the app bar has a copy button that puts the
+/// lines OCR read on the clipboard, one per line, exactly as the parser
+/// saw them — pasted into a test, a misread receipt becomes a fixture
+/// without retyping it. `kDebugMode` is a constant, so a release build
+/// compiles the button away.
 ///
 /// Discard leaves without writing anything. A rejected scan record would
 /// be the honest thing to keep for FR-RCP-013's history, but the photo is
@@ -103,6 +111,13 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     context.go(Routes.transactions);
   }
 
+  Future<void> _copyOcrText(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('OCR text copied.')));
+  }
+
   Future<void> _split(ReviewDraftItem item) async {
     final firstCents = await showDialog<int>(
       context: context,
@@ -123,6 +138,13 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
       appBar: AppBar(
         title: const Text('Review receipt'),
         actions: [
+          if (kDebugMode)
+            if (widget.scanned.recognisedText case final text?)
+              IconButton(
+                tooltip: 'Copy OCR text (debug build)',
+                icon: const Icon(Icons.content_copy_outlined),
+                onPressed: () => _copyOcrText(text.lines.join('\n')),
+              ),
           TextButton(
             onPressed: saving ? null : () => context.pop(),
             child: const Text('Discard'),

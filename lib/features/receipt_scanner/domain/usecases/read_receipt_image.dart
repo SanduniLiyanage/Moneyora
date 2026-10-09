@@ -56,7 +56,11 @@ class ReadReceiptImage implements UseCase<ScannedReceipt, String> {
 
     final categorised = await _categorise(parsed);
     return categorised.map(
-      (receipt) => ScannedReceipt(imagePath: params, receipt: receipt),
+      (receipt) => ScannedReceipt(
+        imagePath: params,
+        receipt: receipt,
+        recognisedText: text,
+      ),
     );
   }
 }

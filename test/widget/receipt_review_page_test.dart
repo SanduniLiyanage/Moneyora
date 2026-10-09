@@ -2,9 +2,9 @@
 library;
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
@@ -789,6 +789,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(confirmEnabled(tester), isTrue);
     });
+  });
+
+  testWidgets('a debug build copies the OCR text, line for line', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final base = _scanned();
+    await open(
+      tester,
+      scanned: ScannedReceipt(
+        imagePath: base.imagePath,
+        receipt: base.receipt,
+        recognisedText: const RecognisedText(['KEELLS SUPER', 'RICE 1,250.00']),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Copy OCR text (debug build)'));
+    await tester.pumpAndSettle();
+
+    expect(copied, 'KEELLS SUPER\nRICE 1,250.00');
+    expect(find.text('OCR text copied.'), findsOneWidget);
+  });
+
+  testWidgets('with no OCR text kept, there is nothing to copy', (
+    tester,
+  ) async {
+    await open(tester);
+
+    expect(find.byTooltip('Copy OCR text (debug build)'), findsNothing);
   });
 
   testWidgets('Discard leaves without writing anything', (tester) async {
