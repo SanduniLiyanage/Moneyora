@@ -226,9 +226,15 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
       // income reachable only through the entry screen's switch, which a
       // tester never found.
       floatingActionButton: _EntryButtons(
-        onExpense: () => _open<void>(const AddTransactionPage()),
-        onIncome: () =>
-            _open<void>(const AddTransactionPage(type: TransactionType.income)),
+        // In the account the list is showing, when it shows one.
+        onExpense: () =>
+            _open<void>(AddTransactionPage(accountId: widget.accountId)),
+        onIncome: () => _open<void>(
+          AddTransactionPage(
+            type: TransactionType.income,
+            accountId: widget.accountId,
+          ),
+        ),
       ),
       body: _WithHeader(
         header: widget.header,

@@ -68,8 +68,10 @@ income**. **Transactions** has the same − and + at its bottom corner.
    divides: 1250 **+** 340 is recorded as 1,590. **=** finishes a sum,
    and **⌫** in the amount bar removes the last digit.
 2. If it was not today, tap the date at the top to change it.
-3. The icon at the left of the amount is the account. Tap it to choose
-   another, such as Cash or a card.
+3. The icon at the left of the amount is the account. It starts as the
+   account chosen in the panel on the left of home (or the first account,
+   with All accounts chosen). Tap it to choose another, such as Cash or a
+   card.
 4. **Add note** if you want to.
 5. Tap **CHOOSE CATEGORY**, then the category. That records the entry and
    takes you back. If the category you want does not exist, tap **New** at

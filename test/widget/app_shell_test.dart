@@ -32,6 +32,7 @@ import 'package:moneyora/features/analytics/domain/usecases/get_period_summary.d
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_by_category.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_calendar.dart';
 import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.dart';
+import 'package:moneyora/features/analytics/presentation/providers/analytics_providers.dart';
 import 'package:moneyora/features/auth/data/datasources/auth_local_datasource.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/check_budget_alerts.dart';
@@ -100,6 +101,19 @@ class _NoAccountReader implements AccountReader {
   @override
   Stream<Either<Failure, List<AccountOption>>> watchAll() =>
       Stream.value(const Right([]));
+}
+
+/// Cash, then Bank, for the entry screen's default account.
+class _TwoAccounts implements AccountReader {
+  const _TwoAccounts();
+
+  @override
+  Stream<Either<Failure, List<AccountOption>>> watchAll() => Stream.value(
+    const Right([
+      AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+      AccountOption(id: 2, name: 'Bank', balanceCents: 0),
+    ]),
+  );
 }
 
 /// Notifications the test taps by hand, and the one that launched the app.
@@ -493,6 +507,32 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('New income'), findsOneWidget);
+    });
+
+    testWidgets('− starts in the account chosen in the left panel', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseSummaryProvider.overrideWith((ref) => ready),
+            ..._noChartDataOverrides,
+            accountReaderProvider.overrideWith(
+              (ref) async => const _TwoAccounts(),
+            ),
+            analyticsAccountFilterProvider.overrideWith((ref) => 2),
+          ],
+          child: const MoneyoraApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('New expense'));
+      await tester.pumpAndSettle();
+
+      // Not the first account: an entry meant for the account on screen
+      // was filed under the first one until the user noticed.
+      expect(find.byTooltip('Account: Bank'), findsOneWidget);
     });
 
     testWidgets('Balance opens the transactions for the same period', (

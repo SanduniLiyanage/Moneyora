@@ -47,6 +47,7 @@ class AddTransactionPage extends ConsumerStatefulWidget {
     super.key,
     this.initial,
     this.type = TransactionType.expense,
+    this.accountId,
   });
 
   /// The transaction being edited, or null when recording a new one.
@@ -55,6 +56,12 @@ class AddTransactionPage extends ConsumerStatefulWidget {
   /// What a new entry starts as: home's − opens an expense and its + an
   /// income. Ignored when editing, where the row says what it is.
   final TransactionType type;
+
+  /// The account a new entry starts in: the one chosen in home's left
+  /// panel, or the one the list is showing. Ignored when editing, and when
+  /// it is no longer among the accounts offered (archived since), where the
+  /// first account is the default as before.
+  final int? accountId;
 
   @override
   ConsumerState<AddTransactionPage> createState() => _AddTransactionPageState();
@@ -450,9 +457,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _CatalogError(message: failureMessage(error)),
           data: (accounts) {
-            // Default to the first account rather than making the user
-            // choose on a fresh install where there is only one.
-            _accountId ??= accounts.isEmpty ? null : accounts.first.id;
+            // The account the user is looking at, else the first one rather
+            // than making them choose on a fresh install where there is only
+            // one. Defaulting to the first alone filed entries meant for a
+            // new account under the old one.
+            _accountId ??=
+                accounts
+                    .where((a) => a.id == widget.accountId)
+                    .firstOrNull
+                    ?.id ??
+                accounts.firstOrNull?.id;
             final account = accounts
                 .where((a) => a.id == _accountId)
                 .firstOrNull;

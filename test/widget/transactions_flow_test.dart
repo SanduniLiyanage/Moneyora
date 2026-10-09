@@ -385,6 +385,44 @@ void main() {
       expect(repository.saved.single.accountId, 1);
     });
 
+    testWidgets('starts in the account the list is showing', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        boot(page: const TransactionListPage(accountId: 2)),
+      );
+      await tester.pumpAndSettle();
+
+      // The list of one account is where an entry for it is started; the
+      // first account was the default before, and the entry went there.
+      await openNew(tester, income: true);
+      expect(find.byTooltip('Account: Bank'), findsOneWidget);
+      await keyIn(tester, '500');
+      await choose(tester, 'Salary');
+
+      expect(repository.saved.single.accountId, 2);
+    });
+
+    testWidgets('an account no longer offered falls back to the first', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      // Archived since it was chosen: not among the accounts offered.
+      await tester.pumpWidget(
+        boot(page: const TransactionListPage(accountId: 9)),
+      );
+      await tester.pumpAndSettle();
+
+      await openNew(tester);
+
+      expect(find.byTooltip('Account: Cash'), findsOneWidget);
+    });
+
     testWidgets('saves the account the user picks, not the default', (
       tester,
     ) async {
