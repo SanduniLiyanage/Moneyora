@@ -12,16 +12,19 @@ class _FakePicker implements ReceiptImagePicker {
   Exception? throwWith;
   ImageSource? askedFor;
   double? maxWidth;
+  double? maxHeight;
   int? imageQuality;
 
   @override
   Future<XFile?> pickImage({
     required ImageSource source,
     double? maxWidth,
+    double? maxHeight,
     int? imageQuality,
   }) async {
     askedFor = source;
     this.maxWidth = maxWidth;
+    this.maxHeight = maxHeight;
     this.imageQuality = imageQuality;
     if (throwWith case final e?) throw e;
     return file;
@@ -44,7 +47,10 @@ void main() {
 
     expect(path, '/cache/image_picker/receipt.jpg');
     expect(picker.askedFor, ImageSource.camera);
-    expect(picker.maxWidth, ReceiptImageLocalDataSourceImpl.maxWidth);
+    // Both sides: a camera stores the frame landscape, so a width bound
+    // alone shrank a portrait receipt's width the most.
+    expect(picker.maxWidth, ReceiptImageLocalDataSourceImpl.maxSide);
+    expect(picker.maxHeight, ReceiptImageLocalDataSourceImpl.maxSide);
     expect(picker.imageQuality, ReceiptImageLocalDataSourceImpl.imageQuality);
   });
 

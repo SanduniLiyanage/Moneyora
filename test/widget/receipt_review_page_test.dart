@@ -317,13 +317,61 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  group('a field that was not read. FR-RCP-008, FR-RCP-011', () {
+    testWidgets('a total not read is blank, and typing one checks the lines', (
+      tester,
+    ) async {
+      await open(tester, scanned: _scanned(totalCents: null));
+
+      final total = find.widgetWithText(TextFormField, 'Total');
+      expect(find.text('Not read: type it in'), findsOneWidget);
+      expect(find.text('Nothing to check the items against.'), findsOneWidget);
+
+      await tester.enterText(total, '1700');
+      await tester.pumpAndSettle();
+
+      expect(find.text('The items add up to the total.'), findsOneWidget);
+    });
+
+    testWidgets('a misread total is corrected, not kept', (tester) async {
+      await open(tester);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '1,700.00'),
+        '1750',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('not the total'), findsOneWidget);
+    });
+
+    testWidgets('a receipt read with no lines opens as one expense, its '
+        'total typed in', (tester) async {
+      await open(tester, scanned: _scanned(items: const [], totalCents: null));
+
+      // No dead end: the switch is on, the total is blank, and Confirm
+      // waits for a category and an amount.
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isTrue,
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Total'),
+        '850',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rs850.00 as one expense.'), findsOneWidget);
+    });
+  });
+
   testWidgets('shows the header, every line with its suggestion, and the '
       'badge on the line only the shop vouched for', (tester) async {
     await open(tester);
 
     expect(find.widgetWithText(TextFormField, 'KEELLS SUPER'), findsOneWidget);
     expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
-    expect(find.text('Total Rs1,700.00'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '1,700.00'), findsOneWidget);
     expect(
       find.text('Dated 2026-04-03 14:20 · Tax Rs120.00 · No. INV-0042'),
       findsOneWidget,

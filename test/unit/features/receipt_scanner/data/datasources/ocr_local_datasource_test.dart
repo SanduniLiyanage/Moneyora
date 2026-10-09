@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -47,6 +48,42 @@ mlkit.TextLine line(
   confidence: null,
   angle: null,
 );
+
+/// A line printed on a receipt photographed at a tilt: its top edge drops
+/// [slope] pixels for every pixel to the right, and so does the page under
+/// it, measured from x = 0. The corner points are the turned line's, and
+/// the box is the upright box around them, as ML Kit reports both.
+mlkit.TextLine tilted(
+  String text, {
+  required double left,
+  required double top,
+  required double slope,
+  double width = 120,
+  double height = 20,
+}) {
+  final angle = atan(slope);
+  Point<int> at(double along, double down) => Point(
+    (left + along * cos(angle) - down * sin(angle)).round(),
+    (top + left * slope + along * sin(angle) + down * cos(angle)).round(),
+  );
+  final corners = [at(0, 0), at(width, 0), at(width, height), at(0, height)];
+  final xs = corners.map((p) => p.x.toDouble());
+  final ys = corners.map((p) => p.y.toDouble());
+  return mlkit.TextLine(
+    text: text,
+    elements: const [],
+    boundingBox: Rect.fromLTRB(
+      xs.reduce(min),
+      ys.reduce(min),
+      xs.reduce(max),
+      ys.reduce(max),
+    ),
+    recognizedLanguages: const [],
+    cornerPoints: corners,
+    confidence: null,
+    angle: null,
+  );
+}
 
 /// A block around [lines], with the box ML Kit would draw around them.
 mlkit.TextBlock block(List<mlkit.TextLine> lines) => mlkit.TextBlock(
@@ -165,6 +202,61 @@ void main() {
 
     test('nothing read is no lines', () {
       expect(order(read(const [])), isEmpty);
+    });
+  });
+
+  group('a camera photo, taken at a tilt. FR-RCP-003', () {
+    const order = OcrLocalDataSourceImpl.linesInReadingOrder;
+
+    // Rows 30 pixels apart, prices 600 pixels right of their names. At a
+    // slope of 0.05 (under three degrees) a price drops 30 pixels: a whole
+    // row, level with the next row's name.
+    List<mlkit.TextBlock> receipt(double slope) => [
+      block([
+        tilted('RICE 5KG', left: 10, top: 100, slope: slope),
+        tilted('BREAD', left: 10, top: 130, slope: slope),
+        tilted('SHAMPOO 200ML', left: 10, top: 160, slope: slope),
+        tilted('TOTAL', left: 10, top: 190, slope: slope),
+      ]),
+      block([
+        tilted('1,250.00', left: 610, top: 100, slope: slope),
+        tilted('180.00', left: 610, top: 130, slope: slope),
+        tilted('650.00', left: 610, top: 160, slope: slope),
+        tilted('2,080.00', left: 610, top: 190, slope: slope),
+      ]),
+    ];
+
+    const rows = [
+      'RICE 5KG 1,250.00',
+      'BREAD 180.00',
+      'SHAMPOO 200ML 650.00',
+      'TOTAL 2,080.00',
+    ];
+
+    test('each price stays with its own name, tilted down', () {
+      expect(order(read(receipt(0.05))), rows);
+    });
+
+    test('and tilted up', () {
+      expect(order(read(receipt(-0.05))), rows);
+    });
+
+    test('square, as a screenshot is, nothing changes', () {
+      expect(order(read(receipt(0))), rows);
+    });
+
+    test('the tilt is the median of the long lines', () {
+      final lines = [
+        for (final b in receipt(0.05)) ...b.lines,
+        // One stamp at a steep angle does not turn the page.
+        tilted('PAID', left: 300, top: 400, slope: 0.6, width: 90),
+      ];
+
+      expect(OcrLocalDataSourceImpl.pageTilt(lines), closeTo(atan(0.05), 0.01));
+    });
+
+    test('lines without corner points are read upright', () {
+      expect(OcrLocalDataSourceImpl.pageTilt([line('A', left: 0, top: 0)]), 0);
     });
   });
 

@@ -81,6 +81,14 @@ class ReviewDraftItem extends Equatable {
 ///   line is named after the merchant and its suggestion is the
 ///   merchant's own category, so confirming it under something else
 ///   teaches the dictionary the merchant, not the word "receipt".
+/// - **A receipt read with no lines opens as one expense.** Nothing was
+///   parsed into items — a creased photo, a handwritten bill — so the draft
+///   starts in single-category mode, and the total, typed where it was not
+///   read, is what posts. A blank to fill in rather than a dead end.
+/// - **The total can be corrected, or typed when it was not read.** It is
+///   what single-category mode posts and what the lines are checked
+///   against, so a misread one must not stand. Blank is "not read", never
+///   zero.
 /// - **Low confidence is below 50.** `CategoriseReceipt` scores a seed
 ///   match at 65 or more and a merchant-only lead at 20, so the line
 ///   badges exactly the lines the dictionary had no word for.
@@ -138,6 +146,7 @@ class ReceiptReviewDraft extends Equatable {
       paymentMethod: parsed.paymentMethod,
       merchantCategoryId: receipt.merchantCategoryId,
       merchantCategoryName: receipt.merchantCategoryName,
+      isSingleCategory: receipt.items.isEmpty,
       nextKey: receipt.items.length,
     );
   }
@@ -282,6 +291,12 @@ class ReceiptReviewDraft extends Equatable {
       merchantName: () => trimmed == null || trimmed.isEmpty ? null : trimmed,
     );
   }
+
+  /// The total, corrected or typed in; null when it is blank. Never zero:
+  /// a receipt totalling nothing is not one to post, and zero would read
+  /// as a figure that was read.
+  ReceiptReviewDraft withTotal(int? cents) =>
+      _with(totalCents: () => cents == null || cents <= 0 ? null : cents);
 
   /// The account the money left.
   ReceiptReviewDraft withAccount(int accountId) =>
@@ -445,6 +460,7 @@ class ReceiptReviewDraft extends Equatable {
     DateTime? postedOn,
     List<ReviewDraftItem>? items,
     String? Function()? merchantName,
+    int? Function()? totalCents,
     bool? isSingleCategory,
     int? Function()? singleCategoryId,
     int? nextKey,
@@ -455,7 +471,7 @@ class ReceiptReviewDraft extends Equatable {
     accountId: accountId == null ? this.accountId : accountId(),
     merchantName: merchantName == null ? this.merchantName : merchantName(),
     receiptDate: receiptDate,
-    totalCents: totalCents,
+    totalCents: totalCents == null ? this.totalCents : totalCents(),
     taxCents: taxCents,
     receiptNumber: receiptNumber,
     paymentMethod: paymentMethod,
