@@ -25,6 +25,7 @@ abstract class ReceiptImagePicker {
   Future<XFile?> pickImage({
     required ImageSource source,
     double? maxWidth,
+    double? maxHeight,
     int? imageQuality,
   });
 }
@@ -42,10 +43,12 @@ class ImagePickerReceiptImagePicker implements ReceiptImagePicker {
   Future<XFile?> pickImage({
     required ImageSource source,
     double? maxWidth,
+    double? maxHeight,
     int? imageQuality,
   }) => _picker.pickImage(
     source: source,
     maxWidth: maxWidth,
+    maxHeight: maxHeight,
     imageQuality: imageQuality,
   );
 }
@@ -63,22 +66,30 @@ abstract class ReceiptImageLocalDataSource {
 
 /// Fulfils [ReceiptImageLocalDataSource] over a [ReceiptImagePicker].
 ///
-/// The photo is bounded on the way in: at most [maxWidth] pixels wide and
-/// re-encoded at [imageQuality]. A phone camera's full frame is four times
-/// the pixels the recogniser needs for receipt print, and an image that
-/// size is what makes the first scan wait — the SRS's 5-second OCR budget
+/// The photo is bounded on the way in: at most [maxSide] pixels on either
+/// side, re-encoded at [imageQuality]. A phone camera's full frame is more
+/// than the recogniser needs for receipt print, and an image that size is
+/// what makes the first scan wait — the SRS's 5-second OCR budget
 /// (NFR-PER-003) is spent on recognition, not on decoding a photo.
+///
+/// Both sides, not the width alone. A camera stores its photo landscape and
+/// says "turn me upright" in the EXIF, and the picker scales the stored
+/// pixels: a 1600-wide bound became a portrait receipt 1200 wide, and the
+/// receipt is rarely the whole frame. Small print at that size is what
+/// camera photos misread and screenshots, already sharp, did not. The EXIF
+/// turn is kept, and ML Kit applies it.
 class ReceiptImageLocalDataSourceImpl implements ReceiptImageLocalDataSource {
   /// Creates a datasource over [picker].
   const ReceiptImageLocalDataSourceImpl(this._picker);
 
   final ReceiptImagePicker _picker;
 
-  /// The longest a photo comes back, in pixels on its wider side.
-  static const double maxWidth = 1600;
+  /// The longest a photo comes back, in pixels, on either side.
+  static const double maxSide = 2400;
 
-  /// JPEG quality, 0–100, of the photo as handed on.
-  static const int imageQuality = 85;
+  /// JPEG quality, 0–100, of the photo as handed on. High enough that the
+  /// compression does not blur the edges of small print.
+  static const int imageQuality = 90;
 
   @override
   Future<String?> pick(ReceiptImageSource source) async {
@@ -89,7 +100,8 @@ class ReceiptImageLocalDataSourceImpl implements ReceiptImageLocalDataSource {
           ReceiptImageSource.camera => ImageSource.camera,
           ReceiptImageSource.gallery => ImageSource.gallery,
         },
-        maxWidth: maxWidth,
+        maxWidth: maxSide,
+        maxHeight: maxSide,
         imageQuality: imageQuality,
       );
     } on PlatformException catch (e) {

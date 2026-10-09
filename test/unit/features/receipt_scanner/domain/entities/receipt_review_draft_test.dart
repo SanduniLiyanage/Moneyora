@@ -115,6 +115,31 @@ void main() {
     });
   });
 
+  group('a field that was not read', () {
+    test('a receipt with no lines opens as one expense', () {
+      final d = ReceiptReviewDraft.fromScanned(
+        scanned(items: const [], totalCents: null),
+        today: today,
+      );
+
+      expect(d.isSingleCategory, isTrue);
+      expect(d.totalCents, isNull);
+    });
+
+    test('the total typed in is what posts and what the lines meet', () {
+      final d = draft(totalCents: null).withTotal(170000);
+
+      expect(d.totalCents, 170000);
+      expect(d.itemsMatchTotal, isTrue);
+      expect(d.withSingleCategory(on: true).singleAmountCents, 170000);
+    });
+
+    test('a blank or zero total is "not read", never zero', () {
+      expect(draft().withTotal(null).totalCents, isNull);
+      expect(draft().withTotal(0).totalCents, isNull);
+    });
+  });
+
   group('the figures', () {
     test('sum the kept lines and check them against the total', () {
       expect(draft().itemsSumCents, 170000);

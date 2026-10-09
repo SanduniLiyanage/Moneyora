@@ -145,9 +145,11 @@ sub-category. **Add category** (the **+**) makes a new one.
 
 1. Open **Scan receipt** in the menu and choose **Take a photo** or
    **Choose from gallery**. The text is read on your phone; the photo is never uploaded.
-2. **Review receipt** shows what was read: the merchant, the date, and
-   each item with its amount and a suggested category. Correct anything
-   that is wrong. **Split** one line into two, **Merge with next** to join
+2. **Review receipt** shows what was read: the merchant, the total, the
+   date, and each item with its amount and a suggested category. Correct
+   anything that is wrong. Whatever could not be read is left blank for
+   you to type in, never filled with a guess or a zero; a receipt read with
+   no items opens as one expense, waiting for its total. **Split** one line into two, **Merge with next** to join
    two, or **Discard** a line that is not a purchase.
    To file the whole receipt under one category instead, turn on **One
    category for the whole receipt** and choose it; the receipt is then
@@ -161,8 +163,9 @@ suggests the categories you chose. **Receipt history** (the clock icon on
 the scan screen) lists every scan; open one to see its photo, or
 **Re-scan** it.
 
-Receipts print in many layouts, and some will read badly. Always check the
-review screen before you confirm.
+Receipts print in many layouts, and some will read badly. A photo reads
+best flat, in good light, with the receipt filling the frame; a slight
+tilt is allowed for. Always check the review screen before you confirm.
 
 ---
 

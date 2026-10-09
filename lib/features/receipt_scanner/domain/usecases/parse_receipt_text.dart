@@ -100,6 +100,15 @@ import '../entities/recognised_text.dart';
 /// - **A unit price is stated or exact.** Read from `qty x price` when
 ///   printed; derived as `total ÷ qty` only when the division is exact;
 ///   null otherwise, rather than a rounded figure the receipt never showed.
+/// - **A figure misread by the camera is mended before it is read.** A
+///   photo, unlike a screenshot, is read with a comma for the point
+///   (`240,00`), a gap beside it (`240. 00`), or a letter for a digit
+///   (`18O.OO`, `l80.00`). Each read the line's figure as 00, or as no
+///   figure at all. Only a figure that ends the line with two decimals is
+///   mended, so a thousands comma, a date and a time are left as printed.
+/// - **A line priced at nothing is not an item.** A free bag at 0.00 is not
+///   an expense, and a figure misread as 00 is better left for the review
+///   screen to say is missing than posted as zero.
 ///
 /// Nothing here is a claim about accuracy. The fixtures in the test are
 /// hand-written to the shapes above; the ROADMAP's 20–30 real photos are
@@ -226,6 +235,7 @@ class ParseReceiptText implements UseCase<ParsedReceipt, RecognisedText> {
         continue;
       }
       if (band == _Band.header && !effective.startsBody) continue;
+      if (effective.cents == 0) continue;
 
       band = _Band.body;
       final item = effective.toItem();
@@ -586,7 +596,8 @@ class _Priced {
     caseSensitive: false,
   );
 
-  static _Priced? of(String line) {
+  static _Priced? of(String printed) {
+    final line = _mended(printed);
     final m = _trailing.firstMatch(line);
     if (m == null) return null;
     final cents = centsOf(m[2]!, m[3], negative: m[1] != null);
@@ -595,6 +606,34 @@ class _Priced {
       rest: line.substring(0, m.start).trim(),
       cents: cents,
       hasCents: m[3] != null,
+    );
+  }
+
+  /// A comma for the point, or a gap beside it, before the two decimals
+  /// that end the line: `240,00`, `240. 00`, `240 .00`. Two digits, never
+  /// three, so `1,250` keeps its thousands comma.
+  static final _brokenPoint = RegExp(r'(\d) ?[.,] ?(\d{2})(\s*/[-=])?$');
+
+  /// A figure ending the line with two decimals and a letter or two among
+  /// its digits — `18O.OO`, `l80,00` — not run on from a word.
+  static final _lettersInFigure = RegExp(
+    r'(?<![A-Za-z\d])([\dOoIl][\dOoIl,]*[.,][\dOoIl]{2})(\s*/[-=])?$',
+  );
+
+  /// [line] with the figure ending it mended where camera OCR commonly
+  /// misreads one, and otherwise as it was.
+  static String _mended(String line) {
+    var mended = line;
+    if (_lettersInFigure.firstMatch(mended) case final m?
+        when m[1]!.contains(RegExp(r'\d'))) {
+      final digits = m[1]!
+          .replaceAll(RegExp('[Oo]'), '0')
+          .replaceAll(RegExp('[Il]'), '1');
+      mended = mended.replaceRange(m.start, m.start + m[1]!.length, digits);
+    }
+    return mended.replaceFirstMapped(
+      _brokenPoint,
+      (m) => '${m[1]}.${m[2]}${m[3] ?? ''}',
     );
   }
 

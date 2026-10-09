@@ -2,7 +2,6 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
-import '../entities/parsed_receipt.dart';
 import '../entities/recognised_text.dart';
 import '../entities/scanned_receipt.dart';
 import 'categorise_receipt.dart';
@@ -18,8 +17,15 @@ import 'scan_receipt.dart';
 ///
 /// Stages three to five of the pipeline (SDD §7.2), run in order, the
 /// first failure returned as it is: [ScanReceipt]'s `OcrFailure` for an
-/// unreadable photo, [ParseReceiptText]'s for text with no items and no
-/// total, [CategoriseReceipt]'s for a dictionary that could not be read.
+/// unreadable photo, [CategoriseReceipt]'s for a dictionary that could not
+/// be read.
+///
+/// **Text with no items and no total is not a failure here.** The photo
+/// was read; the parser found nothing it recognised, which a camera photo
+/// of a crumpled bill often does. Refusing it left the user with nothing
+/// but "try a clearer photo". It goes on to the review screen with
+/// whatever was found — a merchant, a date, or nothing — and the blanks
+/// for the user to fill in (FR-RCP-008).
 /// Each stage keeps its own tests; this one proves only the sequencing
 /// and that the path travels through to the result, which is what the
 /// expenses will link to (FR-RCP-009).
@@ -45,13 +51,8 @@ class ReadReceiptImage implements UseCase<ScannedReceipt, String> {
         text = read;
     }
 
-    final ParsedReceipt parsed;
-    switch (await _parse(text)) {
-      case Left(value: final failure):
-        return Left(failure);
-      case Right(value: final found):
-        parsed = found;
-    }
+    final parsed = (await _parse(text))
+        .getOrElse((_) => ParseReceiptText.parse(text));
 
     final categorised = await _categorise(parsed);
     return categorised.map(

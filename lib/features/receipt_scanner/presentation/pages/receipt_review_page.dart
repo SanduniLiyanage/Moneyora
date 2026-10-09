@@ -158,6 +158,7 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                           draft: _draft,
                           onMerchant: (name) =>
                               _edit((d) => d.withMerchant(name)),
+                          onTotal: (cents) => _edit((d) => d.withTotal(cents)),
                         ),
                         const SizedBox(height: 8),
                         Text('Paid from', style: theme.textTheme.titleSmall),
@@ -282,12 +283,20 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
   }
 }
 
-/// The thumbnail, the merchant to correct, and what else was read.
+/// The thumbnail, the merchant and the total to correct, and what else was
+/// read. A field that was not read is blank, never zero, and says so.
 class _Header extends StatelessWidget {
-  const _Header({required this.draft, required this.onMerchant});
+  const _Header({
+    required this.draft,
+    required this.onMerchant,
+    required this.onTotal,
+  });
 
   final ReceiptReviewDraft draft;
   final ValueChanged<String> onMerchant;
+
+  /// The total as typed; null when the box is blank or not a number.
+  final ValueChanged<int?> onTotal;
 
   @override
   Widget build(BuildContext context) {
@@ -317,17 +326,33 @@ class _Header extends StatelessWidget {
                   TextFormField(
                     initialValue: draft.merchantName ?? '',
                     textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Merchant',
+                      hintText: draft.merchantName == null ? 'Not read' : null,
                       isDense: true,
                     ),
                     onChanged: onMerchant,
                   ),
                   const SizedBox(height: 8),
-                  Text(switch (draft.totalCents) {
-                    final total? => 'Total ${formatCents(total)}',
-                    null => 'No total was read',
-                  }, style: theme.textTheme.titleMedium),
+                  TextFormField(
+                    // Read once: what the user types is the figure from then
+                    // on, and re-filling it on every keystroke would move the
+                    // cursor.
+                    initialValue: switch (draft.totalCents) {
+                      final total? => formatCents(total, showSymbol: false),
+                      null => '',
+                    },
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: theme.textTheme.titleMedium,
+                    decoration: const InputDecoration(
+                      labelText: 'Total',
+                      hintText: 'Not read: type it in',
+                      isDense: true,
+                    ),
+                    onChanged: (text) => onTotal(parseToCents(text)),
+                  ),
                   if (details.isNotEmpty)
                     Text(details.join(' · '), style: theme.textTheme.bodySmall),
                   const SizedBox(height: 4),
@@ -422,8 +447,12 @@ class _ItemCardState extends State<_ItemCard> {
   late final TextEditingController _name = TextEditingController(
     text: widget.item.item.name,
   );
+  // Blank rather than 0.00 for a line with no price: a zero reads as a
+  // figure that was read.
   late final TextEditingController _amount = TextEditingController(
-    text: formatCents(widget.item.item.totalPriceCents, showSymbol: false),
+    text: widget.item.item.totalPriceCents == 0
+        ? ''
+        : formatCents(widget.item.item.totalPriceCents, showSymbol: false),
   );
 
   @override

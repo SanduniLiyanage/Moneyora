@@ -131,14 +131,24 @@ void main() {
     expect(dictionary.lookups, isEmpty);
   });
 
-  test("text with no items and no total is the parser's failure", () async {
-    receipts.answer = Right(RecognisedText.fromString('THANK YOU\nCOME AGAIN'));
+  test(
+    'text with no items and no total still opens the review, blank',
+    () async {
+      // A camera photo of a crumpled bill: read, but nothing the parser
+      // knows. "Try a clearer photo" was a dead end; the review screen is
+      // where the blanks are filled in.
+      receipts.answer = Right(
+        RecognisedText.fromString('THANK YOU\nCOME AGAIN'),
+      );
 
-    final result = await read('/cache/note.jpg');
+      final result = await read('/cache/note.jpg');
 
-    expect(result.getLeft().toNullable(), isA<OcrFailure>());
-    expect(dictionary.lookups, isEmpty);
-  });
+      final scanned = result.getRight().toNullable()!;
+      expect(scanned.imagePath, '/cache/note.jpg');
+      expect(scanned.receipt.items, isEmpty);
+      expect(scanned.receipt.receipt.totalCents, isNull);
+    },
+  );
 
   test(
     "a dictionary that cannot be read is the categoriser's failure",

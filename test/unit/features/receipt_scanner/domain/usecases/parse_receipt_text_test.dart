@@ -307,6 +307,49 @@ void main() {
     });
   });
 
+  group('a camera photo misreads a figure. FR-RCP-005', () {
+    test('a comma for the point', () {
+      final receipt = parse('SHOP\nRICE 1,250,00\nBREAD 180,00\nTOTAL 1430,00');
+
+      expect(receipt.items.map((i) => i.totalPriceCents), [125000, 18000]);
+      expect(receipt.totalCents, 143000);
+    });
+
+    test('a gap beside the point', () {
+      final receipt = parse('SHOP\nRICE 1250. 00\nBREAD 180 .00');
+
+      expect(receipt.items.map((i) => i.totalPriceCents), [125000, 18000]);
+    });
+
+    test('a letter for a digit', () {
+      final receipt = parse('SHOP\nBREAD 18O.OO\nMILK l20.00\nTOTAL 3OO.OO');
+
+      expect(receipt.items.map((i) => i.totalPriceCents), [18000, 12000]);
+      expect(receipt.totalCents, 30000);
+    });
+
+    test('a thousands comma, a word, a date and a time are left alone', () {
+      final receipt = parse(
+        'SHOP\n03.04.2026 14:32\nMILO 240.00\nRICE 1,250\nOIL.00 50.00',
+      );
+
+      expect(receipt.receiptDate, DateTime(2026, 4, 3, 14, 32));
+      expect(receipt.items.map((i) => (i.name, i.totalPriceCents)), [
+        ('MILO', 24000),
+        ('RICE', 125000),
+        ('OIL.00', 5000),
+      ]);
+    });
+
+    test('a line priced at nothing is not an item', () {
+      // A free bag, or a price misread as 00: left out for the review to
+      // say what is missing, never posted as an expense of zero.
+      final receipt = parse('SHOP\nRICE 1250.00\nBAG 0.00\nTOTAL 1250.00');
+
+      expect(receipt.items.map((i) => i.name), ['RICE']);
+    });
+  });
+
   group('discounts', () {
     test('a discount label without the minus is still a discount', () {
       final receipt = parse('SHOP\nRICE 1250.00\nDISCOUNT 10% 125.00');
