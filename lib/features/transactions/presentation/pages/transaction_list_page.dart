@@ -16,6 +16,7 @@ import '../../domain/entities/day_group.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../providers/transaction_providers.dart';
+import '../widgets/time_of_day_text.dart';
 import 'add_transaction_page.dart';
 
 /// SCR-005 — the transaction list. FR-EXP-006.
@@ -543,16 +544,24 @@ class TransactionRow extends StatelessWidget {
             (note.isNotEmpty ? note : 'Uncategorised'),
     };
     final showNote = note.isNotEmpty && note != title;
+    // The time of day when one was recorded (FR-EXP-001): older rows, and
+    // rows dated another day without one, have none, and say nothing.
+    final time = timeOfDayFrom(transaction.time)?.format(context);
     // Two lines at most: a scanned receipt can hand back its whole text as
     // one item's name, and a row must not fill the screen. The full note is
     // on the edit screen, one tap away.
-    Text clipped(String text) =>
-        Text(text, maxLines: 2, overflow: TextOverflow.ellipsis);
-    final subtitle = switch (showDate) {
-      false => showNote ? clipped(note) : null,
-      _ when inGroup && title == date => null,
-      _ => clipped(showNote ? '$date · $note' : date),
-    };
+    final details = [
+      if (showDate && !(inGroup && title == date)) date,
+      ?time,
+      if (showNote) note,
+    ];
+    final subtitle = details.isEmpty
+        ? null
+        : Text(
+            details.join(' · '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          );
 
     return ListTile(
       onTap: onTap,
@@ -570,7 +579,7 @@ class TransactionRow extends StatelessWidget {
           size: 20,
         ),
       ),
-      title: clipped(title),
+      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
       // The note goes under the name rather than replacing it: "Groceries"
       // alone does not say it was filed under Food, and a misfiled row is
       // exactly what someone scanning the list is looking for.
