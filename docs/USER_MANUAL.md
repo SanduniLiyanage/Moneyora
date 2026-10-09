@@ -73,10 +73,11 @@ income**. **Transactions** has the same − and + at its bottom corner.
    with All accounts chosen). Tap it to choose another, such as Cash or a
    card.
 4. **Add note** if you want to.
-5. Tap **CHOOSE CATEGORY**, then the category. That records the entry and
-   takes you back. If the category you want does not exist, tap **New** at
-   the end of the grid. The new category is created, and the entry is
-   recorded in it.
+5. Tap **CHOOSE CATEGORY**, then the category. It appears at the bottom
+   beside **SAVE**; tap it again to choose another. If the category you
+   want does not exist, tap **New** at the end of the grid, and the new
+   category is created and chosen.
+6. Tap **SAVE** to record the entry and go back.
 
 The icon at the top right switches between an expense and an income.
 **Cancel** leaves without recording anything.
@@ -89,7 +90,7 @@ Beside the note are three small icons:
 - the **scanner**, to read a whole receipt instead (section 5).
 
 To change an entry, tap it in the list, change what you need, then tap
-CHOOSE CATEGORY and its category (the current one is ringed). To delete
+**SAVE**. Its category is already chosen; tap it to choose another. To delete
 one, tap it and then the bin at the top, or press and hold it in the list
 and choose **Delete**. **Undo** appears for a few seconds in case that was
 a mistake.

@@ -138,11 +138,13 @@ void main() {
   OutlinedButton choice(WidgetTester tester) =>
       tester.widget<OutlinedButton>(chooseButton);
 
-  /// CHOOSE CATEGORY, then [category]: the step that records the entry.
+  /// CHOOSE CATEGORY, then [category], then SAVE, which records the entry.
   Future<void> choose(WidgetTester tester, String category) async {
     await tester.tap(chooseButton);
     await tester.pumpAndSettle();
     await tester.tap(find.text(category));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'SAVE'));
     await tester.pumpAndSettle();
   }
 

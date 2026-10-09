@@ -33,9 +33,12 @@ import '../widgets/recurrence_labels.dart';
 ///
 /// One question at a time, top to bottom: the date, the amount in a bar
 /// with the account it comes from, a note, the keypad, and CHOOSE CATEGORY
-/// at the bottom. The category is the last step, not a field: choosing it
-/// records the entry and returns to where it was opened from. Repeat, a
-/// photo and the receipt scanner are the small icons beside the note.
+/// at the bottom. Choosing a category fills it in, and **Save** beside it
+/// records the entry and returns to where it was opened from. Tapping the
+/// category used to record at once; a tester tapped the wrong one and had
+/// a row to undo, so the last step is a button that says what it does.
+/// Repeat, a photo and the receipt scanner are the small icons beside the
+/// note.
 class AddTransactionPage extends ConsumerStatefulWidget {
   /// Creates the entry screen, empty for a new transaction or filled from
   /// [initial] to edit an existing one.
@@ -198,6 +201,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   /// category is the step CHOOSE CATEGORY takes.
   bool get _canChoose => (_amount.valueCents ?? 0) > 0 && _accountId != null;
 
+  /// Everything Save needs: an amount, an account and a category.
+  bool get _canSave => _canChoose && _categoryId != null;
+
   RecurringRuleRequest _request({int? categoryId}) => RecurringRuleRequest(
     first: _build(categoryId: categoryId),
     frequency: _frequency,
@@ -248,8 +254,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
   }
 
-  /// CHOOSE CATEGORY: the grid, then the entry is recorded with the
-  /// category tapped. FR-EXP-001, FR-INC-001.
+  /// CHOOSE CATEGORY, or the chosen one to change it: the grid, and the
+  /// category tapped there is filled in. Save records. FR-EXP-001,
+  /// FR-INC-001.
   Future<void> _chooseCategory() async {
     // A sum still open — "1,250 + 340" — is finished first, as = would.
     setState(() => _amount = _amount.evaluated());
@@ -271,13 +278,6 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     if (!mounted) return;
 
     setState(() => _categoryId = id);
-    final problem = _repeatProblem();
-    if (problem != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(problem)));
-      return;
-    }
-    await _save();
   }
 
   /// Completes once [entryCategoriesProvider] carries a category with [id].
@@ -374,6 +374,17 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   }
 
   Future<void> _save() async {
+    // A sum still open — "1,250 + 340" — is finished first, as = would.
+    setState(() => _amount = _amount.evaluated());
+    if (!_canSave) return;
+    _noteFocus.unfocus();
+    final problem = _repeatProblem();
+    if (problem != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(problem)));
+      return;
+    }
+
     final controller = ref.read(saveTransactionControllerProvider.notifier);
     final row = _build();
     final saved = _repeats
@@ -487,6 +498,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 !allCategories.any((c) => c.id == _categoryId)) {
               _categoryId = null;
             }
+            final category = allCategories
+                .where((c) => c.id == _categoryId)
+                .firstOrNull;
 
             return SafeArea(
               child: Column(
@@ -646,42 +660,88 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        // Disabled rather than hidden until there is an
-                        // amount: a button that vanishes leaves the user
-                        // hunting for it, while a greyed one says "there is
-                        // something still to do".
-                        onPressed:
-                            _canChoose && repeatProblem == null && !saving
-                            ? _chooseCategory
-                            : null,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          foregroundColor: theme.colorScheme.onSurface,
-                          side: BorderSide(
-                            color: _canChoose && repeatProblem == null
-                                ? tint.withValues(alpha: 0.6)
-                                : theme.disabledColor,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        child: saving
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
+                    child: category == null
+                        ? SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              // Disabled rather than hidden until there is
+                              // an amount: a button that vanishes leaves the
+                              // user hunting for it, while a greyed one says
+                              // "there is something still to do".
+                              onPressed:
+                                  _canChoose && repeatProblem == null && !saving
+                                  ? _chooseCategory
+                                  : null,
+                              style: _outlined(
+                                theme,
+                                enabled: _canChoose && repeatProblem == null,
+                                tint: tint,
+                              ),
+                              child: const Text(
                                 'CHOOSE CATEGORY',
                                 style: TextStyle(letterSpacing: 0.8),
                               ),
-                      ),
-                    ),
+                            ),
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: Tooltip(
+                                  message: 'Change category',
+                                  child: OutlinedButton.icon(
+                                    onPressed: saving ? null : _chooseCategory,
+                                    style: _outlined(
+                                      theme,
+                                      enabled: true,
+                                      tint: tint,
+                                    ),
+                                    icon: Icon(
+                                      categoryIconFor(category.icon),
+                                      color: categoryColorFor(
+                                        category.colorHex,
+                                        theme.brightness,
+                                      ),
+                                    ),
+                                    label: Text(
+                                      category.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed:
+                                      _canSave &&
+                                          repeatProblem == null &&
+                                          !saving
+                                      ? _save
+                                      : null,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(52),
+                                    backgroundColor: tint,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  child: saving
+                                      ? const SizedBox.square(
+                                          dimension: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'SAVE',
+                                          style: TextStyle(letterSpacing: 0.8),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ],
               ),
@@ -692,6 +752,21 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
   }
 }
+
+/// The outline of the category button: in the entry's colour once it can
+/// be pressed, grey until then.
+ButtonStyle _outlined(
+  ThemeData theme, {
+  required bool enabled,
+  required Color tint,
+}) => OutlinedButton.styleFrom(
+  minimumSize: const Size.fromHeight(52),
+  foregroundColor: theme.colorScheme.onSurface,
+  side: BorderSide(
+    color: enabled ? tint.withValues(alpha: 0.6) : theme.disabledColor,
+  ),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+);
 
 /// The photo on an expense: view, replace, remove. FR-EXP-009. Attaching
 /// the first is the camera icon beside the note.
@@ -1004,7 +1079,7 @@ class _NoteRow extends StatelessWidget {
 }
 
 /// The categories of an expense or an income, as a grid of their icons.
-/// Tapping one answers it; the entry screen then records the entry.
+/// Tapping one answers it; the entry screen shows it beside Save.
 /// FR-EXP-003, FR-INC-002.
 class _CategoryGrid extends ConsumerWidget {
   const _CategoryGrid({required this.isExpense, required this.selectedId});
