@@ -30,8 +30,8 @@ income. Three buttons sit at the top:
   account and the period the home screen shows;
 - **⇄** at the top right starts a transfer between your accounts;
 - **⋮** beside it opens the **menu**: Transactions, Reports, Scan receipt,
-  Transfer, Budget plans, Recurring, Debts, Categories, Accounts, Ask
-  Moneyora, and Settings last.
+  Transfer, Budget plans, Recurring, Debts, Credit cards, Categories,
+  Accounts, Ask Moneyora, and Settings last.
 
 The back arrow, or your phone's back gesture, returns to where you were.
 
@@ -54,6 +54,21 @@ new account.
 
 Moneyora will not archive your last usable account, because you would have
 nowhere to record anything.
+
+### Credit cards
+
+An account of the **Credit card** type has a **Credit card** section on
+its form, all optional: the **credit limit**, the **statement day** and
+**payment due day** (days of the month), and the **interest rate** a
+year. Enter what the card owes as its opening balance with a minus.
+
+**Credit cards** (in the menu) shows each card: what is owed out of the
+limit and what is left to spend, the next statement and payment dates,
+and about how much a month's interest comes to if the card is not paid
+in full by the due date. Type an amount under **If I pay each month** to
+see how many months it takes to clear and how much of it is interest.
+These are estimates: your card's issuer works interest out its own
+way.
 
 ---
 

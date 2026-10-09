@@ -262,6 +262,72 @@ void main() {
     });
   });
 
+  group("a credit card's terms. FR-ACC-008, E-43", () {
+    testWidgets('are offered on a card only, and saved with it', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.text('Credit limit'), findsNothing);
+
+      await tester.enterText(find.byType(TextField).first, 'Visa');
+      await tester.tap(find.text('Cash'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Credit card').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Credit limit'),
+        '500000',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Statement day'),
+        '20',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Payment due day'),
+        '5',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Interest rate, % a year'),
+        '24.5',
+      );
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.added.single.creditCard,
+        const CreditCardTerms(
+          limitCents: 50000000,
+          statementDay: 20,
+          dueDay: 5,
+          aprBasisPoints: 2450,
+        ),
+      );
+    });
+
+    testWidgets('a card opens with its terms, and a day past 31 is refused '
+        'beside its field', (tester) async {
+      await open(
+        tester,
+        initial: existing().copyWith(
+          type: AccountType.creditCard,
+          creditCard: const CreditCardTerms(dueDay: 5, aprBasisPoints: 2450),
+        ),
+      );
+
+      expect(find.widgetWithText(TextField, '24.50'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Payment due day'),
+        '32',
+      );
+      await tester.tap(find.text('Save changes'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('A day of the month, 1 to 31.'), findsOneWidget);
+      expect(repository.updated, isEmpty);
+    });
+  });
+
   group('a currency with no rate to the base', () {
     testWidgets('warns at the moment the choice is made', (tester) async {
       // E-34's fallback. The consequence becomes true when the currency is

@@ -93,6 +93,77 @@ void main() {
 
       expect(AddAccount.validate(card), isNull);
     });
+
+    group("a credit card's terms. FR-ACC-008, E-43", () {
+      Account card(CreditCardTerms terms) => Account(
+        name: 'Visa',
+        icon: 'card',
+        type: AccountType.creditCard,
+        initialBalanceDate: opened,
+        creditCard: terms,
+      );
+
+      test('are all optional', () {
+        expect(AddAccount.validate(card(CreditCardTerms.none)), isNull);
+        expect(
+          AddAccount.validate(
+            card(
+              const CreditCardTerms(
+                limitCents: 50000000,
+                statementDay: 20,
+                dueDay: 5,
+                aprBasisPoints: 2450,
+              ),
+            ),
+          ),
+          isNull,
+        );
+      });
+
+      test('a limit is more than zero', () {
+        expect(
+          AddAccount.validate(card(const CreditCardTerms(limitCents: 0)))
+              ?.field,
+          'creditLimit',
+        );
+      });
+
+      test('each day is a day of the month', () {
+        for (final day in [0, 32]) {
+          expect(
+            AddAccount.validate(card(CreditCardTerms(statementDay: day)))
+                ?.field,
+            'statementDay',
+          );
+          expect(
+            AddAccount.validate(card(CreditCardTerms(dueDay: day)))?.field,
+            'dueDay',
+          );
+        }
+        expect(
+          AddAccount.validate(
+            card(const CreditCardTerms(statementDay: 31, dueDay: 1)),
+          ),
+          isNull,
+        );
+      });
+
+      test('the rate runs from 0% to 100%', () {
+        for (final bps in [-1, 10001]) {
+          expect(
+            AddAccount.validate(card(CreditCardTerms(aprBasisPoints: bps)))
+                ?.field,
+            'apr',
+          );
+        }
+        for (final bps in [0, 10000]) {
+          expect(
+            AddAccount.validate(card(CreditCardTerms(aprBasisPoints: bps))),
+            isNull,
+          );
+        }
+      });
+    });
   });
 
   group('UpdateAccount', () {

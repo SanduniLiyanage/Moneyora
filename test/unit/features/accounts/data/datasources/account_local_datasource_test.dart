@@ -166,6 +166,50 @@ void main() {
     });
   });
 
+  group("a credit card's terms. E-43", () {
+    const terms = CreditCardTerms(
+      limitCents: 50000000,
+      statementDay: 20,
+      dueDay: 5,
+      aprBasisPoints: 2450,
+    );
+
+    test('are written and read back', () async {
+      final id = await accounts.add(
+        AccountModel.fromEntity(
+          model(
+            name: 'Visa',
+            type: AccountType.creditCard,
+          ).copyWith(creditCard: terms),
+        ),
+      );
+
+      final read = (await accounts.list()).firstWhere((a) => a.id == id);
+      expect(read.creditCard, terms);
+    });
+
+    test('change on an edit, and an account without them has none', () async {
+      final id = await accounts.add(model(name: 'Visa'));
+      expect(
+        (await accounts.list()).firstWhere((a) => a.id == id).creditCard,
+        CreditCardTerms.none,
+      );
+
+      await accounts.update(
+        AccountModel.fromEntity(
+          model(
+            id: id,
+            name: 'Visa',
+            type: AccountType.creditCard,
+          ).copyWith(creditCard: terms),
+        ),
+      );
+
+      final read = (await accounts.list()).firstWhere((a) => a.id == id);
+      expect(read.creditCard, terms);
+    });
+  });
+
   group('update', () {
     test('changes the editable fields', () async {
       final id = await accounts.add(model());

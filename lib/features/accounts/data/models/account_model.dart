@@ -23,6 +23,7 @@ class AccountModel extends Account {
     super.currentBalanceCents,
     super.includeInTotal,
     super.isArchived,
+    super.creditCard,
     this.userId = 1,
     this.createdAt,
   });
@@ -43,6 +44,7 @@ class AccountModel extends Account {
     initialBalanceDate: account.initialBalanceDate,
     includeInTotal: account.includeInTotal,
     isArchived: account.isArchived,
+    creditCard: account.creditCard,
     userId: userId,
     createdAt: createdAt,
   );
@@ -59,6 +61,13 @@ class AccountModel extends Account {
     initialBalanceDate: _decodeDate(map['initial_balance_date']! as String),
     includeInTotal: map['include_in_total'] == 1,
     isArchived: map['is_archived'] == 1,
+    // Null before schema v8 and on every account that is not a card.
+    creditCard: CreditCardTerms(
+      limitCents: map['credit_limit_cents'] as int?,
+      statementDay: map['statement_day'] as int?,
+      dueDay: map['payment_due_day'] as int?,
+      aprBasisPoints: map['apr_basis_points'] as int?,
+    ),
     userId: map['user_id']! as int,
     createdAt: map['created_at'] == null
         ? null
@@ -90,6 +99,7 @@ class AccountModel extends Account {
       'initial_balance_date': encodeDate(initialBalanceDate),
       'include_in_total': includeInTotal ? 1 : 0,
       'is_archived': isArchived ? 1 : 0,
+      ..._creditCardColumns,
       'created_at': (createdAt ?? stamp).toIso8601String(),
     };
   }
@@ -113,6 +123,15 @@ class AccountModel extends Account {
     'initial_balance_date': encodeDate(initialBalanceDate),
     'include_in_total': includeInTotal ? 1 : 0,
     'is_archived': isArchived ? 1 : 0,
+    ..._creditCardColumns,
+  };
+
+  /// The card's terms as the four v8 columns (E-43).
+  Map<String, Object?> get _creditCardColumns => <String, Object?>{
+    'credit_limit_cents': creditCard.limitCents,
+    'statement_day': creditCard.statementDay,
+    'payment_due_day': creditCard.dueDay,
+    'apr_basis_points': creditCard.aprBasisPoints,
   };
 
   /// A plain entity, safe to hand to the domain layer.
@@ -127,6 +146,7 @@ class AccountModel extends Account {
     initialBalanceDate: initialBalanceDate,
     includeInTotal: includeInTotal,
     isArchived: isArchived,
+    creditCard: creditCard,
   );
 
   /// Formats a date as the `YYYY-MM-DD` the schema stores, in local time.
