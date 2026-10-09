@@ -25,6 +25,7 @@ import '../../domain/usecases/discard_unused_photos.dart';
 import '../providers/transaction_providers.dart';
 import '../widgets/amount_keypad.dart';
 import '../widgets/recurrence_labels.dart';
+import '../widgets/time_of_day_text.dart';
 
 /// SCR-002 / SCR-003 — record an expense or an income. FR-EXP-001, FR-INC-001.
 ///
@@ -76,6 +77,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   int? _categoryId;
   int? _accountId;
   late DateTime _date;
+
+  /// The time of day, `HH:MM`, or null for none. FR-EXP-001 makes it
+  /// optional, and it is never asked for: a new entry today starts at the
+  /// time it is made; one dated another day has none unless the user sets
+  /// it, because "now" on last Tuesday's lunch is a time it never had.
+  String? _time;
+
+  /// Whether the user has set or removed the time, after which a change of
+  /// date leaves it alone. An edit starts touched: its row's time stands.
+  late bool _timeTouched;
   late final TextEditingController _note;
   final _noteFocus = FocusNode();
 
@@ -159,6 +170,23 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     if (!_keypadOpen) setState(() => _keypadOpen = true);
   }
 
+  /// A new date. A time the user has not set follows it: now for today,
+  /// none for any other day.
+  void _setDate(DateTime next) => setState(() {
+    _date = next;
+    if (!_timeTouched) {
+      final now = DateTime.now();
+      _time = DateUtils.isSameDay(next, now)
+          ? storedTime(TimeOfDay.fromDateTime(now))
+          : null;
+    }
+  });
+
+  void _setTime(String? next) => setState(() {
+    _time = next;
+    _timeTouched = true;
+  });
+
   /// Expense to income and back: the icon at the top right. The chosen
   /// category belongs to the other list, and an expense filed under Salary
   /// is not worth allowing, so it is cleared.
@@ -178,6 +206,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _categoryId = initial?.categoryId;
     _accountId = initial?.accountId;
     _date = initial?.date ?? DateTime.now();
+    _time = initial == null
+        ? storedTime(TimeOfDay.fromDateTime(DateTime.now()))
+        : initial.time;
+    _timeTouched = initial != null;
     _note = TextEditingController(text: initial?.note ?? '');
     _noteFocus.addListener(_onNoteFocus);
     _interval = TextEditingController(text: '7');
@@ -228,10 +260,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   /// chosen category when one is given.
   ///
   /// An edit starts from the row being edited, not from a blank one: the
-  /// update writes every column, so anything this form does not show — the
-  /// time, split parts, the receipt link and photo, the recurring link —
-  /// would otherwise be written back as empty. Editing a split's category
-  /// used to delete its parts that way.
+  /// update writes every column, so anything this form does not show —
+  /// split parts, the receipt link and photo, the recurring link — would
+  /// otherwise be written back as empty. Editing a split's category used to
+  /// delete its parts that way.
   Transaction _build({int? categoryId}) {
     final initial = widget.initial;
     return Transaction(
@@ -242,7 +274,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       amountCents: _amount.valueCents!,
       type: _type,
       date: _date,
-      time: initial?.time,
+      time: _time,
       note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       splits: initial?.splits ?? const [],
       receiptScanId: initial?.receiptScanId,
@@ -511,11 +543,15 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                         children: [
-                          Center(
-                            child: _DateButton(
-                              date: _date,
-                              onChanged: (next) => setState(() => _date = next),
-                            ),
+                          // The time wraps under the date when the two do
+                          // not fit on one line: a small phone, a large font.
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              _DateButton(date: _date, onChanged: _setDate),
+                              _TimeButton(time: _time, onChanged: _setTime),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           _AmountBar(
@@ -927,6 +963,59 @@ class _DateButton extends StatelessWidget {
         );
         if (picked != null) onChanged(picked);
       },
+    );
+  }
+}
+
+/// The time of day, beside the date, with a way to remove it. FR-EXP-001.
+class _TimeButton extends StatelessWidget {
+  const _TimeButton({required this.time, required this.onChanged});
+
+  /// `HH:MM`, or null for none.
+  final String? time;
+
+  /// The time picked, or null when it is removed.
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final current = timeOfDayFrom(time);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Gives way at the largest font on a small phone, where the time
+        // has a line of its own and still only just fits beside its ×.
+        Flexible(
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.onSurface,
+            ),
+            icon: const Icon(Icons.schedule),
+            label: Text(
+              current == null ? 'Add time' : current.format(context),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onPressed: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: current ?? TimeOfDay.now(),
+              );
+              if (picked != null) onChanged(storedTime(picked));
+            },
+          ),
+        ),
+        if (current != null)
+          IconButton(
+            tooltip: 'Remove time',
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => onChanged(null),
+          ),
+      ],
     );
   }
 }

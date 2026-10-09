@@ -67,7 +67,10 @@ income**. **Transactions** has the same − and + at its bottom corner.
 1. Type the amount on the keypad. It adds, subtracts, multiplies and
    divides: 1250 **+** 340 is recorded as 1,590. **=** finishes a sum,
    and **⌫** in the amount bar removes the last digit.
-2. If it was not today, tap the date at the top to change it.
+2. If it was not today, tap the date at the top to change it. Beside it
+   is the time, which starts as now; tap it to change it, or **×** to
+   leave it out. A time is never required, and an entry for another day
+   has none unless you set one. The list shows it under the entry.
 3. The icon at the left of the amount is the account. It starts as the
    account chosen in the panel on the left of home (or the first account,
    with All accounts chosen). Tap it to choose another, such as Cash or a

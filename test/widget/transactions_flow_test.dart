@@ -362,7 +362,7 @@ void main() {
       // The date is the day's header (FR-EXP-006); the note sits under the
       // row's category.
       expect(find.text('Today'), findsOneWidget);
-      expect(find.text('Groceries'), findsOneWidget);
+      expect(find.textContaining('Groceries'), findsOneWidget);
     });
 
     testWidgets('switching to income swaps the category list', (tester) async {
@@ -409,6 +409,114 @@ void main() {
       // error itself.
       expect(find.text('New expense'), findsOneWidget);
       expect(find.text('The database is locked.'), findsOneWidget);
+    });
+  });
+
+  group('the time of day. FR-EXP-001', () {
+    final hhmm = RegExp(r'^\d{2}:\d{2}$');
+
+    testWidgets('a new entry today is made at the time it is made', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openNew(tester);
+
+      expect(find.byTooltip('Remove time'), findsOneWidget);
+      await keyIn(tester, '500');
+      await choose(tester, 'Food');
+
+      expect(repository.saved.single.time, matches(hhmm));
+    });
+
+    testWidgets('is never required: removed, the entry has none', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openNew(tester);
+
+      await tester.tap(find.byTooltip('Remove time'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add time'), findsOneWidget);
+      await keyIn(tester, '500');
+      await choose(tester, 'Food');
+
+      expect(repository.saved.single.time, isNull);
+    });
+
+    testWidgets('an entry for another day has none unless one is set', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openNew(tester);
+
+      // Last January: "now" was never the time of that lunch.
+      await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Switch to input'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '01/15/2025');
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add time'), findsOneWidget);
+      await keyIn(tester, '500');
+      await choose(tester, 'Food');
+
+      expect(repository.saved.single.date, DateTime(2025, 1, 15));
+      expect(repository.saved.single.time, isNull);
+    });
+
+    testWidgets('a row from before there was a time keeps having none', (
+      tester,
+    ) async {
+      repository.saved.add(
+        Transaction(
+          id: 1,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 50000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+        ),
+      );
+      await pumpApp(tester);
+
+      await tapRow(tester, '−Rs500.00');
+      expect(find.text('Add time'), findsOneWidget);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved.single.time, isNull);
+    });
+
+    testWidgets('is shown on the row, and nothing is shown without one', (
+      tester,
+    ) async {
+      repository.saved.addAll([
+        Transaction(
+          id: 1,
+          accountId: 1,
+          categoryId: 1,
+          amountCents: 50000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          time: '14:05',
+          note: 'Lunch',
+        ),
+        Transaction(
+          id: 2,
+          accountId: 1,
+          categoryId: 2,
+          amountCents: 7000,
+          type: TransactionType.expense,
+          date: DateTime(2026, 9, 1),
+          note: 'Bus',
+        ),
+      ]);
+      await pumpApp(tester);
+
+      expect(find.text('2:05 PM · Lunch'), findsOneWidget);
+      expect(find.text('Bus'), findsOneWidget);
     });
   });
 
