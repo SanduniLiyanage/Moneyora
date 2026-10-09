@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/ports/account_reader.dart';
 import 'category_suggestion.dart';
+import 'parsed_receipt.dart';
 import 'payment_method.dart';
 import 'receipt_line_item.dart';
 import 'reviewed_receipt.dart';
@@ -40,6 +41,12 @@ class ReviewDraftItem extends Equatable {
   bool get isLowConfidence =>
       suggestion.confidence < ReceiptReviewDraft.lowConfidenceBelow;
 
+  /// The merchant's category, offered for a line nothing else matched —
+  /// a hint the user can take, never a choice made for them.
+  int? get merchantHint => suggestion.source == SuggestionSource.merchant
+      ? suggestion.categoryId
+      : null;
+
   ReviewDraftItem _with({ReceiptLineItem? item}) => ReviewDraftItem(
     key: key,
     item: item ?? this.item,
@@ -52,7 +59,7 @@ class ReviewDraftItem extends Equatable {
 }
 
 /// The review screen's working copy of a scan. FR-RCP-008, FR-RCP-010,
-/// FR-RCP-011.
+/// FR-RCP-011, E-45.
 ///
 /// Every edit the SRS lists — a field changed, a line discarded, two
 /// merged, one split — is a method returning a new draft, so the screen
@@ -92,6 +99,22 @@ class ReviewDraftItem extends Equatable {
 /// - **Low confidence is below 50.** `CategoriseReceipt` scores a seed
 ///   match at 65 or more and a merchant-only lead at 20, so the line
 ///   badges exactly the lines the dictionary had no word for.
+/// - **A line the dictionary had no word for opens with no category.** The
+///   merchant's category is offered beside it as a hint, one tap to take,
+///   but a guess is never saved without the user choosing it.
+/// - **The receipt is low confidence when its read is in doubt**: the
+///   lines do not add up to the total, or the parser had to guess a field
+///   (FR-RCP-011's damaged or non-standard receipt). How sure the
+///   categoriser is about each line is that line's own badge. Correcting
+///   a guessed field — the merchant, the total, the posting day — settles
+///   it.
+/// - **A line keeps how its amount was reached** — the printed price, the
+///   discount off it, its share of tax — through a rename and a merge,
+///   and loses it when the amount itself is edited: the sum no longer
+///   explains a figure the user typed.
+/// - **A line can be added** for one the scan missed: blank, with no
+///   category, and Confirm refuses it until it has a name, an amount and a
+///   category.
 /// - **The account follows the receipt.** [defaultAccount] is the first
 ///   account of the kind the receipt says it was paid from — a card
 ///   receipt opens on the card, a cash receipt on cash — and the first
@@ -114,6 +137,7 @@ class ReceiptReviewDraft extends Equatable {
     this.merchantCategoryName,
     this.isSingleCategory = false,
     this.singleCategoryId,
+    this.guessedFields = const {},
     this.nextKey = 0,
   });
 
@@ -135,7 +159,9 @@ class ReceiptReviewDraft extends Equatable {
             key: index,
             item: entry.item,
             suggestion: entry.suggestion,
-            categoryId: entry.suggestion.categoryId,
+            categoryId: entry.suggestion.source == SuggestionSource.merchant
+                ? null
+                : entry.suggestion.categoryId,
           ),
       ],
       merchantName: parsed.merchantName,
@@ -147,6 +173,7 @@ class ReceiptReviewDraft extends Equatable {
       merchantCategoryId: receipt.merchantCategoryId,
       merchantCategoryName: receipt.merchantCategoryName,
       isSingleCategory: receipt.items.isEmpty,
+      guessedFields: parsed.guessedFields,
       nextKey: receipt.items.length,
     );
   }
@@ -199,6 +226,9 @@ class ReceiptReviewDraft extends Equatable {
   /// The category that one expense carries; null until chosen.
   final int? singleCategoryId;
 
+  /// The fields the parser inferred and the user has not yet corrected.
+  final Set<ReceiptField> guessedFields;
+
   /// The next [ReviewDraftItem.key] to hand out.
   final int nextKey;
 
@@ -219,9 +249,11 @@ class ReceiptReviewDraft extends Equatable {
     return (sum / items.length).round();
   }
 
-  /// True when the receipt as a whole earns the badge (FR-RCP-011).
+  /// True when the receipt as a whole earns the badge (FR-RCP-011): the
+  /// lines do not add up to the total, no total was read to check them
+  /// against, or a field was guessed.
   bool get isLowConfidence =>
-      items.isNotEmpty && meanConfidence < lowConfidenceBelow;
+      itemsMatchTotal != true || guessedFields.isNotEmpty;
 
   /// How many kept lines still have no category.
   int get uncategorisedCount => items.where((i) => i.categoryId == null).length;
@@ -289,14 +321,17 @@ class ReceiptReviewDraft extends Equatable {
     final trimmed = name?.trim();
     return _with(
       merchantName: () => trimmed == null || trimmed.isEmpty ? null : trimmed,
+      settled: ReceiptField.merchant,
     );
   }
 
   /// The total, corrected or typed in; null when it is blank. Never zero:
   /// a receipt totalling nothing is not one to post, and zero would read
   /// as a figure that was read.
-  ReceiptReviewDraft withTotal(int? cents) =>
-      _with(totalCents: () => cents == null || cents <= 0 ? null : cents);
+  ReceiptReviewDraft withTotal(int? cents) => _with(
+    totalCents: () => cents == null || cents <= 0 ? null : cents,
+    settled: ReceiptField.total,
+  );
 
   /// The account the money left.
   ReceiptReviewDraft withAccount(int accountId) =>
@@ -317,8 +352,10 @@ class ReceiptReviewDraft extends Equatable {
       _with(singleCategoryId: () => categoryId);
 
   /// The day to record the expenses on; the time is dropped.
-  ReceiptReviewDraft withPostedOn(DateTime day) =>
-      _with(postedOn: DateTime(day.year, day.month, day.day));
+  ReceiptReviewDraft withPostedOn(DateTime day) => _with(
+    postedOn: DateTime(day.year, day.month, day.day),
+    settled: ReceiptField.date,
+  );
 
   /// The line [key], renamed.
   ReceiptReviewDraft rename(int key, String name) => _update(
@@ -329,12 +366,15 @@ class ReceiptReviewDraft extends Equatable {
         totalPriceCents: i.item.totalPriceCents,
         quantity: i.item.quantity,
         unitPriceCents: i.item.unitPriceCents,
+        discountCents: i.item.discountCents,
+        chargesCents: i.item.chargesCents,
       ),
     ),
   );
 
   /// The line [key], with a new total. The unit price no longer holds, so
-  /// it is dropped.
+  /// it is dropped, and so is the discount and tax that explained the old
+  /// total.
   ReceiptReviewDraft reprice(int key, int totalPriceCents) => _update(
     key,
     (i) => i._with(
@@ -382,6 +422,19 @@ class ReceiptReviewDraft extends Equatable {
     );
   }
 
+  /// With a blank line at the end, for an item the scan missed.
+  ReceiptReviewDraft addItem() => _with(
+    items: [
+      ...items,
+      ReviewDraftItem(
+        key: nextKey,
+        item: const ReceiptLineItem(name: '', totalPriceCents: 0),
+        suggestion: CategorySuggestion.none,
+      ),
+    ],
+    nextKey: nextKey + 1,
+  );
+
   /// Without the line [key].
   ReceiptReviewDraft discard(int key) => _with(
     items: [
@@ -410,6 +463,8 @@ class ReceiptReviewDraft extends Equatable {
             : '${upper.item.name} + ${lower.item.name}',
         totalPriceCents:
             upper.item.totalPriceCents + lower.item.totalPriceCents,
+        discountCents: upper.item.discountCents + lower.item.discountCents,
+        chargesCents: upper.item.chargesCents + lower.item.chargesCents,
       ),
       suggestion: upper.suggestion,
       categoryId: upper.categoryId ?? lower.categoryId,
@@ -463,6 +518,7 @@ class ReceiptReviewDraft extends Equatable {
     int? Function()? totalCents,
     bool? isSingleCategory,
     int? Function()? singleCategoryId,
+    ReceiptField? settled,
     int? nextKey,
   }) => ReceiptReviewDraft(
     imagePath: imagePath,
@@ -481,6 +537,9 @@ class ReceiptReviewDraft extends Equatable {
     singleCategoryId: singleCategoryId == null
         ? this.singleCategoryId
         : singleCategoryId(),
+    guessedFields: settled == null
+        ? guessedFields
+        : ({...guessedFields}..remove(settled)),
     nextKey: nextKey ?? this.nextKey,
   );
 
@@ -500,6 +559,7 @@ class ReceiptReviewDraft extends Equatable {
     merchantCategoryName,
     isSingleCategory,
     singleCategoryId,
+    guessedFields,
     nextKey,
   ];
 }
