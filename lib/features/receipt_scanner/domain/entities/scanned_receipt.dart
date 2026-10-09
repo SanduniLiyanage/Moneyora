@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'categorised_receipt.dart';
+import 'recognised_text.dart';
 
 /// A receipt photo and everything the pipeline read off it. FR-RCP-008.
 ///
@@ -11,7 +12,11 @@ import 'categorised_receipt.dart';
 /// other could show a review it could not post.
 class ScannedReceipt extends Equatable {
   /// Creates the pair.
-  const ScannedReceipt({required this.imagePath, required this.receipt});
+  const ScannedReceipt({
+    required this.imagePath,
+    required this.receipt,
+    this.recognisedText,
+  });
 
   /// Where the photo lives on disk.
   final String imagePath;
@@ -19,6 +24,11 @@ class ScannedReceipt extends Equatable {
   /// What was read and suggested.
   final CategorisedReceipt receipt;
 
+  /// The lines OCR read, as the parser saw them — kept so a debug build
+  /// can copy them out and a misread receipt becomes an exact test
+  /// fixture. Null when the scan did not keep them.
+  final RecognisedText? recognisedText;
+
   @override
-  List<Object?> get props => [imagePath, receipt];
+  List<Object?> get props => [imagePath, receipt, recognisedText];
 }
