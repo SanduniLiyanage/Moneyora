@@ -30,8 +30,8 @@ income. Three buttons sit at the top:
   account and the period the home screen shows;
 - **⇄** at the top right starts a transfer between your accounts;
 - **⋮** beside it opens the **menu**: Transactions, Reports, Scan receipt,
-  Transfer, Budget plans, Recurring, Categories, Accounts, Ask Moneyora,
-  and Settings last.
+  Transfer, Budget plans, Recurring, Debts, Categories, Accounts, Ask
+  Moneyora, and Settings last.
 
 The back arrow, or your phone's back gesture, returns to where you were.
 
@@ -106,6 +106,22 @@ rent every month, a subscription, a salary. Moneyora records each one when
 it falls due. **Recurring** (in the menu) lists every repeat,
 where you can pause, resume or delete one. With **Recurring reminders**
 turned on in Settings, you get a notification before each is recorded.
+
+### Debts
+
+**Debts** (in the menu) keeps track of money lent and borrowed. **Add
+debt** asks which way it runs (**Owed to me** or **I owe**), who, how
+much, since when, and optionally a due date and what it was for. The top
+of the screen shows what is still owed to you and what you owe; each
+debt is listed under its side, the soonest due first, and one past its
+due date says it is overdue. Tap the **tick** on a debt when it is paid
+back (**Undo** appears for a moment), or tap the debt to change it, mark
+it not paid, or delete it. Paid debts are folded away under **Paid** at
+the bottom.
+
+A debt is not a transaction: marking one paid does not move money
+between your accounts. Record the payment as an expense or income if it
+went through one.
 
 ### Moving money between your own accounts
 

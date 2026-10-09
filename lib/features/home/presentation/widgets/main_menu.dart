@@ -29,6 +29,7 @@ class MainMenu extends StatelessWidget {
     ('Transfer', Icons.swap_horiz, Routes.transfer),
     ('Budget plans', Icons.savings_outlined, Routes.plans),
     ('Recurring', Icons.repeat, Routes.recurring),
+    ('Debts', Icons.handshake_outlined, Routes.debts),
     ('Categories', Icons.category_outlined, Routes.categories),
   ];
 

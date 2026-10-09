@@ -35,6 +35,9 @@ import 'package:moneyora/features/analytics/domain/usecases/get_spending_trend.d
 import 'package:moneyora/features/analytics/presentation/providers/analytics_providers.dart';
 import 'package:moneyora/features/auth/data/datasources/auth_local_datasource.dart';
 import 'package:moneyora/features/copilot/data/datasources/secure_llm_api_key_store.dart';
+import 'package:moneyora/features/debts/domain/entities/debt.dart';
+import 'package:moneyora/features/debts/domain/repositories/debt_repository.dart';
+import 'package:moneyora/features/debts/domain/usecases/watch_debts.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/check_budget_alerts.dart';
 import 'package:moneyora/features/money_plan/domain/usecases/check_plan_history.dart';
 import 'package:moneyora/features/money_plan/presentation/pages/active_plan_page.dart';
@@ -101,6 +104,23 @@ class _NoAccountReader implements AccountReader {
   @override
   Stream<Either<Failure, List<AccountOption>>> watchAll() =>
       Stream.value(const Right([]));
+}
+
+/// No debts, for the menu's Debts item.
+class _NoDebts implements DebtRepository {
+  const _NoDebts();
+
+  @override
+  Stream<Either<Failure, List<Debt>>> watch() => Stream.value(const Right([]));
+
+  @override
+  Future<Either<Failure, int>> add(Debt debt) => throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> update(Debt debt) => throw UnimplementedError();
+
+  @override
+  Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
 }
 
 /// Cash, then Bank, for the entry screen's default account.
@@ -643,6 +663,7 @@ void main() {
         'Transfer',
         'Budget plans',
         'Recurring',
+        'Debts',
         'Categories',
         'Accounts',
         'Ask Moneyora',
@@ -667,6 +688,26 @@ void main() {
       for (final gone in ['Your plan', 'Create Money Plan', 'Saved plans']) {
         expect(find.text(gone), findsNothing);
       }
+    });
+
+    testWidgets('reaches Debts from the menu. FR-DBT-002', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseSummaryProvider.overrideWith((ref) => ready),
+            ..._noChartDataOverrides,
+            watchDebtsProvider.overrideWith(
+              (ref) async => const WatchDebts(_NoDebts()),
+            ),
+          ],
+          child: const MoneyoraApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tapInMenu(tester, 'Debts');
+
+      expect(find.text('No debts yet'), findsOneWidget);
     });
 
     testWidgets('reaches Settings from the menu', (tester) async {
