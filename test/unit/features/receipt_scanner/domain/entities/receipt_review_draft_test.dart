@@ -76,8 +76,8 @@ void main() {
       );
 
   group('opening', () {
-    test('accepts every suggestion, keys the lines in order, and carries '
-        'the header through', () {
+    test('accepts every word the dictionary matched, keys the lines in '
+        'order, and carries the header through', () {
       final d = draft();
 
       expect(d.imagePath, '/receipts/keells.jpg');
@@ -88,8 +88,18 @@ void main() {
       expect(d.merchantCategoryName, 'Health');
       expect(d.accountId, isNull);
       expect(d.items.map((i) => i.key), [0, 1, 2]);
-      expect(d.items.map((i) => i.categoryId), [food, food, health]);
+      expect(d.items.map((i) => i.categoryId), [food, food, null]);
       expect(d.nextKey, 3);
+    });
+
+    test("a line only the shop's category suggests opens blank, with the "
+        'shop offered as a hint', () {
+      final d = draft();
+
+      expect(d.items[2].categoryId, isNull);
+      expect(d.items[2].merchantHint, health);
+      expect(d.items[0].merchantHint, isNull);
+      expect(d.uncategorisedCount, 1);
     });
 
     test('posts on the receipt date when one was read, else today, '
@@ -156,12 +166,36 @@ void main() {
       expect(d.items[2].isLowConfidence, isTrue);
     });
 
-    test('the receipt is low confidence only when the mean is', () {
+    test('the receipt is low confidence when its lines do not add up, '
+        'whatever the categories', () {
       final d = draft();
       expect(d.meanConfidence, 58);
       expect(d.isLowConfidence, isFalse);
-      expect(d.discard(0).discard(1).isLowConfidence, isTrue);
-      expect(d.discard(0).discard(1).discard(2).isLowConfidence, isFalse);
+      expect(d.discard(1).isLowConfidence, isTrue);
+      expect(draft(totalCents: null).isLowConfidence, isTrue);
+    });
+
+    test('and while a guessed field is uncorrected', () {
+      final guessed = ReceiptReviewDraft.fromScanned(
+        const ScannedReceipt(
+          imagePath: '/r.jpg',
+          receipt: CategorisedReceipt(
+            receipt: ParsedReceipt(
+              merchantName: 'Keells E-Bills',
+              items: [bread],
+              totalCents: 30000,
+              guessedFields: {ReceiptField.merchant, ReceiptField.total},
+            ),
+            items: [CategorisedItem(item: bread, suggestion: breadSuggested)],
+          ),
+        ),
+        today: today,
+      );
+
+      expect(guessed.isLowConfidence, isTrue);
+      final merchantFixed = guessed.withMerchant('Keells - Katubedda');
+      expect(merchantFixed.guessedFields, {ReceiptField.total});
+      expect(merchantFixed.withTotal(30000).isLowConfidence, isFalse);
     });
   });
 
@@ -190,7 +224,7 @@ void main() {
 
     test('unsets a category the catalogue no longer has, keeping the '
         'suggestion', () {
-      final d = draft().keepingCategories([food]);
+      final d = draft().recategorise(2, health).keepingCategories([food]);
       expect(d.items[2].categoryId, isNull);
       expect(d.items[2].suggestion, panadolByMerchant);
       expect(d.items[0].categoryId, food);
@@ -198,6 +232,60 @@ void main() {
       // Nothing to unset: the same draft, not a copy.
       final same = draft();
       expect(identical(same.keepingCategories([food, health]), same), isTrue);
+    });
+
+    test(
+      'a rename keeps how the amount was reached; a new amount drops it',
+      () {
+        final d = ReceiptReviewDraft.fromScanned(
+          scanned(
+            items: const [
+              CategorisedItem(
+                item: ReceiptLineItem(
+                  name: 'SOAP',
+                  unitPriceCents: 35000,
+                  totalPriceCents: 26200,
+                  discountCents: 8800,
+                ),
+                suggestion: breadSuggested,
+              ),
+            ],
+            totalCents: 26200,
+          ),
+          today: today,
+        );
+
+        final renamed = d.rename(0, 'Safeguard soap').items.single.item;
+        expect(renamed.discountCents, 8800);
+        expect(renamed.printedCents, 35000);
+
+        final repriced = d.reprice(0, 25000).items.single.item;
+        expect(repriced.discountCents, 0);
+        expect(repriced.printedCents, 25000);
+      },
+    );
+
+    test('adds a blank line for one the scan missed, which Confirm '
+        'refuses until it is filled in', () {
+      final d = draft().withAccount(1).recategorise(2, health).addItem();
+
+      expect(d.items.length, 4);
+      final added = d.items.last;
+      expect(added.key, 3);
+      expect(added.item.name, '');
+      expect(added.categoryId, isNull);
+      expect(d.nextKey, 4);
+      expect(d.unfinished, 'Choose a category for every item.');
+
+      final named = d.recategorise(3, food).rename(3, 'Bag');
+      expect(
+        ConfirmReceipt.validate(named.toReviewed()!)?.message,
+        'Item 4 needs an amount greater than zero.',
+      );
+      expect(
+        ConfirmReceipt.validate(named.reprice(3, 600).toReviewed()!),
+        isNull,
+      );
     });
 
     test('discards it', () {
@@ -223,6 +311,39 @@ void main() {
       expect(merged.categoryId, food);
       expect(d.items[1].key, 2);
       expect(d.nextKey, 4);
+    });
+
+    test('adds up the discounts and charges of the two', () {
+      final d = ReceiptReviewDraft.fromScanned(
+        scanned(
+          items: const [
+            CategorisedItem(
+              item: ReceiptLineItem(
+                name: 'A',
+                totalPriceCents: 900,
+                discountCents: 100,
+              ),
+              suggestion: breadSuggested,
+            ),
+            CategorisedItem(
+              item: ReceiptLineItem(
+                name: 'B',
+                totalPriceCents: 2100,
+                discountCents: 200,
+                chargesCents: 300,
+              ),
+              suggestion: breadSuggested,
+            ),
+          ],
+        ),
+        today: today,
+      ).mergeWithNext(0);
+
+      final merged = d.items.single.item;
+      expect(merged.totalPriceCents, 3000);
+      expect(merged.discountCents, 300);
+      expect(merged.chargesCents, 300);
+      expect(merged.printedCents, 3000);
     });
 
     test('two lines of the same name keep the name', () {
@@ -365,6 +486,7 @@ void main() {
     test('switching off brings every line back, edits included', () {
       final d = draft()
           .withAccount(1)
+          .recategorise(2, health)
           .rename(0, 'Basmati')
           .withSingleCategory(on: true)
           .withSingleCategoryId(food)

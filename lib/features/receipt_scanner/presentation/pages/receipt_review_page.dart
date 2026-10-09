@@ -8,6 +8,8 @@ import '../../../../core/ports/category_reader.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/category_suggestion.dart';
+import '../../domain/entities/parsed_receipt.dart';
+import '../../domain/entities/receipt_line_item.dart';
 import '../../domain/entities/receipt_review_draft.dart';
 import '../../domain/entities/scanned_receipt.dart';
 import '../../domain/usecases/confirm_receipt.dart';
@@ -31,10 +33,17 @@ import '../widgets/receipt_thumbnail.dart';
 /// posts under; off, every line is back as it was. The draft keeps both.
 ///
 /// Categories and accounts arrive through the `core/ports` readers, live,
-/// the same way the entry screen gets them (E-27). A suggestion the
-/// dictionary had no word for — a line categorised only by the shop, or
-/// not at all — carries FR-RCP-011's "Low confidence" badge, and the
-/// receipt as a whole does when the mean is low.
+/// the same way the entry screen gets them (E-27). A line the dictionary
+/// had no word for carries FR-RCP-011's "Low confidence" badge and opens
+/// with no category — the shop's is offered beside it, one tap to take.
+/// The receipt as a whole carries the badge while its lines do not add up
+/// to its total or a field was guessed, and a guessed field says so where
+/// it is corrected.
+///
+/// A line whose amount is not the printed one shows the sum — `Rs350.00 −
+/// 88.00 off = Rs262.00` — so a discount the parser applied can be
+/// checked against the paper. A line the scan missed is added below the
+/// rest.
 ///
 /// Discard leaves without writing anything. A rejected scan record would
 /// be the honest thing to keep for FR-RCP-013's history, but the photo is
@@ -231,6 +240,14 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
                                   _edit((d) => d.mergeWithNext(item.key)),
                               onSplit: () => _split(item),
                             ),
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton.icon(
+                              onPressed: () => _edit((d) => d.addItem()),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add an item'),
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -303,10 +320,12 @@ class _Header extends StatelessWidget {
     final theme = Theme.of(context);
     final date = draft.receiptDate;
     final time = ConfirmReceipt.timeOf(date);
+    final guessed = draft.guessedFields;
     final details = <String>[
       if (date != null)
         'Dated ${date.year}-${_two(date.month)}-${_two(date.day)}'
-            '${time == null ? '' : ' $time'}',
+            '${time == null ? '' : ' $time'}'
+            '${guessed.contains(ReceiptField.date) ? ' (when it was sent)' : ''}',
       if (draft.taxCents case final tax?) 'Tax ${formatCents(tax)}',
       if (draft.receiptNumber case final number?) 'No. $number',
     ];
@@ -329,6 +348,9 @@ class _Header extends StatelessWidget {
                     decoration: InputDecoration(
                       labelText: 'Merchant',
                       hintText: draft.merchantName == null ? 'Not read' : null,
+                      helperText: guessed.contains(ReceiptField.merchant)
+                          ? 'Taken from the email — check it'
+                          : null,
                       isDense: true,
                     ),
                     onChanged: onMerchant,
@@ -346,9 +368,12 @@ class _Header extends StatelessWidget {
                       decimal: true,
                     ),
                     style: theme.textTheme.titleMedium,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Total',
                       hintText: 'Not read: type it in',
+                      helperText: guessed.contains(ReceiptField.total)
+                          ? 'Worked out, not printed — check it'
+                          : null,
                       isDense: true,
                     ),
                     onChanged: (text) => onTotal(parseToCents(text)),
@@ -470,10 +495,30 @@ class _ItemCardState extends State<_ItemCard> {
       SuggestionSource.userHistory =>
         'Suggested $name · ${s.confidence}% · you chose this before',
       SuggestionSource.merchant =>
-        'Suggested $name · ${s.confidence}% · only because the shop is '
-            '${widget.merchantCategoryName ?? name}',
+        'No word matched · the shop is ${widget.merchantCategoryName ?? name}',
       SuggestionSource.none => 'No suggestion',
     };
+  }
+
+  /// The shop's category, offered for a line no word matched, while the
+  /// catalogue still has it.
+  CategoryOption? get _hint => switch (widget.item.merchantHint) {
+    final id? => widget.categories.where((c) => c.id == id).firstOrNull,
+    null => null,
+  };
+
+  /// `Rs350.00 − 88.00 off = Rs262.00`, with tax and charges when the
+  /// line took a share; null when the amount is the printed one.
+  static String? _breakdown(ReceiptLineItem line) {
+    if (!line.isAdjusted) return null;
+    return [
+      formatCents(line.printedCents),
+      if (line.discountCents > 0)
+        '− ${formatCents(line.discountCents, showSymbol: false)} off',
+      if (line.chargesCents > 0)
+        '+ ${formatCents(line.chargesCents, showSymbol: false)} tax',
+      '= ${formatCents(line.totalPriceCents)}',
+    ].join(' ');
   }
 
   @override
@@ -562,8 +607,17 @@ class _ItemCardState extends State<_ItemCard> {
                   null => 'Quantity $quantity',
                 }, style: theme.textTheme.bodySmall),
               ),
+            if (_breakdown(line) case final sum?)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(sum, style: theme.textTheme.bodySmall),
+              ),
             const SizedBox(height: 4),
             DropdownButtonFormField<int>(
+              // Keyed by the category so a hint taken, or a category the
+              // catalogue lost, shows here: the field reads its initial
+              // value once.
+              key: ValueKey(widget.item.categoryId),
               initialValue: selected,
               isExpanded: true,
               decoration: const InputDecoration(
@@ -586,6 +640,11 @@ class _ItemCardState extends State<_ItemCard> {
               children: [
                 Text(_suggestionLabel, style: theme.textTheme.bodySmall),
                 if (widget.item.isLowConfidence) const _LowConfidenceBadge(),
+                if (_hint case final hint? when widget.item.categoryId == null)
+                  TextButton(
+                    onPressed: () => widget.onCategory(hint.id),
+                    child: Text('Use ${hint.name}'),
+                  ),
               ],
             ),
           ],
