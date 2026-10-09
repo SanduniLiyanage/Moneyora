@@ -205,10 +205,16 @@ GoRouter buildRouter() => GoRouter(
         GoRoute(
           path: _child(Routes.addTransaction),
           name: 'addTransaction',
-          builder: (context, state) => AddTransactionPage(
-            type: state.uri.queryParameters['type'] == 'income'
-                ? TransactionType.income
-                : TransactionType.expense,
+          // In the account chosen in home's left panel (FR-RPT-003), read
+          // here because the transactions feature may not import analytics.
+          // Read once: the entry keeps its account if the filter changes.
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) => AddTransactionPage(
+              type: state.uri.queryParameters['type'] == 'income'
+                  ? TransactionType.income
+                  : TransactionType.expense,
+              accountId: ref.read(analyticsAccountFilterProvider),
+            ),
           ),
         ),
         GoRoute(
