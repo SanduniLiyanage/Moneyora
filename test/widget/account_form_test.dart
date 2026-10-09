@@ -214,6 +214,22 @@ void main() {
       expect(repository.added.single.initialBalanceCents, -125050);
     });
 
+    testWidgets('refuses an opening balance that is not a number', (
+      tester,
+    ) async {
+      // It used to be saved as nothing, silently: the account opened at
+      // zero and the figure the user typed was gone.
+      await open(tester);
+
+      await tester.enterText(find.byType(TextField).first, 'Savings');
+      await tester.enterText(find.byType(TextField).at(1), '5000..');
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Type an amount, like 2500.00.'), findsOneWidget);
+      expect(repository.added, isEmpty);
+    });
+
     testWidgets('never sets the cached balance itself', (tester) async {
       // E-18: current_balance_cents is maintained by the writes that move it.
       // A form that set it directly would put the cache and the history into a

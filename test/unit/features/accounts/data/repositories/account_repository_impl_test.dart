@@ -209,6 +209,7 @@ void main() {
             type: AccountType.bank,
             currentBalanceCents: -125000,
             currency: 'USD',
+            initialBalanceCents: 500000,
           ),
         ),
       ];
@@ -221,6 +222,9 @@ void main() {
       expect(rows.single.type, AccountType.bank);
       expect(rows.single.balanceCents, -125000);
       expect(rows.single.currency, 'USD');
+      // For the Balance bar and the list, which show it on its day (E-41).
+      expect(rows.single.openingBalanceCents, 500000);
+      expect(rows.single.openingDate, opened);
     });
 
     test('excludes archived accounts, same as watch', () async {

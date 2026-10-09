@@ -168,12 +168,17 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     // Only for naming a transfer's counterparty (FR-TRF-004); the list itself
     // never waits on this, so a loading or failed catalog just falls back to
     // the bare "Transfer" label below rather than blocking the screen.
+    final accounts =
+        ref.watch(entryAccountsProvider).valueOrNull ?? const <AccountOption>[];
     final accountNames = <int, String>{
-      for (final account
-          in ref.watch(entryAccountsProvider).valueOrNull ??
-              const <AccountOption>[])
-        account.id: account.name,
+      for (final account in accounts) account.id: account.name,
     };
+    // E-41: an account opened in this period shows what it opened with,
+    // dated, among the days. Not under a type filter or by category: it is
+    // neither an expense nor an income, and has no category.
+    final openings = _isFiltered || _byCategory
+        ? const <AccountOption>[]
+        : _openingsInScope(accounts);
     // Names each row by its category, the same way: a catalog still loading
     // leaves the note or a bare word, never a blocked list.
     final categories = <int, CategoryOption>{
@@ -250,7 +255,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             // concerned, even though nothing has been written yet (E-23).
             final rows = all.where((t) => !pending.contains(t.id)).toList();
 
-            if (rows.isEmpty) {
+            if (rows.isEmpty && openings.isEmpty) {
               // E-22. The two empty states are genuinely different situations,
               // and telling someone with a filter on to "add your first
               // expense" is the bug that distinction exists to prevent.
@@ -312,16 +317,20 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
               );
             }
 
-            // FR-EXP-006: by day, each day's header saying what it cost.
-            final days = DayGroup.group(rows);
+            // FR-EXP-006: by day, each day's header saying what it cost,
+            // with each opening balance after the day it was true on.
+            final entries = _withOpenings(DayGroup.group(rows), openings);
             return ListView.builder(
               // Room for the FAB, or it covers the last row — which is the row
               // someone has just added and most wants to see.
               padding: const EdgeInsets.only(bottom: 88),
-              itemCount: days.length,
-              itemBuilder: (context, index) {
-                final day = days[index];
-                return _DayGroupTile(
+              itemCount: entries.length,
+              itemBuilder: (context, index) => switch (entries[index]) {
+                _OpeningEntry(:final account) => _OpeningRow(
+                  key: ValueKey(('opening', account.id)),
+                  account: account,
+                ),
+                _DayEntry(group: final day) => _DayGroupTile(
                   // A day keeps its open or closed state as rows stream in.
                   key: ValueKey(('day', day.day)),
                   group: day,
@@ -338,11 +347,102 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                         onLongPress: () => _offer(transaction),
                       ),
                   ],
-                );
+                ),
               },
             );
           },
         ),
+      ),
+    );
+  }
+
+  /// The accounts whose opening balance belongs on this list: in its
+  /// scope, opened with something, on a day inside its period, newest
+  /// first. E-41.
+  List<AccountOption> _openingsInScope(List<AccountOption> accounts) {
+    final from = widget.from == null ? null : _dayOf(widget.from!);
+    final to = widget.to == null ? null : _dayOf(widget.to!);
+    return [
+      for (final account in accounts)
+        if (account.openingDate case final opened?
+            when account.openingBalanceCents != 0 &&
+                (widget.accountId == null || account.id == widget.accountId) &&
+                (from == null || !_dayOf(opened).isBefore(from)) &&
+                (to == null || !_dayOf(opened).isAfter(to)))
+          account,
+    ]..sort((a, b) => b.openingDate!.compareTo(a.openingDate!));
+  }
+}
+
+DateTime _dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
+
+/// One item of the list by date: a day's rows, or an opening balance.
+sealed class _ListEntry {
+  const _ListEntry();
+}
+
+class _DayEntry extends _ListEntry {
+  const _DayEntry(this.group);
+
+  final DayGroup group;
+}
+
+class _OpeningEntry extends _ListEntry {
+  const _OpeningEntry(this.account);
+
+  final AccountOption account;
+}
+
+/// [days] and [openings], both newest first, merged into one list in date
+/// order: an opening balance follows the rows of the day it was true on,
+/// because it is where the account's history starts.
+List<_ListEntry> _withOpenings(
+  List<DayGroup> days,
+  List<AccountOption> openings,
+) {
+  final entries = <_ListEntry>[];
+  var d = 0;
+  var o = 0;
+  while (d < days.length || o < openings.length) {
+    final takeDay =
+        o == openings.length ||
+        (d < days.length &&
+            !days[d].day.isBefore(_dayOf(openings[o].openingDate!)));
+    entries.add(takeDay ? _DayEntry(days[d++]) : _OpeningEntry(openings[o++]));
+  }
+  return entries;
+}
+
+/// An account's opening balance, on the day it was true. E-41.
+///
+/// Not a transaction, so there is nothing to open, change or delete here:
+/// the figure belongs to the account, and is changed on its form. Green
+/// when the account opened holding money, red when it opened owing.
+class _OpeningRow extends StatelessWidget {
+  const _OpeningRow({required this.account, super.key});
+
+  final AccountOption account;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>()!;
+    final cents = account.openingBalanceCents;
+    final tint = cents < 0 ? colors.expense : colors.income;
+
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: tint.withValues(alpha: 0.12),
+        child: Icon(Icons.flag_outlined, color: tint, size: 20),
+      ),
+      title: const Text('Opening balance'),
+      subtitle: Text(
+        '${account.name} · ${dayLabel(account.openingDate!, DateTime.now())}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: _Amount(
+        cents < 0 ? '−${formatCents(-cents)}' : '+${formatCents(cents)}',
+        color: tint,
       ),
     );
   }

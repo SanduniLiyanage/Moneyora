@@ -108,11 +108,23 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     icon: _iconKey,
     type: _type,
     currency: _currency.text.trim().toUpperCase(),
-    initialBalanceCents: parseToCents(_openingBalance.text) ?? 0,
+    initialBalanceCents: _openingCents ?? 0,
     currentBalanceCents: widget.initial?.currentBalanceCents ?? 0,
     initialBalanceDate: _openedOn,
     includeInTotal: _includeInTotal,
   );
+
+  /// The opening balance as typed, in minor units; null when the box is
+  /// empty or holds something that is not a number.
+  int? get _openingCents => parseToCents(
+    _openingBalance.text,
+    currency: CurrencyFormat.forCode(_currency.text.trim().toUpperCase()),
+  );
+
+  /// True when the box holds something that is not an amount. It used to be
+  /// saved as nothing, silently, and the opening balance was lost.
+  bool get _openingUnreadable =>
+      _openingBalance.text.trim().isNotEmpty && _openingCents == null;
 
   /// The use case's own verdict on the form as it stands.
   ValidationFailure? get _problem => AddAccount.validate(_build());
@@ -140,7 +152,9 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     setState(() => _submitted = true);
     // Let the use case be the one that refuses. Checking here first only
     // avoids a pointless round trip; the message shown is still its message.
-    if (_problem != null) return;
+    // An amount that is not a number never reaches it: that is the box's to
+    // say, beside the box.
+    if (_problem != null || _openingUnreadable) return;
 
     final saved = await ref
         .read(saveAccountControllerProvider.notifier)
@@ -303,12 +317,15 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                       decimal: true,
                       signed: true,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Opening balance',
                       // Signed, unlike a transaction amount: a credit card
                       // legitimately opens owing money.
                       hintText: '0.00',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      errorText: _submitted && _openingUnreadable
+                          ? 'Type an amount, like 2500.00.'
+                          : null,
                     ),
                   ),
                 ),
