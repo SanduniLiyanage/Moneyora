@@ -108,6 +108,21 @@ void main() {
       expect(result.totalCents, 10000);
     });
 
+    test('a total printed below the payment comes last', () {
+      final result = ReceiptReconciler.reconcile(
+        ReceiptBody(
+          items: [item('A', 10000)],
+          summaries: const [
+            SummaryLine(LineRole.total, 12000, afterPayment: true),
+            SummaryLine(LineRole.total, 99999),
+          ],
+        ),
+      );
+
+      // Neither adds up; the one above the payment is the answer.
+      expect(result.totalCents, 99999);
+    });
+
     test('a later total line is tried when the first does not add up', () {
       final result = ReceiptReconciler.reconcile(
         ReceiptBody(

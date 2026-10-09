@@ -73,7 +73,14 @@ class ReceiptHeader extends Equatable {
 ///   the e-bill was sent, in UTC — five and a half hours from what the
 ///   till printed.
 /// - **A labelled time gives a bare date its time** — `Billed Time
-///   :16:54:43`, `TIME : 05:12:13 PM` — wherever on the receipt it is.
+///   :16:54:43`, `TIME : 05:12:13 PM`, `Time End: 14:31:32` — wherever on
+///   the receipt it is, and OCR's `ime End` is still the label.
+/// - **A loyalty block below the bill is not the bill.** From the first
+///   line naming points or loyalty after the bill's total or payment —
+///   `Loyalty Customer`, `Star Points` — to the end, nothing is read for
+///   the items or the total: its `Total:` is a points balance. Its date is
+///   the bill's date only when the bill's own was lost (a photo that cut
+///   the day off), and then the bill's own labelled time beats the block's.
 class ReceiptHeaderReader {
   /// Creates a reader. [localOffset] is the device's offset from UTC, for
   /// an email date; the clock's own when null.
@@ -90,8 +97,13 @@ class ReceiptHeaderReader {
     final chrome = _Chrome.of(collapsed, localOffset: localOffset);
     final consumed = {...chrome.lines};
     bool open(int i) => collapsed[i].isNotEmpty && !consumed.contains(i);
+    final loyalty = _loyaltyBlock(collapsed, open);
+    consumed.addAll(loyalty);
     // A date shares its line with a receipt number as often as not.
-    bool printed(int i) => collapsed[i].isNotEmpty && !chrome.lines.contains(i);
+    bool printed(int i) =>
+        collapsed[i].isNotEmpty &&
+        !chrome.lines.contains(i) &&
+        !loyalty.contains(i);
 
     String? number;
     for (var i = 0; i < collapsed.length && number == null; i++) {
@@ -116,10 +128,18 @@ class ReceiptHeaderReader {
     }
     var date = (labelled ?? first)?.$1;
     if ((labelled ?? first)?.$2 case final line?) consumed.add(line);
-    if (date != null && date.hour == 0 && date.minute == 0) {
+    final fromLoyalty = date == null;
+    if (fromLoyalty) {
+      date = [for (final i in loyalty) ReceiptDates.dateOf(collapsed[i])]
+          .nonNulls
+          .firstOrNull;
+    }
+    if (date != null && (fromLoyalty || (date.hour == 0 && date.minute == 0))) {
       for (var i = 0; i < collapsed.length; i++) {
         if (!open(i)) continue;
-        if (!_vocabulary.timeLabel.hasMatch(collapsed[i])) continue;
+        if (!_vocabulary.timeLabel.hasMatch(_vocabulary.mend(collapsed[i]))) {
+          continue;
+        }
         if (ReceiptDates.dateOf(collapsed[i]) != null) continue;
         final time = ReceiptDates.timeOf(collapsed[i]);
         if (time == null) continue;
@@ -170,6 +190,32 @@ class ReceiptHeaderReader {
     return null;
   }
 
+  /// The indexes of a loyalty block: from the first unpriced line naming
+  /// points or loyalty after the bill's first total or payment line, to the
+  /// end. Empty when there is none.
+  Set<int> _loyaltyBlock(List<String> lines, bool Function(int) open) {
+    int? paid;
+    for (var i = _bodyStart(lines, open); i < lines.length; i++) {
+      if (!open(i)) continue;
+      final priced = PricedLine.of(lines[i]);
+      if (priced == null) continue;
+      if (_paidRoles.contains(_vocabulary.roleOf(priced.rest))) {
+        paid = i;
+        break;
+      }
+    }
+    if (paid == null) return const {};
+    for (var i = paid + 1; i < lines.length; i++) {
+      if (!open(i) || PricedLine.of(lines[i]) != null) continue;
+      if (_vocabulary.loyaltyMarker.hasMatch(_vocabulary.mend(lines[i]))) {
+        return {for (var j = i; j < lines.length; j++) j};
+      }
+    }
+    return const {};
+  }
+
+  static const _paidRoles = {LineRole.net, LineRole.total, LineRole.tender};
+
   /// The index of the first line that starts the items — a price with
   /// cents, or a quantity multiplied out, that is not a total, a payment
   /// or a discount — or the line count when none does.
@@ -191,7 +237,7 @@ class ReceiptHeaderReader {
       _hasName.hasMatch(line) &&
       !ReceiptVocabulary.noise.hasMatch(line) &&
       !ReceiptVocabulary.headerNoise.hasMatch(line) &&
-      !ReceiptVocabulary.columnTitles.hasMatch(line) &&
+      !ReceiptVocabulary.isColumnTitles(line) &&
       !_vocabulary.discountHeading.hasMatch(line);
 
   /// Three letters in a row: a name, not `19:14 !!4G39` or `<`.

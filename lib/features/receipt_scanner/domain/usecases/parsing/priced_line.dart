@@ -19,6 +19,11 @@ import '../../entities/receipt_line_item.dart';
 /// - **A row number and an article code are not the name.** `1 126285
 ///   SAFEGUARD SOAP` is row 1, code 126285, the soap; the number and the
 ///   code are kept, because a discount line names its item by them.
+/// - **A code row is an item's figures without its name.** Some tills print
+///   the name on one line and `SCE0833 1.000 50.00 50.00` beneath it — an
+///   article code (letters, then digits), the quantity, the price, the
+///   amount. Such a row is [isCodeRow]; the body reader names it with the
+///   line above.
 class PricedLine {
   const PricedLine._({
     required this.line,
@@ -111,9 +116,9 @@ class PricedLine {
   static final _brokenPoint = RegExp(r'(\d) ?[.,] ?(\d{2})(\s*/[-=])?$');
 
   /// A figure ending the line with two decimals and a letter or two among
-  /// its digits — `18O.OO`, `l80,00` — not run on from a word.
+  /// its digits — `18O.OO`, `l80,00`, `S99.60` — not run on from a word.
   static final _lettersInFigure = RegExp(
-    r'(?<![A-Za-z\d])([\dOoIl][\dOoIl,]*[.,][\dOoIl]{2})(\s*/[-=])?$',
+    r'(?<![A-Za-z\d])([\dOoIlS][\dOoIlS,]*[.,][\dOoIlS]{2})(\s*/[-=])?$',
   );
 
   static String _mended(String line) {
@@ -122,7 +127,8 @@ class PricedLine {
         when m[1]!.contains(RegExp(r'\d'))) {
       final digits = m[1]!
           .replaceAll(RegExp('[Oo]'), '0')
-          .replaceAll(RegExp('[Il]'), '1');
+          .replaceAll(RegExp('[Il]'), '1')
+          .replaceAll('S', '5');
       mended = mended.replaceRange(m.start, m.start + m[1]!.length, digits);
     }
     return mended.replaceFirstMapped(
@@ -139,6 +145,19 @@ class PricedLine {
 
   /// `25.20%` anywhere in [rest].
   static final _percent = RegExp(r'(\d{1,3}(?:\.\d{1,2})?)\s*%');
+
+  /// A figure as OCR may print one in a column: digits with `O` for 0,
+  /// `l` or `I` for 1, a bracket for a lost leading 0, a comma for a point.
+  static const _columnFigure = r'[\d)(\[\]OoIl|.,]*\d[\d)(\[\]OoIl|.,]*';
+
+  /// `SCE0833 1.000 50.00` as [rest]: an optional row number, an article
+  /// code — up to four letters, then digits, OCR's O and l among them —
+  /// and up to two figures. Group 2 is the code, group 3 the figures.
+  static final _codeRow = RegExp(
+    '^(?:(\\d{1,2})[.)]?\\s+)?([A-Z]{1,4}[0-9OIl]{3,}[A-Z0-9]*)'
+    '((?:\\s+$_columnFigure){0,2})\$',
+    caseSensitive: false,
+  );
 
   /// [integer] and [fraction] as printed, to minor units, in integers.
   static int centsOf(
@@ -166,12 +185,71 @@ class PricedLine {
     null => null,
   };
 
-  /// The first article code printed at the start, when one is.
+  /// The first article code printed at the start, when one is — the
+  /// letters-and-digits code of a code row included.
   String? get code {
+    if (_codeRowMatch case final m?) return m[2];
     final codes = _leadingCodes.firstMatch(rest)?[2]?.trim();
     if (codes == null || codes.isEmpty) return null;
     return codes.split(' ').first;
   }
+
+  /// True when the line is an item's code and figures with no name: see
+  /// the class's notes.
+  bool get isCodeRow => _codeRowMatch != null;
+
+  RegExpMatch? get _codeRowMatch {
+    final m = _codeRow.firstMatch(rest);
+    // Two digits at least, so `ABC1` or `KG500` in a name is not a code.
+    if (m == null || RegExp(r'\d').allMatches(m[2]!).length < 3) return null;
+    return m;
+  }
+
+  /// [token] as a plain number — `).160` → `0.160`, `1,56O.00` →
+  /// `1560.00`, `120,00` → `120.00`, `1.560.00` → `1560.00` — or null
+  /// when it is no number at all.
+  static String? columnNumber(String token) {
+    var t = token
+        .replaceAll(RegExp('[Oo]'), '0')
+        .replaceAll(RegExp(r'[Il|]'), '1')
+        .replaceFirst(RegExp(r'^[)(\[\]]+(?=\.)'), '0')
+        .replaceFirst(RegExp(r'^[)(\[\]]+'), '')
+        .replaceFirstMapped(RegExp(r',(\d{2})$'), (m) => '.${m[1]}')
+        .replaceAll(',', '');
+    final points = '.'.allMatches(t).length;
+    if (points > 1) {
+      final last = t.lastIndexOf('.');
+      t = t.substring(0, last).replaceAll('.', '') + t.substring(last);
+    }
+    return RegExp(r'^\d+(?:\.\d+)?$').hasMatch(t) ? t : null;
+  }
+
+  /// The quantity [token] stands for, given a unit price of [unitCents]
+  /// and this line's amount — the amount is the truth.
+  ///
+  /// As read when it multiplies out to the amount, to the cent a weight's
+  /// rounding allows. Otherwise the quantity the amount implies, when it
+  /// has at most three decimals and OCR printed its digits with the point
+  /// lost or moved: `1000` for 1.000, `0160` for 0.160. Null when neither.
+  double? quantityFor(String token, int unitCents) {
+    if (unitCents <= 0) return null;
+    final read = double.tryParse(token);
+    if (read != null && read > 0 && _multipliesOutTo(read, unitCents)) {
+      return read;
+    }
+    final thousandths = (cents * 1000 / unitCents).round();
+    if (thousandths <= 0 || !_multipliesOutTo(thousandths / 1000, unitCents)) {
+      return null;
+    }
+    String digits(String s) => s
+        .replaceAll('.', '')
+        .replaceFirst(RegExp('^0+'), '')
+        .replaceFirst(RegExp(r'0+$'), '');
+    return digits(token) == digits('$thousandths') ? thousandths / 1000 : null;
+  }
+
+  bool _multipliesOutTo(double quantity, int unitCents) =>
+      ((quantity * unitCents).round() - cents).abs() <= 1;
 
   /// The percentage printed on the line — a discount's rate — or null.
   double? get percent => switch (_percent.firstMatch(rest)?[1]) {
@@ -194,6 +272,7 @@ class PricedLine {
   /// the amount — otherwise those figures are part of the name, as
   /// printed, rather than a quantity the receipt never meant.
   ReceiptLineItem? toItem() {
+    if (_codeRowMatch case final m?) return _codeRowItem(m);
     var name = rest;
     var quantity = 1.0;
     int? unit;
@@ -252,6 +331,38 @@ class PricedLine {
   bool _multipliesOut(String quantity, int unitCents) {
     final count = double.parse(quantity);
     if (count <= 0 || unitCents <= 0) return false;
-    return ((count * unitCents).round() - cents).abs() <= 1;
+    return _multipliesOutTo(count, unitCents);
+  }
+
+  /// A code row as an item named by its code, until the body reader names
+  /// it with the line above. Its two figures are the quantity and the
+  /// price when [quantityFor] can make the amount of them, and are dropped
+  /// either way: they are columns, not part of a name.
+  ReceiptLineItem _codeRowItem(RegExpMatch row) {
+    final figures = row[3]!.trim().split(RegExp(r'\s+'))
+      ..removeWhere((f) => f.isEmpty);
+    var quantity = 1.0;
+    int? unit;
+    if (figures.length == 2) {
+      final price = columnNumber(figures[1]);
+      final count = columnNumber(figures[0]);
+      if (price != null && count != null) {
+        final parts = price.split('.');
+        final priceCents = centsOf(
+          parts[0],
+          parts.length > 1 ? parts[1] : null,
+        );
+        if (quantityFor(count, priceCents) case final q?) {
+          quantity = q;
+          unit = priceCents;
+        }
+      }
+    }
+    return ReceiptLineItem(
+      name: row[2]!,
+      quantity: quantity,
+      unitPriceCents: unit,
+      totalPriceCents: cents,
+    );
   }
 }

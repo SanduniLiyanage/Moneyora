@@ -266,6 +266,86 @@ CASH 500.00
 BALANCE 260.00
 ''';
 
+/// A Cargills Food City till receipt, a camera photo of crumpled thermal
+/// paper with its left edge cropped (2026-10-10). RECONSTRUCTED from what
+/// the tester's app showed and from the photo — not the raw OCR dump. The
+/// crop took the day off the bill's own date; ML Kit misread a quantity
+/// (`).160`), a price (`1,56O.00`) and the Net Total label (`Net Totai`).
+/// Each item is two lines: the name, then `CODE QTY PRICE AMOUNT`. Below
+/// the payment, a Star Points block has a `Total:` of its own.
+const cargillsPhoto = '''
+CARGILLS FOOD CITY
+Express Oval View Residence
+0113-484489
+07/2026 14:31:32 CASHIER No: 143
+ITEM QTY PRICE AMOUNT
+CHUPA CHUPS GUM FILL. LOLLIPOP
+SCE0833 1.000 50.00 50.00
+REVELLO KRUNCH W MILKY CARAMEL
+SCE1166 1.000 120.00 120.00
+IMPORTED MANDARIN
+FT30317 ).160 1,56O.00 249.60
+ANCHOR YOGHURT LOWFAT S.B
+DYD3016 1.000 180.00 180.00
+Sub Total 599.60
+Net Totai 599.60
+CARD 599.60
+Balance 0.00
+Time End: 14:31:32
+Loyalty Customer
+Name: Loyalty Customer
+Star Points
+As @ 10-07-2026 14:31 180.02
+Earned on this bill: .60
+Total: 180.62
+IMPORTANT NOTICE
+In case of a price discrepancy, return
+the item & bill within 7 days to
+refund the difference
+Please call our hotline 0117 181 181 for
+your valued suggestions and comments.
+''';
+
+/// The same photo as ML Kit read it on the emulator (2026-10-10, the
+/// `[receipt-ocr]` rows verbatim but for the cashier's name), from the
+/// copy sent in chat — 545 px wide, so worse than the tester's phone read
+/// it: the date cut to `2026` with its time misread as 14:41:32, a
+/// quantity's point lost (`1000`), a comma for a point (`120,00`), `Sub
+/// fotal`, Net Total split over two lines with `S` for `5`, and `ime End`.
+const cargillsPhotoAsRead = '''
+CARGILLS FOOD CITY
+Kpress Cval View Residence
+0113-484a89
+2026 14:41:32 CASHIER No: 143
+TEM QTY PRICE AMOUNT
+CHUPA CHUPS GUM FILL. LOLLIPOP
+SCEO833 1000 50.00 50.00
+REVELLO KRUNCH W MILKY CARAMEL
+SCE1166 1.000 120,00 120.00
+IMPORTED MANDARIN
+FT30317 ).160 1,560.00 249.60
+ANCHOR VOGHURT LOWEAT S.B
+DYD3016 1.000 180.00 180.00
+Sub fotal 599.60
+Net Tota
+S99.60
+CARD 599.60
+Balance 0.00
+ime End: 14:31:32
+Loyalty Customer
+Name: Loyalty Customer
+blar Points
+As @ 10-07-2026 14:31 180.02
+Earned on this aill: 60
+Total: 180.62
+IMPORTANT NOTICE
+In case of a price discrepancy, return
+the item & bll within 7 days to
+refund the differencée
+Piease call our hotline 0117 181 181 for
+your valued suggestions and comments.
+''';
+
 ParsedReceipt parse(String text) =>
     ParseReceiptText.parse(RecognisedText.fromString(text));
 
@@ -1237,6 +1317,217 @@ void main() {
         parse('SHOP\nDIS PLAY STAND 100.00\nTOTAL 100.00').items.single.name,
         'DIS PLAY STAND',
       );
+    });
+  });
+
+  group('the Cargills photo, reconstructed', () {
+    final receipt = parse(cargillsPhoto);
+
+    test('reads the merchant, and the date from the points line when the '
+        "bill's own lost its day, with the bill's own time", () {
+      expect(receipt.merchantName, 'CARGILLS FOOD CITY');
+      expect(receipt.receiptDate, DateTime(2026, 7, 10, 14, 31, 32));
+      expect(receipt.paymentMethod, PaymentMethod.card);
+    });
+
+    test('the Net Total is the total, misread label and all — not the '
+        "points block's Total", () {
+      expect(receipt.totalCents, 59960);
+      expect(receipt.taxCents, isNull);
+    });
+
+    test('four items, each named by the line above its code row', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'CHUPA CHUPS GUM FILL. LOLLIPOP',
+          unitPriceCents: 5000,
+          totalPriceCents: 5000,
+        ),
+        ReceiptLineItem(
+          name: 'REVELLO KRUNCH W MILKY CARAMEL',
+          unitPriceCents: 12000,
+          totalPriceCents: 12000,
+        ),
+        ReceiptLineItem(
+          name: 'IMPORTED MANDARIN',
+          quantity: 0.16,
+          unitPriceCents: 156000,
+          totalPriceCents: 24960,
+        ),
+        ReceiptLineItem(
+          name: 'ANCHOR YOGHURT LOWFAT S.B',
+          unitPriceCents: 18000,
+          totalPriceCents: 18000,
+        ),
+      ]);
+    });
+
+    test('they add up to the total, and nothing is in doubt', () {
+      expect(receipt.itemsSumCents, 59960);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+  });
+
+  group('the Cargills photo, as ML Kit read it', () {
+    final receipt = parse(cargillsPhotoAsRead);
+
+    test('the same header, despite the cut date and the misread time', () {
+      expect(receipt.merchantName, 'CARGILLS FOOD CITY');
+      expect(receipt.receiptDate, DateTime(2026, 7, 10, 14, 31, 32));
+      expect(receipt.paymentMethod, PaymentMethod.card);
+    });
+
+    test('the same items and total, the quantity and price repaired', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'CHUPA CHUPS GUM FILL. LOLLIPOP',
+          unitPriceCents: 5000,
+          totalPriceCents: 5000,
+        ),
+        ReceiptLineItem(
+          name: 'REVELLO KRUNCH W MILKY CARAMEL',
+          unitPriceCents: 12000,
+          totalPriceCents: 12000,
+        ),
+        ReceiptLineItem(
+          name: 'IMPORTED MANDARIN',
+          quantity: 0.16,
+          unitPriceCents: 156000,
+          totalPriceCents: 24960,
+        ),
+        ReceiptLineItem(
+          name: 'ANCHOR VOGHURT LOWEAT S.B',
+          unitPriceCents: 18000,
+          totalPriceCents: 18000,
+        ),
+      ]);
+      expect(receipt.totalCents, 59960);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+  });
+
+  group('a loyalty block below the bill', () {
+    test('is not the bill: its Total is never the total, its figures never '
+        'items', () {
+      // No total line on the bill itself, so the block's Total: is the only
+      // labelled total there is.
+      final receipt = parse(
+        'SHOP\nTEA 100.00\nRICE 200.00\nCASH 500.00\nCHANGE 200.00\n'
+        'Loyalty Points\nOpening balance 1,000.00\n'
+        'Earned on this bill: 3.00\nTotal: 1,003.00',
+      );
+
+      expect(receipt.totalCents, 30000);
+      expect(receipt.items.map((i) => i.name), ['TEA', 'RICE']);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+
+    test('nor is its date the date, while the bill prints one', () {
+      final receipt = parse(
+        'SHOP\n09/07/2026 18:02\nTEA 100.00\nTOTAL 100.00\nCASH 100.00\n'
+        'Star Points\nAs @ 10-07-2026 14:31 180.02',
+      );
+
+      expect(receipt.receiptDate, DateTime(2026, 7, 9, 18, 2));
+    });
+
+    test('a loyalty word above the total is left alone', () {
+      final receipt = parse(
+        'SHOP\nTEA 100.00\nLOYALTY -10.00\nTOTAL 90.00\nThank you',
+      );
+
+      expect(receipt.totalCents, 9000);
+      expect(receipt.items.single.totalPriceCents, 9000);
+    });
+  });
+
+  group('a total label OCR misread', () {
+    test('is still a total, never an item', () {
+      for (final label in ['Net Totai', 'NET T0TAL', 'Net Tota', 'TOTA1']) {
+        final receipt = parse('SHOP\nTEA 100.00\nRICE 200.00\n$label 300.00');
+
+        expect(receipt.items.map((i) => i.name), [
+          'TEA',
+          'RICE',
+        ], reason: label);
+        expect(receipt.totalCents, 30000, reason: label);
+      }
+    });
+
+    test('Sub fotal and S99.60 are the sub-total and a figure', () {
+      final receipt = parse(
+        'SHOP\nTEA 100.00\nRICE 499.60\nSub fotal 599.60\nNet Tota\nS99.60',
+      );
+
+      expect(receipt.items.length, 2);
+      expect(receipt.totalCents, 59960);
+    });
+
+    test('a word that merely resembles one is not a label', () {
+      final receipt = parse(
+        'SHOP\nLIP GLOSS 450.00\nSERVICE CHARGE 10% 45.00\nTOTAL 495.00',
+      );
+
+      expect(receipt.items.single.name, 'LIP GLOSS');
+      expect(receipt.items.single.chargesCents, 4500);
+    });
+  });
+
+  group('item layouts', () {
+    test('a name, then a code row, is one item named by the first line', () {
+      final receipt = parse(
+        'SHOP\nITEM QTY PRICE AMOUNT\nCHUPA CHUPS LOLLIPOP\n'
+        'SCE0833 1.000 50.00 50.00\nTOTAL 50.00',
+      );
+
+      expect(receipt.items.single.name, 'CHUPA CHUPS LOLLIPOP');
+      expect(receipt.items.single.quantity, 1);
+      expect(receipt.items.single.unitPriceCents, 5000);
+    });
+
+    test('a name, code and figures on one line still read as before', () {
+      final receipt = parse(
+        'SHOP\n1 126285 SAFEGUARD SOAP 1.0 350.00 350.00\nTOTAL 350.00',
+      );
+
+      expect(receipt.items.single.name, 'SAFEGUARD SOAP');
+      expect(receipt.items.single.unitPriceCents, 35000);
+    });
+
+    test('a code row with no name above keeps its code as the name', () {
+      final receipt = parse('SHOP\nSCE0833 1.000 50.00 50.00\nTOTAL 50.00');
+
+      expect(receipt.items.single.name, 'SCE0833');
+    });
+  });
+
+  group('a weighed item with a misread quantity', () {
+    test('is repaired when the repair makes the amount', () {
+      final cases = {
+        'FT30317 ).160 1,560.00 249.60': 0.16,
+        'FT30317 O.160 1,560.00 249.60': 0.16,
+        'FT30317 0.16O 1.560.00 249.60': 0.16,
+        'SCE0833 1000 50.00 50.00': 1.0,
+      };
+      for (final MapEntry(key: row, value: quantity) in cases.entries) {
+        final receipt = parse('SHOP\nIMPORTED MANDARIN\n$row\nTOTAL 999.99');
+
+        expect(receipt.items.single.quantity, quantity, reason: row);
+        expect(receipt.items.single.name, 'IMPORTED MANDARIN', reason: row);
+      }
+    });
+
+    test('is left alone when no repair makes the amount', () {
+      final receipt = parse(
+        'SHOP\nIMPORTED MANDARIN\nFT30317 ).170 1,560.00 249.60',
+      );
+
+      expect(receipt.items.single.quantity, 1);
+      expect(receipt.items.single.unitPriceCents, isNull);
+      expect(receipt.items.single.totalPriceCents, 24960);
     });
   });
 

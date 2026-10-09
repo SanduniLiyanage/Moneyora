@@ -137,6 +137,42 @@ void main() {
     });
   });
 
+  group('a loyalty block below the bill', () {
+    const bill =
+        'CARGILLS FOOD CITY\n'
+        '2026 14:41:32 CASHIER No: 143\n'
+        'TEA 1.000 50.00 50.00\n'
+        'Net Total 50.00\n'
+        'CARD 50.00\n'
+        'ime End: 14:31:32\n'
+        'Loyalty Customer\n'
+        'Star Points\n'
+        'As @ 10-07-2026 14:31 180.02\n'
+        'Total: 180.62';
+
+    test('is set aside from its marker to the end', () {
+      expect(read(bill).consumed, containsAll([6, 7, 8, 9]));
+    });
+
+    test("gives the date when the bill's own was cut off, with the bill's "
+        'own time, its misread label and all', () {
+      final header = read(bill);
+
+      expect(header.receiptDate, DateTime(2026, 7, 10, 14, 31, 32));
+      expect(header.dateGuessed, isFalse);
+      expect(header.consumed, contains(5));
+    });
+
+    test('opens only below the total or the payment', () {
+      final header = read(
+        'SHOP\nLoyalty Member\nTEA 50.00\nTOTAL 50.00\nThank you',
+      );
+
+      expect(header.consumed, isNot(contains(1)));
+      expect(header.consumed, isNot(contains(2)));
+    });
+  });
+
   group('the receipt number', () {
     test('is never a price', () {
       final header = read('SHOP\nYour bill for this transaction: 535.00');

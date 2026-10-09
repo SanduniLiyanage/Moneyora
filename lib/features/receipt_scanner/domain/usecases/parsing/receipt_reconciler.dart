@@ -162,12 +162,19 @@ abstract final class ReceiptReconciler {
   }
 
   /// The totals to try, best first: every total line, the strongest kind
-  /// and the last printed first; failing any, the figures a total can be
-  /// worked out from.
+  /// and the last printed first, those printed below a payment after the
+  /// rest; failing any, the figures a total can be worked out from.
   static List<_Total> _totals(ReceiptBody body) {
-    final net = body.figures(LineRole.net);
-    final total = body.figures(LineRole.total);
-    final labelled = [...net.reversed, ...total.reversed];
+    List<int> labels(LineRole role, {required bool afterPayment}) => [
+      for (final s in body.summaries.reversed)
+        if (s.role == role && s.afterPayment == afterPayment) s.cents,
+    ];
+    final labelled = [
+      ...labels(LineRole.net, afterPayment: false),
+      ...labels(LineRole.total, afterPayment: false),
+      ...labels(LineRole.net, afterPayment: true),
+      ...labels(LineRole.total, afterPayment: true),
+    ];
     if (labelled.isNotEmpty) {
       return [
         for (final cents in labelled.toSet()) _Total(cents, derived: false),
