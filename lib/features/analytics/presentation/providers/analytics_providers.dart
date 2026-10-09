@@ -81,6 +81,23 @@ final analyticsQueryProvider = Provider<AnalyticsQuery>(
   ),
 );
 
+/// Runs the provider behind [ref] again after every database write.
+///
+/// The figures below are futures — one query each — so nothing told them a
+/// transaction had been saved: home's ring and balance kept the figures
+/// they opened with until something else rebuilt them, while the list,
+/// which watches a stream, moved at once. Listening to the change bus every
+/// datasource publishes to is what `databaseSummaryProvider` already does
+/// for the same reason. The figure on screen stays while the query re-runs,
+/// so a save does not flash a spinner.
+void _refreshOnWrite(Ref<Object?> ref) {
+  final changes = ref
+      .watch(databaseChangeBusProvider)
+      .changes
+      .listen((_) => ref.invalidateSelf());
+  ref.onDispose(changes.cancel);
+}
+
 /// What was spent per category over [query]'s period and account.
 /// FR-RPT-001, FR-RPT-002, FR-RPT-003.
 ///
@@ -97,6 +114,7 @@ final analyticsQueryProvider = Provider<AnalyticsQuery>(
 /// chart; nothing needs the result once that chart leaves the tree.
 final spendingByCategoryTotalsProvider = FutureProvider.autoDispose
     .family<List<CategoryTotal>, AnalyticsQuery>((ref, query) async {
+      _refreshOnWrite(ref);
       final getSpendingByCategory = await ref.watch(
         getSpendingByCategoryProvider.future,
       );
@@ -118,6 +136,7 @@ final spendingByCategoryTotalsProvider = FutureProvider.autoDispose
 /// convention [spendingByCategoryTotalsProvider] follows.
 final incomeTotalProvider = FutureProvider.autoDispose
     .family<int, AnalyticsQuery>((ref, query) async {
+      _refreshOnWrite(ref);
       final getIncomeForPeriod = await ref.watch(
         getIncomeForPeriodProvider.future,
       );
@@ -140,6 +159,7 @@ final incomeTotalProvider = FutureProvider.autoDispose
 /// convention the other two follow.
 final spendingTrendProvider = FutureProvider.autoDispose
     .family<SpendingTrend, AnalyticsQuery>((ref, query) async {
+      _refreshOnWrite(ref);
       final getSpendingTrend = await ref.watch(getSpendingTrendProvider.future);
       final result = await getSpendingTrend(query);
       return result.match(
@@ -168,6 +188,7 @@ final spendingCalendarQueryProvider = Provider<SpendingCalendarQuery>(
 /// with the [Failure] as its error, the convention the other three follow.
 final spendingCalendarProvider = FutureProvider.autoDispose
     .family<SpendingCalendar, SpendingCalendarQuery>((ref, query) async {
+      _refreshOnWrite(ref);
       final getSpendingCalendar = await ref.watch(
         getSpendingCalendarProvider.future,
       );
@@ -235,6 +256,7 @@ final accountOptionsProvider = StreamProvider.autoDispose<List<AccountOption>>((
 final periodSummaryProvider = FutureProvider.autoDispose<PeriodSummary>((
   ref,
 ) async {
+  _refreshOnWrite(ref);
   final calendar =
       ref.watch(calendarSettingsProvider).asData?.value ??
       CalendarSettings.defaults;
