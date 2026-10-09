@@ -158,13 +158,19 @@ void main() {
   }
 
   final chooseButton = find.widgetWithText(OutlinedButton, 'CHOOSE CATEGORY');
+  final changeCategory = find.byTooltip('Change category');
+  final saveButton = find.widgetWithText(FilledButton, 'SAVE');
 
-  /// CHOOSE CATEGORY, then [category] in the grid, which records the entry
-  /// the category is the last step.
+  /// CHOOSE CATEGORY (or the category already chosen, on an edit), then
+  /// [category] in the grid, then SAVE, which records the entry.
   Future<void> choose(WidgetTester tester, String category) async {
-    await tester.tap(chooseButton);
+    await tester.tap(
+      chooseButton.evaluate().isEmpty ? changeCategory : chooseButton,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text(category));
+    await tester.pumpAndSettle();
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
   }
 
@@ -280,6 +286,50 @@ void main() {
 
       expect(find.text('No transactions yet'), findsOneWidget);
       expect(repository.saved, isEmpty);
+    });
+
+    testWidgets('a category tapped is chosen, and only Save records', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await keyIn(tester, '500');
+      await tester.tap(chooseButton);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Transport'));
+      await tester.pumpAndSettle();
+
+      // Back on the entry, with the category beside Save and nothing
+      // written: a wrong tap is one more tap to change.
+      expect(find.text('New expense'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Transport'), findsOneWidget);
+      expect(repository.saved, isEmpty);
+
+      await tester.tap(changeCategory);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Food'));
+      await tester.pumpAndSettle();
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(repository.saved.single.categoryId, 1);
+      expect(onRow('−Rs500.00'), findsOneWidget);
+    });
+
+    testWidgets('Save waits for an amount', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await keyIn(tester, '5');
+      await tester.tap(chooseButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Food'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Backspace'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<FilledButton>(saveButton).onPressed, isNull);
     });
 
     testWidgets('backing out of the grid records nothing', (tester) async {
@@ -752,6 +802,19 @@ void main() {
 
       expect(find.text('Transport'), findsOneWidget);
       expect(find.text('New'), findsOneWidget);
+    });
+
+    testWidgets('a long category beside Save', (tester) async {
+      await pumpLarge(tester);
+      await openNew(tester);
+      await keyIn(tester, '500');
+      await tester.tap(chooseButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Transport'));
+      await tester.pumpAndSettle();
+
+      expect(changeCategory, findsOneWidget);
+      expect(saveButton, findsOneWidget);
     });
 
     testWidgets('an edit with a photo', (tester) async {
@@ -1329,8 +1392,11 @@ void main() {
         await tester.enterText(sheetNameField, 'Streaming');
         await tapText(tester, 'Add category');
 
-        // Made, so chosen: the entry the user came to record is recorded in
-        // it, and the list shows it.
+        // Made, so chosen: the entry the user came to record is in it, and
+        // Save records it.
+        expect(find.text('Streaming'), findsOneWidget);
+        await tester.tap(saveButton);
+        await tester.pumpAndSettle();
         expect(booted.created, ['Streaming']);
         expect(repository.saved.single.categoryId, 2);
         expect(onRow('−Rs500.00'), findsOneWidget);
