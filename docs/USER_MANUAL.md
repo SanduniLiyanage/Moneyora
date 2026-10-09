@@ -62,7 +62,7 @@ nowhere to record anything.
 ### An expense or income
 
 Tap **−** on the home screen for **New expense**, or **+** for **New
-income** (or **Add** on **Transactions**).
+income**. **Transactions** has the same − and + at its bottom corner.
 
 1. Type the amount on the keypad. It adds, subtracts, multiplies and
    divides: 1250 **+** 340 is recorded as 1,590. **=** finishes a sum,

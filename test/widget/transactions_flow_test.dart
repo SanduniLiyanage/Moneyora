@@ -144,6 +144,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// The list's − (a new expense) or + (a new income).
+  Future<void> openNew(WidgetTester tester, {bool income = false}) async {
+    await tester.tap(find.byTooltip(income ? 'New income' : 'New expense'));
+    await tester.pumpAndSettle();
+  }
+
   Future<void> keyIn(WidgetTester tester, String keys) async {
     for (final key in keys.split('')) {
       await tapText(tester, key);
@@ -167,7 +173,7 @@ void main() {
     String amount = '500',
     String category = 'Food',
   }) async {
-    await tapText(tester, 'Add');
+    await openNew(tester);
     await keyIn(tester, amount);
     await choose(tester, category);
   }
@@ -178,7 +184,7 @@ void main() {
 
       // E-22: the first screen a new user meets must not be a blank page.
       expect(find.text('No transactions yet'), findsOneWidget);
-      expect(find.textContaining('Tap Add'), findsOneWidget);
+      expect(find.textContaining('Tap − for an expense'), findsOneWidget);
     });
 
     testWidgets('says something different when a filter hid everything', (
@@ -208,7 +214,7 @@ void main() {
     testWidgets('keypad arithmetic reaches the list', (tester) async {
       await pumpApp(tester);
 
-      await tapText(tester, 'Add');
+      await openNew(tester);
       expect(find.text('New expense'), findsOneWidget);
 
       // Rs 1,250 of groceries plus a Rs 340 bus fare — the sum a person
@@ -229,7 +235,7 @@ void main() {
 
     testWidgets('= finishes the sum on the amount', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       await keyIn(tester, '12');
       await tapText(tester, '×');
@@ -241,7 +247,7 @@ void main() {
 
     testWidgets('will not choose a category without an amount', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       // A zero-amount transaction is almost always a half-finished entry, and
       // storing one leaves a row that pollutes averages while looking fine.
@@ -256,7 +262,7 @@ void main() {
 
     testWidgets('the date is at the top, today unless changed', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       expect(
         find.text(DateFormat('EEEE, d MMMM').format(DateTime.now())),
@@ -266,7 +272,7 @@ void main() {
 
     testWidgets('Cancel leaves without recording anything', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
 
       await tapText(tester, 'Cancel');
@@ -277,7 +283,7 @@ void main() {
 
     testWidgets('backing out of the grid records nothing', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
       await tester.tap(chooseButton);
       await tester.pumpAndSettle();
@@ -292,7 +298,7 @@ void main() {
 
     testWidgets('saves the note along with the amount', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       await keyIn(tester, '500');
       await tester.enterText(find.byType(TextField), 'Groceries');
@@ -310,7 +316,7 @@ void main() {
 
     testWidgets('switching to income swaps the category list', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '5');
 
       await tester.tap(find.byTooltip('Switch to income'));
@@ -324,13 +330,26 @@ void main() {
       expect(find.text('Salary'), findsOneWidget);
     });
 
+    testWidgets('+ on the list records an income', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester, income: true);
+
+      expect(find.text('New income'), findsOneWidget);
+      await keyIn(tester, '2500');
+      await choose(tester, 'Salary');
+
+      expect(repository.saved.single.type, TransactionType.income);
+      expect(repository.saved.single.categoryId, 3);
+      expect(onRow('+Rs2,500.00'), findsOneWidget);
+    });
+
     testWidgets('shows the failure instead of pretending it saved', (
       tester,
     ) async {
       repository.failWith = const CacheFailure('The database is locked.');
 
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
       await choose(tester, 'Food');
 
@@ -347,7 +366,7 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       // FR-EXP-001: account is a field of the entry, not a fixed default —
       // both accounts must be reachable, not just the one preselected. It
@@ -370,7 +389,7 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       await keyIn(tester, '500');
       await tester.tap(find.byTooltip('Account: Cash'));
@@ -466,7 +485,7 @@ void main() {
 
     Future<void> startExpense(WidgetTester tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
     }
 
@@ -578,7 +597,7 @@ void main() {
 
     testWidgets('is not offered on an income', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       expect(find.byTooltip('Attach a photo'), findsOneWidget);
       await tester.tap(find.byTooltip('Switch to income'));
       await tester.pumpAndSettle();
@@ -677,7 +696,7 @@ void main() {
 
     testWidgets('the entry screen, keypad and details', (tester) async {
       await pumpLarge(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '123456789');
 
       expect(find.byTooltip('Attach a photo'), findsOneWidget);
@@ -687,7 +706,7 @@ void main() {
 
     testWidgets('the category grid', (tester) async {
       await pumpLarge(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
       await tester.tap(chooseButton);
       await tester.pumpAndSettle();
@@ -723,7 +742,7 @@ void main() {
 
     testWidgets('a new entry that repeats', (tester) async {
       await pumpLarge(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await tester.tap(find.byTooltip('Repeat'));
       await tester.pumpAndSettle();
 
@@ -838,7 +857,7 @@ void main() {
       // Up and down on one icon at the top right, as the list's arrows
       // point; its words say which way it goes from here.
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       expect(find.text('New expense'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Switch to income'));
@@ -923,7 +942,7 @@ void main() {
     ) async {
       // The system keyboard and the keypad do not both fit on a phone.
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
       expect(find.byType(AmountKeypad), findsOneWidget);
 
       await tester.tap(find.byType(TextField));
@@ -937,7 +956,7 @@ void main() {
 
     testWidgets('runs 1 at the top to = beside 0', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       final one = tester.getCenter(find.text('1'));
       final seven = tester.getCenter(find.text('7'));
@@ -972,7 +991,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Undo'), findsOneWidget);
 
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       expect(find.text('Transaction deleted'), findsNothing);
       expect(find.text('Undo'), findsNothing);
@@ -1079,7 +1098,7 @@ void main() {
 
     testWidgets('a new entry has no Delete', (tester) async {
       await pumpApp(tester);
-      await tapText(tester, 'Add');
+      await openNew(tester);
 
       expect(find.byTooltip('Delete'), findsNothing);
     });
@@ -1107,7 +1126,7 @@ void main() {
     testWidgets('narrows to what was asked for, and back', (tester) async {
       await pumpApp(tester);
 
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
       await choose(tester, 'Food');
 
@@ -1257,7 +1276,7 @@ void main() {
         await tester.pumpWidget(booted.app);
         await tester.pumpAndSettle();
 
-        await tapText(tester, 'Add');
+        await openNew(tester);
         await keyIn(tester, '500');
         await tester.tap(chooseButton);
         await tester.pumpAndSettle();
@@ -1291,7 +1310,7 @@ void main() {
       await tester.pumpWidget(booted.app);
       await tester.pumpAndSettle();
 
-      await tapText(tester, 'Add');
+      await openNew(tester);
       await keyIn(tester, '500');
       await tester.tap(chooseButton);
       await tester.pumpAndSettle();

@@ -222,10 +222,13 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _open<void>(const AddTransactionPage()),
-        icon: const Icon(Icons.add),
-        label: const Text('Add'),
+      // − and +, as on home. One "Add" that always opened an expense left
+      // income reachable only through the entry screen's switch, which a
+      // tester never found.
+      floatingActionButton: _EntryButtons(
+        onExpense: () => _open<void>(const AddTransactionPage()),
+        onIncome: () =>
+            _open<void>(const AddTransactionPage(type: TransactionType.income)),
       ),
       body: _WithHeader(
         header: widget.header,
@@ -261,14 +264,14 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                       title: 'Nothing in this period',
                       body:
                           'Swipe sideways for another period, tap the balance '
-                          'to choose an account, or tap Add to record one.',
+                          'to choose an account, or tap − or + to record one.',
                     )
                   : const _Message(
                       icon: Icons.receipt_long_outlined,
                       title: 'No transactions yet',
                       body:
-                          'Tap Add to record your first one. Everything you '
-                          'enter stays on this phone.',
+                          'Tap − for an expense or + for income. Everything '
+                          'you enter stays on this phone.',
                     );
             }
 
@@ -674,6 +677,61 @@ class _Amount extends StatelessWidget {
 
 /// What a held row offers.
 enum _RowChoice { edit, delete }
+
+/// − for a new expense and + for a new income, home's two buttons, at the
+/// list's corner. FR-EXP-001, FR-INC-001.
+///
+/// Round and unlabelled, as on home: two labelled buttons side by side do
+/// not fit a 320dp phone at the largest font. The tooltips say which is
+/// which.
+class _EntryButtons extends StatelessWidget {
+  const _EntryButtons({required this.onExpense, required this.onIncome});
+
+  final VoidCallback onExpense;
+  final VoidCallback onIncome;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>()!;
+
+    Widget button({
+      required String tag,
+      required IconData icon,
+      required String tooltip,
+      required Color color,
+      required VoidCallback onPressed,
+    }) => FloatingActionButton(
+      // Two on one screen: each needs a hero tag of its own.
+      heroTag: tag,
+      tooltip: tooltip,
+      backgroundColor: color,
+      foregroundColor: Colors.white,
+      onPressed: onPressed,
+      child: Icon(icon, size: 32),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button(
+          tag: 'new-expense',
+          icon: Icons.remove,
+          tooltip: 'New expense',
+          color: colors.expense,
+          onPressed: onExpense,
+        ),
+        const SizedBox(width: 16),
+        button(
+          tag: 'new-income',
+          icon: Icons.add,
+          tooltip: 'New income',
+          color: colors.income,
+          onPressed: onIncome,
+        ),
+      ],
+    );
+  }
+}
 
 class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.selected, required this.onSelected});
