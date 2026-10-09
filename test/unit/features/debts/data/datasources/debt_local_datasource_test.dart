@@ -151,6 +151,34 @@ void main() {
     expect(heard, 3);
   });
 
+  test('several are written together, in order, and announced once', () async {
+    var heard = 0;
+    final listening = source.changes.listen((_) => heard++);
+    addTearDown(listening.cancel);
+
+    final ids = await source.addAll([
+      debt(person: 'Nimal'),
+      debt(person: 'Saman'),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(ids, hasLength(2));
+    expect((await source.list()).map((d) => (d.id, d.person)).toSet(), {
+      (ids[0], 'Nimal'),
+      (ids[1], 'Saman'),
+    });
+    expect(heard, 1);
+  });
+
+  test('all or none: one row refused writes none of them', () async {
+    await expectLater(
+      source.addAll([debt(person: 'Nimal'), debt(person: 'Saman', cents: 0)]),
+      throwsA(isA<CacheException>()),
+    );
+
+    expect(await source.list(), isEmpty);
+  });
+
   test('a row the CHECKs refuse is a CacheException', () async {
     await expectLater(
       source.add(debt(cents: 0)),

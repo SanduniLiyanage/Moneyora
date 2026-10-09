@@ -117,6 +117,10 @@ class _NoDebts implements DebtRepository {
   Future<Either<Failure, int>> add(Debt debt) => throw UnimplementedError();
 
   @override
+  Future<Either<Failure, List<int>>> addAll(List<Debt> debts) =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> update(Debt debt) => throw UnimplementedError();
 
   @override

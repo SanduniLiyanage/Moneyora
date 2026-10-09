@@ -15,6 +15,7 @@ import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/debt.dart';
 import '../../domain/usecases/set_debt_paid.dart';
+import '../../domain/usecases/split_bill.dart';
 
 /// Every debt, open ones first, kept live. FR-DBT-002.
 ///
@@ -60,6 +61,36 @@ class SaveDebtController extends AutoDisposeAsyncNotifier<void> {
 final saveDebtControllerProvider =
     AutoDisposeAsyncNotifierProvider<SaveDebtController, void>(
       SaveDebtController.new,
+    );
+
+/// Splits a bill and saves the debts it leaves. FR-DBT-004.
+class SplitBillController extends AutoDisposeAsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  /// Splits and saves [request]; true when the debts were written. The
+  /// failure is left in [state] for the screen to show.
+  Future<bool> split(SplitRequest request) async {
+    state = const AsyncValue<void>.loading();
+    final splitBill = await ref.read(splitBillProvider.future);
+    final result = await splitBill(request);
+    return result.match(
+      (failure) {
+        state = AsyncValue<void>.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        state = const AsyncValue<void>.data(null);
+        return true;
+      },
+    );
+  }
+}
+
+/// Controller for the split screen's Save.
+final splitBillControllerProvider =
+    AutoDisposeAsyncNotifierProvider<SplitBillController, void>(
+      SplitBillController.new,
     );
 
 /// Marking paid, opening again, and deleting. FR-DBT-003.

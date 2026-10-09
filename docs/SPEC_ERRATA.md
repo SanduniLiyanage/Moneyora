@@ -59,6 +59,7 @@ follows the Resolution sections.
 | [E-41](#e-41) | An opening balance is in no period's balance, so a new account's looks lost | Resolved | FR-ACC-002, FR-RPT-006 |
 | [E-42](#e-42) | Money lent or borrowed has nowhere to go: debts | Resolved (raises FR-DBT-001..003) | FR-DBT-001, FR-DBT-002, FR-DBT-003 |
 | [E-43](#e-43) | A credit card is an account type with none of a card's terms | Resolved (raises FR-ACC-008, FR-ACC-009) | FR-ACC-001, FR-ACC-008, FR-ACC-009 |
+| [E-44](#e-44) | A bill shared between several people: split it into debts | Resolved (raises FR-DBT-004) | FR-DBT-004 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2629,6 +2630,40 @@ due dates, and to see the interest.
    not cover the interest, and a plan past fifty years. A real card
    charges daily on its statement balance and sets its own minimum
    payment, which the app does not know.
+
+---
+
+<a id="e-44"></a>
+
+## E-44 — A bill shared between several people: split it into debts
+
+**Severity:** Low · **Affects:** E-42 · **Requirement:** raises
+FR-DBT-004
+
+Raised 2026-10-09, from a tester using 1.1.0, who asked that a payment
+shared by several people be split by the number of people, showing who
+owes how much.
+
+**Resolution.** One requirement, raised here:
+
+| ID | Requirement |
+|---|---|
+| FR-DBT-004 | Split a bill evenly between the user and named others, show each share, and save the debts it leaves: each other person owes the user their share when the user paid; the user owes the payer their own share when someone else did. |
+
+1. **It lives under Debts**, behind the split icon on that screen's app
+   bar, and writes only debts (E-42's table). It does not touch the
+   entry screen, which would have needed a third kind of entry and an
+   account for each share; the user records what they paid as an
+   expense, as for any payment, and the screen says so.
+2. **The shares add up to the bill exactly.** The total is divided in
+   whole minor units, and the cents that do not divide go one each to the
+   first people, the user first (E-06).
+3. **What the others owe a payer who is not the user is not recorded**:
+   it is between them. The user's own share is the one debt.
+4. **All or none.** The debts of one split are written in one database
+   transaction; a split half saved no longer adds up to the bill.
+5. Even splits only. Uneven shares — one person had the expensive dish —
+   are entered as separate debts.
 
 ---
 

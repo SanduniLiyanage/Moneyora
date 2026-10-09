@@ -11,6 +11,10 @@ abstract interface class DebtRepository {
   /// Stores a new debt and returns its id.
   Future<Either<Failure, int>> add(Debt debt);
 
+  /// Stores several new debts in one write, all or none, and returns their
+  /// ids in order. FR-DBT-004.
+  Future<Either<Failure, List<int>>> addAll(List<Debt> debts);
+
   /// Replaces the stored debt with [debt]'s id.
   Future<Either<Failure, Unit>> update(Debt debt);
 

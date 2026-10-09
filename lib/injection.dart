@@ -100,6 +100,7 @@ import 'features/debts/domain/repositories/debt_repository.dart';
 import 'features/debts/domain/usecases/delete_debt.dart';
 import 'features/debts/domain/usecases/save_debt.dart';
 import 'features/debts/domain/usecases/set_debt_paid.dart';
+import 'features/debts/domain/usecases/split_bill.dart';
 import 'features/debts/domain/usecases/watch_debts.dart';
 import 'features/money_plan/data/datasources/money_plan_local_datasource.dart';
 import 'features/money_plan/data/repositories/money_plan_repository_impl.dart';
@@ -1604,4 +1605,9 @@ final setDebtPaidProvider = FutureProvider<SetDebtPaid>(
 /// Removes a debt. FR-DBT-003.
 final deleteDebtProvider = FutureProvider<DeleteDebt>(
   (ref) async => DeleteDebt(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// A bill split evenly, saved as the debts it leaves. FR-DBT-004.
+final splitBillProvider = FutureProvider<SplitBill>(
+  (ref) async => SplitBill(await ref.watch(debtRepositoryProvider.future)),
 );
