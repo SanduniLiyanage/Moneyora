@@ -2,9 +2,9 @@
 library;
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
@@ -308,6 +308,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Takes the shop's category for the line no word matched.
+  Future<void> useShopHint(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(TextButton, 'Use Health'));
+    await tester.pumpAndSettle();
+  }
+
   Future<void> itemMenu(WidgetTester tester, int key, String action) async {
     await tester.tap(
       find.descendant(of: card(key), matching: find.byTooltip('More')),
@@ -366,7 +372,8 @@ void main() {
   });
 
   testWidgets('shows the header, every line with its suggestion, and the '
-      'badge on the line only the shop vouched for', (tester) async {
+      'badge on the line only the shop vouched for, which opens blank with '
+      "the shop's category offered", (tester) async {
     await open(tester);
 
     expect(find.widgetWithText(TextFormField, 'KEELLS SUPER'), findsOneWidget);
@@ -384,23 +391,25 @@ void main() {
     expect(find.widgetWithText(TextField, '1,250.00'), findsOneWidget);
     expect(find.text('5 × Rs250.00'), findsOneWidget);
     expect(find.text('Suggested Food · 90%'), findsNWidgets(2));
-    expect(
-      find.text('Suggested Health · 20% · only because the shop is Health'),
-      findsOneWidget,
-    );
+    expect(find.text('No word matched · the shop is Health'), findsOneWidget);
     expect(find.text('Low confidence'), findsOneWidget);
     expect(
       find.descendant(of: card(2), matching: find.text('Low confidence')),
       findsOneWidget,
     );
 
-    // The first account is taken as read, and nothing is left to do.
+    // The first account is taken as read; the shop's guess is not.
     expect(
       tester
           .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Cash'))
           .selected,
       isTrue,
     );
+    expect(find.text('Choose a category for every item.'), findsOneWidget);
+    expect(confirmEnabled(tester), isFalse);
+
+    await useShopHint(tester);
+    expect(find.widgetWithText(TextButton, 'Use Health'), findsNothing);
     expect(confirmEnabled(tester), isTrue);
     // Salary is an income category and is not offered.
     await tester.tap(
@@ -479,6 +488,7 @@ void main() {
         .selected;
     expect(selected('Card'), isTrue);
     expect(selected('Cash'), isFalse);
+    await useShopHint(tester);
     expect(confirmEnabled(tester), isTrue);
 
     await tester.tap(find.widgetWithText(ChoiceChip, 'Cash'));
@@ -592,6 +602,7 @@ void main() {
     tester,
   ) async {
     await open(tester);
+    await useShopHint(tester);
 
     await tester.enterText(
       find.descendant(
@@ -614,6 +625,7 @@ void main() {
   ) async {
     expenses.result = const Left(CacheFailure('disk is full'));
     await open(tester);
+    await useShopHint(tester);
 
     await tester.tap(confirmButton());
     await tester.pumpAndSettle();
@@ -662,6 +674,7 @@ void main() {
 
     testWidgets('switching back shows every line again', (tester) async {
       await open(tester);
+      await useShopHint(tester);
 
       await tester.tap(toggle());
       await tester.pumpAndSettle();
@@ -672,6 +685,154 @@ void main() {
       expect(find.text('Items · 3 · Rs1,700.00'), findsOneWidget);
       expect(confirmEnabled(tester), isTrue);
     });
+  });
+
+  group('how a line was priced, and lines the scan missed', () {
+    ScannedReceipt discounted({Set<ReceiptField> guessed = const {}}) =>
+        ScannedReceipt(
+          imagePath: '/no/such/keells.jpg',
+          receipt: CategorisedReceipt(
+            receipt: ParsedReceipt(
+              merchantName: 'Keells - Katubedda',
+              items: const [
+                ReceiptLineItem(
+                  name: 'SAFEGUARD SOAP',
+                  unitPriceCents: 35000,
+                  totalPriceCents: 26200,
+                  discountCents: 8800,
+                ),
+              ],
+              totalCents: 26200,
+              guessedFields: guessed,
+            ),
+            items: const [
+              CategorisedItem(
+                item: ReceiptLineItem(
+                  name: 'SAFEGUARD SOAP',
+                  unitPriceCents: 35000,
+                  totalPriceCents: 26200,
+                  discountCents: 8800,
+                ),
+                suggestion: _byKeyword,
+              ),
+            ],
+          ),
+        );
+
+    testWidgets('a discounted line shows the printed price, the discount '
+        'and what is left; a new amount drops the sum', (tester) async {
+      await open(tester, scanned: discounted());
+
+      expect(find.text('Rs350.00 − 88.00 off = Rs262.00'), findsOneWidget);
+      expect(find.text('The items add up to the total.'), findsOneWidget);
+      expect(find.text('Low confidence'), findsNothing);
+
+      await tester.enterText(
+        find.descendant(
+          of: card(0),
+          matching: find.widgetWithText(TextField, '262.00'),
+        ),
+        '250',
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('88.00 off'), findsNothing);
+    });
+
+    testWidgets('a guessed total says so, and the receipt is badged until '
+        'it is checked', (tester) async {
+      await open(tester, scanned: discounted(guessed: {ReceiptField.total}));
+
+      expect(find.text('Worked out, not printed — check it'), findsOneWidget);
+      expect(find.text('Low confidence'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '262.00'),
+        '262',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Low confidence'), findsNothing);
+    });
+
+    testWidgets('Add an item adds a blank line that holds Confirm until it '
+        'is filled in', (tester) async {
+      await open(tester, scanned: discounted());
+      expect(confirmEnabled(tester), isTrue);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Add an item'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Items · 2 · Rs262.00'), findsOneWidget);
+      expect(find.text('Choose a category for every item.'), findsOneWidget);
+      expect(confirmEnabled(tester), isFalse);
+
+      await chooseCategory(tester, 1, 'Food');
+      await tester.enterText(
+        find.descendant(
+          of: card(1),
+          matching: find.widgetWithText(TextField, 'Item'),
+        ),
+        'Bag',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Item 2 needs an amount greater than zero.'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.descendant(
+          of: card(1),
+          matching: find.widgetWithText(TextField, 'Amount'),
+        ),
+        '6',
+      );
+      await tester.pumpAndSettle();
+      expect(confirmEnabled(tester), isTrue);
+    });
+  });
+
+  testWidgets('a debug build copies the OCR text, line for line', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final base = _scanned();
+    await open(
+      tester,
+      scanned: ScannedReceipt(
+        imagePath: base.imagePath,
+        receipt: base.receipt,
+        recognisedText: const RecognisedText(['KEELLS SUPER', 'RICE 1,250.00']),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Copy OCR text (debug build)'));
+    await tester.pumpAndSettle();
+
+    expect(copied, 'KEELLS SUPER\nRICE 1,250.00');
+    expect(find.text('OCR text copied.'), findsOneWidget);
+  });
+
+  testWidgets('with no OCR text kept, there is nothing to copy', (
+    tester,
+  ) async {
+    await open(tester);
+
+    expect(find.byTooltip('Copy OCR text (debug build)'), findsNothing);
   });
 
   testWidgets('Discard leaves without writing anything', (tester) async {

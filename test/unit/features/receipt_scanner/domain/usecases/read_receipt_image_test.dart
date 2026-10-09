@@ -116,6 +116,7 @@ void main() {
     expect(scanned.receipt.items[0].suggestion.categoryId, 7);
     expect(scanned.receipt.items[1].suggestion.categoryId, isNull);
     expect(dictionary.lookups, contains('RICE 5KG'));
+    expect(scanned.recognisedText, receipts.answer.getRight().toNullable());
   });
 
   test("an unreadable photo is the recogniser's failure, and nothing after "

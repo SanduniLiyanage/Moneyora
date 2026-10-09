@@ -121,6 +121,231 @@ TIME : 05:12:13 PM
 Card No : 1446 BOC
 ''';
 
+/// A Keells e-bill, forwarded by email and scanned as a phone screenshot
+/// (2026-10-09), transcribed from the screenshot: the phone's status bar,
+/// the email's header with its UTC date, then the bill — a total above the
+/// table, a name wrapped onto a second line, the discounts as a block
+/// naming each item by row and code, then gross, net, points, cash and
+/// change. The recipient's address and loyalty number are replaced.
+const keellsEBill = '''
+19:14 !! 4G 39
+<
+---------- Forwarded message ---------
+From: Keells E-Bills <web.jms@keells.com>
+To: tester@example.com
+Cc:
+Bcc:
+Date: Mon, 05 Oct 2026 11:26:04 +0000 (UTC)
+Subject: Keells E-Bill | 05-Oct-2026 at Keells - Katubedda
+Bill Date : 05-Oct-2026
+Billed Time : 16:54:43
+Billed Store : Keells - Katubedda
+Store Address : No.78,Bandaranayaka Road,Katubedda
+Bill No : 1661604
+Nexus No : 1121050000000000
+Cashier ID : 66003516
+Store Mobile : 0761 613504 / 0112 303 500
+Your bill for this transaction: 535.00
+# Item Description Qty Price Amount
+1 126285 SAFEGUARD SOAP MULTIPACK 280G 1.0 350.00 350.00
+4S
+2 100334 CLOGARD TOOTHPASTE 200G 1.0 365.00 365.00
+Discounts
+Nexus Deals 25%
+2 100334 25.20% Dis Rs: 92.00
+1 126285 25.10% Dis Rs: 88.00
+Total Gross Amount 715.00
+Total Net Amount 535.00
+Change Money Redemption of Points 3.48
+Cash 600.00
+Total Change 68.48
+Let's save the environment together. Bring back your reusable bags when
+shopping with us and get Rs. 6 discount for each bag.
+''';
+
+/// The same e-bill as ML Kit read it on the emulator (2026-10-09, the
+/// `[receipt-ocr]` rows verbatim but for the same two replacements): the
+/// soap's `4S` lost, `Qty` as `Oty`, `92.00` as `92,00`, and the store as
+/// `Keells- Katubedda`.
+const keellsEBillAsRead = '''
+19:14 ! 4G 39
+<
+- Forwarded message
+From: Keells E-Bills <web.jms@keells.com>
+To: tester@example.com
+Cc:
+Bcc:
+Date: Mon, 05 Oct 2026 11:26:04 +0000 (UTC)
+Subject: Keells E-Bill| | 05-Oct-2026 at Keells - Katubedd
+Bill Date :05-Oct-2026
+Billed Time :16:54:43
+Billed Store : Keells- Katubedda
+Store Address : No.78, Bandaranayaka Road,Katubedda
+Bill No : 1661604
+Nexus No : 1121050000000000
+Cashier ID :66003516
+Store Mobile :0761 613504 / 0112 303 500
+Your bill for this transaction: 535.00
+# Item Description Oty Price Amount
+1 126285 SAFEGUARD SOAP MULTIPACK 280G 1.0 350.00 350.00
+2 100334 CLOGARD TOOTHPASTE 200G 1.0 365.00 365.00
+Discounts
+Nexus Deals 25%
+2 100334 25.20% Dis Rs: 92,00
+1 126285 25.10% Dis Rs: 88.00
+Total Gross Amount 715.00
+Total Net Amount 535.00
+Change Money Redemption of Points 3.48
+Cash 600.00
+Total Change 68.48
+Let's save the environment together. Bring back your reusable bags when
+shopping with us and get Rs. 6 discount for each bag.
+- Requests for tax invoices must be submitted within 14 days from the
+will not be accommoc
+- Please use this bill as a reference if you have any price discrepancies
+from today
+Thic
+''';
+
+/// A discount on the whole bill, printed after the sub-total with no item
+/// named: 50.00 over 310.00, 455.50 and 230.00 does not divide evenly.
+const billDiscount = '''
+GREEN LEAF MART
+08/10/2026 18:40
+SUGAR 1KG 310.00
+TEA 100G 455.50
+BISCUITS 230.00
+SUB TOTAL 995.50
+BILL DISCOUNT 50.00
+NET TOTAL 945.50
+CASH 1,000.00
+CHANGE 54.50
+''';
+
+/// No discounts: a row number, quantity and price columns with no `x`, a
+/// count, a multiplied quantity, a weight with `x` and a weight without.
+const noDiscounts = '''
+SUNRISE GROCERS
+Bill No: 7781 08/10/2026 09:05
+DHAL 1KG 1.0 395.00 395.00
+EGGS 10 PCS 450.00
+COCONUT 3 x 120.00 360.00
+TOMATO 0.500 kg x 480.00 240.00
+CARROT 0.350 1,200.00 420.00
+TOTAL 1,865.00
+VISA 1,865.00
+''';
+
+/// A line the vocabulary does not know — `AMOUNT` — that repeats the
+/// items above it, and a total label OCR misread, so the total comes from
+/// the cash and the change.
+const summaryAsItem = '''
+CITY PHARMACY
+Date: 06/10/2026
+PARACETAMOL 500MG 2 x 40.00 80.00
+VITAMIN C 1000MG 450.00
+AMOUNT 530.00
+T0TAL 530.00
+CASH 1,000.00
+CHANGE 470.00
+''';
+
+/// A screenshot of a receipt: the phone's status bar and the app's back
+/// arrow above the shop's name.
+const behindStatusBar = '''
+9:41 LTE 87
+<
+SUNRISE BAKERY
+No. 14, Temple Road, Kandy
+Tel: 081 222 3344
+07/10/2026 08:15
+FISH BUN 2 x 90.00 180.00
+TEA 60.00
+TOTAL 240.00
+CASH 500.00
+BALANCE 260.00
+''';
+
+/// A Cargills Food City till receipt, a camera photo of crumpled thermal
+/// paper with its left edge cropped (2026-10-10). RECONSTRUCTED from what
+/// the tester's app showed and from the photo — not the raw OCR dump. The
+/// crop took the day off the bill's own date; ML Kit misread a quantity
+/// (`).160`), a price (`1,56O.00`) and the Net Total label (`Net Totai`).
+/// Each item is two lines: the name, then `CODE QTY PRICE AMOUNT`. Below
+/// the payment, a Star Points block has a `Total:` of its own.
+const cargillsPhoto = '''
+CARGILLS FOOD CITY
+Express Oval View Residence
+0113-484489
+07/2026 14:31:32 CASHIER No: 143
+ITEM QTY PRICE AMOUNT
+CHUPA CHUPS GUM FILL. LOLLIPOP
+SCE0833 1.000 50.00 50.00
+REVELLO KRUNCH W MILKY CARAMEL
+SCE1166 1.000 120.00 120.00
+IMPORTED MANDARIN
+FT30317 ).160 1,56O.00 249.60
+ANCHOR YOGHURT LOWFAT S.B
+DYD3016 1.000 180.00 180.00
+Sub Total 599.60
+Net Totai 599.60
+CARD 599.60
+Balance 0.00
+Time End: 14:31:32
+Loyalty Customer
+Name: Loyalty Customer
+Star Points
+As @ 10-07-2026 14:31 180.02
+Earned on this bill: .60
+Total: 180.62
+IMPORTANT NOTICE
+In case of a price discrepancy, return
+the item & bill within 7 days to
+refund the difference
+Please call our hotline 0117 181 181 for
+your valued suggestions and comments.
+''';
+
+/// The same photo as ML Kit read it on the emulator (2026-10-10, the
+/// `[receipt-ocr]` rows verbatim but for the cashier's name), from the
+/// copy sent in chat — 545 px wide, so worse than the tester's phone read
+/// it: the date cut to `2026` with its time misread as 14:41:32, a
+/// quantity's point lost (`1000`), a comma for a point (`120,00`), `Sub
+/// fotal`, Net Total split over two lines with `S` for `5`, and `ime End`.
+const cargillsPhotoAsRead = '''
+CARGILLS FOOD CITY
+Kpress Cval View Residence
+0113-484a89
+2026 14:41:32 CASHIER No: 143
+TEM QTY PRICE AMOUNT
+CHUPA CHUPS GUM FILL. LOLLIPOP
+SCEO833 1000 50.00 50.00
+REVELLO KRUNCH W MILKY CARAMEL
+SCE1166 1.000 120,00 120.00
+IMPORTED MANDARIN
+FT30317 ).160 1,560.00 249.60
+ANCHOR VOGHURT LOWEAT S.B
+DYD3016 1.000 180.00 180.00
+Sub fotal 599.60
+Net Tota
+S99.60
+CARD 599.60
+Balance 0.00
+ime End: 14:31:32
+Loyalty Customer
+Name: Loyalty Customer
+blar Points
+As @ 10-07-2026 14:31 180.02
+Earned on this aill: 60
+Total: 180.62
+IMPORTANT NOTICE
+In case of a price discrepancy, return
+the item & bll within 7 days to
+refund the differencée
+Piease call our hotline 0117 181 181 for
+your valued suggestions and comments.
+''';
+
 ParsedReceipt parse(String text) =>
     ParseReceiptText.parse(RecognisedText.fromString(text));
 
@@ -134,17 +359,34 @@ void main() {
       expect(receipt.receiptNumber, '4521');
     });
 
-    test('reads every item and nothing else, the discount off the last', () {
+    test('reads every item and nothing else, the discount off the last, '
+        'and the VAT on top spread over them', () {
+      // 376.50 is 15% of the 2,510.00 the items come to after the discount,
+      // so each takes exactly 15%.
       expect(receipt.items, const [
-        ReceiptLineItem(name: 'RICE 5KG', totalPriceCents: 125000),
+        ReceiptLineItem(
+          name: 'RICE 5KG',
+          totalPriceCents: 143750,
+          chargesCents: 18750,
+        ),
         ReceiptLineItem(
           name: 'MILK 1L',
           quantity: 2,
           unitPriceCents: 24000,
-          totalPriceCents: 48000,
+          totalPriceCents: 55200,
+          chargesCents: 7200,
         ),
-        ReceiptLineItem(name: 'BREAD', totalPriceCents: 18000),
-        ReceiptLineItem(name: 'SHAMPOO 200ML', totalPriceCents: 60000),
+        ReceiptLineItem(
+          name: 'BREAD',
+          totalPriceCents: 20700,
+          chargesCents: 2700,
+        ),
+        ReceiptLineItem(
+          name: 'SHAMPOO 200ML',
+          totalPriceCents: 69000,
+          discountCents: 5000,
+          chargesCents: 9000,
+        ),
       ]);
     });
 
@@ -157,9 +399,10 @@ void main() {
       expect(receipt.paymentMethod, PaymentMethod.cash);
     });
 
-    test('the items add up to the sub-total, not to the total with VAT', () {
-      expect(receipt.itemsSumCents, 251000);
-      expect(receipt.itemsMatchTotal, isFalse);
+    test('with the VAT spread, the items add up to the total paid', () {
+      expect(receipt.itemsSumCents, 288650);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
     });
   });
 
@@ -210,21 +453,26 @@ void main() {
       expect(receipt.receiptNumber, isNull);
     });
 
-    test('reads leading quantities and derives an exact unit price', () {
+    test('reads leading quantities and derives an exact unit price; the '
+        'service charge is spread over the items, not an item', () {
       expect(receipt.items, const [
         ReceiptLineItem(
           name: 'CHICKEN KOTTU',
           quantity: 2,
           unitPriceCents: 85000,
-          totalPriceCents: 170000,
+          totalPriceCents: 187000,
+          chargesCents: 17000,
         ),
         ReceiptLineItem(
           name: 'LIME JUICE',
-          quantity: 1,
-          totalPriceCents: 35000,
+          totalPriceCents: 38500,
+          chargesCents: 3500,
         ),
-        ReceiptLineItem(name: 'WATER 500ML', totalPriceCents: 12000),
-        ReceiptLineItem(name: 'SERVICE CHARGE 10%', totalPriceCents: 21700),
+        ReceiptLineItem(
+          name: 'WATER 500ML',
+          totalPriceCents: 13200,
+          chargesCents: 1200,
+        ),
       ]);
     });
 
@@ -301,7 +549,11 @@ void main() {
       );
 
       expect(receipt.items, const [
-        ReceiptLineItem(name: 'RICE', totalPriceCents: 112500),
+        ReceiptLineItem(
+          name: 'RICE',
+          totalPriceCents: 112500,
+          discountCents: 12500,
+        ),
       ]);
       expect(receipt.itemsMatchTotal, isTrue);
     });
@@ -367,15 +619,20 @@ void main() {
       expect(receipt.itemsMatchTotal, isTrue);
     });
 
-    test('the unit price follows the discount when it still divides', () {
-      final divides = parse('SHOP\nMILK 2 x 240.00 480.00\nDISC -80.00');
-      expect(divides.items.single.quantity, 2);
-      expect(divides.items.single.unitPriceCents, 20000);
-      expect(divides.items.single.totalPriceCents, 40000);
+    test('a discount keeps the printed unit price and says what came off', () {
+      final milk = parse('SHOP\nMILK 2 x 240.00 480.00\nDISC -75.01');
 
-      final odd = parse('SHOP\nMILK 2 x 240.00 480.00\nDISC -75.01');
-      expect(odd.items.single.unitPriceCents, isNull);
-      expect(odd.items.single.totalPriceCents, 40499);
+      expect(
+        milk.items.single,
+        const ReceiptLineItem(
+          name: 'MILK',
+          quantity: 2,
+          unitPriceCents: 24000,
+          totalPriceCents: 40499,
+          discountCents: 7501,
+        ),
+      );
+      expect(milk.items.single.printedCents, 48000);
     });
 
     test('a discount larger than the item above it is spread over every '
@@ -573,7 +830,7 @@ void main() {
 
     test('reads the header, with the time from its own line', () {
       expect(receipt.merchantName, 'La Vivente');
-      expect(receipt.receiptDate, DateTime(2026, 8, 20, 17, 12));
+      expect(receipt.receiptDate, DateTime(2026, 8, 20, 17, 12, 13));
       expect(receipt.receiptNumber, '00000026');
     });
 
@@ -660,7 +917,7 @@ void main() {
       // The merchant is what OCR read; FR-RCP-008's review screen is where
       // a misread name is corrected, not the parser.
       expect(receipt.merchantName, 'La Viventey');
-      expect(receipt.receiptDate, DateTime(2026, 8, 20, 17, 12));
+      expect(receipt.receiptDate, DateTime(2026, 8, 20, 17, 12, 13));
       expect(receipt.receiptNumber, '00000026');
     });
 
@@ -699,6 +956,578 @@ void main() {
       expect(inexact.items.single.name, 'BREAD');
       expect(inexact.items.single.quantity, 1);
       expect(inexact.items.single.unitPriceCents, isNull);
+    });
+  });
+
+  group('the Keells e-bill, transcribed', () {
+    final receipt = parse(keellsEBill);
+
+    test('reads the store, the bill number and the till time, not the '
+        "phone's status bar or the email's UTC date", () {
+      expect(receipt.merchantName, 'Keells - Katubedda');
+      expect(receipt.receiptNumber, '1661604');
+      expect(receipt.receiptDate, DateTime(2026, 10, 5, 16, 54, 43));
+      expect(receipt.guessedFields, isEmpty);
+    });
+
+    test('the net amount is the total — not the change, the cash or the '
+        'gross', () {
+      expect(receipt.totalCents, 53500);
+      expect(receipt.taxCents, isNull);
+      expect(receipt.paymentMethod, PaymentMethod.cash);
+    });
+
+    test('two items, each less the discount that names its code, the '
+        'wrapped 4S back on the soap', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'SAFEGUARD SOAP MULTIPACK 280G 4S',
+          unitPriceCents: 35000,
+          totalPriceCents: 26200,
+          discountCents: 8800,
+        ),
+        ReceiptLineItem(
+          name: 'CLOGARD TOOTHPASTE 200G',
+          unitPriceCents: 36500,
+          totalPriceCents: 27300,
+          discountCents: 9200,
+        ),
+      ]);
+    });
+
+    test('the items add up to the total, so nothing is in doubt', () {
+      expect(receipt.itemsSumCents, 53500);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('reads the same without its profile: the Discounts heading is '
+        'enough', () {
+      final generic = ParseReceiptText.parse(
+        RecognisedText.fromString(keellsEBill),
+        profiles: const [],
+      );
+
+      expect(generic.items, receipt.items);
+      expect(generic.totalCents, 53500);
+    });
+  });
+
+  group('the Keells e-bill, as ML Kit read it', () {
+    final receipt = parse(keellsEBillAsRead);
+
+    test('the same header, the store tidied', () {
+      expect(receipt.merchantName, 'Keells - Katubedda');
+      expect(receipt.receiptNumber, '1661604');
+      expect(receipt.receiptDate, DateTime(2026, 10, 5, 16, 54, 43));
+    });
+
+    test('the same items and total, the soap without the 4S OCR lost', () {
+      expect(receipt.items.map((i) => (i.name, i.totalPriceCents)), [
+        ('SAFEGUARD SOAP MULTIPACK 280G', 26200),
+        ('CLOGARD TOOTHPASTE 200G', 27300),
+      ]);
+      expect(receipt.totalCents, 53500);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+  });
+
+  group('a discount on the whole bill', () {
+    final receipt = parse(billDiscount);
+
+    test('is shared over the items in proportion, the cent left over on the '
+        'largest, and the items add up to the net total', () {
+      // 50.00 of 995.50: 15.57, 22.87 and 11.55 rounded down leave a cent,
+      // which the tea — the largest item — takes.
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'SUGAR 1KG',
+          totalPriceCents: 29443,
+          discountCents: 1557,
+        ),
+        ReceiptLineItem(
+          name: 'TEA 100G',
+          totalPriceCents: 43262,
+          discountCents: 2288,
+        ),
+        ReceiptLineItem(
+          name: 'BISCUITS',
+          totalPriceCents: 21845,
+          discountCents: 1155,
+        ),
+      ]);
+      expect(receipt.totalCents, 94550);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('a rate with no amount is applied when that is what adds up, after '
+        "an item's own discount", () {
+      final receipt = parse(
+        'SHOP\nSOAP 200.00\nDISCOUNT -20.00\nRICE 300.00\n'
+        'SUB TOTAL 480.00\nDISCOUNT 10%\nTOTAL 432.00',
+      );
+
+      expect(receipt.items.map((i) => (i.totalPriceCents, i.discountCents)), [
+        (16200, 3800),
+        (27000, 3000),
+      ]);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('a discount naming an item code comes off that item alone', () {
+      final receipt = parse(
+        'SHOP\n1 1001 SOAP 1.0 200.00 200.00\n2 1002 RICE 1.0 300.00 300.00\n'
+        '3 1003 MILK 1.0 150.00 150.00\nDISCOUNTS\n1003 PROMO 15.00\n'
+        '1001 PROMO 20.00\nTOTAL 615.00',
+      );
+
+      expect(receipt.items.map((i) => (i.name, i.totalPriceCents)), [
+        ('SOAP', 18000),
+        ('RICE', 30000),
+        ('MILK', 13500),
+      ]);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+  });
+
+  group('a receipt with no discounts', () {
+    final receipt = parse(noDiscounts);
+
+    test('reads quantities and prices in every printed form', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'DHAL 1KG',
+          unitPriceCents: 39500,
+          totalPriceCents: 39500,
+        ),
+        ReceiptLineItem(
+          name: 'EGGS',
+          quantity: 10,
+          unitPriceCents: 4500,
+          totalPriceCents: 45000,
+        ),
+        ReceiptLineItem(
+          name: 'COCONUT',
+          quantity: 3,
+          unitPriceCents: 12000,
+          totalPriceCents: 36000,
+        ),
+        ReceiptLineItem(
+          name: 'TOMATO',
+          quantity: 0.5,
+          unitPriceCents: 48000,
+          totalPriceCents: 24000,
+        ),
+        ReceiptLineItem(
+          name: 'CARROT',
+          quantity: 0.35,
+          unitPriceCents: 120000,
+          totalPriceCents: 42000,
+        ),
+      ]);
+    });
+
+    test('adds up, and was paid by card', () {
+      expect(receipt.merchantName, 'SUNRISE GROCERS');
+      expect(receipt.receiptNumber, '7781');
+      expect(receipt.receiptDate, DateTime(2026, 10, 8, 9, 5));
+      expect(receipt.totalCents, 186500);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.paymentMethod, PaymentMethod.card);
+    });
+
+    test('a quantity and a price that do not make the amount are left in '
+        'the name, the amount kept', () {
+      final receipt = parse('SHOP\nSHAMPOO 200 650.00 650.00\nTOTAL 650.00');
+
+      expect(receipt.items.single.name, 'SHAMPOO 200 650.00');
+      expect(receipt.items.single.quantity, 1);
+      expect(receipt.items.single.totalPriceCents, 65000);
+    });
+  });
+
+  group('a summary line that looks like an item', () {
+    final receipt = parse(summaryAsItem);
+
+    test('is dropped because it repeats the items above it, and the cash '
+        'less the change gives the total', () {
+      expect(receipt.items.map((i) => (i.name, i.totalPriceCents)), [
+        ('PARACETAMOL 500MG', 8000),
+        ('VITAMIN C 1000MG', 45000),
+      ]);
+      expect(receipt.totalCents, 53000);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+
+    test(
+      'a known summary label is never an item, above the items or below',
+      () {
+        final receipt = parse(
+          'SHOP\nBill Amount: 300.00\nTEA 100.00\nRICE 200.00\n'
+          'Amount Due 300.00\nCASH 500.00\nBALANCE 200.00',
+        );
+
+        expect(receipt.items.map((i) => i.name), ['TEA', 'RICE']);
+        expect(receipt.totalCents, 30000);
+      },
+    );
+
+    test('when nothing adds up, the receipt is shown as printed and says '
+        'so', () {
+      final receipt = parse('SHOP\nTEA 100.00\nRICE 200.00\nTOTAL 350.00');
+
+      expect(receipt.items.length, 2);
+      expect(receipt.totalCents, 35000);
+      expect(receipt.itemsMatchTotal, isFalse);
+    });
+
+    test('a total worked out from the cash and change alone is a guess', () {
+      final receipt = parse('SHOP\nTEA 100.00\nCASH 500.00\nCHANGE 350.00');
+
+      expect(receipt.totalCents, 15000);
+      expect(receipt.guessedFields, {ReceiptField.total});
+    });
+  });
+
+  group("the phone's own text above the receipt", () {
+    final receipt = parse(behindStatusBar);
+
+    test('is never the merchant or an item', () {
+      expect(receipt.merchantName, 'SUNRISE BAKERY');
+      expect(receipt.receiptDate, DateTime(2026, 10, 7, 8, 15));
+      expect(receipt.items.map((i) => i.name), ['FISH BUN', 'TEA']);
+      expect(receipt.totalCents, 24000);
+      expect(receipt.itemsMatchTotal, isTrue);
+    });
+
+    test('on Android too, whose icons OCR reads as letters', () {
+      expect(parse('2:32 9 O\nSHOP\nTEA 100.00').merchantName, 'SHOP');
+      expect(parse('12:01 @ M\nSHOP\nTEA 100.00').merchantName, 'SHOP');
+    });
+
+    test('a merchant that cannot be read is left blank, not filled with '
+        'noise', () {
+      final receipt = parse('19:14 !!4G39\n<\n1.50\nTEA 100.00\nTOTAL 100.00');
+
+      expect(receipt.merchantName, isNull);
+      expect(receipt.items.single.name, 'TEA');
+    });
+
+    test('a time on the first line is the receipt\'s when it has a date', () {
+      final receipt = parse('14:32 03/04/2026\nSHOP\nTEA 100.00');
+
+      expect(receipt.receiptDate, DateTime(2026, 4, 3, 14, 32));
+      expect(receipt.merchantName, 'SHOP');
+    });
+  });
+
+  group('a receipt in an email', () {
+    const forwarded =
+        '---------- Forwarded message ---------\n'
+        'From: Green Leaf Mart <bills@greenleaf.example>\n'
+        'Date: Thu, 08 Oct 2026 13:10:00 +0000\n'
+        'Subject: Your bill\n'
+        'TEA 100.00\n'
+        'TOTAL 100.00';
+
+    test("with no date of its own, takes the email's, in local time, as a "
+        'guess', () {
+      final receipt = ParseReceiptText.parse(
+        RecognisedText.fromString(forwarded),
+        localOffset: const Duration(hours: 5, minutes: 30),
+      );
+
+      expect(receipt.receiptDate, DateTime(2026, 10, 8, 18, 40));
+      expect(receipt.guessedFields, contains(ReceiptField.date));
+    });
+
+    test("with no store of its own, takes the sender's name, as a guess", () {
+      final receipt = parse(forwarded);
+
+      expect(receipt.merchantName, 'Green Leaf Mart');
+      expect(receipt.guessedFields, contains(ReceiptField.merchant));
+    });
+
+    test("a receipt's own Date: line is the bill's, not an email's", () {
+      final receipt = parse('SHOP\nDate: 12 Mar 2026\nTEA 100.00');
+
+      expect(receipt.receiptDate, DateTime(2026, 3, 12));
+      expect(receipt.guessedFields, isEmpty);
+    });
+  });
+
+  group('dates and times in the forms receipts print', () {
+    test('read day-first, with words, with seconds, on either clock', () {
+      expect(
+        parse('SHOP\n2026-10-05 16:54:43\nA 1.00').receiptDate,
+        DateTime(2026, 10, 5, 16, 54, 43),
+      );
+      expect(
+        parse('SHOP\n05/10/2026 04:54 PM\nA 1.00').receiptDate,
+        DateTime(2026, 10, 5, 16, 54),
+      );
+      expect(
+        parse('SHOP\n5 October 2026\nA 1.00').receiptDate,
+        DateTime(2026, 10, 5),
+      );
+    });
+
+    test('a labelled bill date beats a date printed above it', () {
+      final receipt = parse(
+        'SHOP\nPrinted 06/10/2026\nBill Date : 05-Oct-2026\nTEA 100.00',
+      );
+
+      expect(receipt.receiptDate, DateTime(2026, 10, 5));
+    });
+
+    test('a date alone leaves the time empty', () {
+      final receipt = parse('SHOP\nBill Date : 05-Oct-2026\nTEA 100.00');
+
+      expect(receipt.receiptDate, DateTime(2026, 10, 5));
+    });
+  });
+
+  group('the Keells profile', () {
+    const till =
+        'KEELLS SUPER\n'
+        '1 126285 SAFEGUARD SOAP 1.0 350.00 350.00\n'
+        '1 126285 25.10% Dis 88.00\n'
+        'TOTAL 262.00';
+
+    test('knows Dis is a discount, on a till receipt with no heading', () {
+      final receipt = parse(till);
+
+      expect(receipt.items.single.totalPriceCents, 26200);
+      expect(receipt.items.single.discountCents, 8800);
+    });
+
+    test("without it, Dis is no word the parser knows, and the items don't "
+        'add up', () {
+      final receipt = ParseReceiptText.parse(
+        RecognisedText.fromString(till),
+        profiles: const [],
+      );
+
+      expect(receipt.itemsMatchTotal, isFalse);
+    });
+
+    test("changes nothing on another shop's receipt", () {
+      expect(
+        parse('SHOP\nDIS PLAY STAND 100.00\nTOTAL 100.00').items.single.name,
+        'DIS PLAY STAND',
+      );
+    });
+  });
+
+  group('the Cargills photo, reconstructed', () {
+    final receipt = parse(cargillsPhoto);
+
+    test('reads the merchant, and the date from the points line when the '
+        "bill's own lost its day, with the bill's own time", () {
+      expect(receipt.merchantName, 'CARGILLS FOOD CITY');
+      expect(receipt.receiptDate, DateTime(2026, 7, 10, 14, 31, 32));
+      expect(receipt.paymentMethod, PaymentMethod.card);
+    });
+
+    test('the Net Total is the total, misread label and all — not the '
+        "points block's Total", () {
+      expect(receipt.totalCents, 59960);
+      expect(receipt.taxCents, isNull);
+    });
+
+    test('four items, each named by the line above its code row', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'CHUPA CHUPS GUM FILL. LOLLIPOP',
+          unitPriceCents: 5000,
+          totalPriceCents: 5000,
+        ),
+        ReceiptLineItem(
+          name: 'REVELLO KRUNCH W MILKY CARAMEL',
+          unitPriceCents: 12000,
+          totalPriceCents: 12000,
+        ),
+        ReceiptLineItem(
+          name: 'IMPORTED MANDARIN',
+          quantity: 0.16,
+          unitPriceCents: 156000,
+          totalPriceCents: 24960,
+        ),
+        ReceiptLineItem(
+          name: 'ANCHOR YOGHURT LOWFAT S.B',
+          unitPriceCents: 18000,
+          totalPriceCents: 18000,
+        ),
+      ]);
+    });
+
+    test('they add up to the total, and nothing is in doubt', () {
+      expect(receipt.itemsSumCents, 59960);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+  });
+
+  group('the Cargills photo, as ML Kit read it', () {
+    final receipt = parse(cargillsPhotoAsRead);
+
+    test('the same header, despite the cut date and the misread time', () {
+      expect(receipt.merchantName, 'CARGILLS FOOD CITY');
+      expect(receipt.receiptDate, DateTime(2026, 7, 10, 14, 31, 32));
+      expect(receipt.paymentMethod, PaymentMethod.card);
+    });
+
+    test('the same items and total, the quantity and price repaired', () {
+      expect(receipt.items, const [
+        ReceiptLineItem(
+          name: 'CHUPA CHUPS GUM FILL. LOLLIPOP',
+          unitPriceCents: 5000,
+          totalPriceCents: 5000,
+        ),
+        ReceiptLineItem(
+          name: 'REVELLO KRUNCH W MILKY CARAMEL',
+          unitPriceCents: 12000,
+          totalPriceCents: 12000,
+        ),
+        ReceiptLineItem(
+          name: 'IMPORTED MANDARIN',
+          quantity: 0.16,
+          unitPriceCents: 156000,
+          totalPriceCents: 24960,
+        ),
+        ReceiptLineItem(
+          name: 'ANCHOR VOGHURT LOWEAT S.B',
+          unitPriceCents: 18000,
+          totalPriceCents: 18000,
+        ),
+      ]);
+      expect(receipt.totalCents, 59960);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+  });
+
+  group('a loyalty block below the bill', () {
+    test('is not the bill: its Total is never the total, its figures never '
+        'items', () {
+      // No total line on the bill itself, so the block's Total: is the only
+      // labelled total there is.
+      final receipt = parse(
+        'SHOP\nTEA 100.00\nRICE 200.00\nCASH 500.00\nCHANGE 200.00\n'
+        'Loyalty Points\nOpening balance 1,000.00\n'
+        'Earned on this bill: 3.00\nTotal: 1,003.00',
+      );
+
+      expect(receipt.totalCents, 30000);
+      expect(receipt.items.map((i) => i.name), ['TEA', 'RICE']);
+      expect(receipt.itemsMatchTotal, isTrue);
+      expect(receipt.guessedFields, isEmpty);
+    });
+
+    test('nor is its date the date, while the bill prints one', () {
+      final receipt = parse(
+        'SHOP\n09/07/2026 18:02\nTEA 100.00\nTOTAL 100.00\nCASH 100.00\n'
+        'Star Points\nAs @ 10-07-2026 14:31 180.02',
+      );
+
+      expect(receipt.receiptDate, DateTime(2026, 7, 9, 18, 2));
+    });
+
+    test('a loyalty word above the total is left alone', () {
+      final receipt = parse(
+        'SHOP\nTEA 100.00\nLOYALTY -10.00\nTOTAL 90.00\nThank you',
+      );
+
+      expect(receipt.totalCents, 9000);
+      expect(receipt.items.single.totalPriceCents, 9000);
+    });
+  });
+
+  group('a total label OCR misread', () {
+    test('is still a total, never an item', () {
+      for (final label in ['Net Totai', 'NET T0TAL', 'Net Tota', 'TOTA1']) {
+        final receipt = parse('SHOP\nTEA 100.00\nRICE 200.00\n$label 300.00');
+
+        expect(receipt.items.map((i) => i.name), [
+          'TEA',
+          'RICE',
+        ], reason: label);
+        expect(receipt.totalCents, 30000, reason: label);
+      }
+    });
+
+    test('Sub fotal and S99.60 are the sub-total and a figure', () {
+      final receipt = parse(
+        'SHOP\nTEA 100.00\nRICE 499.60\nSub fotal 599.60\nNet Tota\nS99.60',
+      );
+
+      expect(receipt.items.length, 2);
+      expect(receipt.totalCents, 59960);
+    });
+
+    test('a word that merely resembles one is not a label', () {
+      final receipt = parse(
+        'SHOP\nLIP GLOSS 450.00\nSERVICE CHARGE 10% 45.00\nTOTAL 495.00',
+      );
+
+      expect(receipt.items.single.name, 'LIP GLOSS');
+      expect(receipt.items.single.chargesCents, 4500);
+    });
+  });
+
+  group('item layouts', () {
+    test('a name, then a code row, is one item named by the first line', () {
+      final receipt = parse(
+        'SHOP\nITEM QTY PRICE AMOUNT\nCHUPA CHUPS LOLLIPOP\n'
+        'SCE0833 1.000 50.00 50.00\nTOTAL 50.00',
+      );
+
+      expect(receipt.items.single.name, 'CHUPA CHUPS LOLLIPOP');
+      expect(receipt.items.single.quantity, 1);
+      expect(receipt.items.single.unitPriceCents, 5000);
+    });
+
+    test('a name, code and figures on one line still read as before', () {
+      final receipt = parse(
+        'SHOP\n1 126285 SAFEGUARD SOAP 1.0 350.00 350.00\nTOTAL 350.00',
+      );
+
+      expect(receipt.items.single.name, 'SAFEGUARD SOAP');
+      expect(receipt.items.single.unitPriceCents, 35000);
+    });
+
+    test('a code row with no name above keeps its code as the name', () {
+      final receipt = parse('SHOP\nSCE0833 1.000 50.00 50.00\nTOTAL 50.00');
+
+      expect(receipt.items.single.name, 'SCE0833');
+    });
+  });
+
+  group('a weighed item with a misread quantity', () {
+    test('is repaired when the repair makes the amount', () {
+      final cases = {
+        'FT30317 ).160 1,560.00 249.60': 0.16,
+        'FT30317 O.160 1,560.00 249.60': 0.16,
+        'FT30317 0.16O 1.560.00 249.60': 0.16,
+        'SCE0833 1000 50.00 50.00': 1.0,
+      };
+      for (final MapEntry(key: row, value: quantity) in cases.entries) {
+        final receipt = parse('SHOP\nIMPORTED MANDARIN\n$row\nTOTAL 999.99');
+
+        expect(receipt.items.single.quantity, quantity, reason: row);
+        expect(receipt.items.single.name, 'IMPORTED MANDARIN', reason: row);
+      }
+    });
+
+    test('is left alone when no repair makes the amount', () {
+      final receipt = parse(
+        'SHOP\nIMPORTED MANDARIN\nFT30317 ).170 1,560.00 249.60',
+      );
+
+      expect(receipt.items.single.quantity, 1);
+      expect(receipt.items.single.unitPriceCents, isNull);
+      expect(receipt.items.single.totalPriceCents, 24960);
     });
   });
 

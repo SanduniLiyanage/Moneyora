@@ -60,6 +60,7 @@ follows the Resolution sections.
 | [E-42](#e-42) | Money lent or borrowed has nowhere to go: debts | Resolved (raises FR-DBT-001..003) | FR-DBT-001, FR-DBT-002, FR-DBT-003 |
 | [E-43](#e-43) | A credit card is an account type with none of a card's terms | Resolved (raises FR-ACC-008, FR-ACC-009) | FR-ACC-001, FR-ACC-008, FR-ACC-009 |
 | [E-44](#e-44) | A bill shared between several people: split it into debts | Resolved (raises FR-DBT-004) | FR-DBT-004 |
+| [E-45](#e-45) | A receipt's lines are never checked against its own total | Resolved | FR-RCP-005, FR-RCP-007, FR-RCP-011 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2664,6 +2665,106 @@ owes how much.
    transaction; a split half saved no longer adds up to the bill.
 5. Even splits only. Uneven shares — one person had the expensive dish —
    are entered as separate debts.
+
+---
+
+## E-45 — A receipt's lines are never checked against its own total
+
+**Severity:** Medium · **Affects:** FR-RCP-005, FR-RCP-006, FR-RCP-007,
+FR-RCP-008, FR-RCP-011 · **Requirement:** none raised
+
+Raised 2026-10-09, from a tester's Keells e-bill, forwarded by email and
+scanned as a phone screenshot. The review screen opened on the merchant
+`19:14 !!4G39` (the phone's status bar), the date of the email in UTC,
+a total of Rs 68.48 (the change), and five items worth Rs 1,430.00: the
+two products, the bill's own "Your bill for this transaction" line, and
+both discounts as expenses. The bill was Rs 535.00.
+
+FR-RCP-005 asks for the items, the total and the tax to be read; it says
+nothing of how they relate. Every receipt states its total twice — once
+on its total line, once as the sum of its lines — and the parser never
+compared them, so a reading that could not be right was offered as one
+that was.
+
+**Resolution.**
+
+1. **The read is checked against the total** (FR-RCP-005, FR-RCP-006).
+   The lines, discounts off and charges on, must add up to what was paid.
+   When they do not, other readings are tried before the receipt is
+   offered as read: a line that repeats the items above it is a
+   sub-total; a printed rate is applied; a discount under an item is the
+   bill's; discount lines are already in the prices. The first reading
+   that adds up is the one shown. None adding up, the receipt is shown
+   as printed and the review screen says the lines fall short.
+2. **The total is the bill as paid**: a net or grand total before a
+   plain total, never the gross, the cash tendered or the change. With
+   none printed it is the cash less the change, the card payment, or the
+   sub-total, and marked as guessed unless another figure bears it out.
+3. **A discount comes off the item it names**, by article code, then by
+   row number in a block of discounts, then the item printed above it.
+   A discount on the whole bill is shared over the items in proportion;
+   the cents left over go to the largest item, so the items add up to
+   the total exactly (E-06).
+4. **Tax and service charge on top of the prices are shared over the
+   items** in proportion, so each expense is what the item cost. Prices
+   that already include the tax are left as printed. The owner chose
+   this over a separate tax line or leaving the gap. The tax figure
+   itself is still stored on the scan.
+5. **A line keeps how its amount was reached** — the printed price, the
+   discount, the share of tax — and the review screen shows the sum
+   (`Rs350.00 − 88.00 off = Rs262.00`). It is not stored: `receipt_items`
+   keeps the amount spent, as before, and no migration is needed (the
+   owner's choice).
+6. **The phone and the email are not the receipt.** A screenshot's status
+   bar and an email's header block are read for no field. A labelled
+   store (`Billed Store :`) is the merchant; a merchant that cannot be
+   read is left blank rather than filled with noise. The receipt's own
+   date and time beat an email's; an email's date is used only when the
+   receipt printed none, turned from its zone to local time, and marked
+   as guessed.
+7. **FR-RCP-007's Layer 3 is a hint, not a choice.** A line the
+   dictionary has no word for still gets the merchant's category as its
+   suggestion, at the same low confidence, but opens with no category
+   and the merchant's offered beside it, one tap to take. A guess is
+   never saved without the user choosing it (the owner's choice). The
+   merchant bias on matched lines is unchanged.
+8. **FR-RCP-011's receipt badge means the read is in doubt**: the lines
+   do not add up to the total, or a field was guessed. How sure the
+   categoriser is of each line stays on that line's own badge; averaging
+   the two into one said nothing about a damaged receipt.
+9. **A line can be added** on the review screen for one the scan missed
+   (FR-RCP-008); Confirm holds it until it has a name, an amount and a
+   category.
+10. **Shop-specific words live in a profile.** The rules are generic; a
+    chain's own abbreviations (Keells' `Dis`, `Nexus Deals`) are added by
+    a profile that recognises its receipts, and change no other shop's.
+
+### Addendum, 2026-10-10 — a Cargills till receipt, photographed
+
+A camera photo of crumpled thermal paper, its left edge cropped, read as
+four items named by their article codes, `Net Totai` as a fifth item, and
+the Star Points block's `Total: 180.62` as the bill's total. None of it
+needed a Cargills profile; every rule below is generic.
+
+11. **A loyalty block below the bill is not the bill.** From the first
+    line naming points or loyalty after the bill's total or payment, to
+    the end, nothing is an item or a total. Its date is used only when the
+    bill's own was lost, and the bill's labelled time then beats the
+    block's.
+12. **A label OCR misread is still the label.** A word differing from a
+    label word only by characters OCR confuses (i/l/1, o/0, s/5, b/8) is
+    that word; `total` and `time` also survive one more wrong, missing or
+    extra letter (`Sub fotal`, `Net Tota`, `ime End`). No other word does,
+    because `GLOSS` is one edit from `GROSS` and `CHARGE` from `CHANGE`.
+13. **A code row is named by the line above it.** `SCE0833 1.000 50.00
+    50.00` under `CHUPA CHUPS GUM FILL. LOLLIPOP` is one item, the code
+    kept as its code.
+14. **The amount decides a misread quantity.** A quantity that does not
+    make the amount with the price is repaired when the quantity the
+    amount implies has the same digits — `1000` for 1.000, `).160` for
+    0.160 — and dropped otherwise.
+15. **A total printed below the payment is tried last**, after every total
+    printed above it.
 
 ---
 

@@ -3,6 +3,18 @@ import 'package:equatable/equatable.dart';
 import 'payment_method.dart';
 import 'receipt_line_item.dart';
 
+/// A header field the parser can read from the receipt or only infer.
+enum ReceiptField {
+  /// The store's name.
+  merchant,
+
+  /// When it was bought.
+  date,
+
+  /// What was paid.
+  total,
+}
+
 /// What the parser found on a receipt. FR-RCP-005, FR-RCP-006.
 ///
 /// Every header field is nullable because every one can be missing or
@@ -21,6 +33,7 @@ class ParsedReceipt extends Equatable {
     this.taxCents,
     this.receiptNumber,
     this.paymentMethod,
+    this.guessedFields = const {},
   });
 
   /// The store's name, as printed at the top.
@@ -45,6 +58,12 @@ class ParsedReceipt extends Equatable {
   /// How the receipt says it was paid, or null when no line said.
   final PaymentMethod? paymentMethod;
 
+  /// The fields that were inferred rather than read off a labelled line —
+  /// a date from the email the receipt came in, a total worked out from
+  /// the cash and the change. The review screen asks for them to be
+  /// checked (FR-RCP-011).
+  final Set<ReceiptField> guessedFields;
+
   /// What the item lines add up to.
   int get itemsSumCents =>
       items.fold(0, (sum, item) => sum + item.totalPriceCents);
@@ -64,5 +83,6 @@ class ParsedReceipt extends Equatable {
     taxCents,
     receiptNumber,
     paymentMethod,
+    guessedFields,
   ];
 }
