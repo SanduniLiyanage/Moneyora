@@ -156,6 +156,25 @@ void main() {
     });
   });
 
+  testWidgets('moves the moment a write lands, with nothing else rebuilt', (
+    tester,
+  ) async {
+    final repository = _Scripted()..income[september] = 100000;
+    await tester.pumpWidget(boot(repository));
+    await tester.pumpAndSettle();
+    expect(find.text('+Rs1,000.00'), findsOneWidget);
+
+    // An expense saved on the entry screen over home: the datasource that
+    // wrote it says so on the bus, and nothing else happens.
+    repository.spending[september] = [spent(40000)];
+    ProviderScope.containerOf(tester.element(find.byType(BalanceBar)))
+        .read(databaseChangeBusProvider)
+        .notify();
+    await tester.pumpAndSettle();
+
+    expect(find.text('+Rs600.00'), findsOneWidget);
+  });
+
   testWidgets('a tap opens the period and account choices', (tester) async {
     await tester.pumpWidget(boot(_Scripted()));
     await tester.pumpAndSettle();
