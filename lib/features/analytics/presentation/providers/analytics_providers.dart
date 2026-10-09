@@ -263,6 +263,9 @@ final periodSummaryProvider = FutureProvider.autoDispose<PeriodSummary>((
   final selection = ref.watch(analyticsPeriodProvider);
   final query = ref.watch(analyticsQueryProvider);
   final today = ref.watch(clockProvider)();
+  // For their opening balances (E-41). Not awaited: until the accounts are
+  // read the balance counts none, and it is read again when they arrive.
+  final accounts = ref.watch(accountOptionsProvider).valueOrNull ?? const [];
 
   final summarise = await ref.watch(getPeriodSummaryProvider.future);
   final result = await summarise(
@@ -272,6 +275,7 @@ final periodSummaryProvider = FutureProvider.autoDispose<PeriodSummary>((
       daysElapsed: selection.period == AnalyticsPeriod.all
           ? null
           : daysElapsed(query.range, today),
+      accounts: accounts,
     ),
   );
   return result.match(Future<PeriodSummary>.error, Future<PeriodSummary>.value);

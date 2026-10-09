@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/features/analytics/domain/entities/analytics_query.dart';
 import 'package:moneyora/features/analytics/domain/entities/category_total.dart';
 import 'package:moneyora/features/analytics/domain/entities/daily_total.dart';
@@ -146,6 +147,60 @@ void main() {
     );
 
     expect(result.isLeft(), isTrue);
+  });
+
+  group('an opening balance. E-41', () {
+    AccountOption opened(int id, int cents, DateTime on) => AccountOption(
+      id: id,
+      name: 'Account $id',
+      balanceCents: cents,
+      openingBalanceCents: cents,
+      openingDate: on,
+    );
+
+    final accounts = [
+      // Opened in September with Rs5,000, on the period's last day.
+      opened(1, 500000, DateTime(2026, 9, 30)),
+      // A card opened owing, in September too.
+      opened(2, -120000, DateTime(2026, 9, 1)),
+      // Opened in August: not September's.
+      opened(3, 900000, DateTime(2026, 8, 31)),
+    ];
+
+    SummaryRequest withAccounts({int? accountId}) => SummaryRequest(
+      query: AnalyticsQuery(range: september, accountId: accountId),
+      previousRange: null,
+      daysElapsed: 27,
+      accounts: accounts,
+    );
+
+    test('counts in the balance of the period it was opened in', () async {
+      final one = (await summarise(withAccounts(accountId: 1))).toNullable()!;
+
+      expect(one.openingBalanceCents, 500000);
+      expect(one.balanceCents, one.netSavingsCents + 500000);
+    });
+
+    test('across every account, each opened in the period', () async {
+      final all = (await summarise(withAccounts())).toNullable()!;
+
+      expect(all.openingBalanceCents, 500000 - 120000);
+    });
+
+    test('not in a period it was not opened in', () async {
+      final august = (await summarise(withAccounts(accountId: 3)))
+          .toNullable()!;
+
+      expect(august.openingBalanceCents, 0);
+      expect(august.balanceCents, august.netSavingsCents);
+    });
+
+    test('is never income or spending', () async {
+      final summary = (await summarise(withAccounts())).toNullable()!;
+
+      expect(summary.incomeCents, 3000000);
+      expect(summary.netSavingsCents, 3000000 - 1650000);
+    });
   });
 
   group('transfers. FR-TRF-004, E-02', () {

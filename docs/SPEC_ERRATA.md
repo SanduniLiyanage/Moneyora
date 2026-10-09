@@ -56,6 +56,7 @@ follows the Resolution sections.
 | [E-38](#e-38) | A backup "in SQLite format" cannot be restored on another phone, and cloud sync needs accounts the app does not have | Resolved (FR-BAK-002/003/004 deferred) | FR-BAK-001, FR-BAK-002, FR-BAK-003, FR-BAK-004, FR-BAK-005 |
 | [E-39](#e-39) | A plan with too little history: built by hand, never from sample data | Resolved (supersedes E-21's ladder) | FR-PLN-001, FR-PLN-003, FR-PLN-011 |
 | [E-40](#e-40) | Plans after the first release: one door, delete and rename, and a plan of one category | Resolved | FR-PLN-001, FR-PLN-011, FR-PLN-015 |
+| [E-41](#e-41) | An opening balance is in no period's balance, so a new account's looks lost | Resolved | FR-ACC-002, FR-RPT-006 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2501,6 +2502,46 @@ phones.
    is the plan, so changing its budget changes the plan's total too,
    written in the same transaction; the screen says so. Plans of several
    categories keep FR-PLN-011's total-holding rule (PR #167).
+
+---
+
+<a id="e-41"></a>
+
+## E-41 — An opening balance is in no period's balance, so a new account's looks lost
+
+**Severity:** Medium · **Affects:** SDD SCR-001, SCR-005 ·
+**Requirement:** FR-ACC-002, FR-RPT-006
+
+Raised 2026-10-09, from a tester using 1.1.0.
+
+FR-ACC-002 stores an initial balance and the date it was true, and the
+account's own balance has always included it (E-18's cache starts from
+it). But the Balance bar on home and on the list is income less expenses
+for a period (PR #144), and the list shows transactions. An opening
+balance is neither, so a tester who opened an account with money in it
+saw Rs0.00 on home, nothing in its history, and nothing added anywhere
+else, and reported the money lost.
+
+**Resolution.**
+
+1. **The Balance bar counts an opening balance in the period its date
+   falls in**, for the one account chosen or for every account. It says
+   so: "Opening Rs5,000.00 · In … · out …". It is never income: the
+   summary card's figures, the charts and the money plan do not see it,
+   for the reason transfers are not income (E-02). It is money the user
+   already had.
+2. **The transaction list shows it as a row** on its day, "Opening
+   balance", after that day's transactions, in green (red for an account
+   opened owing). It is not a transaction, so it cannot be opened or
+   deleted there; the account's form changes it. Under a type filter, and
+   grouped by category, it is not shown: it is neither type and has no
+   category.
+3. Both read it through `AccountReader`, which now carries the opening
+   balance and its date, so the accounts feature still owns the figure.
+   An archived account is not offered there, so its opening balance is
+   left out of the bar and the list.
+4. **The account form refuses an opening balance that is not a number.**
+   It was saved as zero without a word.
 
 ---
 

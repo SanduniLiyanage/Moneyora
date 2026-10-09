@@ -65,9 +65,11 @@ class BalanceBar extends ConsumerWidget {
     };
     final detail = switch (summary) {
       // What came into and went out of the account, transfers included, so
-      // in less out is the balance above it.
+      // in less out is the balance above it — with the opening balance
+      // first when the account was opened in the period (E-41).
       AsyncData(:final value) =>
-        'In ${formatCents(value.incomeCents + value.transferInCents)} · '
+        '${_opening(value.openingBalanceCents)}'
+            'In ${formatCents(value.incomeCents + value.transferInCents)} · '
             'out ${formatCents(value.expenseCents + value.transferOutCents)}',
       AsyncError(:final error) =>
         error is Failure ? error.message : 'The balance could not be read.',
@@ -151,6 +153,14 @@ class BalanceBar extends ConsumerWidget {
     );
   }
 }
+
+/// "Opening Rs5,000.00 · " before the in and out, or nothing when no
+/// account counted was opened in the period.
+String _opening(int cents) => switch (cents) {
+  0 => '',
+  < 0 => 'Opening −${formatCents(-cents)} · ',
+  _ => 'Opening ${formatCents(cents)} · ',
+};
 
 /// The period and account choices, over whatever screen asked. Changes
 /// apply as they are made; the balance and everything under it follow.

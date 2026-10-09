@@ -9,11 +9,14 @@ export 'account_type.dart';
 /// One account money can sit in, seen from outside `features/accounts/`.
 /// FR-ACC-001.
 ///
-/// Deliberately narrower than the `Account` entity — no initial balance,
-/// no archived flag — because a consumer outside the accounts feature only
-/// ever renders a picker, never edits the row. The [type] is there for one
-/// consumer: the receipt scanner defaults its picker to a card account when
-/// the receipt says it was paid by card (FR-RCP-008).
+/// Deliberately narrower than the `Account` entity — no archived flag, no
+/// "include in total" — because a consumer outside the accounts feature
+/// only ever renders a picker or reads a figure, never edits the row. The
+/// [type] is there for one consumer: the receipt scanner defaults its
+/// picker to a card account when the receipt says it was paid by card
+/// (FR-RCP-008). The opening balance and its date are there for the
+/// Balance bar and the transaction list, which show it on the day it was
+/// true (E-41).
 class AccountOption extends Equatable {
   /// Creates an account option.
   const AccountOption({
@@ -23,6 +26,8 @@ class AccountOption extends Equatable {
     this.type = AccountType.cash,
     this.icon = 'wallet',
     this.currency = 'LKR',
+    this.openingBalanceCents = 0,
+    this.openingDate,
   });
 
   /// Row id, used as `transactions.account_id`.
@@ -49,8 +54,24 @@ class AccountOption extends Equatable {
   /// not share one — E-25's interim rule, until FR-ACC-005 brings conversion.
   final String currency;
 
+  /// What was in the account on [openingDate], in minor units. Signed: a
+  /// credit card can open owing. FR-ACC-002.
+  final int openingBalanceCents;
+
+  /// The day [openingBalanceCents] was true, or null when not known.
+  final DateTime? openingDate;
+
   @override
-  List<Object?> get props => [id, name, type, balanceCents, icon, currency];
+  List<Object?> get props => [
+    id,
+    name,
+    type,
+    balanceCents,
+    icon,
+    currency,
+    openingBalanceCents,
+    openingDate,
+  ];
 }
 
 /// Reads the account list from outside `features/accounts/`. E-27.

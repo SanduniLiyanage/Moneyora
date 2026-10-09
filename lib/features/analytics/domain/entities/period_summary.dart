@@ -17,6 +17,7 @@ class PeriodSummary extends Equatable {
     required this.previousExpenseCents,
     this.transferInCents = 0,
     this.transferOutCents = 0,
+    this.openingBalanceCents = 0,
   });
 
   /// Money in over the period.
@@ -35,12 +36,23 @@ class PeriodSummary extends Equatable {
   /// Transferred out of the chosen account; 0 across every account.
   final int transferOutCents;
 
+  /// What the accounts counted held when they were opened, for each whose
+  /// opening day falls in the period. Signed: a card can open owing. Never
+  /// income: it is money the user already had (E-41).
+  final int openingBalanceCents;
+
   /// How much the chosen account gained or lost over the period: its net
-  /// savings, moved by the transfers into and out of it. Cash drawn from a
-  /// card is money gone from the card, and someone looking at the card
-  /// expects to see it go. Across every account this is [netSavingsCents].
+  /// savings, moved by the transfers into and out of it, and its opening
+  /// balance when it was opened in the period. Cash drawn from a card is
+  /// money gone from the card, and someone looking at the card expects to
+  /// see it go; an account opened with Rs 5,000 in it expects to see the
+  /// Rs 5,000 (E-41). Across every account the transfers cancel.
   /// FR-TRF-004.
-  int get balanceCents => netSavingsCents + transferInCents - transferOutCents;
+  int get balanceCents =>
+      netSavingsCents +
+      transferInCents -
+      transferOutCents +
+      openingBalanceCents;
 
   /// Spending per day over the days of the period that have happened, or
   /// null when there are none to divide by — all time, or a period that has
@@ -72,5 +84,6 @@ class PeriodSummary extends Equatable {
     previousExpenseCents,
     transferInCents,
     transferOutCents,
+    openingBalanceCents,
   ];
 }

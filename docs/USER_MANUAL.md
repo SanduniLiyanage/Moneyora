@@ -128,7 +128,8 @@ list. It shows the same period and account as the home screen. **Swipe**
 sideways, or use **‹** and **›**, for the period before or after, and tap
 the balance to choose another period or account. **Group by category**
 shows each category's entries together with their total; **List by date**
-goes back.
+goes back. An account opened in the period shows its **Opening balance**
+as a row on the day it was opened; change it on the account itself.
 
 ---
 
@@ -174,8 +175,9 @@ middle, income is in green and spending in red.
 - **‹** and **›** beside the period's name step to the period before or
   after. **Swiping** the ring sideways does the same: towards the left for
   the next period, towards the right for the one before.
-- **Balance** under the ring is what came in less what went out. Tap it
-  to see the transactions behind it.
+- **Balance** under the ring is what came in less what went out, plus the
+  opening balance of an account opened in the period. Tap it to see the
+  transactions behind it.
 
 The **filter** button at the top left chooses what home and Reports show:
 

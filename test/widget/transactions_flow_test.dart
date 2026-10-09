@@ -73,13 +73,14 @@ void main() {
   Widget boot({
     double textScale = 1,
     Widget page = const TransactionListPage(),
+    List<AccountOption> accountList = accounts,
   }) => ProviderScope(
     overrides: [
       entryCategoriesProvider.overrideWith(
         (ref) => Stream<List<CategoryOption>>.value(categories),
       ),
       entryAccountsProvider.overrideWith(
-        (ref) => Stream<List<AccountOption>>.value(accounts),
+        (ref) => Stream<List<AccountOption>>.value(accountList),
       ),
       transactionRepositoryProvider.overrideWith((ref) => repository),
       expensePhotosProvider.overrideWithValue(photos),
@@ -1688,6 +1689,86 @@ void main() {
 
       expect(find.text('Row 1'), findsNothing);
       expect(find.text('Row 2'), findsOneWidget);
+    });
+
+    group('an opening balance. E-41', () {
+      // Savings opened on 20 September with Rs5,000; Cash in August.
+      final opened = [
+        AccountOption(
+          id: 1,
+          name: 'Cash',
+          balanceCents: 0,
+          openingBalanceCents: 70000,
+          openingDate: DateTime(2026, 8, 3),
+        ),
+        AccountOption(
+          id: 2,
+          name: 'Savings',
+          balanceCents: 500000,
+          openingBalanceCents: 500000,
+          openingDate: DateTime(2026, 9, 20),
+        ),
+      ];
+
+      Future<void> pumpOpened(WidgetTester tester, {int? accountId}) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          boot(
+            accountList: opened,
+            page: TransactionListPage(
+              from: DateTime(2026, 9),
+              to: DateTime(2026, 9, 30),
+              accountId: accountId,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('is a row on the day it was true, among the days', (
+        tester,
+      ) async {
+        repository.saved.addAll([
+          row(1, DateTime(2026, 9, 25), accountId: 2),
+          row(2, DateTime(2026, 9, 12), accountId: 2),
+        ]);
+        await pumpOpened(tester, accountId: 2);
+
+        expect(find.text('Opening balance'), findsOneWidget);
+        expect(find.text('+Rs5,000.00'), findsOneWidget);
+        // After the 25th's rows and before the 12th's: in date order.
+        final opening = tester.getTopLeft(find.text('Opening balance')).dy;
+        expect(opening, greaterThan(tester.getTopLeft(find.text('Row 1')).dy));
+        expect(opening, lessThan(tester.getTopLeft(find.text('Row 2')).dy));
+      });
+
+      testWidgets('an empty period still shows it', (tester) async {
+        // The tester's case: a new account, nothing recorded in it yet,
+        // and a history that said nothing at all.
+        await pumpOpened(tester, accountId: 2);
+
+        expect(find.text('Nothing in this period'), findsNothing);
+        expect(find.text('Opening balance'), findsOneWidget);
+      });
+
+      testWidgets('only for the period and account shown', (tester) async {
+        await pumpOpened(tester, accountId: 1);
+
+        // Cash opened in August, outside September.
+        expect(find.text('Opening balance'), findsNothing);
+        expect(find.text('Nothing in this period'), findsOneWidget);
+      });
+
+      testWidgets('is neither an expense nor an income', (tester) async {
+        await pumpOpened(tester, accountId: 2);
+
+        await tapText(tester, 'Income');
+
+        expect(find.text('Opening balance'), findsNothing);
+      });
     });
 
     group('a transfer moves one account. FR-TRF-004', () {

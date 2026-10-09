@@ -156,6 +156,52 @@ void main() {
     });
   });
 
+  testWidgets('an account opened this month brings its opening balance. '
+      'E-41', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          clockProvider.overrideWithValue(() => today),
+          calendarSettingsProvider.overrideWith(
+            (ref) => Stream.value(CalendarSettings.defaults),
+          ),
+          analyticsPeriodProvider.overrideWith(
+            (ref) =>
+                PeriodSelection(period: AnalyticsPeriod.month, anchor: today),
+          ),
+          analyticsAccountFilterProvider.overrideWith((ref) => 3),
+          accountOptionsProvider.overrideWith(
+            (ref) => Stream.value([
+              AccountOption(
+                id: 3,
+                name: 'Savings',
+                balanceCents: 500000,
+                openingBalanceCents: 500000,
+                openingDate: DateTime(2026, 9, 20),
+              ),
+            ]),
+          ),
+          getPeriodSummaryProvider.overrideWith(
+            (ref) async => GetPeriodSummary(_Scripted()),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(body: BalanceBar()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Nothing recorded in it yet, and still Rs5,000 in it: the tester saw
+    // Rs0.00 here and thought the opening balance was lost.
+    expect(find.text('+Rs5,000.00'), findsOneWidget);
+    expect(
+      find.text('Opening Rs5,000.00 · In Rs0.00 · out Rs0.00'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('moves the moment a write lands, with nothing else rebuilt', (
     tester,
   ) async {
