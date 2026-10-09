@@ -13,6 +13,15 @@ import '../../entities/payment_method.dart';
 /// line that could be two of them is the first: `TOTAL CHANGE` is change,
 /// `TOTAL VAT` is tax, `TOTAL GROSS AMOUNT` is gross, and only then is a
 /// line with `total` in it the total.
+///
+/// **A label OCR misread is still the label** ([mend]). A camera photo
+/// reads `Net Totai`, `T0TAL`, `Sub fotal`, `Net Tota`; a total label that
+/// fails to match becomes an item, and the money is counted twice. So a
+/// word is read as one of [ocrWords] when it differs only by characters
+/// OCR confuses — i, l, 1 and |; o and 0; s and 5; b and 8 — and as one of
+/// [ocrStretchWords] when it is one more edit away. Only `total` and
+/// `time` stretch that far: `GLOSS` is one edit from `GROSS` and `CHARGE`
+/// from `CHANGE`, and a lip gloss is not a gross total.
 class ReceiptVocabulary {
   /// Creates a vocabulary. Lists left out are empty.
   ReceiptVocabulary({
@@ -35,6 +44,9 @@ class ReceiptVocabulary {
     this.pointsLabels = const [],
     this.roundingLabels = const [],
     this.countLabels = const [],
+    this.loyaltyMarkers = const [],
+    this.ocrWords = const [],
+    this.ocrStretchWords = const [],
   });
 
   /// The words most receipts print. Not any one shop's.
@@ -140,6 +152,34 @@ class ReceiptVocabulary {
       r'no\.?\s*of\s*(?:items?|qty|pcs)',
       r'^(?:qty|quantity|items?|pcs|pieces)',
     ],
+    loyaltyMarkers: const [
+      'loyalty',
+      r'(?:star|reward|bonus|club)\s*points?',
+      'points',
+      r'rewards?',
+      r'earned\s+on\s+this',
+    ],
+    ocrWords: const [
+      'net',
+      'sub',
+      'gross',
+      'grand',
+      'balance',
+      'cash',
+      'card',
+      'change',
+      'amount',
+      'due',
+      'payable',
+      'discount',
+      'points',
+      'paid',
+      'visa',
+      'master',
+      'tender',
+      'bill',
+    ],
+    ocrStretchWords: const ['total', 'subtotal', 'time'],
   );
 
   /// Labels before the store's name: `Billed Store : Keells - Katubedda`.
@@ -199,6 +239,16 @@ class ReceiptVocabulary {
   /// A count of items, not a figure: `TOTAL ITEMS 5`.
   final List<String> countLabels;
 
+  /// Words that open a loyalty block below the bill — `Loyalty Customer`,
+  /// `Star Points` — whose own `Total:` and dates are not the bill's.
+  final List<String> loyaltyMarkers;
+
+  /// Label words read through OCR's confusable characters ([mend]).
+  final List<String> ocrWords;
+
+  /// Label words read through one more edit besides ([mend]).
+  final List<String> ocrStretchWords;
+
   /// This vocabulary with [more]'s words added to every list.
   ReceiptVocabulary extendedBy(ReceiptVocabulary more) => ReceiptVocabulary(
     merchantLabels: [...merchantLabels, ...more.merchantLabels],
@@ -220,6 +270,9 @@ class ReceiptVocabulary {
     pointsLabels: [...pointsLabels, ...more.pointsLabels],
     roundingLabels: [...roundingLabels, ...more.roundingLabels],
     countLabels: [...countLabels, ...more.countLabels],
+    loyaltyMarkers: [...loyaltyMarkers, ...more.loyaltyMarkers],
+    ocrWords: [...ocrWords, ...more.ocrWords],
+    ocrStretchWords: [...ocrStretchWords, ...more.ocrStretchWords],
   );
 
   /// Any of [words], as a whole word, anywhere in a line.
@@ -311,21 +364,85 @@ class ReceiptVocabulary {
   /// A rounding adjustment.
   late final RegExp rounding = _anywhere(roundingLabels);
 
+  /// A word that opens a loyalty block.
+  late final RegExp loyaltyMarker = _anywhere(loyaltyMarkers);
+
+  /// [text] with every word OCR misread as a label word put right: `Net
+  /// Totai` → `Net total`, `Sub fotal` → `Sub total`, `ime End` → `time
+  /// End`. Figures and words that are no label's are left as they are.
+  String mend(String text) => text.replaceAllMapped(_word, (m) {
+    final word = m[0]!;
+    final lower = word.toLowerCase();
+    if (RegExp('[a-z]').allMatches(lower).length < 2) return word;
+    for (final label in ocrWords) {
+      if (lower != label && _sameToOcr(lower, label)) return label;
+    }
+    for (final label in ocrStretchWords) {
+      if (lower != label && _oneEditFrom(lower, label)) return label;
+    }
+    return word;
+  });
+
+  static final _word = RegExp(r'[A-Za-z0-9|!]{3,}');
+
+  /// The characters OCR takes for one another.
+  static const _confusable = ['il1|!', 'o0', 's5', 'b8'];
+
+  static bool _confusedChars(String a, String b) =>
+      a == b || _confusable.any((set) => set.contains(a) && set.contains(b));
+
+  /// True when [word] is [label] with characters OCR confuses.
+  static bool _sameToOcr(String word, String label) {
+    if (word.length != label.length) return false;
+    for (var i = 0; i < word.length; i++) {
+      if (!_confusedChars(word[i], label[i])) return false;
+    }
+    return true;
+  }
+
+  /// True when [word] is [label] once confusable characters are allowed and
+  /// at most one character is wrong, missing or extra.
+  static bool _oneEditFrom(String word, String label) {
+    if ((word.length - label.length).abs() > 1) return false;
+    var i = 0;
+    var j = 0;
+    var edits = 0;
+    while (i < word.length && j < label.length) {
+      if (_confusedChars(word[i], label[j])) {
+        i++;
+        j++;
+        continue;
+      }
+      if (++edits > 1) return false;
+      if (word.length > label.length) {
+        i++;
+      } else if (word.length < label.length) {
+        j++;
+      } else {
+        i++;
+        j++;
+      }
+    }
+    return edits + (word.length - i) + (label.length - j) <= 1;
+  }
+
   /// A count of items.
   late final RegExp count = RegExp(
     countLabels.isEmpty ? r'(?!)' : '(?:${countLabels.join('|')})\\b',
     caseSensitive: false,
   );
 
-  /// What a priced line with [label] before its figure is, when it is not
-  /// an item or a discount; null when it may be either.
+  /// What a priced line with [printed] before its figure is, when it is not
+  /// an item or a discount; null when it may be either. The label is
+  /// [mend]ed first.
   ///
   /// The order is the point: points before change (`Change Money
   /// Redemption of Points`), change before the total (`Total Change`), a
   /// count before the total (`TOTAL ITEMS`), gross before net (`Total Gross
   /// Amount`), a total that holds its tax before the tax (`TOTAL INCL.
   /// VAT`), and tax before the total (`TOTAL VAT`).
-  LineRole? roleOf(String label) {
+  LineRole? roleOf(String printed) {
+    final label = mend(printed);
     if (points.hasMatch(label)) return LineRole.points;
     if (change.hasMatch(label)) return LineRole.change;
     if (rounding.hasMatch(label)) return LineRole.rounding;
@@ -376,11 +493,32 @@ class ReceiptVocabulary {
   /// `TOTAL` on a line of its own is still the label it is. `Oty` is how
   /// OCR reads `Qty` in a small font.
   static final columnTitles = RegExp(
-    r'^(?:(?:#|ln|sn|sr|no|code|item|items|product|description|desc|'
-    r'particulars|price|rate|unit|qty|oty|quantity|amount|amt|total|value|'
-    r'disc|discount)[.:#]?\s*){3,}$',
+    '^(?:$_columnTitle[.:#]?\\s*){3,}\$',
     caseSensitive: false,
   );
+
+  static const _columnTitle =
+      r'(?:#|ln|sn|sr|no|code|item|items|product|description|desc|'
+      r'particulars|price|rate|unit|qty|oty|quantity|amount|amt|total|value|'
+      r'disc|discount)';
+
+  static final _oneColumnTitle = RegExp(
+    '^$_columnTitle[.:#]?\$',
+    caseSensitive: false,
+  );
+
+  /// True when [line] is a row of column titles: [columnTitles], or three
+  /// titles and one word with no digit that a cropped photo cut short —
+  /// `TEM QTY PRICE AMOUNT`.
+  static bool isColumnTitles(String line) {
+    if (columnTitles.hasMatch(line)) return true;
+    final words = line.trim().split(RegExp(r'\s+'));
+    final titles = words.where(_oneColumnTitle.hasMatch).length;
+    final others = words.where((w) => !_oneColumnTitle.hasMatch(w));
+    return titles >= 3 &&
+        others.length == 1 &&
+        !others.single.contains(RegExp(r'\d'));
+  }
 
   /// An unpriced line that says how the bill was paid — one that starts
   /// with the saying, so `CASH BILL` and `Card No` do not.

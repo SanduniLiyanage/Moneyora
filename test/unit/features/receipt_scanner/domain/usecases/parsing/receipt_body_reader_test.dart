@@ -30,7 +30,7 @@ void main() {
         SummaryLine(LineRole.net, 53500),
         SummaryLine(LineRole.points, 348),
         SummaryLine(LineRole.tender, 60000, method: PaymentMethod.cash),
-        SummaryLine(LineRole.change, 6848),
+        SummaryLine(LineRole.change, 6848, afterPayment: true),
       ]);
       expect(body.paymentMethod, PaymentMethod.cash);
     });
@@ -115,6 +115,37 @@ void main() {
       );
 
       expect(body.items.single.item.name, 'TEA BAGS 100S');
+    });
+
+    test('a code row is named by the line above it, and keeps its code', () {
+      final body = read(
+        'TEM QTY PRICE AMOUNT\n'
+        'CHUPA CHUPS GUM FILL. LOLLIPOP\n'
+        'SCEO833 1000 50.00 50.00\n'
+        'IMPORTED MANDARIN\n'
+        'FT30317 ).160 1,56O.00 249.60',
+      );
+
+      expect(body.items.map((i) => (i.item.name, i.code, i.item.quantity)), [
+        ('CHUPA CHUPS GUM FILL. LOLLIPOP', 'SCEO833', 1.0),
+        ('IMPORTED MANDARIN', 'FT30317', 0.16),
+      ]);
+    });
+
+    test('a misread total split over two lines is still the total', () {
+      final body = read('TEA 599.60\nNet Tota\nS99.60\nCARD 599.60');
+
+      expect(body.summaries.first, const SummaryLine(LineRole.net, 59960));
+      expect(body.items.length, 1);
+    });
+
+    test('a total printed below the payment says so', () {
+      final body = read('TEA 100.00\nCASH 100.00\nTOTAL 100.00');
+
+      expect(
+        body.summaries.last,
+        const SummaryLine(LineRole.total, 10000, afterPayment: true),
+      );
     });
 
     test('a line of words between unnumbered items is a heading', () {

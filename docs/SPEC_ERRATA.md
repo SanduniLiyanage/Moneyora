@@ -2739,6 +2739,33 @@ that was.
     chain's own abbreviations (Keells' `Dis`, `Nexus Deals`) are added by
     a profile that recognises its receipts, and change no other shop's.
 
+### Addendum, 2026-10-10 — a Cargills till receipt, photographed
+
+A camera photo of crumpled thermal paper, its left edge cropped, read as
+four items named by their article codes, `Net Totai` as a fifth item, and
+the Star Points block's `Total: 180.62` as the bill's total. None of it
+needed a Cargills profile; every rule below is generic.
+
+11. **A loyalty block below the bill is not the bill.** From the first
+    line naming points or loyalty after the bill's total or payment, to
+    the end, nothing is an item or a total. Its date is used only when the
+    bill's own was lost, and the bill's labelled time then beats the
+    block's.
+12. **A label OCR misread is still the label.** A word differing from a
+    label word only by characters OCR confuses (i/l/1, o/0, s/5, b/8) is
+    that word; `total` and `time` also survive one more wrong, missing or
+    extra letter (`Sub fotal`, `Net Tota`, `ime End`). No other word does,
+    because `GLOSS` is one edit from `GROSS` and `CHARGE` from `CHANGE`.
+13. **A code row is named by the line above it.** `SCE0833 1.000 50.00
+    50.00` under `CHUPA CHUPS GUM FILL. LOLLIPOP` is one item, the code
+    kept as its code.
+14. **The amount decides a misread quantity.** A quantity that does not
+    make the amount with the price is repaired when the quantity the
+    amount implies has the same digits — `1000` for 1.000, `).160` for
+    0.160 — and dropped otherwise.
+15. **A total printed below the payment is tried last**, after every total
+    printed above it.
+
 ---
 
 ## Traceability

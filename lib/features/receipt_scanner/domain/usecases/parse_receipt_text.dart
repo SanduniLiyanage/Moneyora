@@ -21,8 +21,8 @@ import 'parsing/receipt_vocabulary.dart';
 /// Three stages of its own, each in `parsing/` and each testable on plain
 /// text:
 /// 1. [ReceiptHeaderReader] — the phone's and the email's text around the
-///    receipt set aside, then the merchant, the date and time, and the
-///    receipt number;
+///    receipt, and a loyalty block below it, set aside; then the merchant,
+///    the date and time, and the receipt number;
 /// 2. [ReceiptBodyReader] — every other priced line sorted into items,
 ///    discounts, and summary lines (totals, tax, payments, change);
 /// 3. [ReceiptReconciler] — discounts matched to their items, tax spread,

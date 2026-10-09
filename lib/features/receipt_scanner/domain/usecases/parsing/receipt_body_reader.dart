@@ -1,4 +1,5 @@
 import '../../entities/payment_method.dart';
+import '../../entities/receipt_line_item.dart';
 import 'priced_line.dart';
 import 'receipt_body.dart';
 import 'receipt_vocabulary.dart';
@@ -36,6 +37,13 @@ import 'receipt_vocabulary.dart';
 ///   row is the next number, or the table ends, the fragment is the soap's.
 ///   On a receipt without row numbers a line of words above a priced line
 ///   with its own words is a heading, and dropped.
+/// - **A code row takes the words above it as its name.** A till that
+///   prints `CHUPA CHUPS GUM FILL. LOLLIPOP` and then `SCE0833 1.000 50.00
+///   50.00` has printed one item; the code is kept as the item's code,
+///   never its name.
+/// - **A total printed after the payment is a last resort.** The bill's
+///   total comes before the cash or the card; a `Total` below them is more
+///   often a loyalty balance than the bill.
 /// - **The merchant line never joins** — the header reader has it.
 /// - **A line priced at nothing is not an item.** A free bag at 0.00 is not
 ///   an expense.
@@ -66,6 +74,7 @@ class ReceiptBodyReader {
     final pending = <String>[];
     var inDiscounts = false;
     var afterGross = false;
+    var afterPayment = false;
     // The item printed directly above, while only discounts came between.
     int? below;
 
@@ -103,7 +112,7 @@ class ReceiptBodyReader {
       }
       final line = PricedLine.collapse(raw);
       if (line.isEmpty) continue;
-      final isColumnTitles = ReceiptVocabulary.columnTitles.hasMatch(line);
+      final isColumnTitles = ReceiptVocabulary.isColumnTitles(line);
       if (isColumnTitles ||
           ReceiptVocabulary.noise.hasMatch(line) ||
           (band == _Band.header &&
@@ -146,7 +155,11 @@ class ReceiptBodyReader {
           ? PricedLine.of('${pending.join(' ')} ${priced.line}')!
           : priced;
       final role = _vocabulary.roleOf(effective.rest);
-      if (joins) {
+      final namedAbove =
+          !joins && priced.isCodeRow && pending.isNotEmpty && role == null
+          ? pending.join(' ')
+          : null;
+      if (joins || namedAbove != null) {
         pending.clear();
       } else {
         final last = items.lastOrNull?.rowNumber;
@@ -167,6 +180,7 @@ class ReceiptBodyReader {
             method: role == LineRole.tender
                 ? _vocabulary.methodOf(effective.rest)
                 : null,
+            afterPayment: afterPayment,
           ),
         );
         switch (role) {
@@ -176,6 +190,7 @@ class ReceiptBodyReader {
             if (band == _Band.body) band = _Band.footer;
           case LineRole.tender:
             paidBy ??= _vocabulary.methodOf(effective.rest);
+            afterPayment = true;
             if (band == _Band.body) band = _Band.footer;
           default:
         }
@@ -210,7 +225,11 @@ class ReceiptBodyReader {
       band = _Band.body;
       if (effective.toItem() case final item?) {
         items.add(
-          ItemLine(item, rowNumber: effective.rowNumber, code: effective.code),
+          ItemLine(
+            namedAbove == null ? item : _renamed(item, namedAbove),
+            rowNumber: effective.rowNumber,
+            code: effective.code,
+          ),
         );
         below = items.length - 1;
       }
@@ -235,6 +254,14 @@ class ReceiptBodyReader {
     LineRole.tax,
     LineRole.service,
   };
+
+  static ReceiptLineItem _renamed(ReceiptLineItem item, String name) =>
+      ReceiptLineItem(
+        name: name,
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        totalPriceCents: item.totalPriceCents,
+      );
 
   /// Up to three words with no discount, rate or role in them: `4S`,
   /// `200G PKT`.

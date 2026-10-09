@@ -88,7 +88,12 @@ class DiscountLine extends Equatable {
 /// figure.
 class SummaryLine extends Equatable {
   /// Creates the line.
-  const SummaryLine(this.role, this.cents, {this.method});
+  const SummaryLine(
+    this.role,
+    this.cents, {
+    this.method,
+    this.afterPayment = false,
+  });
 
   /// What the line says about the bill.
   final LineRole role;
@@ -99,8 +104,11 @@ class SummaryLine extends Equatable {
   /// Cash or card, for a tender line that says which.
   final PaymentMethod? method;
 
+  /// True when it was printed below a payment line.
+  final bool afterPayment;
+
   @override
-  List<Object?> get props => [role, cents, method];
+  List<Object?> get props => [role, cents, method, afterPayment];
 }
 
 /// Everything priced on a receipt, sorted by what it is but not yet
