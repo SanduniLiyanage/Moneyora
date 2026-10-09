@@ -15,6 +15,7 @@ import 'package:moneyora/features/debts/domain/entities/debt.dart';
 import 'package:moneyora/features/debts/domain/repositories/debt_repository.dart';
 import 'package:moneyora/features/debts/presentation/pages/debt_form_page.dart';
 import 'package:moneyora/features/debts/presentation/pages/debts_page.dart';
+import 'package:moneyora/features/debts/presentation/pages/split_bill_page.dart';
 import 'package:moneyora/injection.dart';
 
 import 'large_text.dart';
@@ -60,6 +61,10 @@ class _InMemoryDebts implements DebtRepository {
     _changes.add(null);
     return Right(id);
   }
+
+  @override
+  Future<Either<Failure, List<int>>> addAll(List<Debt> debts) async =>
+      Right([for (final debt in debts) (await add(debt)).getOrElse((_) => -1)]);
 
   @override
   Future<Either<Failure, Unit>> update(Debt debt) async {
@@ -117,6 +122,10 @@ void main() {
             path: Routes.debtForm,
             builder: (context, state) =>
                 DebtFormPage(initial: state.extra as Debt?),
+          ),
+          GoRoute(
+            path: Routes.splitBill,
+            builder: (context, state) => const SplitBillPage(),
           ),
         ],
       ),
@@ -263,6 +272,142 @@ void main() {
 
     expect(repository.debts, isEmpty);
     expect(find.text('No debts yet'), findsOneWidget);
+  });
+
+  group('splitting a bill. FR-DBT-004', () {
+    Future<void> openSplit(WidgetTester tester, _InMemoryDebts debts) async {
+      await open(tester, debts);
+      await tester.tap(find.byTooltip('Split a bill'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows each share as it is typed, adding up to the bill, '
+        'and saves what the others owe', (tester) async {
+      final repository = _InMemoryDebts();
+      await openSplit(tester, repository);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Total'), '1000');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What for (optional)'),
+        'Dinner',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Person 2'),
+        'Nimal',
+      );
+      await tester.tap(find.text('Add a person'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Person 3'),
+        'Saman',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Shared by 3'), findsOneWidget);
+      // 1,000 in three: the odd cent is the user's.
+      expect(find.text('Rs333.34'), findsOneWidget);
+      expect(find.text('Rs333.33'), findsNWidgets(2));
+
+      await tester.tap(find.text('Save as debts'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.debts.map((d) => (d.person, d.direction, d.amountCents)),
+        [
+          ('Nimal', DebtDirection.owedToMe, 33333),
+          ('Saman', DebtDirection.owedToMe, 33333),
+        ],
+      );
+      expect(repository.debts.first.note, 'Dinner, split 3 ways');
+      // Back on the list, which shows them.
+      expect(find.text('Owed to you'), findsNWidgets(2));
+    });
+
+    testWidgets('someone else paid: the user owes them a share', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts();
+      await openSplit(tester, repository);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Total'), '900');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Person 2'),
+        'Nimal',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('You').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nimal').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('You will owe Nimal Rs450.00.'), findsOneWidget);
+      await tester.tap(find.text('Save as debts'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.single.direction, DebtDirection.iOwe);
+      expect(repository.debts.single.amountCents, 45000);
+    });
+
+    testWidgets('a person with no name is refused, and nothing is saved', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts();
+      await openSplit(tester, repository);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Total'), '900');
+      await tester.tap(find.text('Save as debts'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Give everyone a name.'), findsOneWidget);
+      expect(repository.debts, isEmpty);
+    });
+
+    testWidgets('removing the one who paid hands it back to the user', (
+      tester,
+    ) async {
+      await openSplit(tester, _InMemoryDebts());
+
+      await tester.enterText(find.widgetWithText(TextField, 'Total'), '900');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Person 2'),
+        'Nimal',
+      );
+      await tester.tap(find.text('Add a person'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Person 3'),
+        'Saman',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('You').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Saman').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Remove').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Each of the others will owe you their share.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('holds at the largest font on a 320dp phone', (tester) async {
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(boot(_InMemoryDebts()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Split a bill'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Total'),
+        '1234567',
+      );
+      await tester.pumpAndSettle();
+      await scrollToEnd(tester);
+
+      expect(find.text('Save as debts'), findsOneWidget);
+    });
   });
 
   testWidgets('holds at the largest font on a 320dp phone. SRS §4.1', (

@@ -32,6 +32,10 @@ class _FakeRepository implements DebtRepository {
   }
 
   @override
+  Future<Either<Failure, List<int>>> addAll(List<Debt> debts) =>
+      throw UnimplementedError();
+
+  @override
   Stream<Either<Failure, List<Debt>>> watch() => throw UnimplementedError();
 }
 

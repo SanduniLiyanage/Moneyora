@@ -22,6 +22,7 @@ import '../../features/copilot/presentation/pages/copilot_page.dart';
 import '../../features/debts/domain/entities/debt.dart';
 import '../../features/debts/presentation/pages/debt_form_page.dart';
 import '../../features/debts/presentation/pages/debts_page.dart';
+import '../../features/debts/presentation/pages/split_bill_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/money_plan/domain/entities/allocation_request.dart';
 import '../../features/money_plan/domain/usecases/compare_plans.dart';
@@ -159,6 +160,10 @@ abstract final class Routes {
   /// Recording or changing one debt, the shape of [accountForm]: the debt
   /// to change travels as `extra`, and none opens a new one. FR-DBT-001.
   static const String debtForm = '/debts/form';
+
+  /// A bill shared between several people, split evenly into the debts it
+  /// leaves. FR-DBT-004, E-44.
+  static const String splitBill = '/debts/split';
 }
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
@@ -386,6 +391,11 @@ GoRouter buildRouter() => GoRouter(
           path: _child(Routes.debts),
           name: 'debts',
           builder: (context, state) => const DebtsPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.splitBill),
+          name: 'splitBill',
+          builder: (context, state) => const SplitBillPage(),
         ),
         GoRoute(
           path: _child(Routes.debtForm),

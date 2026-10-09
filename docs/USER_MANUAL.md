@@ -138,6 +138,14 @@ A debt is not a transaction: marking one paid does not move money
 between your accounts. Record the payment as an expense or income if it
 went through one.
 
+**Splitting a bill.** The split icon at the top of **Debts** shares a bill
+evenly. Type the total, what it was for, and the name of everyone you
+shared it with (**Add a person** for more), and choose **who paid**. Each
+share is shown as you type, and they add up to the bill exactly. **Save as
+debts**: if you paid, each of the others owes you their share; if someone
+else paid, you owe them yours. What you paid yourself, record as an
+expense with **−** as usual.
+
 ### Moving money between your own accounts
 
 Tap **⇄** at the top of the home screen (or **Transfer** in the menu, or

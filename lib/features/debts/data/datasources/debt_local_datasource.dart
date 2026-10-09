@@ -21,6 +21,10 @@ abstract interface class DebtLocalDataSource {
   /// Inserts [debt] and returns its new id.
   Future<int> add(DebtModel debt);
 
+  /// Inserts every one of [debts] in one database transaction, all or
+  /// none, and returns their ids in order. FR-DBT-004.
+  Future<List<int>> addAll(List<DebtModel> debts);
+
   /// Replaces the row with [debt]'s id.
   Future<void> update(DebtModel debt);
 
@@ -86,6 +90,26 @@ class DebtLocalDataSourceImpl implements DebtLocalDataSource {
     );
     _changes.notify();
     return id;
+  }
+
+  @override
+  Future<List<int>> addAll(List<DebtModel> debts) async {
+    final now = _clock();
+    final stamp = now.toUtc().toIso8601String();
+    final ids = await _guard(
+      'save the debts',
+      () => _db.transaction((txn) async {
+        return [
+          for (final debt in debts)
+            await txn.insert('debts', {
+              ...debt.toMap(now: now),
+              'created_at': stamp,
+            }),
+        ];
+      }),
+    );
+    _changes.notify();
+    return ids;
   }
 
   @override

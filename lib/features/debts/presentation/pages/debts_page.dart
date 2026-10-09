@@ -18,7 +18,8 @@ import '../providers/debt_providers.dart';
 /// What is owed to the user and what they owe, in total, then each open
 /// debt under its side, the soonest due first, and the paid ones folded
 /// away below. A tick on a row marks it paid, with Undo; tapping a row
-/// opens it to change or delete.
+/// opens it to change or delete. The app bar's split icon shares a bill
+/// between several people (FR-DBT-004).
 class DebtsPage extends ConsumerWidget {
   /// Creates the screen.
   const DebtsPage({super.key});
@@ -29,7 +30,16 @@ class DebtsPage extends ConsumerWidget {
     final today = ref.watch(clockProvider)();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Debts')),
+      appBar: AppBar(
+        title: const Text('Debts'),
+        actions: [
+          IconButton(
+            tooltip: 'Split a bill',
+            icon: const Icon(Icons.call_split),
+            onPressed: () => context.push(Routes.splitBill),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(Routes.debtForm),
         icon: const Icon(Icons.add),
@@ -50,7 +60,8 @@ class DebtsPage extends ConsumerWidget {
               title: 'No debts yet',
               body:
                   'Tap Add debt to record money you lent or borrowed, and '
-                  'tick it off when it is paid back.',
+                  'tick it off when it is paid back. A bill shared with '
+                  'friends is split from the icon at the top.',
             );
           }
 
