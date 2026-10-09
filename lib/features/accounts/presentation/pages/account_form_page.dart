@@ -12,6 +12,9 @@ import '../providers/account_providers.dart';
 
 /// Creating and editing an account. FR-ACC-001, FR-ACC-002, FR-ACC-006.
 ///
+/// A credit card also has its terms here — the limit, the statement and
+/// due days, the interest rate — all optional (FR-ACC-008, E-43).
+///
 /// One screen for both, because they are the same fields and a user thinks of
 /// it as "the account". [initial] being null is what makes it a new one.
 ///
@@ -22,10 +25,14 @@ import '../providers/account_providers.dart';
 /// and the copy that drifts is always the one nobody is testing.
 class AccountFormPage extends ConsumerStatefulWidget {
   /// Creates the form, editing [initial] when one is given.
-  const AccountFormPage({super.key, this.initial});
+  const AccountFormPage({super.key, this.initial, this.initialType});
 
   /// The account being edited, or null when creating one.
   final Account? initial;
+
+  /// The type a new account starts as; cash when null. The credit cards
+  /// screen opens the form on a card.
+  final AccountType? initialType;
 
   @override
   ConsumerState<AccountFormPage> createState() => _AccountFormPageState();
@@ -35,6 +42,12 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
   late final TextEditingController _name;
   late final TextEditingController _currency;
   late final TextEditingController _openingBalance;
+
+  // A credit card's terms (E-43), shown only while the type is a card.
+  late final TextEditingController _limit;
+  late final TextEditingController _statementDay;
+  late final TextEditingController _dueDay;
+  late final TextEditingController _apr;
 
   late AccountType _type;
   late String _iconKey;
@@ -76,12 +89,40 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
           : formatCents(initial.initialBalanceCents, showSymbol: false),
     );
 
-    _type = initial?.type ?? AccountType.cash;
+    final card = initial?.creditCard ?? CreditCardTerms.none;
+    _limit = TextEditingController(
+      text: switch (card.limitCents) {
+        final cents? => formatCents(cents, showSymbol: false),
+        null => '',
+      },
+    );
+    _statementDay = TextEditingController(
+      text: card.statementDay?.toString() ?? '',
+    );
+    _dueDay = TextEditingController(text: card.dueDay?.toString() ?? '');
+    // Basis points are hundredths of a percent, so they read and write as
+    // cents do: 2450 is "24.50".
+    _apr = TextEditingController(
+      text: switch (card.aprBasisPoints) {
+        final bps? => formatCents(bps, showSymbol: false),
+        null => '',
+      },
+    );
+
+    _type = initial?.type ?? widget.initialType ?? AccountType.cash;
     _iconKey = initial?.icon ?? defaultAccountIconKey;
     _openedOn = initial?.initialBalanceDate ?? DateTime.now();
     _includeInTotal = initial?.includeInTotal ?? true;
 
-    for (final controller in [_name, _currency, _openingBalance]) {
+    for (final controller in [
+      _name,
+      _currency,
+      _openingBalance,
+      _limit,
+      _statementDay,
+      _dueDay,
+      _apr,
+    ]) {
       // Rebuild as they type so the live validation below keeps up.
       controller.addListener(() => setState(() {}));
     }
@@ -92,6 +133,10 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     _name.dispose();
     _currency.dispose();
     _openingBalance.dispose();
+    _limit.dispose();
+    _statementDay.dispose();
+    _dueDay.dispose();
+    _apr.dispose();
     super.dispose();
   }
 
@@ -112,7 +157,38 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     currentBalanceCents: widget.initial?.currentBalanceCents ?? 0,
     initialBalanceDate: _openedOn,
     includeInTotal: _includeInTotal,
+    // Terms mean something on a card alone: changed to another type, the
+    // account keeps none.
+    creditCard: _type == AccountType.creditCard
+        ? CreditCardTerms(
+            limitCents: _cardFigure(_limit),
+            statementDay: int.tryParse(_statementDay.text.trim()),
+            dueDay: int.tryParse(_dueDay.text.trim()),
+            aprBasisPoints: _cardFigure(_apr),
+          )
+        : CreditCardTerms.none,
   );
+
+  /// A limit or a rate as typed, in hundredths; null when blank or not a
+  /// number.
+  static int? _cardFigure(TextEditingController field) =>
+      parseToCents(field.text);
+
+  /// The card's fields holding something that is not a number, by the
+  /// field name `AddAccount.validate` uses for each.
+  Set<String> get _cardUnreadable => {
+    if (_type == AccountType.creditCard) ...{
+      if (_limit.text.trim().isNotEmpty && _cardFigure(_limit) == null)
+        'creditLimit',
+      if (_statementDay.text.trim().isNotEmpty &&
+          int.tryParse(_statementDay.text.trim()) == null)
+        'statementDay',
+      if (_dueDay.text.trim().isNotEmpty &&
+          int.tryParse(_dueDay.text.trim()) == null)
+        'dueDay',
+      if (_apr.text.trim().isNotEmpty && _cardFigure(_apr) == null) 'apr',
+    },
+  };
 
   /// The opening balance as typed, in minor units; null when the box is
   /// empty or holds something that is not a number.
@@ -132,6 +208,7 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
   /// The message for [field], once the user has tried to save.
   String? _errorFor(String field) {
     if (!_submitted) return null;
+    if (_cardUnreadable.contains(field)) return 'Type a number.';
     final problem = _problem;
     return problem != null && problem.field == field ? problem.message : null;
   }
@@ -154,7 +231,9 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
     // avoids a pointless round trip; the message shown is still its message.
     // An amount that is not a number never reaches it: that is the box's to
     // say, beside the box.
-    if (_problem != null || _openingUnreadable) return;
+    if (_problem != null || _openingUnreadable || _cardUnreadable.isNotEmpty) {
+      return;
+    }
 
     final saved = await ref
         .read(saveAccountControllerProvider.notifier)
@@ -322,6 +401,9 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                       // Signed, unlike a transaction amount: a credit card
                       // legitimately opens owing money.
                       hintText: '0.00',
+                      helperText: _type == AccountType.creditCard
+                          ? 'Owed on it? Type it with a minus.'
+                          : null,
                       border: const OutlineInputBorder(),
                       errorText: _submitted && _openingUnreadable
                           ? 'Type an amount, like 2500.00.'
@@ -381,6 +463,76 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                   ),
                 ),
               ),
+            if (_type == AccountType.creditCard) ...[
+              const SizedBox(height: 16),
+              Text('Credit card', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(
+                'Optional. With these, Credit cards in the menu shows what '
+                'is left to spend, when payment is due, and what owing '
+                'costs.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _limit,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Credit limit',
+                  hintText: '0.00',
+                  border: const OutlineInputBorder(),
+                  errorText: _errorFor('creditLimit'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _statementDay,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Statement day',
+                        hintText: '1–31',
+                        border: const OutlineInputBorder(),
+                        errorText: _errorFor('statementDay'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _dueDay,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Payment due day',
+                        hintText: '1–31',
+                        border: const OutlineInputBorder(),
+                        errorText: _errorFor('dueDay'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _apr,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Interest rate, % a year',
+                  hintText: '24.00',
+                  border: const OutlineInputBorder(),
+                  errorText: _errorFor('apr'),
+                ),
+              ),
+            ],
             const Divider(height: 32),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

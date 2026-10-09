@@ -56,6 +56,36 @@ class AddAccount implements UseCase<int, Account> {
     // initialBalanceCents is deliberately unchecked for sign. A credit card
     // opens owing money, so a negative opening balance is ordinary rather
     // than suspicious - unlike a transaction amount, which never is.
+    return _validateCard(account.creditCard);
+  }
+
+  /// The card's terms, each as the schema's CHECK has it (E-43).
+  static ValidationFailure? _validateCard(CreditCardTerms card) {
+    if (card.limitCents case final limit? when limit <= 0) {
+      return const ValidationFailure(
+        'A credit limit is more than zero.',
+        field: 'creditLimit',
+      );
+    }
+    bool isDay(int? day) => day == null || (day >= 1 && day <= 31);
+    if (!isDay(card.statementDay)) {
+      return const ValidationFailure(
+        'A day of the month, 1 to 31.',
+        field: 'statementDay',
+      );
+    }
+    if (!isDay(card.dueDay)) {
+      return const ValidationFailure(
+        'A day of the month, 1 to 31.',
+        field: 'dueDay',
+      );
+    }
+    if (card.aprBasisPoints case final apr? when apr < 0 || apr > 10000) {
+      return const ValidationFailure(
+        'An interest rate from 0% to 100% a year.',
+        field: 'apr',
+      );
+    }
     return null;
   }
 }

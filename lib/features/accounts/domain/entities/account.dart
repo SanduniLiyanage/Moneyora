@@ -1,8 +1,10 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/ports/account_type.dart';
+import 'credit_card_terms.dart';
 
 export '../../../../core/ports/account_type.dart';
+export 'credit_card_terms.dart';
 
 /// A place money sits: Cash, a payment card, a bank account. FR-ACC-001.
 ///
@@ -23,6 +25,7 @@ class Account extends Equatable {
     this.currentBalanceCents = 0,
     this.includeInTotal = true,
     this.isArchived = false,
+    this.creditCard = CreditCardTerms.none,
   });
 
   /// What a new account holds unless the user says otherwise.
@@ -82,6 +85,10 @@ class Account extends Equatable {
   /// confined to an account with no transactions at all (FR-ACC-007, E-25).
   final bool isArchived;
 
+  /// The limit, statement and due days, and interest rate of a credit card
+  /// (FR-ACC-008); [CreditCardTerms.none] for any other kind of account.
+  final CreditCardTerms creditCard;
+
   /// A copy with the given fields replaced.
   Account copyWith({
     int? id,
@@ -94,6 +101,7 @@ class Account extends Equatable {
     DateTime? initialBalanceDate,
     bool? includeInTotal,
     bool? isArchived,
+    CreditCardTerms? creditCard,
   }) => Account(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -105,6 +113,7 @@ class Account extends Equatable {
     initialBalanceDate: initialBalanceDate ?? this.initialBalanceDate,
     includeInTotal: includeInTotal ?? this.includeInTotal,
     isArchived: isArchived ?? this.isArchived,
+    creditCard: creditCard ?? this.creditCard,
   );
 
   @override
@@ -119,5 +128,6 @@ class Account extends Equatable {
     initialBalanceDate,
     includeInTotal,
     isArchived,
+    creditCard,
   ];
 }

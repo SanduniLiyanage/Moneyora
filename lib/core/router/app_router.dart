@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/domain/entities/account.dart';
 import '../../features/accounts/presentation/pages/account_form_page.dart';
+import '../../features/accounts/presentation/pages/credit_cards_page.dart';
 import '../../features/accounts/presentation/widgets/accounts_section.dart';
 import '../../features/analytics/presentation/pages/reports_page.dart';
 import '../../features/analytics/presentation/providers/analytics_providers.dart';
@@ -147,6 +148,10 @@ abstract final class Routes {
   /// Creating or editing one category, the same shape as [accountForm]: one
   /// path for both, with the category to edit passed as `extra`.
   static const String categoryForm = '/categories/form';
+
+  /// Every credit card, with what is owed, what is left and what owing
+  /// costs. FR-ACC-009, E-43.
+  static const String creditCards = '/credit-cards';
 
   /// Money owed, either way. FR-DBT-002, E-42.
   static const String debts = '/debts';
@@ -344,11 +349,15 @@ GoRouter buildRouter() => GoRouter(
           path: _child(Routes.accountForm),
           name: 'accountForm',
           // `extra` is untyped by go_router, so the cast is checked rather than
-          // assumed: anything that is not an Account — including the null a deep
-          // link brings — opens the form empty rather than crashing.
-          builder: (context, state) => AccountFormPage(
-            initial: state.extra is Account ? state.extra! as Account : null,
-          ),
+          // assumed: an Account is edited, an AccountType starts a new one of
+          // that type (the credit cards screen's "Add a card"), and anything
+          // else — including the null a deep link brings — opens the form
+          // empty rather than crashing.
+          builder: (context, state) => switch (state.extra) {
+            final Account account => AccountFormPage(initial: account),
+            final AccountType type => AccountFormPage(initialType: type),
+            _ => const AccountFormPage(),
+          },
         ),
         GoRoute(
           path: _child(Routes.categories),
@@ -367,6 +376,11 @@ GoRouter buildRouter() => GoRouter(
             final CategoryType type => CategoryFormPage(initialType: type),
             _ => const CategoryFormPage(),
           },
+        ),
+        GoRoute(
+          path: _child(Routes.creditCards),
+          name: 'creditCards',
+          builder: (context, state) => const CreditCardsPage(),
         ),
         GoRoute(
           path: _child(Routes.debts),

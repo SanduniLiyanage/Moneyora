@@ -58,6 +58,7 @@ follows the Resolution sections.
 | [E-40](#e-40) | Plans after the first release: one door, delete and rename, and a plan of one category | Resolved | FR-PLN-001, FR-PLN-011, FR-PLN-015 |
 | [E-41](#e-41) | An opening balance is in no period's balance, so a new account's looks lost | Resolved | FR-ACC-002, FR-RPT-006 |
 | [E-42](#e-42) | Money lent or borrowed has nowhere to go: debts | Resolved (raises FR-DBT-001..003) | FR-DBT-001, FR-DBT-002, FR-DBT-003 |
+| [E-43](#e-43) | A credit card is an account type with none of a card's terms | Resolved (raises FR-ACC-008, FR-ACC-009) | FR-ACC-001, FR-ACC-008, FR-ACC-009 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2583,6 +2584,51 @@ changed and marked paid.
 3. **Backup, restore and Clear all data** cover the table without
    change: they read the tables from `sqlite_master`.
 4. Reached from the menu, as **Debts**, after Recurring.
+
+---
+
+<a id="e-43"></a>
+
+## E-43 — A credit card is an account type with none of a card's terms
+
+**Severity:** Medium · **Affects:** DBD §3.2, SDD SCR-004 ·
+**Requirement:** FR-ACC-001; raises FR-ACC-008, FR-ACC-009
+
+Raised 2026-10-09, from a tester using 1.1.0.
+
+FR-ACC-001 lists Credit Card among the account types, and FR-ACC-002
+gives every account the same fields. Nothing records what makes a card a
+card: how much may be owed on it, when its statement is cut, when payment
+is due, and what owing costs. The tester asked to store the limit and the
+due dates, and to see the interest.
+
+**Resolution.** Two requirements, raised here:
+
+| ID | Requirement |
+|---|---|
+| FR-ACC-008 | A Credit Card account optionally stores its credit limit, its statement day and payment due day (each a day of the month), and its yearly interest rate. |
+| FR-ACC-009 | Show each credit card's position: what is owed, of what limit, and what is left to spend; the next statement and payment dates; a month's interest on what is owed at its rate; and how long a chosen monthly payment takes to clear it, with the interest paid on the way. |
+
+1. **Schema v8** adds four nullable columns to `accounts`, with CHECKs:
+   `credit_limit_cents` (above zero), `statement_day` and
+   `payment_due_day` (1 to 31; a shorter month uses its last day), and
+   `apr_basis_points` (0 to 10,000: hundredths of a percent, an integer
+   for the reason money is, E-06). Additive, per SDD §5.3. Null on every
+   other kind of account, and on a card until entered. Changing a card to
+   another type clears them.
+2. **Entered on the account's form**, in a Credit card section shown
+   only for that type, all optional; `AddAccount.validate` refuses what
+   the CHECKs would.
+3. **Shown on Credit cards**, in the menu after Debts. What is owed is
+   the balance below zero, since spending on a card takes its balance
+   down. A figure whose term was not entered is left out, and the card
+   says what to add.
+4. **The interest is an estimate, and says so.** A month's interest is
+   owed × rate ÷ 12, rounded to the minor unit. The payoff adds that each
+   month and then takes the payment off; it refuses a payment that does
+   not cover the interest, and a plan past fifty years. A real card
+   charges daily on its statement balance and sets its own minimum
+   payment, which the app does not know.
 
 ---
 

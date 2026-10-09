@@ -652,6 +652,12 @@ void main() {
     });
 
     testWidgets('the menu holds every screen, Settings last', (tester) async {
+      // A phone's height: thirteen items are taller than the default
+      // 800×600, and the menu's list builds lazily.
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await pumpReady(tester);
       await tester.tap(find.byTooltip('Menu'));
       await tester.pumpAndSettle();
@@ -664,6 +670,7 @@ void main() {
         'Budget plans',
         'Recurring',
         'Debts',
+        'Credit cards',
         'Categories',
         'Accounts',
         'Ask Moneyora',
