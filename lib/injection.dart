@@ -94,6 +94,13 @@ import 'features/copilot/domain/repositories/llm_repository.dart';
 import 'features/copilot/domain/usecases/run_copilot_query.dart';
 import 'features/copilot/domain/usecases/tools/copilot_tool.dart';
 import 'features/copilot/domain/usecases/tools/get_spending_by_category_tool.dart';
+import 'features/debts/data/datasources/debt_local_datasource.dart';
+import 'features/debts/data/repositories/debt_repository_impl.dart';
+import 'features/debts/domain/repositories/debt_repository.dart';
+import 'features/debts/domain/usecases/delete_debt.dart';
+import 'features/debts/domain/usecases/save_debt.dart';
+import 'features/debts/domain/usecases/set_debt_paid.dart';
+import 'features/debts/domain/usecases/watch_debts.dart';
 import 'features/money_plan/data/datasources/money_plan_local_datasource.dart';
 import 'features/money_plan/data/repositories/money_plan_repository_impl.dart';
 import 'features/money_plan/domain/repositories/money_plan_repository.dart';
@@ -1552,4 +1559,49 @@ final exportTransactionsCsvProvider = FutureProvider<ExportTransactionsCsv>(
 final exportTransactionsPdfProvider = FutureProvider<ExportTransactionsPdf>(
   (ref) async =>
       ExportTransactionsPdf(await ref.watch(backupRepositoryProvider.future)),
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Debts — E-42
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reads and writes `debts`. The only holder of SQL for the table.
+///
+/// On the shared [DatabaseChangeBus], so Clear all data and a restore,
+/// which write every table, reach the list too.
+final debtLocalDataSourceProvider = FutureProvider<DebtLocalDataSource>((
+  ref,
+) async {
+  final source = DebtLocalDataSourceImpl(
+    await ref.watch(databaseProvider.future),
+    changeBus: ref.watch(databaseChangeBusProvider),
+  );
+  ref.onDispose(source.dispose);
+  return source;
+});
+
+/// Turns data-layer exceptions into failures. The layer boundary.
+final debtRepositoryProvider = FutureProvider<DebtRepository>(
+  (ref) async =>
+      DebtRepositoryImpl(await ref.watch(debtLocalDataSourceProvider.future)),
+);
+
+/// Every debt, kept live. FR-DBT-002.
+final watchDebtsProvider = FutureProvider<WatchDebts>(
+  (ref) async => WatchDebts(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// Records or changes a debt. FR-DBT-001.
+final saveDebtProvider = FutureProvider<SaveDebt>(
+  (ref) async => SaveDebt(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// Marks a debt paid, or open again. FR-DBT-003.
+final setDebtPaidProvider = FutureProvider<SetDebtPaid>(
+  (ref) async => SetDebtPaid(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// Removes a debt. FR-DBT-003.
+final deleteDebtProvider = FutureProvider<DeleteDebt>(
+  (ref) async => DeleteDebt(await ref.watch(debtRepositoryProvider.future)),
 );

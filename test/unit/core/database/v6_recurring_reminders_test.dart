@@ -70,7 +70,7 @@ void main() {
     () async {
       await DatabaseHelper.migrate(db);
 
-      expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5, 6});
+      expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5, 6, 7});
 
       final user = (await db.query('users')).single;
       expect(user['theme'], 'dark', reason: 'intact');
@@ -130,8 +130,8 @@ void main() {
     });
   });
 
-  test('v6 is the latest version', () {
+  test('v6 is registered, and a later version follows it', () {
     expect(schemaMigrations[v6SchemaVersion], v6Statements);
-    expect(latestSchemaVersion, v6SchemaVersion);
+    expect(latestSchemaVersion, greaterThan(v6SchemaVersion));
   });
 }

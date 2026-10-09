@@ -57,6 +57,7 @@ follows the Resolution sections.
 | [E-39](#e-39) | A plan with too little history: built by hand, never from sample data | Resolved (supersedes E-21's ladder) | FR-PLN-001, FR-PLN-003, FR-PLN-011 |
 | [E-40](#e-40) | Plans after the first release: one door, delete and rename, and a plan of one category | Resolved | FR-PLN-001, FR-PLN-011, FR-PLN-015 |
 | [E-41](#e-41) | An opening balance is in no period's balance, so a new account's looks lost | Resolved | FR-ACC-002, FR-RPT-006 |
+| [E-42](#e-42) | Money lent or borrowed has nowhere to go: debts | Resolved (raises FR-DBT-001..003) | FR-DBT-001, FR-DBT-002, FR-DBT-003 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2542,6 +2543,46 @@ else, and reported the money lost.
    left out of the bar and the list.
 4. **The account form refuses an opening balance that is not a number.**
    It was saved as zero without a word.
+
+---
+
+<a id="e-42"></a>
+
+## E-42 — Money lent or borrowed has nowhere to go: debts
+
+**Severity:** Medium · **Affects:** SRS §3, DBD · **Requirement:** raises
+FR-DBT-001, FR-DBT-002, FR-DBT-003
+
+Raised 2026-10-09, from a tester using 1.1.0.
+
+The SRS has no debts. Money lent to a friend could be recorded only as
+an expense, and money borrowed only as an income, and both are wrong: it
+is still the user's money, or still not theirs, until it is paid back.
+The tester asked for a list of who owes what, which can be added to,
+changed and marked paid.
+
+**Resolution.** Three requirements, raised here:
+
+| ID | Requirement |
+|---|---|
+| FR-DBT-001 | Record a debt: which way it runs (owed to me, or I owe), who, how much, the day it began, and optionally a due day and what it was for. |
+| FR-DBT-002 | List the debts: what is still owed each way in total, the open ones under their side with the soonest due first and the overdue ones said to be, and the paid ones folded away below. |
+| FR-DBT-003 | Mark a debt paid (with Undo), or not paid after all; change it; delete one recorded by mistake, after asking. |
+
+1. **Schema v7** adds one table, `debts`, read and written only by
+   `features/debts/`. Additive, per SDD §5.3: an existing database
+   upgrades with its rows intact (`v7_debts_test.dart`). The amount is
+   positive and the direction carries the sign; the dates are
+   `YYYY-MM-DD` as every date column is.
+2. **A debt is not a transaction and names no account.** It is a
+   promise. When it is kept the money moves through whichever account it
+   moves through, recorded there as any income or expense is; marking it
+   paid records only that it was paid and when. Writing a transaction on
+   "mark as paid" would duplicate one the user may already have
+   recorded, and would have to guess the account.
+3. **Backup, restore and Clear all data** cover the table without
+   change: they read the tables from `sqlite_master`.
+4. Reached from the menu, as **Debts**, after Recurring.
 
 ---
 

@@ -18,6 +18,9 @@ import '../../features/categories/domain/entities/category.dart';
 import '../../features/categories/presentation/pages/category_form_page.dart';
 import '../../features/categories/presentation/pages/category_list_page.dart';
 import '../../features/copilot/presentation/pages/copilot_page.dart';
+import '../../features/debts/domain/entities/debt.dart';
+import '../../features/debts/presentation/pages/debt_form_page.dart';
+import '../../features/debts/presentation/pages/debts_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/money_plan/domain/entities/allocation_request.dart';
 import '../../features/money_plan/domain/usecases/compare_plans.dart';
@@ -144,6 +147,13 @@ abstract final class Routes {
   /// Creating or editing one category, the same shape as [accountForm]: one
   /// path for both, with the category to edit passed as `extra`.
   static const String categoryForm = '/categories/form';
+
+  /// Money owed, either way. FR-DBT-002, E-42.
+  static const String debts = '/debts';
+
+  /// Recording or changing one debt, the shape of [accountForm]: the debt
+  /// to change travels as `extra`, and none opens a new one. FR-DBT-001.
+  static const String debtForm = '/debts/form';
 }
 
 /// The app's routing table. SDD §4.3 specifies `go_router`.
@@ -357,6 +367,23 @@ GoRouter buildRouter() => GoRouter(
             final CategoryType type => CategoryFormPage(initialType: type),
             _ => const CategoryFormPage(),
           },
+        ),
+        GoRoute(
+          path: _child(Routes.debts),
+          name: 'debts',
+          builder: (context, state) => const DebtsPage(),
+        ),
+        GoRoute(
+          path: _child(Routes.debtForm),
+          name: 'debtForm',
+          // Anything that is not a Debt, including a deep link's null,
+          // opens the form empty.
+          builder: (context, state) => DebtFormPage(
+            initial: switch (state.extra) {
+              final Debt debt => debt,
+              _ => null,
+            },
+          ),
         ),
       ],
     ),
