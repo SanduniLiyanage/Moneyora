@@ -35,9 +35,9 @@ choose, or from next month's plan.
 
 **Scan a receipt, skip the typing**
 Photograph a receipt and Moneyora reads the shop, the date and each item
-on your phone. The photo is never uploaded. It suggests a category for each
-line, learns from your corrections, and keeps the photo encrypted beside
-the expenses.
+on your phone, and checks the items against the total. The photo is never
+uploaded. It suggests a category for each line, learns from your
+corrections, and keeps the photo encrypted beside the expenses.
 
 **See where the money went**
 - Home is one screen: a ring of this month's spending, each category's
@@ -49,11 +49,14 @@ the expenses.
 - Filter by day, week, month, year or any dates, and by account
 
 **Recording takes seconds**
-Type the amount on the calculator keypad, then tap a category from a grid
-of icons. That's it: the expense is recorded.
+Type the amount on the calculator keypad, choose a category from a grid of
+icons, and tap Save. That's it: the expense is recorded, with the time.
 
 **Everything else you'd expect**
 - Accounts in any currency, with transfers between them
+- Credit cards: what is left to spend, when payment is due, and what
+  owing costs
+- Debts: money lent and borrowed, and a bill split with friends
 - Repeating expenses and income, with reminders
 - Custom categories and sub-categories
 - Passcode and fingerprint or face unlock

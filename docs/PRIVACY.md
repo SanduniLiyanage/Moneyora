@@ -1,6 +1,6 @@
 # Moneyora — Privacy Policy
 
-*Effective 28 September 2026. Applies to the Moneyora app for Android.*
+*Effective 11 October 2026. Applies to the Moneyora app for Android.*
 
 Moneyora is a personal finance app that keeps your data on your phone.
 There is no Moneyora account, no Moneyora server, and no advertising or
@@ -9,8 +9,9 @@ leave your phone, and when.
 
 ## What Moneyora stores, and where
 
-Everything you enter (accounts, transactions, categories, budgets, plans,
-settings and receipt photos) is stored **only on your phone**:
+Everything you enter (accounts, transactions, debts and the names of the
+people in them, categories, budgets, plans, settings and receipt photos) is
+stored **only on your phone**:
 
 - The database is encrypted (AES-256, SQLCipher). Its key is kept in your
   phone's secure keystore.
