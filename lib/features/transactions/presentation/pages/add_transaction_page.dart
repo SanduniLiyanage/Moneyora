@@ -175,7 +175,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   void _setDate(DateTime next) => setState(() {
     _date = next;
     if (!_timeTouched) {
-      final now = DateTime.now();
+      final now = ref.read(clockProvider)();
       _time = DateUtils.isSameDay(next, now)
           ? storedTime(TimeOfDay.fromDateTime(now))
           : null;
@@ -205,9 +205,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _type = initial?.type ?? widget.type;
     _categoryId = initial?.categoryId;
     _accountId = initial?.accountId;
-    _date = initial?.date ?? DateTime.now();
+    final now = ref.read(clockProvider)();
+    _date = initial?.date ?? now;
     _time = initial == null
-        ? storedTime(TimeOfDay.fromDateTime(DateTime.now()))
+        ? storedTime(TimeOfDay.fromDateTime(now))
         : initial.time;
     _timeTouched = initial != null;
     _note = TextEditingController(text: initial?.note ?? '');
@@ -456,6 +457,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final saving = ref.watch(saveTransactionControllerProvider).isLoading;
     final tint = _isExpense ? colors.expense : colors.income;
     final onBar = theme.appBarTheme.foregroundColor ?? colors.onBrand;
+    final now = ref.watch(clockProvider)();
 
     return Scaffold(
       appBar: AppBar(
@@ -549,8 +551,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                             alignment: WrapAlignment.center,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              _DateButton(date: _date, onChanged: _setDate),
-                              _TimeButton(time: _time, onChanged: _setTime),
+                              _DateButton(
+                                date: _date,
+                                now: now,
+                                onChanged: _setDate,
+                              ),
+                              _TimeButton(
+                                time: _time,
+                                now: now,
+                                onChanged: _setTime,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -933,15 +943,21 @@ class _PhotoPage extends ConsumerWidget {
 /// The date, at the top, defaulting to today because that is what almost
 /// every entry is.
 class _DateButton extends StatelessWidget {
-  const _DateButton({required this.date, required this.onChanged});
+  const _DateButton({
+    required this.date,
+    required this.now,
+    required this.onChanged,
+  });
 
   final DateTime date;
+
+  /// The clock's reading: this year, and the last day the picker offers.
+  final DateTime now;
   final ValueChanged<DateTime> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final now = DateTime.now();
     // The year only when it is not this one: "Tuesday, 6 October" is the
     // whole answer almost every time.
     final format = date.year == now.year
@@ -969,10 +985,17 @@ class _DateButton extends StatelessWidget {
 
 /// The time of day, beside the date, with a way to remove it. FR-EXP-001.
 class _TimeButton extends StatelessWidget {
-  const _TimeButton({required this.time, required this.onChanged});
+  const _TimeButton({
+    required this.time,
+    required this.now,
+    required this.onChanged,
+  });
 
   /// `HH:MM`, or null for none.
   final String? time;
+
+  /// The clock's reading: where the picker opens when there is no time.
+  final DateTime now;
 
   /// The time picked, or null when it is removed.
   final ValueChanged<String?> onChanged;
@@ -1001,7 +1024,7 @@ class _TimeButton extends StatelessWidget {
             onPressed: () async {
               final picked = await showTimePicker(
                 context: context,
-                initialTime: current ?? TimeOfDay.now(),
+                initialTime: current ?? TimeOfDay.fromDateTime(now),
               );
               if (picked != null) onChanged(storedTime(picked));
             },
