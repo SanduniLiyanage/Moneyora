@@ -38,13 +38,13 @@ void main() {
     creditCard: terms,
   );
 
-  Widget boot(List<Account> accounts) => ProviderScope(
+  Widget boot(List<Account> accounts, {bool dark = false}) => ProviderScope(
     overrides: [
       clockProvider.overrideWithValue(() => today),
       accountsProvider(false).overrideWith((ref) => Stream.value(accounts)),
     ],
     child: MaterialApp.router(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       routerConfig: GoRouter(
         initialLocation: Routes.creditCards,
         routes: [
@@ -155,5 +155,43 @@ void main() {
     await scrollToEnd(tester);
 
     expect(find.text('If I pay each month'), findsOneWidget);
+  });
+
+  group('read whole on a 320dp phone. SRS §4.1', () {
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      testWidgets('a long card name has two lines beside its pencil '
+          '($theme)', (tester) async {
+        useSmallPhone(tester);
+        await tester.pumpWidget(
+          boot([account(name: 'A card with a long name')], dark: dark),
+        );
+        await tester.pumpAndSettle();
+
+        expect(isCut(tester, find.text('A card with a long name')), isFalse);
+      });
+
+      testWidgets('the payment question sits above its field, whole '
+          '($theme)', (tester) async {
+        // 360dp: the test font is wide enough to cut the question resting
+        // in the field here, as Roboto did at the largest font on 320dp.
+        tester.view
+          ..physicalSize = const Size(1080, 2400)
+          ..devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(boot([account()], dark: dark));
+        await tester.pumpAndSettle();
+        await tester.dragUntilVisible(
+          find.text('If I pay each month'),
+          find.byType(ListView).first,
+          const Offset(0, -150),
+        );
+
+        // Resting inside the empty field it was cut short; floated above
+        // it, at three quarters of the size, it has the room.
+        expect(isCut(tester, find.text('If I pay each month')), isFalse);
+      });
+    }
   });
 }

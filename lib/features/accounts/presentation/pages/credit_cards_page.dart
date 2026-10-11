@@ -114,7 +114,7 @@ class _CardSummary extends StatelessWidget {
                   child: Text(
                     card.name,
                     style: theme.textTheme.titleMedium,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -271,9 +271,12 @@ class _PayoffCalculatorState extends State<_PayoffCalculator> {
           TextField(
             controller: _payment,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            // Floated from the start: resting inside the field, at the
+            // largest font on a 320dp phone, the question lost its end.
             decoration: const InputDecoration(
               labelText: 'If I pay each month',
               hintText: '0.00',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               border: OutlineInputBorder(),
               isDense: true,
             ),

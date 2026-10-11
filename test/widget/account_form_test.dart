@@ -14,6 +14,8 @@ import 'package:moneyora/features/accounts/domain/repositories/account_repositor
 import 'package:moneyora/features/accounts/presentation/pages/account_form_page.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The account form, driven the way a person drives it.
 ///
 /// The repository is a fake; everything above it is real — the widgets, the
@@ -124,13 +126,14 @@ void main() {
   Widget boot({
     Account? initial,
     ConversionTable table = const ConversionTable(baseCurrency: 'LKR'),
+    bool dark = false,
   }) => ProviderScope(
     overrides: [
       accountRepositoryProvider.overrideWith((ref) async => repository),
       conversionTableProvider.overrideWith((ref) => Stream.value(table)),
     ],
     child: MaterialApp(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       home: AccountFormPage(initial: initial),
     ),
   );
@@ -288,7 +291,7 @@ void main() {
         '5',
       );
       await tester.enterText(
-        find.widgetWithText(TextField, 'Interest rate, % a year'),
+        find.widgetWithText(TextField, 'Interest rate'),
         '24.5',
       );
       await tester.tap(find.text('Add account'));
@@ -609,5 +612,87 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  group('a credit card on a 320dp phone. FR-ACC-008, SRS §4.1', () {
+    Account card({CreditCardTerms terms = CreditCardTerms.none}) => Account(
+      id: 9,
+      name: 'Visa',
+      icon: 'card',
+      type: AccountType.creditCard,
+      initialBalanceDate: DateTime(2026, 2, 3),
+      creditCard: terms,
+    );
+
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      testWidgets('at the largest font the two days are one above the other, '
+          'and a refused day says why in full ($theme)', (tester) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(boot(initial: card(), dark: dark));
+        await tester.pumpAndSettle();
+        final list = find.byType(ListView).first;
+        final statement = find.widgetWithText(TextField, 'Statement day');
+        await tester.dragUntilVisible(statement, list, const Offset(0, -150));
+        await tester.enterText(statement, '40');
+        await tester.dragUntilVisible(
+          find.text('Save changes'),
+          list,
+          const Offset(0, -200),
+        );
+        await tester.tap(find.text('Save changes'));
+        await tester.pumpAndSettle();
+        await tester.dragUntilVisible(statement, list, const Offset(0, 150));
+        await tester.pumpAndSettle();
+
+        final due = find.widgetWithText(TextField, 'Payment due day');
+        expect(tester.getSize(due).width, tester.getSize(statement).width);
+        expect(
+          tester.getTopLeft(due).dy,
+          greaterThan(tester.getBottomLeft(statement).dy),
+        );
+        // Side by side it had 106px, and read "A day of th…".
+        expect(
+          isCut(tester, find.text('A day of the month, 1 to 31.')),
+          isFalse,
+        );
+      });
+
+      testWidgets('the rate is named in full, its unit beside the figure '
+          '($theme)', (tester) async {
+        useSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            initial: card(terms: const CreditCardTerms(aprBasisPoints: 2450)),
+            dark: dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.dragUntilVisible(
+          find.text('% a year'),
+          find.byType(ListView).first,
+          const Offset(0, -150),
+        );
+
+        expect(isCut(tester, find.text('Interest rate')), isFalse);
+      });
+
+      testWidgets('the hint beside the currency wraps rather than losing its '
+          'end ($theme)', (tester) async {
+        // 360dp: beside the currency the opening balance is 166px wide.
+        tester.view
+          ..physicalSize = const Size(1080, 2400)
+          ..devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(boot(initial: card(), dark: dark));
+        await tester.pumpAndSettle();
+
+        expect(
+          isCut(tester, find.text('Owed on it? Type it with a minus.')),
+          isFalse,
+        );
+      });
+    }
   });
 }

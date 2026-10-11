@@ -367,6 +367,9 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
             const SizedBox(height: 16),
             DropdownButtonFormField<AccountType>(
               initialValue: _type,
+              // Sized to the field, not to "Digital wallet": at the
+              // largest font, in a wide typeface, that overflowed it.
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Type',
                 border: OutlineInputBorder(),
@@ -404,6 +407,9 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                       helperText: _type == AccountType.creditCard
                           ? 'Owed on it? Type it with a minus.'
                           : null,
+                      // Beside the currency the field is narrow: the hint
+                      // wraps rather than losing its second half.
+                      helperMaxLines: 3,
                       border: const OutlineInputBorder(),
                       errorText: _submitted && _openingUnreadable
                           ? 'Type an amount, like 2500.00.'
@@ -486,38 +492,35 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                   hintText: '0.00',
                   border: const OutlineInputBorder(),
                   errorText: _errorFor('creditLimit'),
+                  errorMaxLines: 3,
+                ),
+              ),
+              // One above the other, each the full width: side by side, at
+              // the largest font on a 320dp phone, the labels and the
+              // reason a day was refused were cut to a few letters.
+              const SizedBox(height: 12),
+              TextField(
+                controller: _statementDay,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Statement day',
+                  hintText: '1–31',
+                  border: const OutlineInputBorder(),
+                  errorText: _errorFor('statementDay'),
+                  errorMaxLines: 3,
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _statementDay,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Statement day',
-                        hintText: '1–31',
-                        border: const OutlineInputBorder(),
-                        errorText: _errorFor('statementDay'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _dueDay,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Payment due day',
-                        hintText: '1–31',
-                        border: const OutlineInputBorder(),
-                        errorText: _errorFor('dueDay'),
-                      ),
-                    ),
-                  ),
-                ],
+              TextField(
+                controller: _dueDay,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Payment due day',
+                  hintText: '1–31',
+                  border: const OutlineInputBorder(),
+                  errorText: _errorFor('dueDay'),
+                  errorMaxLines: 3,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -525,11 +528,15 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                // The unit beside the figure, not in the label, which has
+                // one line and lost its end at the largest font.
                 decoration: InputDecoration(
-                  labelText: 'Interest rate, % a year',
+                  labelText: 'Interest rate',
                   hintText: '24.00',
+                  suffixText: '% a year',
                   border: const OutlineInputBorder(),
                   errorText: _errorFor('apr'),
+                  errorMaxLines: 3,
                 ),
               ),
             ],
