@@ -156,9 +156,12 @@ class _SplitBillPageState extends ConsumerState<SplitBillPage> {
             TextField(
               controller: _note,
               textCapitalization: TextCapitalization.sentences,
+              // "Optional" under the field rather than in its label: at
+              // the largest font the label has one line, and lost it.
               decoration: const InputDecoration(
-                labelText: 'What for (optional)',
+                labelText: 'What for',
                 hintText: 'Dinner',
+                helperText: 'Optional',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -296,6 +299,9 @@ class _ShareRow extends StatelessWidget {
   final bool paid;
   final Widget? trailing;
 
+  /// The most of the screen's width a share takes.
+  static const _shareWidthFactor = 0.3;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -316,18 +322,19 @@ class _ShareRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           // Gives way at the largest font on a small phone: the share
-          // shrinks rather than pushing the name off the row.
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                ScaleDownText(
-                  share == null ? '—' : formatCents(share!),
-                  style: theme.textTheme.titleMedium,
-                ),
-                if (paid) Text('paid', style: theme.textTheme.bodySmall),
-              ],
-            ),
+          // shrinks rather than pushing the name off the row. Capped, not
+          // Flexible: an even split left the name field too narrow for
+          // its own "Person 2".
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              ScaleDownText(
+                share == null ? '—' : formatCents(share!),
+                style: theme.textTheme.titleMedium,
+                maxWidthFactor: _shareWidthFactor,
+              ),
+              if (paid) Text('paid', style: theme.textTheme.bodySmall),
+            ],
           ),
           ?trailing,
         ],

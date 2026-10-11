@@ -104,13 +104,13 @@ void main() {
     note: note,
   );
 
-  Widget boot(_InMemoryDebts repository) => ProviderScope(
+  Widget boot(_InMemoryDebts repository, {bool dark = false}) => ProviderScope(
     overrides: [
       clockProvider.overrideWithValue(() => today),
       debtRepositoryProvider.overrideWith((ref) async => repository),
     ],
     child: MaterialApp.router(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       routerConfig: GoRouter(
         initialLocation: Routes.debts,
         routes: [
@@ -224,10 +224,7 @@ void main() {
       'Saman',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Amount'), '1200');
-    await tester.enterText(
-      find.widgetWithText(TextField, 'What for (optional)'),
-      'Lunch',
-    );
+    await tester.enterText(find.widgetWithText(TextField, 'What for'), 'Lunch');
     await tester.tap(find.widgetWithText(FilledButton, 'Add debt'));
     await tester.pumpAndSettle();
 
@@ -288,7 +285,7 @@ void main() {
 
       await tester.enterText(find.widgetWithText(TextField, 'Total'), '1000');
       await tester.enterText(
-        find.widgetWithText(TextField, 'What for (optional)'),
+        find.widgetWithText(TextField, 'What for'),
         'Dinner',
       );
       await tester.enterText(
@@ -431,5 +428,85 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Mark as paid'), findsOneWidget);
+  });
+
+  group('read whole at the largest font on a 320dp phone. SRS §4.1', () {
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      testWidgets('a debt keeps the row for its name: the amount moves under '
+          'it ($theme)', (tester) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts([debt(1, 'Ama', DebtDirection.owedToMe, 123456789)]),
+            dark: dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Beside the amount and the tick, the name had 16px.
+        expect(isCut(tester, find.text('Ama')), isFalse);
+        final amount = find.text('Rs1,234,567.89').last;
+        expect(
+          tester.getTopLeft(amount).dy,
+          greaterThan(tester.getBottomLeft(find.text('Ama')).dy - 1),
+        );
+        expect(find.byTooltip('Mark as paid'), findsOneWidget);
+      });
+
+      testWidgets('the debt form names its note field in full ($theme)', (
+        tester,
+      ) async {
+        useSmallPhone(tester);
+        await tester.pumpWidget(boot(_InMemoryDebts(), dark: dark));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add debt'));
+        await tester.pumpAndSettle();
+        await tester.dragUntilVisible(
+          find.text('Optional'),
+          find.byType(ListView).last,
+          const Offset(0, -150),
+        );
+
+        expect(isCut(tester, find.text('What for')), isFalse);
+      });
+
+      testWidgets('a split names its note field in full ($theme)', (
+        tester,
+      ) async {
+        useSmallPhone(tester);
+        await tester.pumpWidget(boot(_InMemoryDebts(), dark: dark));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Split a bill'));
+        await tester.pumpAndSettle();
+
+        expect(isCut(tester, find.text('What for')), isFalse);
+      });
+
+      testWidgets('a person in a split has the room their share does not '
+          'need ($theme)', (tester) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(boot(_InMemoryDebts(), dark: dark));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Split a bill'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Total'),
+          '1234567',
+        );
+        await tester.pumpAndSettle();
+
+        // An even split with the share left the name field 138px here,
+        // too narrow for its own "Person 2" at this size.
+        final person = find.widgetWithText(TextField, 'Person 2');
+        await tester.dragUntilVisible(
+          person,
+          find.byType(ListView).last,
+          const Offset(0, -150),
+        );
+        expect(tester.getSize(person).width, greaterThan(170));
+      });
+    }
   });
 }
