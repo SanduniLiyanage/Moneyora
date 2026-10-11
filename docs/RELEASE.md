@@ -19,7 +19,7 @@ and the Samsung Galaxy Store. Google Play ($25, once) and the App Store
 |---|---|---|---|
 | Upload key generated, backed up twice | you, once | 5 minutes | **Done** |
 | Four repository secrets set | you, once | 5 minutes | **Done** |
-| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06), `v1.1.0` (2026-10-07) |
+| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06), `v1.1.0` (2026-10-07), `v1.2.0` (2026-10-11, a pre-release for testers) |
 | Galaxy Store seller account | you | free; a day or so | Next |
 | Galaxy Store review | Samsung | several days | |
 | *Later:* Google Play | you + 12 testers | $25 once; **14 days** of closed testing | |
@@ -85,7 +85,7 @@ again, not even to you.
 **Each release.**
 
 1. Raise the version in `pubspec.yaml`: `1.0.0+1`, then `1.0.1+2`, then
-   `1.1.0+4` (`1.0.2+3` was never tagged), and so on. The number after the `+` must go up every time, or phones refuse the
+   `1.1.0+4` (`1.0.2+3` was never tagged), then `1.2.0+5`, and so on. The number after the `+` must go up every time, or phones refuse the
    update as a downgrade.
 2. Merge that to `main`, then tag it:
 
@@ -100,6 +100,17 @@ again, not even to you.
    signed with the debug key. When it passes, the release page has
    `moneyora-1.0.0-arm64-v8a.apk`, `…-armeabi-v7a.apk`, `SHA256SUMS.txt`
    and install instructions.
+4. **A version for a few testers** is marked a pre-release once the
+   workflow has published it, with notes written for them in place of the
+   install-only ones:
+
+   ```powershell
+   gh release edit v1.2.0 --prerelease --notes-file notes.md
+   ```
+
+   A pre-release is never the "latest", so the README's download link
+   keeps pointing at the last full release: send testers the version's
+   own page.
 
 What people see: Android warns about installing from an unknown source the
 first time, and there are no automatic updates — they come back to the
@@ -224,7 +235,9 @@ requires it ([E-20](SPEC_ERRATA.md)). Say 15.5 in App Store Connect.
 - [x] Screenshots from a release build, not a debug one (the debug banner is
       an automatic rejection): `store/screenshots/`, taken 2026-09-28;
       the home screen, the list and the new expense screen retaken from
-      1.1.0 on 2026-10-07, for the new home and entry.
+      1.1.0 on 2026-10-07, for the new home and entry. New expense
+      predates 1.2.0's time beside the date: retake it before a store
+      submission.
 - [x] The privacy policy at a public URL: the repository is public, so the
       file's GitHub page is one.
 - [x] A contact address in [`PRIVACY.md`](PRIVACY.md) and

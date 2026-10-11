@@ -10,11 +10,13 @@ what only that build could show (#152–#162);
 2026-10-06 from the first testers' feedback (#164–#170); and
 [1.1.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.1.0) on
 2026-10-07: Ask Moneyora answering again (#172–#174) and the new home and
-entry (#175–#179). **Since 1.1.0, not yet released:** a testers' round
-(#181) — debts and split bills, a credit card's terms, the time of day,
-SAVE after the category, an opening balance in its period — and the
-receipt parser rewritten to read in stages and check a receipt against
-its own total (#182). "What is next" below has all of it. Sprint 10 itself: plans only from the user's own history or built by hand
+entry (#175–#179). Then
+[1.2.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.2.0),
+a **pre-release for testers** on 2026-10-11: a testers' round (#181) —
+debts and split bills, a credit card's terms, the time of day, SAVE after
+the category, an opening balance in its period — and the receipt parser
+rewritten to read in stages and check a receipt against its own total
+(#182). "What is next" below has all of it. Sprint 10 itself: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
@@ -2242,8 +2244,8 @@ The release APK was checked on the emulator before tagging: the ring, the
 list, Reports and New expense, and those screens are the new
 screenshots.
 
-**After 1.1.0 — testers' feedback, not yet released (#181, #182),
-`main` at `636e3ef`.**
+**1.2.0 (2026-10-11), a pre-release for testers — #181 and #182,
+`main` at `636e3ef` plus the documents and the version.**
 
 - **#181 — a tester's list, one commit per item.** The list's − and +;
   analytics re-reading after a write; a new entry in the account chosen on
