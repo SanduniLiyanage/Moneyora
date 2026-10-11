@@ -133,6 +133,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
     final categoriesAsync = ref.watch(receiptCategoriesProvider);
     final accountsAsync = ref.watch(receiptAccountsProvider);
     final saving = ref.watch(confirmReceiptControllerProvider).isLoading;
+    // A TextButton takes the scheme's primary, which is the bar's own
+    // colour: Discard has to be told to use the bar's foreground.
+    final onBar =
+        theme.appBarTheme.foregroundColor ?? theme.colorScheme.onPrimary;
 
     return Scaffold(
       appBar: AppBar(
@@ -147,6 +151,10 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
               ),
           TextButton(
             onPressed: saving ? null : () => context.pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: onBar,
+              disabledForegroundColor: onBar.withValues(alpha: 0.5),
+            ),
             child: const Text('Discard'),
           ),
         ],

@@ -2,8 +2,10 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -223,6 +225,7 @@ void main() {
   Widget boot({
     List<CategoryOption> categories = const [_food, _health, _salary],
     List<AccountOption> accounts = const [_cash, _card],
+    bool dark = false,
   }) => ProviderScope(
     overrides: [
       categoryReaderProvider.overrideWith(
@@ -239,7 +242,7 @@ void main() {
       ),
     ],
     child: MaterialApp.router(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       routerConfig: GoRouter(
         initialLocation: Routes.scanReceipt,
         routes: [
@@ -271,6 +274,7 @@ void main() {
     ScannedReceipt? scanned,
     List<CategoryOption> categories = const [_food, _health, _salary],
     List<AccountOption> accounts = const [_cash, _card],
+    bool dark = false,
   }) async {
     // Tall enough that every card is built: the list is lazy, and a test
     // that taps a line the default 600px viewport never laid out finds
@@ -279,7 +283,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(boot(categories: categories, accounts: accounts));
+    await tester.pumpWidget(
+      boot(categories: categories, accounts: accounts, dark: dark),
+    );
     await tester.pumpAndSettle();
     final context = tester.element(find.text('scanner'));
     unawaited(
@@ -834,6 +840,36 @@ void main() {
 
     expect(find.byTooltip('Copy OCR text (debug build)'), findsNothing);
   });
+
+  // A TextButton draws in the scheme's primary, which is the app bar's
+  // own colour: Discard was there, and could not be seen.
+  for (final dark in [false, true]) {
+    testWidgets('Discard can be read on the app bar, '
+        '${dark ? 'dark' : 'light'} theme', (tester) async {
+      await open(tester, dark: dark);
+
+      final text = tester
+          .renderObject<RenderParagraph>(find.text('Discard'))
+          .text
+          .style!
+          .color!;
+      final bar = tester
+          .widget<Material>(
+            find
+                .descendant(
+                  of: find.byType(AppBar),
+                  matching: find.byType(Material),
+                )
+                .first,
+          )
+          .color!;
+
+      // WCAG 2.1's ratio; SRS §4.1's floor for text.
+      final lighter = math.max(text.computeLuminance(), bar.computeLuminance());
+      final darker = math.min(text.computeLuminance(), bar.computeLuminance());
+      expect((lighter + 0.05) / (darker + 0.05), greaterThanOrEqualTo(4.5));
+    });
+  }
 
   testWidgets('Discard leaves without writing anything', (tester) async {
     await open(tester);
