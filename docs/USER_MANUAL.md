@@ -194,6 +194,15 @@ sub-category. **Add category** (the **+**) makes a new one.
    you to type in, never filled with a guess or a zero; a receipt read with
    no items opens as one expense, waiting for its total. **Split** one line into two, **Merge with next** to join
    two, or **Discard** a line that is not a purchase.
+   Under the total it says whether the items add up to it. An item whose
+   amount is not the printed price shows the sum, such as
+   `Rs350.00 − 88.00 off = Rs262.00`, so a discount can be checked against
+   the paper. An item no word matched has no category yet: choose one, or
+   take the shop's with the button beside it (**Use Health**, for a
+   pharmacy). A merchant, date or total that was worked out rather than
+   read says so until you correct it, and the receipt is labelled **Low
+   confidence** while its items do not add up or a field was guessed.
+   **Add an item** adds a line the scan missed.
    To file the whole receipt under one category instead, turn on **One
    category for the whole receipt** and choose it; the receipt is then
    saved as a single expense.
