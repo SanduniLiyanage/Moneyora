@@ -964,7 +964,7 @@ charts, the plan and the budgets still never see a transfer — an
 [E-02](SPEC_ERRATA.md) addendum says why this is that entry's own
 account-balance rule rather than an exception to it.
 
-## After release — 1.0.0 to 1.1.0
+## After release
 
 **1.0.0** was published on GitHub Releases on 2026-10-05, signed with the
 owner's upload key, after a walk of the release APK that fixed what only a
@@ -1028,10 +1028,37 @@ PRs:
    and CHOOSE CATEGORY, which opens the grid of category icons and
    records the entry on a tap.
 
+### The testers' round and the receipt parser — done (#181, #182), not yet released
+
+A tester's list became #181, one commit per item:
+
+- **Fixes.** − and + on the list; analytics that re-read after a write; a
+  new entry in the account chosen on home; an account's opening balance in
+  the period of its date ([E-41](SPEC_ERRATA.md)); camera photos read as
+  well as screenshots.
+- **Entry.** The category grid only chooses, and **SAVE** beside the
+  choice records. The time of day is filled in for today and can be
+  changed or left out.
+- **New.** Debts ([E-42](SPEC_ERRATA.md)); a credit card's terms, with the
+  Credit cards screen and its payoff estimate ([E-43](SPEC_ERRATA.md));
+  and splitting a bill into debts ([E-44](SPEC_ERRATA.md)). Schema v7 and
+  v8.
+
+#182 rewrote the receipt parser from a tester's Keells e-bill and a
+photographed Cargills bill ([E-45](SPEC_ERRATA.md)): three stages, the
+items checked against the total, discounts matched by item code, row or
+the line above, and a points block set aside. Before it merged, the new
+screens were reviewed at the largest font on a 320 dp phone in both
+themes, and what was cut short or could not be read was fixed.
+
 ### Still open
 
 - **The bus ticket.** It came back as one item named with the whole
   ticket's text. Fixing the parser needs that photo as a fixture.
+- **The parser's known gaps.** A camera photo of a paper receipt has been
+  read only on the emulator; points spent on a bill are not taken off the
+  total posted; item codes are not saved on the expense; and a month-first
+  date, "Oct 5, 2026", is not read.
 - **On a phone, not the emulator:** a fresh first launch and a restore
   (both replace the emulator's hand-entered data), biometric unlock (the
   emulator has no fingerprint enrolled) and a budget-alert notification.

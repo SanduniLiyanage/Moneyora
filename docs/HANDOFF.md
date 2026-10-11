@@ -1,8 +1,8 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-10-07**, `main` at `9e549ce` plus the
-1.1.0 release PR, after **178 merged pull requests** (#2–#180; #1 and
-#178 were closed unmerged). **Moneyora is released**:
+State of the project as of **2026-10-11**, `main` at `636e3ef`, after
+**180 merged pull requests** (#2–#182; #1 and #178 were closed
+unmerged). **Moneyora is released**:
 [1.0.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.0)
 on GitHub Releases on 2026-10-05, after a walk of the release APK fixed
 what only that build could show (#152–#162);
@@ -10,7 +10,11 @@ what only that build could show (#152–#162);
 2026-10-06 from the first testers' feedback (#164–#170); and
 [1.1.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.1.0) on
 2026-10-07: Ask Moneyora answering again (#172–#174) and the new home and
-entry (#175–#179). "What is next" below has all three. Sprint 10 itself: plans only from the user's own history or built by hand
+entry (#175–#179). **Since 1.1.0, not yet released:** a testers' round
+(#181) — debts and split bills, a credit card's terms, the time of day,
+SAVE after the category, an opening balance in its period — and the
+receipt parser rewritten to read in stages and check a receipt against
+its own total (#182). "What is next" below has all of it. Sprint 10 itself: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
@@ -61,8 +65,8 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `9e549ce`, with PR #179 merged; the coverage figure is CI's, from its
-run on that commit (the last change to `domain/` was #176).
+at `636e3ef`, with PR #182 merged; the coverage figure is CI's, from its
+run on that commit.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
 place goes stale once, and a number kept in three places goes stale three
@@ -71,16 +75,35 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2462 passing** | `flutter test` |
+| Tests | **2737 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
-| R8 keep rules | **clean, exit 0** — ML Kit's registrar constructors ([E-09](SPEC_ERRATA.md)) | `bash scripts/check_proguard.sh` |
-| Domain line coverage | **91.5%** (2796 of 3055 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **14 tables, 11 indexes**, at version 6 — unchanged by Sprints 8 to 10 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`); Sprint 8's backup reads the tables from `sqlite_master` rather than needing any (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 347 in `lib/`, 180 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| R8 keep rules | **clean, exit 0** — ML Kit's registrar constructors ([E-09](SPEC_ERRATA.md)); a Windows checkout needs the LF copy, see Environment | `bash scripts/check_proguard.sh` |
+| Domain line coverage | **92.4%** (3601 of 3896 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Schema | **15 tables, 12 indexes**, at version 8. Sprints 8 to 10 left it at v6 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`; Sprint 8's backup reads the tables from `sqlite_master` rather than needing any); v7 adds `debts` and its index (E-42), v8 four credit-card columns on `accounts` (E-43) (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
+| Dart files | 377 in `lib/`, 197 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2404 at `3a0b71c` (PR #170, merged) plus **58 net new**
+Tests by area: 2462 at `9e549ce` (PR #179, merged) plus **275 net new**
+from #181 and #182, each PR's description naming its own. #181 added 127:
+the list's − and +, the analytics figures re-reading on a write, the
+default account, opening balances in the summary, the bar and the list,
+the tilt grouping, figure repair and blank review fields, Save and the
+time field, and debts, cards, payoff and split against real SQLite and on
+screen, each at the largest font on a 320 dp phone. #182 added 148: 116
+with the parser — its stages and the reconciler on plain text, the Keells
+e-bill and the Cargills photo each as two fixtures, the review's sums and
+added lines — and 32 from the fixes before it merged, each screen at the
+largest font in both themes. Assertions that changed shape rather than
+growing: the list's tests open entries with − and + instead of Add; the
+entry tests' `choose` helper taps SAVE after the category; a note under a
+row is matched with `textContaining`, since a time can now precede it;
+VAT and service charge on the existing fixtures are spread over the items;
+"What for (optional)" and "Interest rate, % a year" became "What for" and
+"Interest rate"; and "a new entry that repeats" drags the details before
+tapping Repeat, on a pinned date.
+
+Before that: 2404 at `3a0b71c` (PR #170, merged) plus **58 net new**
 from #171–#179, each PR's description naming its own. Assertions that
 changed shape rather than growing: the shell tests reach every screen
 through the menu instead of home's tiles; the list's delete tests hold a
@@ -2027,31 +2050,48 @@ lesson written for every corrected line) → `ReceiptHistoryPage` with
 search and re-scan, the photo kept AES-GCM-encrypted in the documents
 directory under a key derived from the database key. Schema v3 (E-31)
 added `receipt_number` and recreated `keyword_dictionary` with its
-cascade. **The real-receipt set is one receipt, as two fixtures; no
-accuracy figure is claimed** — see "What is next".
+cascade. **The real-receipt set is three receipts, each as two
+fixtures — the Colombo boutique bill, a Keells e-bill and a photographed
+Cargills till receipt — and no accuracy figure is claimed**; see "What
+is next".
 
 Running ahead of its sprint, **all three of the Copilot's layers** are built:
 the agent loop and its contracts, the first tool, the Gemini datasource and the
 ask screen at `/copilot`. What it has never had is a run against the live API.
 See [`COPILOT.md`](COPILOT.md) for what it is scoped to and why.
 
+**After 1.1.0, two rounds from testers** (#181, #182). Debts, in
+`features/debts/` over schema v7's `debts` table ([E-42](SPEC_ERRATA.md)),
+with a split that writes debts and no expense ([E-44](SPEC_ERRATA.md)); a
+credit card's four optional terms on `accounts`, schema v8, and the
+Credit cards screen with its payoff estimate ([E-43](SPEC_ERRATA.md)); the
+time of day on an entry, optional; SAVE beside the chosen category; and an
+account's opening balance in the period of its date ([E-41](SPEC_ERRATA.md)).
+The parser now reads in three stages in `domain/usecases/parsing/` —
+`ReceiptHeaderReader`, `ReceiptBodyReader`, `ReceiptReconciler` — and
+checks a receipt's items against its total ([E-45](SPEC_ERRATA.md)); a
+debug build's review screen copies the OCR text for a fixture.
+
 ```
 lib/
-├── core/          database (SQLCipher, migrations v1–v6, seeds), errors,
+├── core/          database (SQLCipher, migrations v1–v8, seeds), errors,
 │                  network, ports shared between features, router (every
 │                  screen under home), theme, utils, widgets
 ├── features/
 │   ├── accounts/        the Accounts section of the menu, form, icons,
-│   │                    archive, delete, totals across currencies
+│   │                    archive, delete, totals across currencies,
+│   │                    credit cards and their payoff
 │   ├── analytics/       aggregates; home's ring, ‹ › and swipe; the left
 │   │                    filter panel and the Interval calendar; Reports
 │   ├── auth/            passcode, lockout, biometrics
 │   ├── backup/          encrypted .mora backup and restore, CSV/PDF export
 │   ├── categories/      list and form, icons, colours, one level of nesting
 │   ├── copilot/         Ask Moneyora: the only http in the application
+│   ├── debts/           money lent and borrowed, and split bills
 │   ├── home/            home and its right-hand menu
 │   ├── money_plan/      the plan engine, wizard, editor, tracking, alerts
-│   ├── receipt_scanner/ ML Kit, parser, categoriser, review, history
+│   ├── receipt_scanner/ ML Kit, the parser's three stages, categoriser,
+│   │                    review, history
 │   ├── settings/        settings, exchange rates, notifications
 │   └── transactions/    entry, list, transfers, recurring rules
 ├── app.dart          MaterialApp.router
@@ -2063,7 +2103,8 @@ Every feature directory is built; there are no stubs and no placeholder
 routes. Home is one screen: the ring, the balance, − and +, with the
 period and account in a panel on the left and every other screen in a
 menu on the right (#175–#177). New expense and New income ask one thing
-at a time and record on a tap in the category grid (#179).
+at a time (#179); the category grid chooses, and SAVE beside the choice
+records (#181).
 
 Test and coverage figures are in **the table at the top of this file**, which
 is the only place they are written down. CI runs format, analyze, the
@@ -2201,6 +2242,33 @@ The release APK was checked on the emulator before tagging: the ring, the
 list, Reports and New expense, and those screens are the new
 screenshots.
 
+**After 1.1.0 — testers' feedback, not yet released (#181, #182),
+`main` at `636e3ef`.**
+
+- **#181 — a tester's list, one commit per item.** The list's − and +;
+  analytics re-reading after a write; a new entry in the account chosen on
+  home; an opening balance shown in its period ([E-41](SPEC_ERRATA.md));
+  camera photos read as well as screenshots, with unread fields left
+  blank; SAVE after the category; the time of day; debts
+  ([E-42](SPEC_ERRATA.md), schema v7); a credit card's terms and the
+  Credit cards screen ([E-43](SPEC_ERRATA.md), schema v8); and splitting
+  a bill ([E-44](SPEC_ERRATA.md)). The database upgraded from v6 to v8
+  over the owner's data on the emulator.
+- **#182 — the receipt parser, rewritten** ([E-45](SPEC_ERRATA.md)) from
+  a tester's Keells e-bill and a photographed Cargills bill. A receipt is
+  read in three stages and checked against its total; a discount is
+  matched to its item by item code, row number or the line above; a
+  points block after the total is set aside; label words survive the
+  letters OCR confuses. The review shows each line's sum, leaves a line no
+  word matched without a category and offers the shop's, and adds a line
+  the scan missed. A debug build copies the OCR text.
+- **Before #182 merged**, a review of the new screens at the largest font
+  on a 320 dp phone, in both themes, fixed Discard drawn indigo on indigo,
+  a debt's name squeezed to 16 px, credit-card day fields that cut their
+  own errors, SAVE at 2.3:1 in the dark theme, and smaller cuts; the PR
+  lists each. The test that failed on some nights was the date wrapping a
+  line longer, not the time; it now runs on a pinned date.
+
 **What is left.** [`RELEASE.md`](RELEASE.md) sets out the accounts:
 
 1. **The Samsung Galaxy Store** submission (§3) — free, and it updates
@@ -2217,11 +2285,17 @@ screenshots.
    biometric unlock and a budget-alert notification.
 5. **The bus ticket.** Fixing the parser needs the ticket's photo as a
    fixture: `adb push` it to `/sdcard/Download`, scan it in a debug build,
-   and keep the `[receipt-ocr]` rows the console prints.
+   and copy the OCR text from the review screen's app bar.
+6. **The parser's known gaps** after #182: a camera photo of a paper
+   receipt has been read only on the emulator, never on a phone; points
+   spent on a bill are not taken off the total posted (the Keells e-bill
+   posts 535.00 though 3.48 of it was paid in points); item codes match
+   discounts but are not saved on the expense; and a month-first date,
+   "Oct 5, 2026", is not read.
 
 Still open and not blocking anything: **FR-SET-002** (languages; English
 only); **FR-RCP-003** preprocessing and the 20–30 real receipts, of which
-there is one; **FR-BAK-002/003/004** and FR-SET-010 (deferred, E-38); and
+there are three; **FR-BAK-002/003/004** and FR-SET-010 (deferred, E-38); and
 `ComparePeriods`' Copilot caller.
 
 - **The account-picker widgets across `add_transaction_page.dart` and
@@ -2481,6 +2555,13 @@ home screen renders with real data, and nothing in R8's minification broke
 the JNI-backed plugins this app leans on. "Compiles in release" is no longer
 the only claim available — only the physical-device install remains, on the
 batched checklist below.
+
+**`scripts/check_proguard.sh` fails on this machine's checkout although the
+rule is there.** Git hands Windows the file with CRLF endings, and the
+script joins lines with `tr '\n' ' '`, which leaves a `\r` between `{` and
+`<init>`. CI checks out LF and passes. Check the committed copy instead:
+`git show HEAD:android/app/proguard-rules.pro > "$TEMP/rules.pro"`, then
+`bash scripts/check_proguard.sh "$TEMP/rules.pro"`.
 
 **`kotlin.incremental=false`** in `android/gradle.properties`. It bought
 nothing here and repeatedly corrupted its own caches.
