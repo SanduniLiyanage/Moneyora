@@ -1028,9 +1028,10 @@ PRs:
    and CHOOSE CATEGORY, which opens the grid of category icons and
    records the entry on a tap.
 
-### The testers' round and the receipt parser — done (#181, #182), not yet released
+### The testers' round and the receipt parser — done (#181, #182), in 1.2.0
 
-A tester's list became #181, one commit per item:
+**1.2.0**, published 2026-10-11 as a pre-release for a few testers,
+carries both. A tester's list became #181, one commit per item:
 
 - **Fixes.** − and + on the list; analytics that re-read after a write; a
   new entry in the account chosen on home; an account's opening balance in
