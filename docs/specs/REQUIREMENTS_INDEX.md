@@ -2,12 +2,13 @@
 
 **Derived, non-authoritative.** Generated from `Moneyora_SRS_v1.0.pdf` (v1.0 Final,
 20 June 2026). The PDF is the baseline. Where this file and the PDF differ, **the PDF
-wins**. Amendments and corrections live in [`SPEC_ERRATA.md`](../SPEC_ERRATA.md), never
-in this file.
+wins**. Amendments and corrections live in [`SPEC_ERRATA.md`](../SPEC_ERRATA.md). The
+one exception is the last section: requirements an errata entry raises, quoted from
+it so that one grep finds them. The errata stays their authority.
 
 **Purpose.** Every requirement ID in the SRS, with its text, in one flat greppable
 table. Before citing an ID in a commit trailer or a doc comment, check it here. If it
-is not in this table, it does not exist.
+is neither here nor in the errata, it does not exist.
 
 **Coverage.** 82 functional requirements across 9 groups, 28 non-functional
 requirements across 5 groups. 110 total.
@@ -53,6 +54,8 @@ requirements across 5 groups. 110 total.
 | FR-ACC-006 | Provide 20+ built-in account icons including: Cash, AMEX, VISA, Mastercard, PayPal, Bitcoin, JCB, QIWI, Stripe, Discover, and others. |
 
 > No FR-ACC requirement authorises **deleting** an account. See E-25.
+> FR-ACC-008 and FR-ACC-009, a credit card's terms, were raised by E-43: see
+> [Requirements raised by the errata](#requirements-raised-by-the-errata).
 
 ### FR-TRF — Transfer Management (SRS §3.4)
 
@@ -210,6 +213,33 @@ requirements across 5 groups. 110 total.
 
 > NFR-PRT-004 says `.sb`; FR-BAK-001 says `.mb`. The SRS contradicts itself on the
 > backup file extension. Unresolved in v1.0 — see errata.
+
+---
+
+## Requirements raised by the errata
+
+Not in the SRS. Each was raised by the errata entry beside it, and its text is that
+entry's, word for word; where this table and the entry differ, the entry wins. Not
+counted in the 110 above.
+
+The entries before E-42 that raise an ID (E-11, E-21, E-22, E-23, E-25) are not yet
+listed here; the errata has them.
+
+### FR-DBT — Debts (E-42, E-44)
+
+| ID | Requirement | Raised by |
+|---|---|---|
+| FR-DBT-001 | Record a debt: which way it runs (owed to me, or I owe), who, how much, the day it began, and optionally a due day and what it was for. | E-42 |
+| FR-DBT-002 | List the debts: what is still owed each way in total, the open ones under their side with the soonest due first and the overdue ones said to be, and the paid ones folded away below. | E-42 |
+| FR-DBT-003 | Mark a debt paid (with Undo), or not paid after all; change it; delete one recorded by mistake, after asking. | E-42 |
+| FR-DBT-004 | Split a bill evenly between the user and named others, show each share, and save the debts it leaves: each other person owes the user their share when the user paid; the user owes the payer their own share when someone else did. | E-44 |
+
+### FR-ACC — Account Management, a credit card's terms (E-43)
+
+| ID | Requirement | Raised by |
+|---|---|---|
+| FR-ACC-008 | A Credit Card account optionally stores its credit limit, its statement day and payment due day (each a day of the month), and its yearly interest rate. | E-43 |
+| FR-ACC-009 | Show each credit card's position: what is owed, of what limit, and what is left to spend; the next statement and payment dates; a month's interest on what is owed at its rate; and how long a chosen monthly payment takes to clear it, with the interest paid on the way. | E-43 |
 
 ---
 
