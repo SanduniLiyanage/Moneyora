@@ -72,10 +72,15 @@ All of it is ordinary statistics computed in Dart on the device.
 
 Photograph a receipt, or pick one from the gallery, and it is read on the
 phone with Google ML Kit: the merchant, the date, the total and each line
-item, with discounts taken off the item they belong to. Each line gets a
-suggested category from a three-layer classifier — a keyword dictionary, your
-own history, and the merchant — and **it learns from your corrections**.
-You review everything before a single expense is saved, or file the whole
+item. It reads in stages — the shop's header, then what each priced line
+is (an item, a discount, the total, a payment, a points block), then the
+money — and **checks the items against the printed total**, trying other
+readings until they add up. A discount comes off the item it belongs to,
+matched by item code where the receipt prints one, and the review shows
+the sum: `Rs350.00 − 88.00 off = Rs262.00`. Each line gets a suggested
+category from a three-layer classifier — a keyword dictionary, your own
+history, and the merchant — and **it learns from your corrections**. You
+review everything before a single expense is saved, or file the whole
 receipt under one category.
 
 The photo is kept encrypted with the expenses it became, and never leaves the
@@ -90,10 +95,17 @@ phone.
   and **+** to record an expense or income. Swipe sideways for the period
   before or after; the filter button picks an account, a period or any
   dates.
-- **Recording** — type the amount on a calculator keypad, then tap a
-  category in a grid of icons: that records it.
+- **Recording** — type the amount on a calculator keypad, choose a category
+  from a grid of icons, and tap **Save**. Today's entries take the time of
+  day, which can be changed or left out.
 - **Accounts** — cash, cards and bank accounts, each with its balance; other
-  currencies counted at rates you enter.
+  currencies counted at rates you enter. A new account's opening balance
+  shows in the list on the day it was set.
+- **Credit cards** — a card's limit, statement and payment days and interest
+  rate: what is left to spend, when payment is due, what owing costs a
+  month, and how long a monthly payment takes to clear it.
+- **Debts** — money lent and borrowed, ticked off when it is paid back, and a
+  bill **split** evenly with friends saved as who owes whom.
 - **Transfers** between your own accounts, which move each account's balance
   without counting as spending.
 - **Recurring** expenses and income, with an optional reminder before each.
