@@ -237,8 +237,11 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
             TextField(
               controller: _note,
               textCapitalization: TextCapitalization.sentences,
+              // "Optional" under the field rather than in its label: at
+              // the largest font the label has one line, and lost it.
               decoration: const InputDecoration(
-                labelText: 'What for (optional)',
+                labelText: 'What for',
+                helperText: 'Optional',
                 border: OutlineInputBorder(),
               ),
             ),

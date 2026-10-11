@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart' show clockProvider;
@@ -236,45 +239,101 @@ class _DebtTile extends ConsumerWidget {
       _ => 'Since ${day.format(debt.incurredOn)}',
     };
     final note = debt.note;
+    final figure = formatCents(debt.amountCents);
+    final figureStyle = theme.textTheme.titleMedium?.copyWith(
+      color: tint,
+      fontWeight: FontWeight.w600,
+      decoration: debt.isOpen ? null : TextDecoration.lineThrough,
+    );
+    final details = Text(
+      [?note, when].join(' · '),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: overdue ? TextStyle(color: theme.colorScheme.error) : null,
+    );
+    final tick = debt.isOpen
+        ? IconButton(
+            tooltip: 'Mark as paid',
+            icon: const Icon(Icons.check_circle_outline),
+            onPressed: () => _markPaid(context, ref),
+          )
+        : null;
 
-    return ListTile(
-      onTap: () => context.push(Routes.debtForm, extra: debt),
-      leading: CircleAvatar(
-        backgroundColor: tint.withValues(alpha: 0.12),
-        child: Icon(
-          // Money coming back to the user, or going out from them.
-          owedToMe ? Icons.call_received : Icons.call_made,
-          color: tint,
-          size: 20,
-        ),
-      ),
-      title: Text(debt.person, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        [?note, when].join(' · '),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: overdue ? TextStyle(color: theme.colorScheme.error) : null,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ScaleDownText(
-            formatCents(debt.amountCents),
-            style: theme.textTheme.titleMedium?.copyWith(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Beside the amount and the tick, at the largest font on a 320dp
+        // phone, the name was left 16px. Where it would have less than
+        // [_nameFloor], the amount moves under it and the name has the row.
+        final beside =
+            constraints.maxWidth -
+            _rowChrome -
+            _widthOf(context, figure, figureStyle) -
+            (tick == null ? 0 : AppTheme.minTouchTarget);
+        final stacked = beside < _nameFloor;
+
+        return ListTile(
+          onTap: () => context.push(Routes.debtForm, extra: debt),
+          leading: CircleAvatar(
+            backgroundColor: tint.withValues(alpha: 0.12),
+            child: Icon(
+              // Money coming back to the user, or going out from them.
+              owedToMe ? Icons.call_received : Icons.call_made,
               color: tint,
-              fontWeight: FontWeight.w600,
-              decoration: debt.isOpen ? null : TextDecoration.lineThrough,
+              size: 20,
             ),
           ),
-          if (debt.isOpen)
-            IconButton(
-              tooltip: 'Mark as paid',
-              icon: const Icon(Icons.check_circle_outline),
-              onPressed: () => _markPaid(context, ref),
-            ),
-        ],
-      ),
+          title: Text(
+            debt.person,
+            maxLines: stacked ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ScaleDownText(
+                      figure,
+                      style: figureStyle,
+                      alignment: AlignmentDirectional.centerStart,
+                      maxWidthFactor: 1,
+                    ),
+                    details,
+                  ],
+                )
+              : details,
+          trailing: stacked
+              ? tick
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ScaleDownText(figure, style: figureStyle),
+                    ?tick,
+                  ],
+                ),
+        );
+      },
     );
+  }
+
+  /// The least room the name keeps beside the amount and the tick.
+  static const _nameFloor = 96.0;
+
+  /// The rest of a row: the padding either side, the avatar, and the gaps
+  /// beside the name (Material 3's 16 + 40 + 16 + 16 + 24).
+  static const _rowChrome = 112.0;
+
+  /// [text]'s width at the user's font size, no wider than [ScaleDownText]
+  /// lets it be.
+  static double _widthOf(BuildContext context, String text, TextStyle? style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return math.min(width, MediaQuery.sizeOf(context).width * 0.45);
   }
 }
 
