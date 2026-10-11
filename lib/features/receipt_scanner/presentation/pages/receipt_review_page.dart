@@ -140,7 +140,12 @@ class _ReceiptReviewPageState extends ConsumerState<ReceiptReviewPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review receipt'),
+        // Shrinks rather than losing its end beside Discard at the largest
+        // font on a 320dp phone, the way an amount beside its label does.
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text('Review receipt'),
+        ),
         actions: [
           if (kDebugMode)
             if (widget.scanned.recognisedText case final text?)
@@ -381,6 +386,9 @@ class _Header extends StatelessWidget {
                       helperText: guessed.contains(ReceiptField.merchant)
                           ? 'Taken from the email — check it'
                           : null,
+                      // Beside the thumbnail the field is narrow: a warning
+                      // wraps rather than losing its end.
+                      helperMaxLines: 3,
                       isDense: true,
                     ),
                     onChanged: onMerchant,
@@ -401,9 +409,11 @@ class _Header extends StatelessWidget {
                     decoration: InputDecoration(
                       labelText: 'Total',
                       hintText: 'Not read: type it in',
+                      hintMaxLines: 2,
                       helperText: guessed.contains(ReceiptField.total)
                           ? 'Worked out, not printed — check it'
                           : null,
+                      helperMaxLines: 3,
                       isDense: true,
                     ),
                     onChanged: (text) => onTotal(parseToCents(text)),
@@ -654,7 +664,9 @@ class _ItemCardState extends State<_ItemCard> {
                 labelText: 'Category',
                 isDense: true,
               ),
-              hint: const Text('Choose a category'),
+              // Short enough for one line at the largest font: the
+              // dropdown is one line high, and clipped the second.
+              hint: const Text('Choose one'),
               items: [
                 for (final c in widget.categories)
                   DropdownMenuItem(value: c.id, child: Text(c.name)),
@@ -780,7 +792,8 @@ class _SingleCategoryPicker extends StatelessWidget {
             decoration: const InputDecoration(
               labelText: 'Category for the receipt',
             ),
-            hint: const Text('Choose a category'),
+            // One line at the largest font, as on each item.
+            hint: const Text('Choose one'),
             items: [
               for (final c in categories)
                 DropdownMenuItem(value: c.id, child: Text(c.name)),
