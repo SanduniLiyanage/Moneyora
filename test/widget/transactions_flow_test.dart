@@ -16,6 +16,7 @@ import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/core/utils/currency_utils.dart';
 import 'package:moneyora/features/transactions/domain/entities/transaction.dart';
 import 'package:moneyora/features/transactions/domain/repositories/transaction_repository.dart';
+import 'package:moneyora/features/transactions/presentation/pages/add_transaction_page.dart';
 import 'package:moneyora/features/transactions/presentation/pages/transaction_list_page.dart';
 import 'package:moneyora/features/transactions/presentation/providers/transaction_providers.dart';
 import 'package:moneyora/features/transactions/presentation/widgets/amount_keypad.dart';
@@ -74,8 +75,10 @@ void main() {
     double textScale = 1,
     Widget page = const TransactionListPage(),
     List<AccountOption> accountList = accounts,
+    DateTime? now,
   }) => ProviderScope(
     overrides: [
+      if (now != null) clockProvider.overrideWithValue(() => now),
       entryCategoriesProvider.overrideWith(
         (ref) => Stream<List<CategoryOption>>.value(categories),
       ),
@@ -834,12 +837,19 @@ void main() {
     // Android's largest font setting on the smallest supported screen. A
     // layout that overflows here throws in the test, so each case passes
     // only when nothing is clipped or striped.
+    //
+    // The clock is the longest date there is, at a two-digit hour: the
+    // date at the top of the entry screen wraps by its length, and these
+    // cases once passed on "Friday, 9 October" and failed on "Saturday,
+    // 10 October", a line longer.
+    final longestDay = DateTime(2026, 9, 30, 12, 58);
+
     Future<void> pumpLarge(WidgetTester tester) async {
       tester.view.physicalSize = const Size(960, 1920);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(boot(textScale: 2));
+      await tester.pumpWidget(boot(textScale: 2, now: longestDay));
       await tester.pumpAndSettle();
     }
 
@@ -953,6 +963,20 @@ void main() {
     testWidgets('a new entry that repeats', (tester) async {
       await pumpLarge(tester);
       await openNew(tester);
+      expect(find.text('Wednesday, 30 September'), findsOneWidget);
+
+      // At this size the note row starts under the keypad. Dragging the
+      // details is how it is reached: the keypad folds away.
+      await tester.drag(
+        find.descendant(
+          of: find.byType(AddTransactionPage),
+          matching: find.byType(ListView),
+        ),
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(AmountKeypad), findsNothing);
+
       await tester.tap(find.byTooltip('Repeat'));
       await tester.pumpAndSettle();
 
