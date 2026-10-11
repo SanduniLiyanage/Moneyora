@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -456,6 +457,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final accountsAsync = ref.watch(entryAccountsProvider);
     final saving = ref.watch(saveTransactionControllerProvider).isLoading;
     final tint = _isExpense ? colors.expense : colors.income;
+    final onTint = _onTintFor(tint, colors);
     final onBar = theme.appBarTheme.foregroundColor ?? colors.onBrand;
     final now = ref.watch(clockProvider)();
 
@@ -467,15 +469,23 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         leading: TextButton(
           onPressed: () => Navigator.of(context).maybePop(),
           style: TextButton.styleFrom(foregroundColor: onBar),
-          child: const Text('Cancel'),
+          // Shrinks rather than wrapping: at the largest font on a 320dp
+          // phone "Cancel" took two lines and the bar showed one.
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Cancel', maxLines: 1),
+          ),
         ),
         centerTitle: true,
-        title: Text(switch ((_isEditing, _type)) {
-          (true, TransactionType.income) => 'Edit income',
-          (true, _) => 'Edit expense',
-          (false, TransactionType.income) => 'New income',
-          (false, _) => 'New expense',
-        }),
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(switch ((_isEditing, _type)) {
+            (true, TransactionType.income) => 'Edit income',
+            (true, _) => 'Edit expense',
+            (false, TransactionType.income) => 'New income',
+            (false, _) => 'New expense',
+          }),
+        ),
         actions: [
           // Back to the list with the answer, which deletes the row with its
           // undo window (E-23): a mistaken tap is one more tap to take back.
@@ -567,6 +577,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           _AmountBar(
                             expression: _amount,
                             tint: tint,
+                            onTint: onTint,
                             account: account,
                             onAccount: accounts.length < 2
                                 ? null
@@ -748,10 +759,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                                         theme.brightness,
                                       ),
                                     ),
-                                    label: Text(
-                                      category.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    // Shrinks rather than cutting the
+                                    // name short beside SAVE at the
+                                    // largest font.
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(category.name, maxLines: 1),
                                     ),
                                   ),
                                 ),
@@ -768,7 +781,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                                   style: FilledButton.styleFrom(
                                     minimumSize: const Size.fromHeight(52),
                                     backgroundColor: tint,
-                                    foregroundColor: Colors.white,
+                                    foregroundColor: onTint,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(6),
                                     ),
@@ -797,6 +810,22 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       ),
     );
   }
+}
+
+/// The text and icons on a bar or button filled with [tint]: white, or the
+/// theme's dark text where white would be too faint. White on the dark
+/// theme's lighter red is 3.5:1 and on its green 2.3:1, under SRS §4.1's
+/// 4.5:1; dark text on both is over 5:1.
+Color _onTintFor(Color tint, AppColors colors) {
+  double ratio(Color a, Color b) {
+    final la = a.computeLuminance();
+    final lb = b.computeLuminance();
+    return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+  }
+
+  return ratio(Colors.white, tint) >= ratio(colors.onAccent, tint)
+      ? Colors.white
+      : colors.onAccent;
 }
 
 /// The outline of the category button: in the entry's colour once it can
@@ -1049,6 +1078,7 @@ class _AmountBar extends StatelessWidget {
   const _AmountBar({
     required this.expression,
     required this.tint,
+    required this.onTint,
     required this.account,
     required this.onAccount,
     required this.onBackspace,
@@ -1057,6 +1087,9 @@ class _AmountBar extends StatelessWidget {
 
   final AmountExpression expression;
   final Color tint;
+
+  /// The text and icons on [tint].
+  final Color onTint;
 
   /// Where the money comes from or goes to; null while there is none.
   final AccountOption? account;
@@ -1071,7 +1104,6 @@ class _AmountBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const onTint = Colors.white;
     final value = expression.valueCents;
     final account = this.account;
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
@@ -21,6 +22,8 @@ import 'package:moneyora/features/transactions/presentation/pages/transaction_li
 import 'package:moneyora/features/transactions/presentation/providers/transaction_providers.dart';
 import 'package:moneyora/features/transactions/presentation/widgets/amount_keypad.dart';
 import 'package:moneyora/injection.dart';
+
+import 'large_text.dart';
 
 /// The two screens, driven the way a person drives them.
 ///
@@ -76,6 +79,7 @@ void main() {
     Widget page = const TransactionListPage(),
     List<AccountOption> accountList = accounts,
     DateTime? now,
+    bool dark = false,
   }) => ProviderScope(
     overrides: [
       if (now != null) clockProvider.overrideWithValue(() => now),
@@ -89,7 +93,7 @@ void main() {
       expensePhotosProvider.overrideWithValue(photos),
     ],
     child: MaterialApp(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context)
             .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -844,12 +848,12 @@ void main() {
     // 10 October", a line longer.
     final longestDay = DateTime(2026, 9, 30, 12, 58);
 
-    Future<void> pumpLarge(WidgetTester tester) async {
+    Future<void> pumpLarge(WidgetTester tester, {bool dark = false}) async {
       tester.view.physicalSize = const Size(960, 1920);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(boot(textScale: 2, now: longestDay));
+      await tester.pumpWidget(boot(textScale: 2, now: longestDay, dark: dark));
       await tester.pumpAndSettle();
     }
 
@@ -983,6 +987,68 @@ void main() {
       // Brought into view, which at this size scrolls the note row away.
       expect(find.text('Repeats'), findsOneWidget);
     });
+
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      for (final income in [false, true]) {
+        testWidgets('SAVE and the amount can be read on '
+            '${income ? 'an income' : 'an expense'} ($theme)', (tester) async {
+          await pumpLarge(tester, dark: dark);
+          await openNew(tester, income: income);
+          await keyIn(tester, '5');
+          await tester.tap(chooseButton);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(income ? 'Salary' : 'Transport'));
+          await tester.pumpAndSettle();
+
+          // White on the dark theme's red was 3.5:1, on its green 2.3:1.
+          final fill = tester
+              .widget<FilledButton>(saveButton)
+              .style!
+              .backgroundColor!
+              .resolve({})!;
+          Color colourOf(String text) => tester
+              .renderObject<RenderParagraph>(find.text(text))
+              .text
+              .style!
+              .color!;
+          expect(
+            contrastBetween(colourOf('SAVE'), fill),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastBetween(colourOf(formatCents(500)), fill),
+            greaterThanOrEqualTo(4.5),
+          );
+        });
+      }
+
+      testWidgets('Cancel, the title and the chosen category read whole '
+          '($theme)', (tester) async {
+        await pumpLarge(tester, dark: dark);
+        await openNew(tester);
+        await keyIn(tester, '5');
+        await tester.tap(chooseButton);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Transport'));
+        await tester.pumpAndSettle();
+
+        // Cancel took two lines in a bar one line high.
+        expect(isCut(tester, find.text('Cancel')), isFalse);
+        expect(isCut(tester, find.text('New expense')), isFalse);
+        expect(
+          isCut(
+            tester,
+            find.descendant(
+              of: changeCategory,
+              matching: find.text('Transport'),
+            ),
+          ),
+          isFalse,
+        );
+      });
+    }
   });
 
   testWidgets('offers no sample data: this is where real money is read', (
