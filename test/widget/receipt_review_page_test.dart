@@ -34,6 +34,8 @@ import 'package:moneyora/features/receipt_scanner/domain/usecases/load_receipt_i
 import 'package:moneyora/features/receipt_scanner/presentation/pages/receipt_review_page.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The review screen over the real `ConfirmReceipt` and fakes beneath it,
 /// so what reaches the ledger is what the screen built — not what a mock
 /// was told to expect.
@@ -880,5 +882,76 @@ void main() {
     expect(find.text('scanner'), findsOneWidget);
     expect(receipts.saved, isNull);
     expect(expenses.posted, isNull);
+  });
+
+  group('read whole on a 320dp phone. SRS §4.1', () {
+    Future<void> openOn(
+      WidgetTester tester,
+      void Function(WidgetTester) phone, {
+      required bool dark,
+      ScannedReceipt? scanned,
+    }) async {
+      phone(tester);
+      await tester.pumpWidget(boot(dark: dark));
+      await tester.pumpAndSettle();
+      final context = tester.element(find.text('scanner'));
+      unawaited(
+        GoRouter.of(context)
+            .push(Routes.scanReceiptReview, extra: scanned ?? _scanned()),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    ScannedReceipt guessedTotal() => const ScannedReceipt(
+      imagePath: '/no/such/keells.jpg',
+      receipt: CategorisedReceipt(
+        receipt: ParsedReceipt(
+          merchantName: 'KEELLS SUPER',
+          items: [_bread],
+          totalCents: 30000,
+          guessedFields: {ReceiptField.total},
+        ),
+        items: [CategorisedItem(item: _bread, suggestion: _byKeyword)],
+      ),
+    );
+
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      testWidgets('at the largest font the title shrinks beside Discard '
+          'rather than losing its end ($theme)', (tester) async {
+        await openOn(tester, useLargeTextOnSmallPhone, dark: dark);
+
+        expect(isCut(tester, find.text('Review receipt')), isFalse);
+      });
+
+      testWidgets('a line with no category asks for one in one line '
+          '($theme)', (tester) async {
+        await openOn(tester, useSmallPhone, dark: dark);
+        await tester.dragUntilVisible(
+          find.text('Choose one'),
+          find.byType(ListView).first,
+          const Offset(0, -150),
+        );
+
+        // "Choose a category" wrapped, and the dropdown is one line high.
+        expect(isCut(tester, find.text('Choose one')), isFalse);
+      });
+
+      testWidgets('a guessed total says so in full beside the photo '
+          '($theme)', (tester) async {
+        await openOn(
+          tester,
+          useSmallPhone,
+          dark: dark,
+          scanned: guessedTotal(),
+        );
+
+        expect(
+          isCut(tester, find.text('Worked out, not printed — check it')),
+          isFalse,
+        );
+      });
+    }
   });
 }
