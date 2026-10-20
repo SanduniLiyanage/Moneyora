@@ -225,7 +225,7 @@ counted in the 110 above.
 The entries before E-42 that raise an ID (E-11, E-21, E-22, E-23, E-25) are not yet
 listed here; the errata has them.
 
-### FR-DBT — Debts (E-42, E-44)
+### FR-DBT — Debts (E-42, E-44, E-47)
 
 | ID | Requirement | Raised by |
 |---|---|---|
@@ -233,6 +233,15 @@ listed here; the errata has them.
 | FR-DBT-002 | List the debts: what is still owed each way in total, the open ones under their side with the soonest due first and the overdue ones said to be, and the paid ones folded away below. | E-42 |
 | FR-DBT-003 | Mark a debt paid (with Undo), or not paid after all; change it; delete one recorded by mistake, after asking. | E-42 |
 | FR-DBT-004 | Split a bill evenly between the user and named others, show each share, and save the debts it leaves: each other person owes the user their share when the user paid; the user owes the payer their own share when someone else did. | E-44 |
+| FR-DBT-005 | List the debts by person, a person matched by name whatever its case and spacing: one row each with what they owe the user, or the user owes them, net of every open record either way, opening to the records behind it; overdue people first, then by the soonest due day; people with nothing open folded away below; and at the top, the nets added up each way, saying how. | E-47 |
+| FR-DBT-006 | Offer the people already recorded as a name is typed; rename a person on every one of their records at once, and, after asking, put them together with a person already listed. | E-47 |
+| FR-DBT-007 | Settle up with a person: mark every open record with them paid on one day, recording the net as having changed hands, and saying so before it is done; with Undo. | E-47 |
+| FR-DBT-008 | Record a payment from or to a person, part or all of what is owed, as a record of its own that their net offsets, with the day it was made. | E-47 |
+| FR-DBT-009 | Optionally name the account a debt's money moved through, and, when it is paid back, the account it moved back through: each movement moves that account's balance and shows in its history, and is never income or spending. | E-47 |
+
+> FR-DBT-005's list by person replaces FR-DBT-002's two sides, and its totals
+> are the people's nets (E-47). FR-DBT-009 replaces E-42's rule that a debt
+> names no account; without one, nothing moves, as before.
 
 ### FR-ACC — Account Management, a credit card's terms (E-43)
 
