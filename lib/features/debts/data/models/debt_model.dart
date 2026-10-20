@@ -20,6 +20,7 @@ class DebtModel extends Debt {
     super.note,
     super.dueOn,
     super.paidOn,
+    super.isPayment,
   });
 
   /// Wraps an entity so it can be written.
@@ -32,6 +33,7 @@ class DebtModel extends Debt {
     incurredOn: debt.incurredOn,
     dueOn: debt.dueOn,
     paidOn: debt.paidOn,
+    isPayment: debt.isPayment,
   );
 
   /// Rebuilds a model from a `debts` row.
@@ -50,6 +52,9 @@ class DebtModel extends Debt {
       final String day => decodeIsoDay(day),
       _ => null,
     },
+    // Absent before v9 (a backup from 1.2.0), and 0 on every row v9
+    // upgraded: a debt. E-47.
+    isPayment: map['is_payment'] == 1,
   );
 
   /// The columns a write sets, `created_at` aside: an update leaves it be.
@@ -67,6 +72,7 @@ class DebtModel extends Debt {
       final day? => encodeIsoDay(day),
       null => null,
     },
+    'is_payment': isPayment ? 1 : 0,
     'updated_at': now.toUtc().toIso8601String(),
   };
 
@@ -80,5 +86,6 @@ class DebtModel extends Debt {
     incurredOn: incurredOn,
     dueOn: dueOn,
     paidOn: paidOn,
+    isPayment: isPayment,
   );
 }

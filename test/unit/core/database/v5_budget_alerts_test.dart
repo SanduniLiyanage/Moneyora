@@ -91,7 +91,17 @@ void main() {
       'defaults', () async {
     await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5, 6, 7, 8});
+    expect(await DatabaseHelper.appliedVersions(db), {
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+    });
 
     final user = (await db.query('users')).single;
     expect(user['theme'], 'dark', reason: 'intact');

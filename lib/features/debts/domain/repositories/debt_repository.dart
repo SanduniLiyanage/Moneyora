@@ -25,4 +25,13 @@ abstract interface class DebtRepository {
 
   /// Removes the debt with [id].
   Future<Either<Failure, Unit>> delete(int id);
+
+  /// Adds [add], replaces [update] and removes the debts with the ids in
+  /// [delete], in one write, all or none, and returns the new ids of [add]
+  /// in order. Settling up with a person, and taking it back. FR-DBT-007.
+  Future<Either<Failure, List<int>>> batch({
+    List<Debt> add = const [],
+    List<Debt> update = const [],
+    List<int> delete = const [],
+  });
 }

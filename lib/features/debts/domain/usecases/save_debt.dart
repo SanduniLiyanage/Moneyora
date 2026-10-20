@@ -5,7 +5,8 @@ import '../../../../core/usecases/usecase.dart';
 import '../entities/debt.dart';
 import '../repositories/debt_repository.dart';
 
-/// Records a debt, or saves a change to one. FR-DBT-001, FR-DBT-003.
+/// Records a debt, or saves a change to one; a payment too, which is a
+/// record of its own. FR-DBT-001, FR-DBT-003, FR-DBT-008.
 ///
 /// One use case for both, routed on whether the debt has an id, as
 /// `SaveTransactionController` routes an entry: the form is one form, and
@@ -34,8 +35,10 @@ class SaveDebt implements UseCase<Unit, Debt> {
         _ => null,
       },
       incurredOn: params.incurredOn,
-      dueOn: params.dueOn,
+      // Money that has moved is not due: a payment has no due day.
+      dueOn: params.isPayment ? null : params.dueOn,
       paidOn: params.paidOn,
+      isPayment: params.isPayment,
     );
     if (debt.id == null) return (await _repository.add(debt)).map((_) => unit);
     return _repository.update(debt);

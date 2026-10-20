@@ -79,6 +79,7 @@ void main() {
         6,
         7,
         8,
+        9,
       });
 
       final user = (await db.query('users')).single;

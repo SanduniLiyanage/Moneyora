@@ -17,6 +17,7 @@ import '../../domain/entities/debt.dart';
 import '../../domain/entities/debt_person.dart';
 import '../../domain/usecases/rename_person.dart';
 import '../../domain/usecases/set_debt_paid.dart';
+import '../../domain/usecases/settle_up.dart';
 import '../../domain/usecases/split_bill.dart';
 
 /// Every debt, open ones first, kept live. FR-DBT-002.
@@ -120,6 +121,24 @@ class DebtActionsController extends AutoDisposeAsyncNotifier<void> {
   Future<Failure?> rename(DebtPerson person, {required String to}) async {
     final renamePerson = await ref.read(renamePersonProvider.future);
     return _settle(await renamePerson(PersonRename(person, to: to)));
+  }
+
+  /// Settles up with [person] [on] a day: what was written, for Undo, or
+  /// the failure. FR-DBT-007.
+  Future<Either<Failure, Settled>> settleUp(
+    DebtPerson person, {
+    required DateTime on,
+  }) async {
+    final settleUp = await ref.read(settleUpProvider.future);
+    final result = await settleUp(Settlement(person, on: on));
+    _settle(result.map((_) => unit));
+    return result;
+  }
+
+  /// Takes [settled] back. FR-DBT-007.
+  Future<Failure?> undoSettleUp(Settled settled) async {
+    final undo = await ref.read(undoSettleUpProvider.future);
+    return _settle(await undo(settled));
   }
 
   Failure? _settle(Either<Failure, Unit> result) => result.match(

@@ -62,7 +62,7 @@ follows the Resolution sections.
 | [E-44](#e-44) | A bill shared between several people: split it into debts | Resolved (raises FR-DBT-004) | FR-DBT-004 |
 | [E-45](#e-45) | A receipt's lines are never checked against its own total | Resolved | FR-RCP-005, FR-RCP-007, FR-RCP-011 |
 | [E-46](#e-46) | A credit card with a limit shows a balance of nothing | Resolved | FR-ACC-003, FR-ACC-009 |
-| [E-47](#e-47) | Debts are kept record by record, not person by person | Resolved (raises FR-DBT-005, FR-DBT-006) | FR-DBT-002, FR-DBT-005, FR-DBT-006 |
+| [E-47](#e-47) | Debts are kept record by record, not person by person | Resolved (raises FR-DBT-005..008) | FR-DBT-002, FR-DBT-003, FR-DBT-005, FR-DBT-006, FR-DBT-007, FR-DBT-008 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2816,8 +2816,8 @@ choice and the transfer screen, and the limit looked lost.
 
 ## E-47 — Debts are kept record by record, not person by person
 
-**Severity:** Medium · **Affects:** E-42, E-44 · **Requirement:**
-FR-DBT-002; raises FR-DBT-005, FR-DBT-006
+**Severity:** Medium · **Affects:** E-42, E-44, DBD · **Requirement:**
+FR-DBT-002, FR-DBT-003; raises FR-DBT-005 to FR-DBT-008
 
 Raised 2026-10-20, from a tester using 1.2.0, who asked for debts to be
 kept separately for each person, and for a new record to offset what is
@@ -2835,6 +2835,8 @@ user was owed Rs1,000 and owed Rs400, which is not what anyone would say.
 |---|---|
 | FR-DBT-005 | List the debts by person, a person matched by name whatever its case and spacing: one row each with what they owe the user, or the user owes them, net of every open record either way, opening to the records behind it; overdue people first, then by the soonest due day; people with nothing open folded away below; and at the top, the nets added up each way, saying how. |
 | FR-DBT-006 | Offer the people already recorded as a name is typed; rename a person on every one of their records at once, and, after asking, put them together with a person already listed. |
+| FR-DBT-007 | Settle up with a person: mark every open record with them paid on one day, recording the net as having changed hands, and saying so before it is done; with Undo. |
+| FR-DBT-008 | Record a payment from or to a person, part or all of what is owed, as a record of its own that their net offsets, with the day it was made. |
 
 1. **The list is by person** (FR-DBT-005, in place of FR-DBT-002's two
    sides). One row per person with something open: "Owes you
@@ -2862,6 +2864,28 @@ user was owed Rs1,000 and owed Rs400, which is not what anyone would say.
    name on every one of their records in one write; renaming them to a
    person already listed asks first, then puts the two together under
    the spelling already listed. Nothing is put together without asking.
+6. **Settle up** (FR-DBT-007) closes every open record with a person on
+   one day, chosen in the dialog, today unless changed. What changes
+   hands is the net, not each record, and the dialog says so before
+   anything is written: "Nimal pays you Rs600.00: what they owe you,
+   less what you owe them", or, square, that nothing changes hands. The
+   net is written as a payment on the day, closed with the rest, so the
+   history says what moved. Undo opens the records again as they were
+   and removes that payment. It is one write: a person half settled has
+   a net that no longer adds up.
+7. **A payment is a record of its own** (FR-DBT-008), the owner's choice
+   over a "paid so far" figure on each debt. "Record a payment" on a
+   person opens the form for one, filled in with who and which way:
+   "Paid me" or "I paid", how much, and the day. It runs the other way
+   from what it pays, so the net offsets it: Nimal paying back Rs300 of
+   Rs1,000 leaves Rs700. The form says what would settle it
+   ("Rs1,000.00 settles it") without filling it in. A payment has no due
+   day and no tick of its own: it is money that has moved, and it closes
+   when the person is settled up. FR-DBT-003's Mark as paid applies to
+   debts, not payments.
+8. **Schema v9** adds `debts.is_payment`, 0 or 1, 0 on every existing
+   row: every debt upgrades as a debt (`v9_debt_payments_test.dart`).
+   Additive, per SDD §5.3.
 
 ---
 

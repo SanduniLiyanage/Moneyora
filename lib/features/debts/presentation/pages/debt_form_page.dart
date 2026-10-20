@@ -10,17 +10,21 @@ import '../../domain/usecases/save_debt.dart';
 import '../providers/debt_providers.dart';
 import '../widgets/person_name_field.dart';
 
-/// Recording a debt, or changing, settling or deleting one. FR-DBT-001,
-/// FR-DBT-003.
+/// Recording a debt, or changing, settling or deleting one; a payment
+/// too. FR-DBT-001, FR-DBT-003, FR-DBT-008.
 ///
-/// One screen for both, as the account form is; [initial] being null makes
-/// it a new one. Every refusal is [SaveDebt.validate]'s, shown beside the
-/// field it is about once Save has been pressed.
+/// One screen for both, as the account form is; [initial] without an id
+/// makes it a new one. A payment is [initial] with [Debt.isPayment] set,
+/// its person and the way it runs filled in by the list: who paid whom,
+/// how much, and on which day, with no due day and no Mark as paid,
+/// since it is money already moved. Every refusal is [SaveDebt.validate]'s,
+/// shown beside the field it is about once Save has been pressed.
 class DebtFormPage extends ConsumerStatefulWidget {
   /// Creates the form, editing [initial] when one is given.
   const DebtFormPage({super.key, this.initial});
 
-  /// The debt being changed, or null for a new one.
+  /// The debt being changed; one with no id to start a new one from, as
+  /// a payment is; or null for a new debt.
   final Debt? initial;
 
   @override
@@ -39,7 +43,9 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
   /// complain before anything has been typed.
   bool _submitted = false;
 
-  bool get _isEditing => widget.initial != null;
+  bool get _isEditing => widget.initial?.id != null;
+
+  bool get _isPayment => widget.initial?.isPayment ?? false;
 
   @override
   void initState() {
@@ -48,7 +54,7 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     _direction = initial?.direction ?? DebtDirection.owedToMe;
     _person = TextEditingController(text: initial?.person ?? '');
     _amount = TextEditingController(
-      text: initial == null
+      text: initial == null || initial.amountCents == 0
           ? ''
           : formatCents(initial.amountCents, showSymbol: false),
     );
@@ -77,9 +83,30 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     amountCents: parseToCents(_amount.text) ?? 0,
     note: _note.text,
     incurredOn: _incurredOn,
-    dueOn: _dueOn,
+    dueOn: _isPayment ? null : _dueOn,
     paidOn: widget.initial?.paidOn,
+    isPayment: _isPayment,
   );
+
+  /// What would settle the person in the field, paid the way the payment
+  /// runs: their net without this record, when the payment takes it
+  /// towards nothing. Null otherwise. FR-DBT-008.
+  int? _settlingAmount(List<Debt> all) {
+    final key = personKey(_person.text);
+    if (key.isEmpty) return null;
+    final id = widget.initial?.id;
+    final theirs = [
+      for (final d in all)
+        if (d.id != id && personKey(d.person) == key) d,
+    ];
+    if (theirs.isEmpty) return null;
+    final net = DebtPerson(name: _person.text, records: theirs).netCents;
+    return switch (_direction) {
+      DebtDirection.iOwe when net > 0 => net,
+      DebtDirection.owedToMe when net < 0 => -net,
+      _ => null,
+    };
+  }
 
   String? _errorFor(String field) {
     if (!_submitted) return null;
@@ -120,10 +147,12 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete this debt?'),
-        content: const Text(
-          'It is removed for good. If it was paid back, mark it as paid '
-          'instead, and it stays in the list.',
+        title: Text(_isPayment ? 'Delete this payment?' : 'Delete this debt?'),
+        content: Text(
+          _isPayment
+              ? 'It is removed for good, and what it paid is owed again.'
+              : 'It is removed for good. If it was paid back, mark it as '
+                    'paid instead, and it stays in the list.',
         ),
         actions: [
           TextButton(
@@ -186,27 +215,52 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     final due = _dueOn;
     final dueError = _errorFor('dueOn');
     // Everyone recorded so far, for the name field to offer (FR-DBT-006).
-    final names = DebtPerson.names(ref.watch(debtsProvider).valueOrNull ?? []);
+    final everything = ref.watch(debtsProvider).valueOrNull ?? const <Debt>[];
+    final names = DebtPerson.names(everything);
+    final payment = _isPayment;
+    final settles = payment ? _settlingAmount(everything) : null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit debt' : 'New debt')),
+      appBar: AppBar(
+        title: Text(switch ((payment, _isEditing)) {
+          (true, true) => 'Edit payment',
+          (true, false) => 'New payment',
+          (false, true) => 'Edit debt',
+          (false, false) => 'New debt',
+        }),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             SegmentedButton<DebtDirection>(
-              segments: const [
-                ButtonSegment(
-                  value: DebtDirection.owedToMe,
-                  icon: Icon(Icons.call_received),
-                  label: Text('Owed to me'),
-                ),
-                ButtonSegment(
-                  value: DebtDirection.iOwe,
-                  icon: Icon(Icons.call_made),
-                  label: Text('I owe'),
-                ),
-              ],
+              // A payment from them runs the way a debt the user owes
+              // does: it takes off what they owe (FR-DBT-008).
+              segments: payment
+                  ? const [
+                      ButtonSegment(
+                        value: DebtDirection.iOwe,
+                        icon: Icon(Icons.call_received),
+                        label: Text('Paid me'),
+                      ),
+                      ButtonSegment(
+                        value: DebtDirection.owedToMe,
+                        icon: Icon(Icons.call_made),
+                        label: Text('I paid'),
+                      ),
+                    ]
+                  : const [
+                      ButtonSegment(
+                        value: DebtDirection.owedToMe,
+                        icon: Icon(Icons.call_received),
+                        label: Text('Owed to me'),
+                      ),
+                      ButtonSegment(
+                        value: DebtDirection.iOwe,
+                        icon: Icon(Icons.call_made),
+                        label: Text('I owe'),
+                      ),
+                    ],
               selected: {_direction},
               onSelectionChanged: (next) =>
                   setState(() => _direction = next.single),
@@ -215,11 +269,16 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
             PersonNameField(
               controller: _person,
               names: names,
-              autofocus: !_isEditing,
+              // A payment opens with its person filled in: the amount is
+              // what is left to type.
+              autofocus: !_isEditing && !payment,
               decoration: InputDecoration(
-                labelText: _direction == DebtDirection.owedToMe
-                    ? 'Who owes you'
-                    : 'Who you owe',
+                labelText: switch ((payment, _direction)) {
+                  (true, DebtDirection.iOwe) => 'Who paid you',
+                  (true, DebtDirection.owedToMe) => 'Who you paid',
+                  (false, DebtDirection.owedToMe) => 'Who owes you',
+                  (false, DebtDirection.iOwe) => 'Who you owe',
+                },
                 border: const OutlineInputBorder(),
                 errorText: _errorFor('person'),
               ),
@@ -227,12 +286,19 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
             const SizedBox(height: 16),
             TextField(
               controller: _amount,
+              autofocus: !_isEditing && payment,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
               decoration: InputDecoration(
                 labelText: 'Amount',
                 hintText: '0.00',
+                // Part or all of it: what would settle it, said, not
+                // filled in (FR-DBT-008).
+                helperText: settles == null
+                    ? null
+                    : '${formatCents(settles)} settles it',
+                helperMaxLines: 2,
                 border: const OutlineInputBorder(),
                 errorText: _errorFor('amount'),
               ),
@@ -253,29 +319,30 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.event_outlined),
-              title: const Text('Since'),
+              title: Text(payment ? 'Paid on' : 'Since'),
               subtitle: Text(day.format(_incurredOn)),
               onTap: _pickIncurred,
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_available_outlined),
-              title: const Text('Due by (optional)'),
-              subtitle: Text(
-                due == null ? 'No due date' : day.format(due),
-                style: dueError == null
+            if (!payment)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_available_outlined),
+                title: const Text('Due by (optional)'),
+                subtitle: Text(
+                  due == null ? 'No due date' : day.format(due),
+                  style: dueError == null
+                      ? null
+                      : TextStyle(color: theme.colorScheme.error),
+                ),
+                trailing: due == null
                     ? null
-                    : TextStyle(color: theme.colorScheme.error),
+                    : IconButton(
+                        tooltip: 'Remove due date',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => setState(() => _dueOn = null),
+                      ),
+                onTap: _pickDue,
               ),
-              trailing: due == null
-                  ? null
-                  : IconButton(
-                      tooltip: 'Remove due date',
-                      icon: const Icon(Icons.close),
-                      onPressed: () => setState(() => _dueOn = null),
-                    ),
-              onTap: _pickDue,
-            ),
             if (dueError != null)
               Text(
                 dueError,
@@ -294,23 +361,30 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
                       dimension: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text(_isEditing ? 'Save changes' : 'Add debt'),
+                  : Text(switch ((payment, _isEditing)) {
+                      (_, true) => 'Save changes',
+                      (true, false) => 'Save payment',
+                      (false, false) => 'Add debt',
+                    }),
             ),
-            if (initial != null) ...[
+            if (initial != null && _isEditing) ...[
               const Divider(height: 40),
-              OutlinedButton.icon(
-                onPressed: busy ? null : _togglePaid,
-                icon: Icon(
-                  initial.isOpen ? Icons.check_circle_outline : Icons.undo,
+              // A payment closes when the person is settled up (FR-DBT-007).
+              if (!payment) ...[
+                OutlinedButton.icon(
+                  onPressed: busy ? null : _togglePaid,
+                  icon: Icon(
+                    initial.isOpen ? Icons.check_circle_outline : Icons.undo,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  label: Text(
+                    initial.isOpen ? 'Mark as paid' : 'Mark as not paid',
+                  ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                label: Text(
-                  initial.isOpen ? 'Mark as paid' : 'Mark as not paid',
-                ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
+              ],
               TextButton.icon(
                 onPressed: busy ? null : _delete,
                 icon: const Icon(Icons.delete_outline),
@@ -318,7 +392,7 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
                   foregroundColor: theme.colorScheme.error,
                   minimumSize: const Size.fromHeight(48),
                 ),
-                label: const Text('Delete debt'),
+                label: Text(payment ? 'Delete payment' : 'Delete debt'),
               ),
             ],
           ],

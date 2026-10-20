@@ -101,6 +101,7 @@ import 'features/debts/domain/usecases/delete_debt.dart';
 import 'features/debts/domain/usecases/rename_person.dart';
 import 'features/debts/domain/usecases/save_debt.dart';
 import 'features/debts/domain/usecases/set_debt_paid.dart';
+import 'features/debts/domain/usecases/settle_up.dart';
 import 'features/debts/domain/usecases/split_bill.dart';
 import 'features/debts/domain/usecases/watch_debts.dart';
 import 'features/money_plan/data/datasources/money_plan_local_datasource.dart';
@@ -1617,4 +1618,15 @@ final splitBillProvider = FutureProvider<SplitBill>(
 /// FR-DBT-006.
 final renamePersonProvider = FutureProvider<RenamePerson>(
   (ref) async => RenamePerson(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// Every open record with a person closed, the net recorded as paid.
+/// FR-DBT-007.
+final settleUpProvider = FutureProvider<SettleUp>(
+  (ref) async => SettleUp(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// A settlement taken back. FR-DBT-007.
+final undoSettleUpProvider = FutureProvider<UndoSettleUp>(
+  (ref) async => UndoSettleUp(await ref.watch(debtRepositoryProvider.future)),
 );

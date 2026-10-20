@@ -32,6 +32,15 @@ class SetDebtPaid implements UseCase<Unit, DebtPayment> {
     if (params.debt.id == null) {
       return const Left(ValidationFailure('That debt has not been saved.'));
     }
+    if (params.debt.isPayment) {
+      // A payment is money already moved; it closes with the rest of the
+      // person's records when they are settled up (FR-DBT-007).
+      return const Left(
+        ValidationFailure(
+          'A payment closes when you settle up with the person.',
+        ),
+      );
+    }
     final paid = params.paidOn;
     if (paid != null &&
         DateTime(paid.year, paid.month, paid.day).isBefore(
