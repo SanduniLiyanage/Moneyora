@@ -44,6 +44,12 @@ balance, and the **Total balance** across the accounts you have included
 in it. The first row, **Add**, has **⇄** for a transfer and **+** for a
 new account.
 
+A credit card with a limit shows what is left to spend instead of its
+balance, with what is owed under it: **Rs37,500.00**, *Available · owed
+Rs12,500.00*. The same figure is shown when you choose an account for an
+entry or a transfer. The **Total balance** still takes off only what the
+card owes: credit left to spend is not your money.
+
 - **+** adds an account: a name (such as *Cash* or *Commercial Bank
   savings*), a type, an opening balance and the date it was true on, a
   currency, and whether it counts towards the total.
@@ -60,7 +66,8 @@ nowhere to record anything.
 An account of the **Credit card** type has a **Credit card** section on
 its form, all optional: the **credit limit**, the **statement day** and
 **payment due day** (days of the month), and the **interest rate** a
-year. Enter what the card owes as its opening balance with a minus.
+year. Enter what the card owes as its opening balance with a minus; the
+limit goes in the **Credit card** section, not in the opening balance.
 
 **Credit cards** (in the menu) shows each card: what is owed out of the
 limit and what is left to spend, the next statement and payment dates,
@@ -124,19 +131,49 @@ turned on in Settings, you get a notification before each is recorded.
 
 ### Debts
 
-**Debts** (in the menu) keeps track of money lent and borrowed. **Add
-debt** asks which way it runs (**Owed to me** or **I owe**), who, how
-much, since when, and optionally a due date and what it was for. The top
-of the screen shows what is still owed to you and what you owe; each
-debt is listed under its side, the soonest due first, and one past its
-due date says it is overdue. Tap the **tick** on a debt when it is paid
-back (**Undo** appears for a moment), or tap the debt to change it, mark
-it not paid, or delete it. Paid debts are folded away under **Paid** at
-the bottom.
+**Debts** (in the menu) keeps track of money lent and borrowed, person by
+person. **Add debt** asks which way it runs (**Owed to me** or **I owe**),
+who, how much, since when, and optionally a due date, what it was for, and
+an account (below). As you type a name, people you have recorded before
+are offered: tap one to use the same spelling.
 
-A debt is not a transaction: marking one paid does not move money
-between your accounts. Record the payment as an expense or income if it
-went through one.
+Each person has one row: what they owe you, or what you owe them, after
+everything open between you is added up. If Nimal owes you Rs1,000 and you
+then owe him Rs400, his row says **Owes you Rs600.00**; nothing is deleted
+or merged to get there. A person with a debt past its due date says
+**overdue**. The top of the screen adds up those rows: what is owed to you,
+and what you owe. People with nothing open are folded away under
+**Settled** at the bottom.
+
+Tap a person to see the records behind their row. Each has its own
+**tick** to mark it paid (**Undo** appears for a moment); tap a record to
+change it, mark it not paid, or delete it. Below the records:
+
+- **Settle up** closes everything open with that person on one day. The
+  screen says first what changes hands, which is the amount between you,
+  not each record: "Nimal pays you Rs600.00". Moneyora records that as a
+  payment and marks every record paid. **Undo** takes it all back.
+- **Record a payment** is for part of what is owed, or all of it at once:
+  **Paid me** or **I paid**, how much and when. It is kept as a record of
+  its own, and the person's row goes down by it; if Nimal pays back Rs300
+  of Rs1,000, he owes Rs700. The screen says what would settle it. A
+  payment closes when you settle up with the person.
+- **Rename** changes the person's name on all their records. If you
+  rename someone to a name already in the list (two spellings of one
+  person), Moneyora asks before putting them together.
+
+**An account.** A debt can name the account the money went out of or came
+into: **Lent from** Cash, **Borrowed into** a bank account. Its balance
+goes down or up by the amount, and the account's transactions show it as
+**Debt**, "Lent to Nimal". It is never counted as income or spending, so
+it does not appear in the charts, Reports or a budget. When you mark the
+debt paid, Moneyora asks which account the money came back into (or left
+from); the tick uses the debt's own account and says so. When you settle
+up, choose the account the amount changed hands through. All of this is
+optional: a debt with **No account** moves no balance, and you can record
+a payment as an expense or income yourself if you prefer. Only accounts in
+rupees are offered. A debt's money is changed or deleted with the debt,
+under **Debts**, not from the transaction list.
 
 **Splitting a bill.** The split icon at the top of **Debts** shares a bill
 evenly. Type the total, what it was for, and the name of everyone you
@@ -144,7 +181,9 @@ shared it with (**Add a person** for more), and choose **who paid**. Each
 share is shown as you type, and they add up to the bill exactly. **Save as
 debts**: if you paid, each of the others owes you their share; if someone
 else paid, you owe them yours. What you paid yourself, record as an
-expense with **−** as usual.
+expense with **−** as usual. The debts a split saves name no account, so
+the bill is not counted twice; when someone pays you back, mark their debt
+paid into the account the money went to.
 
 ### Moving money between your own accounts
 
@@ -172,7 +211,9 @@ sideways, or use **‹** and **›**, for the period before or after, and tap
 the balance to choose another period or account. **Group by category**
 shows each category's entries together with their total; **List by date**
 goes back. An account opened in the period shows its **Opening balance**
-as a row on the day it was opened; change it on the account itself.
+as a row on the day it was opened; change it on the account itself. Money
+a debt moved through an account shows as a **Debt** row, such as "Lent to
+Nimal"; tapping it opens **Debts**, where it is changed with the debt.
 
 ---
 
@@ -461,3 +502,9 @@ screen before confirming. Moneyora remembers the categories you choose.
 
 **Which phones does it run on?** Android 8.0 or later. An iPhone version is
 not part of this beta.
+
+**How do I update without losing anything?** Back up first (Settings ›
+**Back up now**), then download the new APK and open it: Android offers
+**Update** and keeps everything. Never uninstall to update, because
+uninstalling deletes your data. If Android says "App not installed", stop
+there and ask for help rather than uninstalling.
