@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/debt.dart';
@@ -30,6 +31,24 @@ final debtsProvider = StreamProvider<List<Debt>>((ref) {
       .asyncExpand((watchDebts) => watchDebts(const NoParams()))
       .transform(
         StreamTransformer<Either<Failure, List<Debt>>, List<Debt>>.fromHandlers(
+          handleData: (result, sink) => result.match(sink.addError, sink.add),
+        ),
+      );
+});
+
+/// Every account that is not archived, kept live, for a debt to name the
+/// one its money moved through. FR-DBT-009, E-47.
+///
+/// Read through [AccountReader], the port, as the entry screen reads them:
+/// the accounts are another feature's.
+final debtAccountsProvider = StreamProvider<List<AccountOption>>((ref) {
+  return Stream.fromFuture(ref.watch(accountReaderProvider.future))
+      .asyncExpand((reader) => reader.watchAll())
+      .transform(
+        StreamTransformer<
+          Either<Failure, List<AccountOption>>,
+          List<AccountOption>
+        >.fromHandlers(
           handleData: (result, sink) => result.match(sink.addError, sink.add),
         ),
       );
@@ -105,10 +124,17 @@ class DebtActionsController extends AutoDisposeAsyncNotifier<void> {
   @override
   Future<void> build() async {}
 
-  /// [debt] paid on [paidOn], or open again when null.
-  Future<Failure?> setPaid(Debt debt, {required DateTime? paidOn}) async {
+  /// [debt] paid on [paidOn] back through the account [through], or open
+  /// again when [paidOn] is null.
+  Future<Failure?> setPaid(
+    Debt debt, {
+    required DateTime? paidOn,
+    int? through,
+  }) async {
     final setDebtPaid = await ref.read(setDebtPaidProvider.future);
-    return _settle(await setDebtPaid(DebtPayment(debt, paidOn: paidOn)));
+    return _settle(
+      await setDebtPaid(DebtPayment(debt, paidOn: paidOn, through: through)),
+    );
   }
 
   /// Removes the debt with [id].
@@ -128,9 +154,10 @@ class DebtActionsController extends AutoDisposeAsyncNotifier<void> {
   Future<Either<Failure, Settled>> settleUp(
     DebtPerson person, {
     required DateTime on,
+    int? through,
   }) async {
     final settleUp = await ref.read(settleUpProvider.future);
-    final result = await settleUp(Settlement(person, on: on));
+    final result = await settleUp(Settlement(person, on: on, through: through));
     _settle(result.map((_) => unit));
     return result;
   }

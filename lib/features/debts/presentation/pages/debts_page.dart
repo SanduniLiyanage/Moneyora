@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -19,6 +20,7 @@ import '../../domain/entities/debt_totals.dart';
 import '../../domain/usecases/rename_person.dart';
 import '../../domain/usecases/settle_up.dart';
 import '../providers/debt_providers.dart';
+import '../widgets/debt_account_field.dart';
 
 /// Money owed, either way, person by person. FR-DBT-002, FR-DBT-005,
 /// E-42, E-47.
@@ -38,6 +40,9 @@ class DebtsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final debts = ref.watch(debtsProvider);
     final today = ref.watch(clockProvider)();
+    // For naming the account a record's money moved through (FR-DBT-009);
+    // the list never waits on it.
+    final accounts = ref.watch(debtAccountsProvider).valueOrNull ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -95,6 +100,7 @@ class DebtsPage extends ConsumerWidget {
                   key: ValueKey(person.key),
                   person: person,
                   everyone: people,
+                  accounts: accounts,
                   today: today,
                 ),
               if (settled.isNotEmpty)
@@ -108,6 +114,7 @@ class DebtsPage extends ConsumerWidget {
                         key: ValueKey(person.key),
                         person: person,
                         everyone: people,
+                        accounts: accounts,
                         today: today,
                       ),
                   ],
@@ -196,6 +203,7 @@ class _PersonTile extends ConsumerWidget {
   const _PersonTile({
     required this.person,
     required this.everyone,
+    required this.accounts,
     required this.today,
     super.key,
   });
@@ -204,6 +212,9 @@ class _PersonTile extends ConsumerWidget {
 
   /// Every person listed, to tell a rename that puts two together.
   final List<DebtPerson> everyone;
+
+  /// Every account, for naming and choosing one. FR-DBT-009.
+  final List<AccountOption> accounts;
   final DateTime today;
 
   @override
@@ -250,7 +261,12 @@ class _PersonTile extends ConsumerWidget {
       childrenPadding: const EdgeInsetsDirectional.only(start: 16),
       children: [
         for (final debt in person.records)
-          _DebtTile(key: ValueKey(debt.id), debt: debt, today: today),
+          _DebtTile(
+            key: ValueKey(debt.id),
+            debt: debt,
+            accounts: accounts,
+            today: today,
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           child: Wrap(
@@ -298,13 +314,21 @@ class _PersonTile extends ConsumerWidget {
   Future<void> _settleUp(BuildContext context, WidgetRef ref) async {
     final actions = ref.read(debtActionsControllerProvider.notifier);
     final messenger = ScaffoldMessenger.of(context);
-    final on = await showDialog<DateTime>(
+    final chosen = await showDialog<({DateTime on, int? through})>(
       context: context,
-      builder: (context) => _SettleDialog(person: person, today: today),
+      builder: (context) => _SettleDialog(
+        person: person,
+        accounts: debtAccounts(accounts),
+        today: today,
+      ),
     );
-    if (on == null) return;
+    if (chosen == null) return;
 
-    final result = await actions.settleUp(person, on: on);
+    final result = await actions.settleUp(
+      person,
+      on: chosen.on,
+      through: chosen.through,
+    );
     messenger.clearSnackBars();
     switch (result) {
       case Left(value: final failure):
@@ -384,9 +408,16 @@ class _PersonTile extends ConsumerWidget {
 /// When the two are not square it says the net is what changes hands, not
 /// each record: settling is the net paid, and every record closed.
 class _SettleDialog extends StatefulWidget {
-  const _SettleDialog({required this.person, required this.today});
+  const _SettleDialog({
+    required this.person,
+    required this.accounts,
+    required this.today,
+  });
 
   final DebtPerson person;
+
+  /// The accounts the net can change hands through. FR-DBT-009.
+  final List<AccountOption> accounts;
   final DateTime today;
 
   @override
@@ -395,6 +426,16 @@ class _SettleDialog extends StatefulWidget {
 
 class _SettleDialogState extends State<_SettleDialog> {
   late DateTime _on = widget.today;
+
+  /// The account the person's debts went through, when they all went
+  /// through one: where the net most likely comes back. None otherwise.
+  late int? _through = () {
+    final used = {
+      for (final d in widget.person.open)
+        if (!d.isPayment && d.accountId != null) d.accountId,
+    };
+    return used.length == 1 ? used.single : null;
+  }();
 
   Future<void> _pickDay() async {
     final open = widget.person.open;
@@ -450,6 +491,15 @@ class _SettleDialogState extends State<_SettleDialog> {
             subtitle: Text(day.format(_on)),
             onTap: _pickDay,
           ),
+          if (net != 0 && (widget.accounts.isNotEmpty || _through != null)) ...[
+            const SizedBox(height: 8),
+            DebtAccountField(
+              label: net > 0 ? 'Paid into' : 'Paid from',
+              accounts: widget.accounts,
+              value: _through,
+              onChanged: (id) => setState(() => _through = id),
+            ),
+          ],
           if (problem != null)
             Text(
               problem.message,
@@ -464,7 +514,9 @@ class _SettleDialogState extends State<_SettleDialog> {
         ),
         TextButton(
           onPressed: problem == null
-              ? () => Navigator.of(context).pop(_on)
+              ? () =>
+                    Navigator.of(context)
+                        .pop((on: _on, through: net == 0 ? null : _through))
               : null,
           child: const Text('Settle up'),
         ),
@@ -533,23 +585,48 @@ class _RenameDialogState extends State<_RenameDialog> {
 /// much — green owed to the user, red owed by them — and a tick to mark it
 /// paid.
 class _DebtTile extends ConsumerWidget {
-  const _DebtTile({required this.debt, required this.today, super.key});
+  const _DebtTile({
+    required this.debt,
+    required this.accounts,
+    required this.today,
+    super.key,
+  });
 
   final Debt debt;
+
+  /// Every account, for naming the one the money moved through.
+  final List<AccountOption> accounts;
   final DateTime today;
 
+  String? _nameOf(int? id) =>
+      id == null ? null : accounts.where((a) => a.id == id).firstOrNull?.name;
+
+  /// Paid today, back through the account the debt went through, if it
+  /// went through one: the tick's choice, said in the snackbar; the form
+  /// offers another (FR-DBT-009).
   Future<void> _markPaid(BuildContext context, WidgetRef ref) async {
     final actions = ref.read(debtActionsControllerProvider.notifier);
     final messenger = ScaffoldMessenger.of(context);
-    final failure = await actions.setPaid(debt, paidOn: today);
+    final through = debt.accountId;
+    final failure = await actions.setPaid(
+      debt,
+      paidOn: today,
+      through: through,
+    );
     messenger.clearSnackBars();
     if (failure != null) {
       messenger.showSnackBar(SnackBar(content: Text(failure.message)));
       return;
     }
+    final where = switch (_nameOf(through)) {
+      final name? when debt.direction == DebtDirection.owedToMe =>
+        ', back into $name',
+      final name? => ', paid from $name',
+      null => '',
+    };
     messenger.showSnackBar(
       SnackBar(
-        content: Text('${debt.person}: marked as paid'),
+        content: Text('${debt.person}: marked as paid$where'),
         persist: false,
         action: SnackBarAction(
           label: 'Undo',
@@ -589,6 +666,20 @@ class _DebtTile extends ConsumerWidget {
       Debt(dueOn: final due?) => 'Due ${day.format(due)}',
       _ => 'Since ${day.format(debt.incurredOn)}',
     };
+    // The account the money went through, as this record moved it.
+    final through = switch (debt) {
+      Debt(isOpen: false, paidAccountId: final id?) => switch (_nameOf(id)) {
+        final name? when owedToMe => 'back into $name',
+        final name? => 'paid from $name',
+        null => null,
+      },
+      Debt(:final accountId?) => switch (_nameOf(accountId)) {
+        final name? when owedToMe => 'from $name',
+        final name? => 'into $name',
+        null => null,
+      },
+      _ => null,
+    };
     final figure = formatCents(debt.amountCents);
     final figureStyle = theme.textTheme.titleMedium?.copyWith(
       color: tint,
@@ -596,7 +687,7 @@ class _DebtTile extends ConsumerWidget {
       decoration: debt.isOpen ? null : TextDecoration.lineThrough,
     );
     final details = Text(
-      when,
+      [when, ?through].join(' · '),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: overdue ? TextStyle(color: theme.colorScheme.error) : null,

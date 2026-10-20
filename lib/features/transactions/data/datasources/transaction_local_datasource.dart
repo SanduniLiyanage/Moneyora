@@ -239,6 +239,15 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
       await _db.transaction((txn) async {
         final existing = await LedgerWriter.requireRow(txn, id);
 
+        // A debt's money movement belongs to its debt, which takes it out
+        // when the debt is changed or deleted (FR-DBT-009, E-47). Deleted
+        // here, the debt would still say the money moved.
+        if (existing.debtId != null) {
+          throw const CacheException(
+            "That is a debt's money. Change or delete it under Debts.",
+          );
+        }
+
         if (existing.type == TransactionType.transfer) {
           await _deleteTransferAround(txn, id);
           return;

@@ -7,20 +7,26 @@ import '../repositories/debt_repository.dart';
 
 /// Marks a debt paid on a day, or open again. Input to [SetDebtPaid].
 class DebtPayment {
-  /// Creates the request: [debt] paid on [paidOn], or reopened when null.
-  const DebtPayment(this.debt, {required this.paidOn});
+  /// Creates the request: [debt] paid on [paidOn] back through the account
+  /// [through], or reopened when [paidOn] is null.
+  const DebtPayment(this.debt, {required this.paidOn, this.through});
 
   /// The debt, as stored.
   final Debt debt;
 
   /// The day it was paid; null to open it again.
   final DateTime? paidOn;
+
+  /// The account it was paid back through, or null for none. FR-DBT-009.
+  final int? through;
 }
 
 /// Marks a debt as paid, or as not paid after all. FR-DBT-003.
 ///
-/// Records only that it was paid and when. The money itself moved through
-/// an account, and is recorded there as any income or expense is (E-42).
+/// Records that it was paid, when, and, when the user says, the account
+/// the money came back into or left to repay it: that account's balance
+/// moves back, never as income or spending (FR-DBT-009, E-47). Opened
+/// again, the movement goes.
 class SetDebtPaid implements UseCase<Unit, DebtPayment> {
   /// Creates the use case.
   const SetDebtPaid(this._repository);
@@ -54,6 +60,8 @@ class SetDebtPaid implements UseCase<Unit, DebtPayment> {
         ValidationFailure('It cannot be paid before the day it started.'),
       );
     }
-    return _repository.update(params.debt.withPaidOn(paid));
+    return _repository.update(
+      params.debt.withPaidOn(paid, through: params.through),
+    );
   }
 }

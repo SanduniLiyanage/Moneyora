@@ -98,6 +98,7 @@ class Transaction extends Equatable {
     this.receiptImagePath,
     this.recurringRuleId,
     this.isRecurring = false,
+    this.debtId,
   });
 
   /// Row id, null before it is saved.
@@ -165,6 +166,18 @@ class Transaction extends Equatable {
   /// deleted, series ended) should still read as having been generated.
   final bool isRecurring;
 
+  /// The debt this row is the money movement of, if it is one. E-47.
+  ///
+  /// A debt carried through an account moves it by a row of its own,
+  /// written by the debts feature: one side of a transfer, with no other
+  /// side, so it is never income or spending and its account's balance and
+  /// history both have it. It belongs to its debt. Changed or deleted
+  /// there, never here (FR-DBT-009).
+  final int? debtId;
+
+  /// Whether this is a debt's money movement rather than an entry.
+  bool get isDebtMovement => debtId != null;
+
   /// The photo this row owns: one attached by hand. FR-EXP-009.
   ///
   /// Null for a row from a receipt scan, whose photo is the scan record's
@@ -209,6 +222,7 @@ class Transaction extends Equatable {
     String? receiptImagePath,
     int? recurringRuleId,
     bool? isRecurring,
+    int? debtId,
   }) => Transaction(
     id: id ?? this.id,
     accountId: accountId ?? this.accountId,
@@ -225,6 +239,7 @@ class Transaction extends Equatable {
     receiptImagePath: receiptImagePath ?? this.receiptImagePath,
     recurringRuleId: recurringRuleId ?? this.recurringRuleId,
     isRecurring: isRecurring ?? this.isRecurring,
+    debtId: debtId ?? this.debtId,
   );
 
   @override
@@ -244,5 +259,6 @@ class Transaction extends Equatable {
     receiptImagePath,
     recurringRuleId,
     isRecurring,
+    debtId,
   ];
 }

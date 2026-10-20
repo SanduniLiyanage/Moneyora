@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/ports/account_reader.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/debt.dart';
 import '../../domain/entities/debt_person.dart';
 import '../../domain/usecases/save_debt.dart';
 import '../providers/debt_providers.dart';
+import '../widgets/debt_account_field.dart';
 import '../widgets/person_name_field.dart';
 
 /// Recording a debt, or changing, settling or deleting one; a payment
@@ -39,6 +41,11 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
   late DateTime _incurredOn;
   DateTime? _dueOn;
 
+  /// The account the money moved through, and the one it was paid back
+  /// through; null for none. FR-DBT-009.
+  int? _accountId;
+  int? _paidAccountId;
+
   /// Set once the user has tried to save, so an empty form does not
   /// complain before anything has been typed.
   bool _submitted = false;
@@ -61,6 +68,8 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     _note = TextEditingController(text: initial?.note ?? '');
     _incurredOn = initial?.incurredOn ?? DateTime.now();
     _dueOn = initial?.dueOn;
+    _accountId = initial?.accountId;
+    _paidAccountId = initial?.paidAccountId;
     for (final controller in [_person, _amount]) {
       controller.addListener(() => setState(() {}));
     }
@@ -86,6 +95,8 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     dueOn: _isPayment ? null : _dueOn,
     paidOn: widget.initial?.paidOn,
     isPayment: _isPayment,
+    accountId: _accountId,
+    paidAccountId: _paidAccountId,
   );
 
   /// What would settle the person in the field, paid the way the payment
@@ -130,12 +141,33 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
   }
 
   /// Paid today, or open again.
+  /// Paid today, or open again. Paid, it asks which account the money came
+  /// back into or left from, the debt's own first (FR-DBT-009).
   Future<void> _togglePaid() async {
     final initial = widget.initial;
     if (initial == null) return;
+    int? through;
+    if (initial.isOpen) {
+      final accounts = debtAccounts(
+        ref.read(debtAccountsProvider).valueOrNull ?? const [],
+      );
+      if (accounts.isNotEmpty || initial.accountId != null) {
+        final chosen = await showDialog<({int? id})>(
+          context: context,
+          builder: (context) =>
+              _PaidThroughDialog(debt: initial, accounts: accounts),
+        );
+        if (chosen == null || !mounted) return;
+        through = chosen.id;
+      }
+    }
     final failure = await ref
         .read(debtActionsControllerProvider.notifier)
-        .setPaid(initial, paidOn: initial.isOpen ? DateTime.now() : null);
+        .setPaid(
+          initial,
+          paidOn: initial.isOpen ? DateTime.now() : null,
+          through: through,
+        );
     if (!mounted) return;
     if (failure != null) return _say(failure);
     Navigator.of(context).pop();
@@ -219,6 +251,10 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     final names = DebtPerson.names(everything);
     final payment = _isPayment;
     final settles = payment ? _settlingAmount(everything) : null;
+    final accounts = debtAccounts(
+      ref.watch(debtAccountsProvider).valueOrNull ?? const [],
+    );
+    final paidBack = !payment && initial != null && !initial.isOpen;
 
     return Scaffold(
       appBar: AppBar(
@@ -315,6 +351,36 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
                 border: OutlineInputBorder(),
               ),
             ),
+            if (accounts.isNotEmpty || _accountId != null) ...[
+              const SizedBox(height: 16),
+              // Optional: without one, nothing moves, as before (E-42).
+              DebtAccountField(
+                label: switch ((payment, _direction)) {
+                  (false, DebtDirection.owedToMe) => 'Lent from',
+                  (false, DebtDirection.iOwe) => 'Borrowed into',
+                  (true, DebtDirection.iOwe) => 'Paid into',
+                  (true, DebtDirection.owedToMe) => 'Paid from',
+                },
+                helper:
+                    'Optional. Its balance moves; it is not income or '
+                    'spending.',
+                accounts: accounts,
+                value: _accountId,
+                onChanged: (id) => setState(() => _accountId = id),
+              ),
+            ],
+            if (paidBack && (accounts.isNotEmpty || _paidAccountId != null))
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: DebtAccountField(
+                  label: _direction == DebtDirection.owedToMe
+                      ? 'Paid back into'
+                      : 'Paid back from',
+                  accounts: accounts,
+                  value: _paidAccountId,
+                  onChanged: (id) => setState(() => _paidAccountId = id),
+                ),
+              ),
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -398,6 +464,48 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Which account a debt was paid back through: the debt's own first, or
+/// another, or none. FR-DBT-009.
+class _PaidThroughDialog extends StatefulWidget {
+  const _PaidThroughDialog({required this.debt, required this.accounts});
+
+  final Debt debt;
+  final List<AccountOption> accounts;
+
+  @override
+  State<_PaidThroughDialog> createState() => _PaidThroughDialogState();
+}
+
+class _PaidThroughDialogState extends State<_PaidThroughDialog> {
+  late int? _through = widget.debt.accountId;
+
+  @override
+  Widget build(BuildContext context) {
+    final owedToMe = widget.debt.direction == DebtDirection.owedToMe;
+    return AlertDialog(
+      scrollable: true,
+      title: const Text('Mark as paid'),
+      content: DebtAccountField(
+        label: owedToMe ? 'Paid back into' : 'Paid back from',
+        helper: 'Its balance moves back by the amount.',
+        accounts: widget.accounts,
+        value: _through,
+        onChanged: (id) => setState(() => _through = id),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop((id: _through)),
+          child: const Text('Mark as paid'),
+        ),
+      ],
     );
   }
 }

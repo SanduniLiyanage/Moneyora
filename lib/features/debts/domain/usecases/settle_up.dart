@@ -10,7 +10,7 @@ import '../repositories/debt_repository.dart';
 /// [person], settled up [on] a day. Input to [SettleUp].
 class Settlement extends Equatable {
   /// Creates the request.
-  const Settlement(this.person, {required this.on});
+  const Settlement(this.person, {required this.on, this.through});
 
   /// The person, every record included.
   final DebtPerson person;
@@ -18,8 +18,12 @@ class Settlement extends Equatable {
   /// The day it was settled.
   final DateTime on;
 
+  /// The account the net changed hands through, or null for none.
+  /// FR-DBT-009.
+  final int? through;
+
   @override
-  List<Object?> get props => [person, on];
+  List<Object?> get props => [person, on, through];
 }
 
 /// What [SettleUp] wrote, for [UndoSettleUp] to take back.
@@ -46,7 +50,8 @@ class Settled extends Equatable {
 /// payment (FR-DBT-008) on the day, closed with the rest, so the history
 /// says what moved. Square, nothing moves and no payment is written. All
 /// of it is one write: a person half settled has a net that no longer
-/// adds up.
+/// adds up. Through an account, the payment moves its balance by the net,
+/// and the records it closes move nothing more (FR-DBT-009).
 class SettleUp implements UseCase<Settled, Settlement> {
   /// Creates the use case.
   const SettleUp(this._repository);
@@ -110,6 +115,9 @@ class SettleUp implements UseCase<Settled, Settlement> {
       paidOn: settlement.on,
       note: paymentNote,
       isPayment: true,
+      // The net is the money that moves; the records it closes move none
+      // of their own (FR-DBT-009).
+      accountId: settlement.through,
     );
   }
 

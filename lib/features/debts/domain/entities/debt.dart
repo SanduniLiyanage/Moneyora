@@ -20,9 +20,10 @@ enum DebtDirection {
 
 /// Money owed, to the user or by them, until it is paid. FR-DBT-001, E-42.
 ///
-/// Not a transaction and not tied to an account: a debt is a promise, and
-/// when it is kept the money moves through whatever account it moves
-/// through, recorded there as any income or expense is.
+/// Not a transaction: a debt is a promise. It may name the account its
+/// money moved through, and the one it was paid back through (FR-DBT-009,
+/// E-47); each such movement moves that account's balance and is never
+/// income or spending. Without one, nothing moves, as E-42 had it.
 class Debt extends Equatable {
   /// Creates a debt.
   const Debt({
@@ -35,6 +36,8 @@ class Debt extends Equatable {
     this.dueOn,
     this.paidOn,
     this.isPayment = false,
+    this.accountId,
+    this.paidAccountId,
   });
 
   /// Row id, null before it is saved.
@@ -71,6 +74,16 @@ class Debt extends Equatable {
   /// person is settled up (FR-DBT-007), not with a tick of its own.
   final bool isPayment;
 
+  /// The account the money moved through when the debt began: the one it
+  /// left when the user lent it, or arrived in when they borrowed it. Null
+  /// when it moved through none the app knows of. FR-DBT-009.
+  final int? accountId;
+
+  /// The account it was paid back through, once paid: the one the money
+  /// came back into, or left to repay. Null when it went through none, and
+  /// always for a payment, which is the money moving. FR-DBT-009.
+  final int? paidAccountId;
+
   /// True until it is paid.
   bool get isOpen => paidOn == null;
 
@@ -97,10 +110,13 @@ class Debt extends Equatable {
     dueOn: dueOn,
     paidOn: paidOn,
     isPayment: isPayment,
+    accountId: accountId,
+    paidAccountId: paidAccountId,
   );
 
-  /// This debt, paid on [day], or open again when [day] is null.
-  Debt withPaidOn(DateTime? day) => Debt(
+  /// This debt, paid on [day] back through the account [through], or open
+  /// again when [day] is null.
+  Debt withPaidOn(DateTime? day, {int? through}) => Debt(
     id: id,
     direction: direction,
     person: person,
@@ -110,6 +126,8 @@ class Debt extends Equatable {
     dueOn: dueOn,
     paidOn: day,
     isPayment: isPayment,
+    accountId: accountId,
+    paidAccountId: day == null || isPayment ? null : through,
   );
 
   @override
@@ -123,5 +141,7 @@ class Debt extends Equatable {
     dueOn,
     paidOn,
     isPayment,
+    accountId,
+    paidAccountId,
   ];
 }

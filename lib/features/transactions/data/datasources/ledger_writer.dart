@@ -13,6 +13,7 @@ library;
 
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
+import '../../../../core/database/balance_cache.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/transaction.dart';
 import '../models/transaction_model.dart';
@@ -46,23 +47,15 @@ abstract final class LedgerWriter {
     }
   }
 
-  /// Moves the cached balance on [accountId] by [deltaCents].
+  /// Moves the cached balance on [accountId] by [deltaCents], through the
+  /// one write a debt's money movement shares ([moveCachedBalance], E-47).
   ///
-  /// Always called from inside a transaction, never on its own (E-18). The
-  /// arithmetic is exact because the column is `INTEGER` cents (E-06);
-  /// repeated increment of a `REAL` would drift.
+  /// Always called from inside a transaction, never on its own (E-18).
   static Future<void> applyBalance(
     DatabaseExecutor txn,
     int accountId,
     int deltaCents,
-  ) async {
-    if (deltaCents == 0) return;
-    await txn.rawUpdate(
-      'UPDATE accounts SET current_balance_cents = current_balance_cents + ? '
-      'WHERE id = ?',
-      [deltaCents, accountId],
-    );
-  }
+  ) => moveCachedBalance(txn, accountId, deltaCents);
 
   /// Moves the active plan's `spent_amount_cents` by what [transaction]
   /// spends, times [sign] (`1` to apply, `-1` to reverse). FR-PLN-013.

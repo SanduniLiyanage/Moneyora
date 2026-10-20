@@ -8,8 +8,9 @@ import 'package:moneyora/core/database/migrations/v9_debt_payments.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// An existing v8 database upgrades to v9 **with its rows intact** — debts
-/// open and paid, a credit card — every debt still a debt, and the new
-/// column's CHECK holding (E-47).
+/// open and paid, a credit card, a transaction — every debt still a debt
+/// through no account, every transaction no debt's, no balance moved, and
+/// the new columns' CHECK and foreign keys holding (E-47).
 void main() {
   sqfliteFfiInit();
 
@@ -62,6 +63,25 @@ void main() {
         'updated_at': now,
       });
     }
+    await db.insert('categories', {
+      'id': 1,
+      'user_id': 1,
+      'name': 'Food',
+      'type': 'expense',
+      'icon': 'basket',
+      'color': '#C62828',
+    });
+    await db.insert('transactions', {
+      'id': 1,
+      'account_id': 1,
+      'category_id': 1,
+      'amount_cents': 1250000,
+      'type': 'expense',
+      'date': '2026-10-02',
+      'time': '12:58',
+      'created_at': now,
+      'updated_at': now,
+    });
   });
 
   tearDown(() => db.close());
@@ -78,6 +98,12 @@ void main() {
     );
     expect([for (final d in debts) d['paid_on']], [null, null, '2026-10-05']);
     expect([for (final d in debts) d['is_payment']], [0, 0, 0]);
+    expect([for (final d in debts) d['account_id']], [null, null, null]);
+    expect([for (final d in debts) d['paid_account_id']], [null, null, null]);
+    final transaction = (await db.query('transactions')).single;
+    expect(transaction['amount_cents'], 1250000, reason: 'intact');
+    expect(transaction['time'], '12:58', reason: 'intact');
+    expect(transaction['debt_id'], isNull);
     final card = (await db.query('accounts')).single;
     expect(card['current_balance_cents'], -1250000, reason: 'intact');
     expect(card['credit_limit_cents'], 5000000, reason: 'intact');
@@ -91,6 +117,19 @@ void main() {
       expect(
         (await db.query('debts', where: 'id = 2')).single['is_payment'],
         1,
+      );
+    });
+
+    test('a debt names an account that exists, and a movement a debt that '
+        'does', () async {
+      await db.update('debts', {'account_id': 1}, where: 'id = 1');
+      await expectLater(
+        db.update('debts', {'account_id': 99}, where: 'id = 1'),
+        throwsA(isA<DatabaseException>()),
+      );
+      await expectLater(
+        db.update('transactions', {'debt_id': 99}),
+        throwsA(isA<DatabaseException>()),
       );
     });
 
