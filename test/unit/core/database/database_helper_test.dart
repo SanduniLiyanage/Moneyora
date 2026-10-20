@@ -1,9 +1,12 @@
 @TestOn('vm')
 library;
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/database/database_helper.dart';
 import 'package:moneyora/core/database/encryption_key_store.dart';
+import 'package:moneyora/core/errors/exceptions.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Records what it was asked for, so a test can prove the key is fetched once
@@ -12,9 +15,13 @@ class _RecordingKeyStore implements EncryptionKeyStore {
   int calls = 0;
   String? issued;
 
+  /// What the last call said about data already on the phone.
+  bool? mustExist;
+
   @override
-  Future<String> getOrCreateKey() async {
+  Future<String> getOrCreateKey({bool mustExist = false}) async {
     calls++;
+    this.mustExist = mustExist;
     return issued ??= 'test-key-${DateTime.now().microsecondsSinceEpoch}';
   }
 }
@@ -135,6 +142,69 @@ void main() {
         latestSchemaVersion,
         schemaMigrations.keys.reduce((a, b) => a > b ? a : b),
       );
+    });
+  });
+
+  group('after an update, with a database already on the phone', () {
+    late Directory dir;
+    late String path;
+
+    late String databases;
+
+    setUp(() async {
+      dir = await Directory.systemTemp.createTemp('moneyora-helper-');
+      // Where the helper looks, as the platform's databases folder is on a
+      // phone.
+      databases = await databaseFactoryFfi.getDatabasesPath();
+      await databaseFactoryFfi.setDatabasesPath(dir.path);
+      path = '${dir.path}/moneyora.db';
+    });
+
+    tearDown(() async {
+      await databaseFactoryFfi.setDatabasesPath(databases);
+      await dir.delete(recursive: true);
+    });
+
+    DatabaseHelper over(EncryptionKeyStore store) {
+      final opened = DatabaseHelper(
+        dbFactory: databaseFactoryFfi,
+        keyStore: store,
+      );
+      addTearDown(opened.close);
+      return opened;
+    }
+
+    test('a first install may make its key', () async {
+      final store = _RecordingKeyStore();
+
+      await over(store).database;
+
+      expect(store.mustExist, isFalse);
+    });
+
+    test('a database already there asks for the key it was made with, '
+        'never a new one. NFR-REL-002', () async {
+      await over(InMemoryKeyStore()).database;
+      final store = _RecordingKeyStore();
+
+      await over(store).database;
+
+      expect(store.mustExist, isTrue);
+    });
+
+    test('without that key it is not opened, and the file is left as it '
+        'was', () async {
+      final first = over(InMemoryKeyStore());
+      await first.database;
+      await first.close();
+      final before = await File(path).readAsBytes();
+
+      await expectLater(
+        over(InMemoryKeyStore()).database,
+        throwsA(isA<EncryptionException>()),
+      );
+
+      expect(await File(path).readAsBytes(), before);
     });
   });
 

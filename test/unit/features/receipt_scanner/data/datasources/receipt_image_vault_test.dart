@@ -19,7 +19,7 @@ class _KeyStore implements EncryptionKeyStore {
   bool fail = false;
 
   @override
-  Future<String> getOrCreateKey() async {
+  Future<String> getOrCreateKey({bool mustExist = false}) async {
     if (fail) throw Exception('keychain unavailable');
     return key;
   }
