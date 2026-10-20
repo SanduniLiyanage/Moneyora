@@ -111,5 +111,26 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Debt'), findsOneWidget);
     });
+
+    testWidgets('at the largest font the amount goes under the name, which '
+        'keeps the row ($theme)', (tester) async {
+      // Beside the amount, with Roboto at 2x on 320dp, "Debt" broke as
+      // "Deb/t" and its note lost all but "Lent to".
+      useLargeTextOnSmallPhone(tester);
+      await tester.pumpWidget(boot(dark: dark));
+      await tester.pumpAndSettle();
+
+      final row = find.byType(TransactionRow);
+      final name = find.descendant(of: row, matching: find.text('Debt'));
+      final amount = find.descendant(
+        of: row,
+        matching: find.text('−Rs2,500.00'),
+      );
+      expect(
+        tester.getTopLeft(amount).dy,
+        greaterThan(tester.getBottomLeft(name).dy - 1),
+      );
+      expect(isCut(tester, name), isFalse);
+    });
   }
 }

@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/account_figure.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
+import '../../../../core/widgets/amount_beside.dart';
 import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../core/widgets/side_panel.dart';
 import '../../../../injection.dart' show conversionTableProvider;
@@ -225,7 +226,70 @@ class _AccountTile extends StatelessWidget {
     );
     final caption = figure.caption(currency);
     final code = account.currency.toUpperCase();
+    final amount = figure.amount(currency);
+    final amountStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: figure.cents < 0 ? colors.expense : null,
+    );
+    final second = switch ([if (code != baseCurrency) code, ?caption]) {
+      _ when account.isArchived => 'Archived',
+      [] => null,
+      final parts => parts.join(' · '),
+    };
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // At the largest font a long name or a card's "Available · owed"
+        // beside the figure broke mid-word ("Platinu/m"); there the figure
+        // moves under the name. SRS §4.1.
+        final beside = amountFitsBeside(
+          context,
+          rowWidth: constraints.maxWidth,
+          amount: amount,
+          style: amountStyle,
+          words: [
+            (account.name, theme.textTheme.bodyLarge),
+            if (second != null) (second, theme.textTheme.bodyMedium),
+          ],
+          // 16 + a 24dp icon + 16 + 16 + 24.
+          chrome: 96,
+          maxWidthFactor: 0.35,
+        );
+        return _tile(
+          context,
+          subtitle: beside
+              ? (second == null ? null : Text(second))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ScaleDownText(
+                      amount,
+                      style: amountStyle,
+                      alignment: AlignmentDirectional.centerStart,
+                      maxWidthFactor: 1,
+                    ),
+                    if (second != null) Text(second),
+                  ],
+                ),
+          trailing: beside
+              ? ScaleDownText(
+                  amount,
+                  // Shrinks rather than taking the row: at the largest
+                  // font a panel has no room for a full balance beside the
+                  // name.
+                  maxWidthFactor: 0.35,
+                  style: amountStyle,
+                )
+              : null,
+        );
+      },
+    );
+  }
+
+  Widget _tile(
+    BuildContext context, {
+    required Widget? subtitle,
+    required Widget? trailing,
+  }) {
     return ListTile(
       // The account's chosen icon (FR-ACC-006), falling back to its type when
       // the key is one the catalogue does not know — a restored backup, or a
@@ -244,21 +308,9 @@ class _AccountTile extends StatelessWidget {
       // Otherwise the currency, and only when it is not the base: repeating
       // "LKR" on every row on an install that has never seen another
       // currency is noise. Then, for a card with a limit, what the figure
-      // on the right is and what is owed.
-      subtitle: switch ([if (code != baseCurrency) code, ?caption]) {
-        _ when account.isArchived => const Text('Archived'),
-        [] => null,
-        final parts => Text(parts.join(' · ')),
-      },
-      // Shrinks rather than taking the row: at the largest font a panel
-      // has no room for a full balance beside the name.
-      trailing: ScaleDownText(
-        figure.amount(currency),
-        maxWidthFactor: 0.35,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: figure.cents < 0 ? colors.expense : null,
-        ),
-      ),
+      // is and what is owed (E-46).
+      subtitle: subtitle,
+      trailing: trailing,
     );
   }
 
