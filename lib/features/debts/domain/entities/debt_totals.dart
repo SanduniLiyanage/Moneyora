@@ -1,8 +1,17 @@
 import 'package:equatable/equatable.dart';
 
 import 'debt.dart';
+import 'debt_person.dart';
 
-/// What is still owed, each way, across a list of debts. FR-DBT-002.
+/// What is still owed, each way, across a list of debts. FR-DBT-002,
+/// FR-DBT-005.
+///
+/// Worked out per person first (E-47): what each one owes the user, less
+/// what the user owes them. Everyone whose net is in the user's favour is
+/// added into [owedToMeCents]; everyone the user owes on balance, into
+/// [iOweCents]. Rs1,000 lent to Nimal and Rs400 borrowed from him is
+/// Rs600 owed to the user and nothing owed by them, not Rs1,000 and
+/// Rs400.
 ///
 /// Paid debts count for nothing: the totals answer "who still owes what",
 /// which is the question the list is opened to ask.
@@ -14,21 +23,25 @@ class DebtTotals extends Equatable {
     required this.overdue,
   });
 
-  /// The open debts of [debts], added up each way, with how many of them
-  /// are past their due day on [today].
-  factory DebtTotals.of(Iterable<Debt> debts, {required DateTime today}) {
+  /// The open debts of [debts], netted per person and added up each way,
+  /// with how many people are overdue on [today].
+  factory DebtTotals.of(Iterable<Debt> debts, {required DateTime today}) =>
+      DebtTotals.ofPeople(DebtPerson.group(debts, today: today), today: today);
+
+  /// [people]'s nets added up each way, with how many are overdue on
+  /// [today].
+  factory DebtTotals.ofPeople(
+    Iterable<DebtPerson> people, {
+    required DateTime today,
+  }) {
     var owedToMe = 0;
     var iOwe = 0;
     var overdue = 0;
-    for (final debt in debts) {
-      if (!debt.isOpen) continue;
-      switch (debt.direction) {
-        case DebtDirection.owedToMe:
-          owedToMe += debt.amountCents;
-        case DebtDirection.iOwe:
-          iOwe += debt.amountCents;
-      }
-      if (debt.isOverdue(today)) overdue++;
+    for (final person in people) {
+      final net = person.netCents;
+      if (net > 0) owedToMe += net;
+      if (net < 0) iOwe -= net;
+      if (person.isOverdue(today)) overdue++;
     }
     return DebtTotals(
       owedToMeCents: owedToMe,
@@ -37,13 +50,14 @@ class DebtTotals extends Equatable {
     );
   }
 
-  /// Still owed to the user.
+  /// Still owed to the user, by everyone who owes them on balance.
   final int owedToMeCents;
 
-  /// Still owed by the user.
+  /// Still owed by the user, to everyone they owe on balance.
   final int iOweCents;
 
-  /// How many open debts are past their due day.
+  /// How many people are past a due day on what they still owe, or are
+  /// owed.
   final int overdue;
 
   /// What the user would have if every open debt were settled today:

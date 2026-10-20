@@ -26,6 +26,12 @@ class _FakeRepository implements DebtRepository {
   }
 
   @override
+  Future<Either<Failure, Unit>> updateAll(List<Debt> debts) async {
+    updated.addAll(debts);
+    return const Right(unit);
+  }
+
+  @override
   Future<Either<Failure, Unit>> delete(int id) async {
     deleted.add(id);
     return const Right(unit);

@@ -13,16 +13,21 @@ import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart' show clockProvider;
 import '../../domain/entities/debt.dart';
+import '../../domain/entities/debt_person.dart';
 import '../../domain/entities/debt_totals.dart';
+import '../../domain/usecases/rename_person.dart';
 import '../providers/debt_providers.dart';
 
-/// Money owed, either way, and what is still open. FR-DBT-002, E-42.
+/// Money owed, either way, person by person. FR-DBT-002, FR-DBT-005,
+/// E-42, E-47.
 ///
-/// What is owed to the user and what they owe, in total, then each open
-/// debt under its side, the soonest due first, and the paid ones folded
-/// away below. A tick on a row marks it paid, with Undo; tapping a row
-/// opens it to change or delete. The app bar's split icon shares a bill
-/// between several people (FR-DBT-004).
+/// What is owed to the user and what they owe, in total, then one row per
+/// person with something still open: what they owe the user, or the user
+/// owes them, net of every open record either way. A row opens to the
+/// records behind it, each still ticked paid with Undo or opened to change
+/// or delete, and to the person's own actions. People with nothing open
+/// are folded away below. The app bar's split icon shares a bill between
+/// several people (FR-DBT-004).
 class DebtsPage extends ConsumerWidget {
   /// Creates the screen.
   const DebtsPage({super.key});
@@ -68,44 +73,39 @@ class DebtsPage extends ConsumerWidget {
             );
           }
 
-          final owedToMe = [
-            for (final d in all)
-              if (d.isOpen && d.direction == DebtDirection.owedToMe) d,
+          final people = DebtPerson.group(all, today: today);
+          final open = [
+            for (final p in people)
+              if (p.hasOpen) p,
           ];
-          final iOwe = [
-            for (final d in all)
-              if (d.isOpen && d.direction == DebtDirection.iOwe) d,
-          ];
-          final paid = [
-            for (final d in all)
-              if (!d.isOpen) d,
+          final settled = [
+            for (final p in people)
+              if (!p.hasOpen) p,
           ];
 
           return ListView(
             // Room for the button, or it covers the last row.
             padding: const EdgeInsets.only(bottom: 88),
             children: [
-              _TotalsCard(totals: DebtTotals.of(all, today: today)),
-              if (owedToMe.isNotEmpty) ...[
-                const _Heading('Owed to you'),
-                for (final debt in owedToMe)
-                  _DebtTile(key: ValueKey(debt.id), debt: debt, today: today),
-              ],
-              if (iOwe.isNotEmpty) ...[
-                const _Heading('You owe'),
-                for (final debt in iOwe)
-                  _DebtTile(key: ValueKey(debt.id), debt: debt, today: today),
-              ],
-              if (paid.isNotEmpty)
+              _TotalsCard(totals: DebtTotals.ofPeople(people, today: today)),
+              for (final person in open)
+                _PersonTile(
+                  key: ValueKey(person.key),
+                  person: person,
+                  everyone: people,
+                  today: today,
+                ),
+              if (settled.isNotEmpty)
                 ExpansionTile(
-                  title: Text('Paid · ${paid.length}'),
+                  title: Text('Settled · ${settled.length}'),
                   shape: const Border(),
                   collapsedShape: const Border(),
                   children: [
-                    for (final debt in paid)
-                      _DebtTile(
-                        key: ValueKey(debt.id),
-                        debt: debt,
+                    for (final person in settled)
+                      _PersonTile(
+                        key: ValueKey(person.key),
+                        person: person,
+                        everyone: people,
                         today: today,
                       ),
                   ],
@@ -118,7 +118,8 @@ class DebtsPage extends ConsumerWidget {
   }
 }
 
-/// What is still owed each way, and how many debts are overdue.
+/// What is still owed each way, how it is worked out, and how many people
+/// are overdue.
 class _TotalsCard extends StatelessWidget {
   const _TotalsCard({required this.totals});
 
@@ -128,6 +129,7 @@ class _TotalsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>()!;
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.7);
 
     Widget figure(String label, int cents, Color color) => Expanded(
       child: Column(
@@ -159,13 +161,21 @@ class _TotalsCard extends StatelessWidget {
                 figure('You owe', totals.iOweCents, colors.expense),
               ],
             ),
+            const SizedBox(height: 8),
+            // How the two figures are reached, since a person owed both
+            // ways is counted once, on one side (E-47).
+            Text(
+              'Worked out person by person: what each one owes you, less '
+              'what you owe them.',
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
             if (totals.overdue > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   totals.overdue == 1
-                      ? '1 debt is overdue.'
-                      : '${totals.overdue} debts are overdue.',
+                      ? '1 person is overdue.'
+                      : '${totals.overdue} people are overdue.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.error,
                   ),
@@ -178,20 +188,196 @@ class _TotalsCard extends StatelessWidget {
   }
 }
 
-class _Heading extends StatelessWidget {
-  const _Heading(this.text);
+/// One person: who, and what is owed between you on balance, opening to
+/// the records behind it and what can be done with them all. FR-DBT-005.
+class _PersonTile extends ConsumerWidget {
+  const _PersonTile({
+    required this.person,
+    required this.everyone,
+    required this.today,
+    super.key,
+  });
 
-  final String text;
+  final DebtPerson person;
+
+  /// Every person listed, to tell a rename that puts two together.
+  final List<DebtPerson> everyone;
+  final DateTime today;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-    child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>()!;
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.7);
+    final net = person.netCents;
+    final tint = !person.hasOpen || net == 0
+        ? muted
+        : (net > 0 ? colors.income : colors.expense);
+    final overdue = person.isOverdue(today);
+
+    final (standing, icon) = switch (net) {
+      _ when !person.hasOpen => ('Settled', Icons.check_circle_outline),
+      > 0 => ('Owes you ${formatCents(net)}', Icons.call_received),
+      < 0 => ('You owe ${formatCents(-net)}', Icons.call_made),
+      _ => ('All square', Icons.check_circle_outline),
+    };
+
+    return ExpansionTile(
+      shape: const Border(),
+      collapsedShape: const Border(),
+      leading: CircleAvatar(
+        backgroundColor: tint.withValues(alpha: 0.12),
+        child: Icon(icon, color: tint, size: 20),
+      ),
+      title: Text(person.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: standing,
+              style: TextStyle(color: tint, fontWeight: FontWeight.w600),
+            ),
+            if (overdue)
+              TextSpan(
+                text: ' · overdue',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+          ],
+        ),
+      ),
+      childrenPadding: const EdgeInsetsDirectional.only(start: 16),
+      children: [
+        for (final debt in person.records)
+          _DebtTile(key: ValueKey(debt.id), debt: debt, today: today),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          child: Wrap(
+            spacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: () => _rename(context, ref),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Rename'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Asks for the new name, and before putting two people together.
+  /// FR-DBT-006.
+  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final actions = ref.read(debtActionsControllerProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    final typed = await showDialog<String>(
+      context: context,
+      builder: (context) => _RenameDialog(name: person.name),
+    );
+    if (typed == null || !context.mounted) return;
+
+    final other = everyone
+        .where((p) => p.key == personKey(typed) && p.key != person.key)
+        .firstOrNull;
+    if (other != null) {
+      final together = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Put them with ${other.name}?'),
+          content: Text(
+            '${other.name} is already in your debts. ${person.name}\'s '
+            'records will be listed with theirs, as one person, and '
+            'netted together. Each record stays as it is.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Put together'),
+            ),
+          ],
+        ),
+      );
+      if (together != true) return;
+    }
+
+    // One spelling for the one person: the one already listed.
+    final to = other?.name ?? typed;
+    final failure = await actions.rename(person, to: to);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          failure?.message ??
+              (other != null ? 'Put with ${other.name}' : 'Renamed to $to'),
+        ),
+      ),
+    );
+  }
+}
+
+/// The new name for a person, refused in [RenamePerson.validate]'s words.
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.name});
+
+  final String name;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _controller = TextEditingController(text: widget.name);
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _done() {
+    final problem = RenamePerson.validate(_controller.text);
+    if (problem != null) {
+      setState(() => _error = problem.message);
+      return;
+    }
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Rename'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      textCapitalization: TextCapitalization.words,
+      decoration: InputDecoration(
+        labelText: 'Name',
+        helperText: 'On every one of their records',
+        helperMaxLines: 2,
+        errorText: _error,
+        errorMaxLines: 3,
+      ),
+      onSubmitted: (_) => _done(),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      TextButton(onPressed: _done, child: const Text('Rename')),
+    ],
   );
 }
 
-/// One debt: who, what for, when it is due or was paid, how much — green
-/// owed to the user, red owed by them — and a tick to mark it paid.
+/// One record with a person: what it was, when it is due or was paid, how
+/// much — green owed to the user, red owed by them — and a tick to mark it
+/// paid.
 class _DebtTile extends ConsumerWidget {
   const _DebtTile({required this.debt, required this.today, super.key});
 
@@ -231,6 +417,11 @@ class _DebtTile extends ConsumerWidget {
     final overdue = debt.isOverdue(today);
     final day = DateFormat.yMMMd();
 
+    // What it was: the user's own words, or which way it runs.
+    final what = switch (debt.note) {
+      final note? => note,
+      null => owedToMe ? 'Owed to you' : 'You owe',
+    };
     final when = switch (debt) {
       Debt(paidOn: final paid?) => 'Paid ${day.format(paid)}',
       Debt(dueOn: final due?) when overdue =>
@@ -238,7 +429,6 @@ class _DebtTile extends ConsumerWidget {
       Debt(dueOn: final due?) => 'Due ${day.format(due)}',
       _ => 'Since ${day.format(debt.incurredOn)}',
     };
-    final note = debt.note;
     final figure = formatCents(debt.amountCents);
     final figureStyle = theme.textTheme.titleMedium?.copyWith(
       color: tint,
@@ -246,7 +436,7 @@ class _DebtTile extends ConsumerWidget {
       decoration: debt.isOpen ? null : TextDecoration.lineThrough,
     );
     final details = Text(
-      [?note, when].join(' · '),
+      when,
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: overdue ? TextStyle(color: theme.colorScheme.error) : null,
@@ -273,17 +463,14 @@ class _DebtTile extends ConsumerWidget {
 
         return ListTile(
           onTap: () => context.push(Routes.debtForm, extra: debt),
-          leading: CircleAvatar(
-            backgroundColor: tint.withValues(alpha: 0.12),
-            child: Icon(
-              // Money coming back to the user, or going out from them.
-              owedToMe ? Icons.call_received : Icons.call_made,
-              color: tint,
-              size: 20,
-            ),
+          leading: Icon(
+            // Money coming back to the user, or going out from them.
+            owedToMe ? Icons.call_received : Icons.call_made,
+            color: tint,
+            size: 20,
           ),
           title: Text(
-            debt.person,
+            what,
             maxLines: stacked ? 2 : 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -318,8 +505,9 @@ class _DebtTile extends ConsumerWidget {
   /// The least room the name keeps beside the amount and the tick.
   static const _nameFloor = 96.0;
 
-  /// The rest of a row: the padding either side, the avatar, and the gaps
-  /// beside the name (Material 3's 16 + 40 + 16 + 16 + 24).
+  /// The rest of a row: the padding either side, the icon, and the gaps
+  /// beside the name (Material 3's 16 + 24 + 16 + 16 + 24), with the
+  /// person's indent (16).
   static const _rowChrome = 112.0;
 
   /// [text]'s width at the user's font size, no wider than [ScaleDownText]

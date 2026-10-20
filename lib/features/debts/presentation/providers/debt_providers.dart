@@ -14,6 +14,8 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../../../injection.dart';
 import '../../domain/entities/debt.dart';
+import '../../domain/entities/debt_person.dart';
+import '../../domain/usecases/rename_person.dart';
 import '../../domain/usecases/set_debt_paid.dart';
 import '../../domain/usecases/split_bill.dart';
 
@@ -112,6 +114,12 @@ class DebtActionsController extends AutoDisposeAsyncNotifier<void> {
   Future<Failure?> delete(int id) async {
     final deleteDebt = await ref.read(deleteDebtProvider.future);
     return _settle(await deleteDebt(id));
+  }
+
+  /// [person] called [to] on every record. FR-DBT-006.
+  Future<Failure?> rename(DebtPerson person, {required String to}) async {
+    final renamePerson = await ref.read(renamePersonProvider.future);
+    return _settle(await renamePerson(PersonRename(person, to: to)));
   }
 
   Failure? _settle(Either<Failure, Unit> result) => result.match(

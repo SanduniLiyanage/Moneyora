@@ -6,8 +6,10 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/scale_down_text.dart';
+import '../../domain/entities/debt_person.dart';
 import '../../domain/usecases/split_bill.dart';
 import '../providers/debt_providers.dart';
+import '../widgets/person_name_field.dart';
 
 /// A bill shared between the user and others, split evenly, and saved as
 /// the debts it leaves. FR-DBT-004, E-44.
@@ -132,6 +134,8 @@ class _SplitBillPageState extends ConsumerState<SplitBillPage> {
       final i? => nameOf(i),
       null => 'You',
     };
+    // Everyone recorded so far, for each name field to offer (FR-DBT-006).
+    final names = DebtPerson.names(ref.watch(debtsProvider).valueOrNull ?? []);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Split a bill')),
@@ -189,6 +193,7 @@ class _SplitBillPageState extends ConsumerState<SplitBillPage> {
                 key: ObjectKey(field),
                 name: null,
                 field: field,
+                names: names,
                 hint: 'Person ${i + 2}',
                 share: shares?[i + 1],
                 paid: _paidBy == i,
@@ -286,6 +291,7 @@ class _ShareRow extends StatelessWidget {
     required this.trailing,
     this.field,
     this.hint,
+    this.names = const [],
     super.key,
   });
 
@@ -293,6 +299,9 @@ class _ShareRow extends StatelessWidget {
   final String? name;
   final TextEditingController? field;
   final String? hint;
+
+  /// Everyone recorded so far, offered as the name is typed.
+  final List<String> names;
   final int? share;
 
   /// Whether this person paid the bill.
@@ -314,9 +323,9 @@ class _ShareRow extends StatelessWidget {
           Expanded(
             child: label != null
                 ? Text(label, style: theme.textTheme.bodyLarge)
-                : TextField(
-                    controller: field,
-                    textCapitalization: TextCapitalization.words,
+                : PersonNameField(
+                    controller: field!,
+                    names: names,
                     decoration: InputDecoration(hintText: hint, isDense: true),
                   ),
           ),

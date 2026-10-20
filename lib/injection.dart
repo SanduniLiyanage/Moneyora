@@ -98,6 +98,7 @@ import 'features/debts/data/datasources/debt_local_datasource.dart';
 import 'features/debts/data/repositories/debt_repository_impl.dart';
 import 'features/debts/domain/repositories/debt_repository.dart';
 import 'features/debts/domain/usecases/delete_debt.dart';
+import 'features/debts/domain/usecases/rename_person.dart';
 import 'features/debts/domain/usecases/save_debt.dart';
 import 'features/debts/domain/usecases/set_debt_paid.dart';
 import 'features/debts/domain/usecases/split_bill.dart';
@@ -1610,4 +1611,10 @@ final deleteDebtProvider = FutureProvider<DeleteDebt>(
 /// A bill split evenly, saved as the debts it leaves. FR-DBT-004.
 final splitBillProvider = FutureProvider<SplitBill>(
   (ref) async => SplitBill(await ref.watch(debtRepositoryProvider.future)),
+);
+
+/// A person renamed on all their records, or put together with another.
+/// FR-DBT-006.
+final renamePersonProvider = FutureProvider<RenamePerson>(
+  (ref) async => RenamePerson(await ref.watch(debtRepositoryProvider.future)),
 );

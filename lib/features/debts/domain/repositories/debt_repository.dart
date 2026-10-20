@@ -18,6 +18,11 @@ abstract interface class DebtRepository {
   /// Replaces the stored debt with [debt]'s id.
   Future<Either<Failure, Unit>> update(Debt debt);
 
+  /// Replaces every one of [debts] in one write, all or none: a person
+  /// renamed, or settled up, half way is two people, or a net that no
+  /// longer adds up. FR-DBT-006.
+  Future<Either<Failure, Unit>> updateAll(List<Debt> debts);
+
   /// Removes the debt with [id].
   Future<Either<Failure, Unit>> delete(int id);
 }
