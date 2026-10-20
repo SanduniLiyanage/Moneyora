@@ -71,6 +71,21 @@ void main() {
       expect(totals.totalCents, 125000);
     });
 
+    test('counts what a card owes, never the credit left on it (E-46)', () {
+      // The account list shows a card with a limit as what is left to
+      // spend. That is the bank's money, not the user's: the total still
+      // takes what is owed off.
+      final totals = AccountTotals.from([
+        account(balanceCents: 200000),
+        account(name: 'Visa', balanceCents: -75000).copyWith(
+          type: AccountType.creditCard,
+          creditCard: const CreditCardTerms(limitCents: 5000000),
+        ),
+      ], noRates);
+
+      expect(totals.totalCents, 125000);
+    });
+
     test('matches the base currency whatever case it is stored in', () {
       final totals = AccountTotals.from([
         account(balanceCents: 100, currency: 'lkr'),

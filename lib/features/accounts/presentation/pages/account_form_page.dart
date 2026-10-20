@@ -474,9 +474,13 @@ class _AccountFormPageState extends ConsumerState<AccountFormPage> {
               Text('Credit card', style: theme.textTheme.titleSmall),
               const SizedBox(height: 4),
               Text(
-                'Optional. With these, Credit cards in the menu shows what '
-                'is left to spend, when payment is due, and what owing '
-                'costs.',
+                // The limit is not the opening balance: a card's balance is
+                // what is owed on it. With a limit, the account list shows
+                // what is left to spend in its place (E-46).
+                'Optional. The limit goes here, not in the opening balance, '
+                'which is what is owed. With a limit, your accounts show '
+                'what is left to spend; Credit cards in the menu also shows '
+                'when payment is due and what owing costs.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),

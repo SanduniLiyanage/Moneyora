@@ -604,6 +604,69 @@ void main() {
 
       expect(repository.saved.single.accountId, 2);
     });
+
+    group('a credit card with a limit shows what is left to spend (E-46)', () {
+      const withCard = [
+        AccountOption(id: 1, name: 'Cash', balanceCents: 125000),
+        AccountOption(
+          id: 2,
+          name: 'Visa',
+          type: AccountType.creditCard,
+          balanceCents: -1250000,
+          creditLimitCents: 5000000,
+        ),
+      ];
+
+      testWidgets('with what is owed beside it', (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(boot(accountList: withCard));
+        await tester.pumpAndSettle();
+        await openNew(tester);
+
+        await tester.tap(find.byTooltip('Account: Cash'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rs1,250.00'), findsOneWidget);
+        expect(
+          find.text('Rs37,500.00 available · owed Rs12,500.00'),
+          findsOneWidget,
+        );
+      });
+
+      for (final dark in [false, true]) {
+        final theme = dark ? 'dark' : 'light';
+
+        testWidgets('whole at the largest font on a 320dp phone ($theme)', (
+          tester,
+        ) async {
+          useLargeTextOnSmallPhone(tester);
+          await tester.pumpWidget(
+            boot(
+              accountList: withCard,
+              textScale: 2,
+              now: DateTime(2026, 9, 30, 12, 58),
+              dark: dark,
+            ),
+          );
+          await tester.pumpAndSettle();
+          await openNew(tester);
+
+          await tester.tap(find.byTooltip('Account: Cash'));
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(
+            isCut(
+              tester,
+              find.text('Rs37,500.00 available · owed Rs12,500.00'),
+            ),
+            isFalse,
+          );
+        });
+      }
+    });
   });
 
   group('editing', () {

@@ -225,6 +225,23 @@ void main() {
       // For the Balance bar and the list, which show it on its day (E-41).
       expect(rows.single.openingBalanceCents, 500000);
       expect(rows.single.openingDate, opened);
+      expect(rows.single.creditLimitCents, isNull);
+    });
+
+    test('carries a card\'s limit, for a picker to show what is left to '
+        'spend (E-46)', () async {
+      local.rows = [
+        AccountModel.fromEntity(
+          account(id: 3, name: 'Visa').copyWith(
+            type: AccountType.creditCard,
+            creditCard: const CreditCardTerms(limitCents: 5000000),
+          ),
+        ),
+      ];
+
+      final rows = (await repository.watchAll().first).getOrElse((_) => []);
+
+      expect(rows.single.creditLimitCents, 5000000);
     });
 
     test('excludes archived accounts, same as watch', () async {

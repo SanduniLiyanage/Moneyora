@@ -16,6 +16,8 @@ import 'package:moneyora/features/transactions/presentation/pages/transfer_page.
 import 'package:moneyora/features/transactions/presentation/providers/transaction_providers.dart';
 import 'package:moneyora/injection.dart';
 
+import 'large_text.dart';
+
 /// The transfer screen, over a fake repository and no database.
 ///
 /// Everything above `data/` is real, including `MakeTransfer` and its
@@ -357,6 +359,73 @@ void main() {
       // cannot convert.
       expect(find.text('USD 300.00'), findsWidgets);
     });
+
+    const visa = AccountOption(
+      id: 4,
+      name: 'Visa',
+      type: AccountType.creditCard,
+      balanceCents: -1250000,
+      icon: 'card',
+      creditLimitCents: 5000000,
+    );
+
+    testWidgets('show a card with a limit as what is left to spend (E-46)', (
+      tester,
+    ) async {
+      await open(tester, accounts: const [cash, visa]);
+
+      expect(find.text('Rs37,500.00 available'), findsWidgets);
+      expect(find.text('-Rs12,500.00'), findsNothing);
+      // Chosen on the To side, with what is owed under the field.
+      expect(
+        find.text('Rs37,500.00 available · owed Rs12,500.00'),
+        findsOneWidget,
+      );
+    });
+
+    Widget bootCard({required bool dark}) => ProviderScope(
+      overrides: [
+        entryAccountsProvider.overrideWith(
+          (ref) => Stream<List<AccountOption>>.value(const [cash, visa]),
+        ),
+        transactionRepositoryProvider.overrideWith((ref) async => repository),
+        conversionTableProvider.overrideWith(
+          (ref) => Stream.value(const ConversionTable(baseCurrency: 'LKR')),
+        ),
+      ],
+      child: MaterialApp(
+        theme: dark ? AppTheme.dark : AppTheme.light,
+        home: const TransferPage(),
+      ),
+    );
+
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      testWidgets('hold at the largest font on a 320dp phone ($theme). '
+          'SRS §4.1', (tester) async {
+        // Before E-46 a plain balance already ran 46px past the field here.
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(bootCard(dark: dark));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('say what is left on the card, whole, on a 320dp phone '
+          '($theme)', (tester) async {
+        // At the ordinary font: the test font is twice Roboto's width, so
+        // a line that fits here fits a real phone at its largest.
+        useSmallPhone(tester);
+        await tester.pumpWidget(bootCard(dark: dark));
+        await tester.pumpAndSettle();
+
+        expect(
+          isCut(tester, find.text('Rs37,500.00 available · owed Rs12,500.00')),
+          isFalse,
+        );
+      });
+    }
 
     testWidgets('start on two different accounts', (tester) async {
       // Defaulting both sides to the same account would open the screen in a

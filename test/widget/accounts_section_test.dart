@@ -7,11 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyora/core/errors/failures.dart';
 import 'package:moneyora/core/ports/conversion_table.dart';
 import 'package:moneyora/core/ports/exchange_rate.dart';
+import 'package:moneyora/core/theme/app_colors.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/accounts/domain/entities/account.dart';
 import 'package:moneyora/features/accounts/presentation/providers/account_providers.dart';
 import 'package:moneyora/features/accounts/presentation/widgets/accounts_section.dart';
 import 'package:moneyora/injection.dart';
+
+import 'large_text.dart';
 
 /// The accounts FR-ACC-003 asks for, over a scripted account list.
 ///
@@ -27,6 +30,7 @@ void main() {
     String currency = 'LKR',
     AccountType type = AccountType.cash,
     bool includeInTotal = true,
+    CreditCardTerms creditCard = CreditCardTerms.none,
   }) => Account(
     id: id,
     name: name,
@@ -36,6 +40,21 @@ void main() {
     currency: currency,
     currentBalanceCents: balanceCents,
     includeInTotal: includeInTotal,
+    creditCard: creditCard,
+  );
+
+  /// A credit card with a limit of [limitCents], owing [owedCents].
+  Account card({
+    required int id,
+    String name = 'Visa',
+    int limitCents = 5000000,
+    int owedCents = 0,
+  }) => account(
+    id: id,
+    name: name,
+    balanceCents: -owedCents,
+    type: AccountType.creditCard,
+    creditCard: CreditCardTerms(limitCents: limitCents),
   );
 
   /// Builds the section, with [accounts] behind it.
@@ -48,6 +67,7 @@ void main() {
     bool hold = false,
     List<Account>? archivedToo,
     ConversionTable table = const ConversionTable(baseCurrency: 'LKR'),
+    bool dark = false,
   }) {
     Stream<List<Account>> streamOf(List<Account>? value) {
       if (hold) return const Stream<List<Account>>.empty();
@@ -66,7 +86,7 @@ void main() {
         conversionTableProvider.overrideWith((ref) => Stream.value(table)),
       ],
       child: MaterialApp(
-        theme: AppTheme.light,
+        theme: dark ? AppTheme.dark : AppTheme.light,
         home: const Scaffold(
           endDrawer: Drawer(child: _InMenu()),
           body: SizedBox(),
@@ -151,6 +171,113 @@ void main() {
       // nothing about the app's limits to explain.
       expect(find.textContaining('no exchange rate'), findsNothing);
     });
+  });
+
+  group('a credit card with a limit (E-46)', () {
+    // A tester added a card with its limit and found its balance Rs0.00 in
+    // this list. A card's balance is what is owed, so an unused one has
+    // none; what the user expects there is what is left to spend.
+    testWidgets('shows what is left to spend, not a balance of nothing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(accounts: [account(id: 1, balanceCents: 125000), card(id: 2)]),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('Rs50,000.00'), findsOneWidget);
+      expect(find.text('Available · nothing owed'), findsOneWidget);
+      expect(find.text('Rs0.00'), findsNothing);
+    });
+
+    testWidgets('says what is owed beside it', (tester) async {
+      await tester.pumpWidget(
+        boot(accounts: [card(id: 2, owedCents: 1250000)]),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('Rs37,500.00'), findsOneWidget);
+      expect(find.text('Available · owed Rs12,500.00'), findsOneWidget);
+    });
+
+    testWidgets('over its limit, says so, in the colour of owing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(accounts: [card(id: 2, limitCents: 1000000, owedCents: 1200000)]),
+      );
+      await openDrawer(tester);
+
+      final figure = tester.widget<Text>(find.text('-Rs2,000.00'));
+      expect(find.text('Over the limit · owed Rs12,000.00'), findsOneWidget);
+      final context = tester.element(find.text('-Rs2,000.00'));
+      expect(
+        figure.style?.color,
+        Theme.of(context).extension<AppColors>()!.expense,
+      );
+    });
+
+    testWidgets('counts what is owed in the total, never the credit', (
+      tester,
+    ) async {
+      // Available credit is the bank's money. Rs1,250 held, Rs12,500 owed:
+      // the total is what the user has less what they owe.
+      await tester.pumpWidget(
+        boot(
+          accounts: [
+            account(id: 1, balanceCents: 125000),
+            card(id: 2, owedCents: 1250000),
+          ],
+        ),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('-Rs11,250.00'), findsOneWidget);
+    });
+
+    testWidgets('a card with no limit keeps showing its balance', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        boot(
+          accounts: [
+            account(
+              id: 2,
+              name: 'Payment card',
+              balanceCents: -75000,
+              type: AccountType.creditCard,
+            ),
+          ],
+        ),
+      );
+      await openDrawer(tester);
+
+      expect(find.text('-Rs750.00'), findsNWidgets(2));
+      expect(find.textContaining('Available'), findsNothing);
+    });
+
+    for (final dark in [false, true]) {
+      final theme = dark ? 'dark' : 'light';
+
+      testWidgets('holds at the largest font on a 320dp phone ($theme). '
+          'SRS §4.1', (tester) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            accounts: [card(id: 2, name: 'Visa', owedCents: 987654321)],
+            dark: dark,
+          ),
+        );
+        await openDrawer(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(isCut(tester, find.text('Visa')), isFalse);
+        expect(
+          isCut(tester, find.text('Over the limit · owed Rs9,876,543.21')),
+          isFalse,
+        );
+      });
+    }
   });
 
   group('other currencies', () {

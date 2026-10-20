@@ -61,6 +61,7 @@ follows the Resolution sections.
 | [E-43](#e-43) | A credit card is an account type with none of a card's terms | Resolved (raises FR-ACC-008, FR-ACC-009) | FR-ACC-001, FR-ACC-008, FR-ACC-009 |
 | [E-44](#e-44) | A bill shared between several people: split it into debts | Resolved (raises FR-DBT-004) | FR-DBT-004 |
 | [E-45](#e-45) | A receipt's lines are never checked against its own total | Resolved | FR-RCP-005, FR-RCP-007, FR-RCP-011 |
+| [E-46](#e-46) | A credit card with a limit shows a balance of nothing | Resolved | FR-ACC-003, FR-ACC-009 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2765,6 +2766,48 @@ needed a Cargills profile; every rule below is generic.
     0.160 — and dropped otherwise.
 15. **A total printed below the payment is tried last**, after every total
     printed above it.
+
+---
+
+<a id="e-46"></a>
+
+## E-46 — A credit card with a limit shows a balance of nothing
+
+**Severity:** Medium · **Affects:** E-43, SDD SCR-004 · **Requirement:**
+FR-ACC-003, FR-ACC-009; none raised
+
+Raised 2026-10-20, from a tester using 1.2.0, who added a credit card with
+its limit and found its balance shown as Rs0.00.
+
+E-43 stores a card's limit and shows it on Credit cards, which was right.
+Everywhere else the card was an account like any other, shown by its
+balance. A card's balance is what is owed on it, at or below zero, so an
+unused card read Rs0.00 in the account list, the entry screen's account
+choice and the transfer screen, and the limit looked lost.
+
+**Resolution.**
+
+1. **A card with a limit shows what is left to spend where a balance is
+   expected**: the limit less what is owed, "Rs37,500.00 available", with
+   what is owed beside it ("owed Rs12,500.00", or "nothing owed"). Over
+   the limit it says so, in the colour of owing. The arithmetic is
+   Credit cards' (E-43): a card in credit owes nothing.
+2. **Where.** The menu's account list, under the figure; the entry
+   screen's account choice; and the transfer screen's account fields,
+   whose chosen card says it in full under the field. Credit cards is
+   unchanged. Home's Balance bar is the period's money in and out, not an
+   account's balance, and is unchanged. The account form shows no balance;
+   its Credit card section now says the limit goes there, not in the
+   opening balance.
+3. **The stored balance is unchanged**, and so is the total balance: it
+   adds balances, so a card takes off what is owed and never adds the
+   credit left on it, which is the bank's money.
+4. **A card with no limit shows its balance**, as before: there is no limit
+   to take what is owed from.
+5. The figure is worked out in one place, `core/utils/account_figure.dart`,
+   from the balance, the type and the limit, which the account port now
+   carries (`AccountOption.creditLimitCents`), so the three screens cannot
+   disagree.
 
 ---
 

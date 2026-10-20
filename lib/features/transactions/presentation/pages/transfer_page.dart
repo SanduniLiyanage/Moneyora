@@ -5,8 +5,10 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/account_reader.dart';
 import '../../../../core/ports/conversion_table.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/account_figure.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
+import '../../../../core/widgets/scale_down_text.dart';
 import '../../../../injection.dart' show conversionTableProvider;
 import '../../domain/usecases/make_transfer.dart';
 import '../providers/transaction_providers.dart';
@@ -338,6 +340,14 @@ class _AccountField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AccountFigure figureOf(AccountOption account) => AccountFigure.of(
+      type: account.type,
+      balanceCents: account.balanceCents,
+      creditLimitCents: account.creditLimitCents,
+    );
+    final chosen = accounts.where((a) => a.id == selectedId).firstOrNull;
+    final chosenFigure = chosen == null ? null : figureOf(chosen);
+
     return DropdownButtonFormField<int>(
       initialValue: selectedId,
       isExpanded: true,
@@ -348,6 +358,12 @@ class _AccountField extends StatelessWidget {
         // The same-account refusal is a sentence, not a word, so it needs
         // room rather than being clipped to one line.
         errorMaxLines: 3,
+        // A card with a limit, chosen: what is left to spend and what is
+        // owed, in full, where it can wrap (E-46).
+        helperText: chosenFigure != null && chosenFigure.isAvailableCredit
+            ? chosenFigure.summary(CurrencyFormat.forCode(chosen!.currency))
+            : null,
+        helperMaxLines: 3,
       ),
       items: [
         for (final account in accounts)
@@ -361,11 +377,13 @@ class _AccountField extends StatelessWidget {
                   child: Text(account.name, overflow: TextOverflow.ellipsis),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  formatCents(
-                    account.balanceCents,
-                    currency: CurrencyFormat.forCode(account.currency),
-                  ),
+                // A card with a limit: what is left to spend (E-46). Shrinks
+                // rather than overflowing: at the largest font on a 320dp
+                // phone even a plain balance ran 46px past the field.
+                ScaleDownText(
+                  figureOf(account)
+                      .label(CurrencyFormat.forCode(account.currency)),
+                  maxWidthFactor: 0.4,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
