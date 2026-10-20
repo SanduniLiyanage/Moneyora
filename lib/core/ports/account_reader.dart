@@ -28,6 +28,7 @@ class AccountOption extends Equatable {
     this.currency = 'LKR',
     this.openingBalanceCents = 0,
     this.openingDate,
+    this.creditLimitCents,
   });
 
   /// Row id, used as `transactions.account_id`.
@@ -61,6 +62,11 @@ class AccountOption extends Equatable {
   /// The day [openingBalanceCents] was true, or null when not known.
   final DateTime? openingDate;
 
+  /// A credit card's limit, when entered (FR-ACC-008); null for any other
+  /// account. A picker shows what is left to spend on a card with one
+  /// rather than its balance, which is only what is owed (E-46).
+  final int? creditLimitCents;
+
   @override
   List<Object?> get props => [
     id,
@@ -71,6 +77,7 @@ class AccountOption extends Equatable {
     currency,
     openingBalanceCents,
     openingDate,
+    creditLimitCents,
   ];
 }
 

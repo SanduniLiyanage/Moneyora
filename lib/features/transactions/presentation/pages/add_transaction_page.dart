@@ -14,6 +14,7 @@ import '../../../../core/ports/expense_photos.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/category_palette.dart';
+import '../../../../core/utils/account_figure.dart';
 import '../../../../core/utils/amount_expression.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
@@ -348,11 +349,14 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               ListTile(
                 leading: Icon(accountIconFor(account.icon)),
                 title: Text(account.name),
+                // A card with a limit: what is left to spend, and what is
+                // owed (E-46). Any other account: its balance.
                 subtitle: Text(
-                  formatCents(
-                    account.balanceCents,
-                    currency: CurrencyFormat.forCode(account.currency),
-                  ),
+                  AccountFigure.of(
+                    type: account.type,
+                    balanceCents: account.balanceCents,
+                    creditLimitCents: account.creditLimitCents,
+                  ).summary(CurrencyFormat.forCode(account.currency)),
                 ),
                 selected: account.id == _accountId,
                 trailing: account.id == _accountId

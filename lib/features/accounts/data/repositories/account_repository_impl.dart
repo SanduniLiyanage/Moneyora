@@ -120,6 +120,7 @@ class AccountRepositoryImpl implements AccountRepository, AccountReader {
             currency: account.currency,
             openingBalanceCents: account.initialBalanceCents,
             openingDate: account.initialBalanceDate,
+            creditLimitCents: account.creditCard.limitCents,
           ),
       ],
     ),

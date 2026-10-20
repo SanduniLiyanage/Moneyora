@@ -6,6 +6,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/ports/conversion_table.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/account_figure.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/account_icons.dart';
 import '../../../../core/widgets/scale_down_text.dart';
@@ -214,7 +215,16 @@ class _AccountTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>()!;
-    final balance = account.currentBalanceCents;
+    final currency = CurrencyFormat.forCode(account.currency);
+    // A card with a limit shows what is left to spend, and says so on the
+    // line below (E-46); every other account, its balance.
+    final figure = AccountFigure.of(
+      type: account.type,
+      balanceCents: account.currentBalanceCents,
+      creditLimitCents: account.creditCard.limitCents,
+    );
+    final caption = figure.caption(currency);
+    final code = account.currency.toUpperCase();
 
     return ListTile(
       // The account's chosen icon (FR-ACC-006), falling back to its type when
@@ -233,23 +243,20 @@ class _AccountTile extends StatelessWidget {
       //
       // Otherwise the currency, and only when it is not the base: repeating
       // "LKR" on every row on an install that has never seen another
-      // currency is noise.
-      subtitle: switch (account) {
-        Account(isArchived: true) => const Text('Archived'),
-        Account(:final currency) when currency.toUpperCase() != baseCurrency =>
-          Text(currency.toUpperCase()),
-        _ => null,
+      // currency is noise. Then, for a card with a limit, what the figure
+      // on the right is and what is owed.
+      subtitle: switch ([if (code != baseCurrency) code, ?caption]) {
+        _ when account.isArchived => const Text('Archived'),
+        [] => null,
+        final parts => Text(parts.join(' · ')),
       },
       // Shrinks rather than taking the row: at the largest font a panel
       // has no room for a full balance beside the name.
       trailing: ScaleDownText(
-        formatCents(
-          balance,
-          currency: CurrencyFormat.forCode(account.currency),
-        ),
+        figure.amount(currency),
         maxWidthFactor: 0.35,
         style: theme.textTheme.bodyMedium?.copyWith(
-          color: balance < 0 ? colors.expense : null,
+          color: figure.cents < 0 ? colors.expense : null,
         ),
       ),
     );
