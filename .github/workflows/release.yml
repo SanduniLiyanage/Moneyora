@@ -120,6 +120,30 @@ jobs:
             fi
           done
 
+      # Both APKs must carry the build number after the "+" as their
+      # versionCode (android/gradle.properties turns Flutter's 1000-per-ABI
+      # offset off). With the offset, a phone that had 1.2.0's arm64 APK
+      # (2005) refused 1.2.0's armeabi-v7a one (1005) as a downgrade, and
+      # the way past that is an uninstall, which deletes everything. And the
+      # code must be above 2005, the highest any phone has, or no phone
+      # takes the update at all.
+      - name: One version code for both APKs, above every earlier one
+        run: |
+          build=$(sed -n 's/^version: *[^+]*+\([0-9]*\).*/\1/p' pubspec.yaml)
+          aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            code=$("$aapt2" dump badging "$apk" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
+            echo "$(basename "$apk"): versionCode $code"
+            if [ "$code" != "$build" ]; then
+              echo "::error::$(basename "$apk") has versionCode $code, not $build, the build number in pubspec.yaml. Is force-version-code-ignoring-abi=true still in android/gradle.properties?"
+              exit 1
+            fi
+          done
+          if [ "$DRY_RUN" != "true" ] && [ "$build" -le 2005 ]; then
+            echo "::error::The build number $build is not above 2005, the versionCode of 1.2.0's arm64-v8a APK. Phones would refuse the update as a downgrade."
+            exit 1
+          fi
+
       # Named for what they are, with checksums, so someone installing from
       # a download link can confirm the file is the one published here.
       - name: Name the APKs and checksum them

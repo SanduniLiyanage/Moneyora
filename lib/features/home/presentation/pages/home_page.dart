@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/errors/exceptions.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../injection.dart';
@@ -244,7 +245,12 @@ class _Failed extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '$error',
+              // An app error carries a sentence written for the user; only
+              // anything else is shown as it came.
+              switch (error) {
+                AppException(:final message) => message,
+                _ => '$error',
+              },
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),

@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../errors/exceptions.dart';
 
 /// Supplies the AES-256 key that SQLCipher opens the database with.
 ///
@@ -18,8 +21,21 @@ abstract class EncryptionKeyStore {
   /// Must return the *same* key on every subsequent call for the life of the
   /// installation. A key that changes makes every existing row unreadable —
   /// there is no recovery, because the ciphertext is all that remains.
-  Future<String> getOrCreateKey();
+  ///
+  /// [mustExist] says data made with the key is already on the phone: a
+  /// database file the caller found. Then a key that cannot be found is
+  /// never replaced. The call throws [EncryptionException] and writes
+  /// nothing, so the data stays as it is rather than being locked away for
+  /// good under a new key. NFR-REL-002.
+  Future<String> getOrCreateKey({bool mustExist = false});
 }
+
+/// What the app says when the key to data already on the phone cannot be
+/// read. Shown on home, where a database that will not open is explained.
+const String missingDatabaseKeyMessage =
+    'Moneyora could not read the key that unlocks your data on this phone, '
+    'so it has left your data as it is rather than start again without it. '
+    'Restart the phone and open Moneyora again.';
 
 /// Production key store, backed by the platform's hardware-backed keychain.
 ///
@@ -29,11 +45,24 @@ abstract class EncryptionKeyStore {
 /// something the user can change would mean re-encrypting the entire database
 /// on every passcode change, and losing all data if they forget it.
 class SecureStorageKeyStore implements EncryptionKeyStore {
-  /// Creates a key store over [storage], defaulting to platform secure storage.
+  /// Creates a key store over [storage], defaulting to [defaultStorage].
   SecureStorageKeyStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? defaultStorage;
 
   final FlutterSecureStorage _storage;
+
+  /// The platform keychain, read so that a failure to read never erases it.
+  ///
+  /// flutter_secure_storage's Android default, `resetOnError: true`,
+  /// deletes **every** stored value the moment one cannot be decrypted —
+  /// a Keystore hiccup after an OS update is enough. The database key
+  /// would go with them, and nothing could open the database again. With
+  /// it off, a failed read is an error, the key stays where it is, and the
+  /// next launch can read it. Every other option is the plugin's default,
+  /// so a key stored by an earlier version is found where it was.
+  static const FlutterSecureStorage defaultStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(resetOnError: false),
+  );
 
   /// Keychain / Keystore entry name. Changing this orphans every existing
   /// database, so treat it as permanent.
@@ -43,9 +72,17 @@ class SecureStorageKeyStore implements EncryptionKeyStore {
   static const int _keyLengthBytes = 32;
 
   @override
-  Future<String> getOrCreateKey() async {
-    final existing = await _storage.read(key: keyName);
+  Future<String> getOrCreateKey({bool mustExist = false}) async {
+    final String? existing;
+    try {
+      existing = await _storage.read(key: keyName);
+    } on PlatformException catch (e) {
+      throw EncryptionException(missingDatabaseKeyMessage, cause: e);
+    }
     if (existing != null && existing.isNotEmpty) return existing;
+    // Data made with a key is on the phone and the key is not: a new one
+    // would lock that data away for good (NFR-REL-002).
+    if (mustExist) throw const EncryptionException(missingDatabaseKeyMessage);
 
     // Random.secure() draws from the platform CSPRNG. The default Random()
     // is a deterministic PRNG seeded from the clock, which would make the
@@ -72,7 +109,12 @@ class InMemoryKeyStore implements EncryptionKeyStore {
   String? _key;
 
   @override
-  Future<String> getOrCreateKey() async => _key ??= base64UrlEncode(
-    List<int>.generate(32, (_) => Random.secure().nextInt(256)),
-  );
+  Future<String> getOrCreateKey({bool mustExist = false}) async {
+    if (_key == null && mustExist) {
+      throw const EncryptionException(missingDatabaseKeyMessage);
+    }
+    return _key ??= base64UrlEncode(
+      List<int>.generate(32, (_) => Random.secure().nextInt(256)),
+    );
+  }
 }

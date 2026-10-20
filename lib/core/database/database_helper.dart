@@ -73,7 +73,13 @@ class DatabaseHelper {
 
   Future<Database> _open() async {
     final path = await _resolvePath();
-    final password = await keyStore.getOrCreateKey();
+    // A database already on the phone opens only with the key it was made
+    // with: when that key cannot be found, refuse rather than make a new
+    // one and lock the data away for good (NFR-REL-002).
+    final existing =
+        databaseName != inMemoryDatabasePath &&
+        await dbFactory.databaseExists(path);
+    final password = await keyStore.getOrCreateKey(mustExist: existing);
 
     return dbFactory.openDatabase(
       path,
