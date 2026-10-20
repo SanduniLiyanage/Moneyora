@@ -43,6 +43,15 @@ class DebtRepositoryImpl implements DebtRepository {
   });
 
   @override
+  Future<Either<Failure, Unit>> updateAll(List<Debt> debts) =>
+      _attempt(() async {
+        await _local.updateAll([
+          for (final debt in debts) DebtModel.fromEntity(debt),
+        ]);
+        return unit;
+      });
+
+  @override
   Future<Either<Failure, Unit>> delete(int id) => _attempt(() async {
     await _local.delete(id);
     return unit;

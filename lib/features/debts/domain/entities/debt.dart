@@ -75,6 +75,18 @@ class Debt extends Equatable {
     ).isAfter(DateTime(due.year, due.month, due.day));
   }
 
+  /// This debt, recorded under [name] instead. FR-DBT-006.
+  Debt withPerson(String name) => Debt(
+    id: id,
+    direction: direction,
+    person: name,
+    amountCents: amountCents,
+    note: note,
+    incurredOn: incurredOn,
+    dueOn: dueOn,
+    paidOn: paidOn,
+  );
+
   /// This debt, paid on [day], or open again when [day] is null.
   Debt withPaidOn(DateTime? day) => Debt(
     id: id,

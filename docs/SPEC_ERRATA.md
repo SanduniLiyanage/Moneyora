@@ -62,6 +62,7 @@ follows the Resolution sections.
 | [E-44](#e-44) | A bill shared between several people: split it into debts | Resolved (raises FR-DBT-004) | FR-DBT-004 |
 | [E-45](#e-45) | A receipt's lines are never checked against its own total | Resolved | FR-RCP-005, FR-RCP-007, FR-RCP-011 |
 | [E-46](#e-46) | A credit card with a limit shows a balance of nothing | Resolved | FR-ACC-003, FR-ACC-009 |
+| [E-47](#e-47) | Debts are kept record by record, not person by person | Resolved (raises FR-DBT-005, FR-DBT-006) | FR-DBT-002, FR-DBT-005, FR-DBT-006 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2808,6 +2809,59 @@ choice and the transfer screen, and the limit looked lost.
    from the balance, the type and the limit, which the account port now
    carries (`AccountOption.creditLimitCents`), so the three screens cannot
    disagree.
+
+---
+
+<a id="e-47"></a>
+
+## E-47 — Debts are kept record by record, not person by person
+
+**Severity:** Medium · **Affects:** E-42, E-44 · **Requirement:**
+FR-DBT-002; raises FR-DBT-005, FR-DBT-006
+
+Raised 2026-10-20, from a tester using 1.2.0, who asked for debts to be
+kept separately for each person, and for a new record to offset what is
+already there rather than every record running one way: Nimal owes the
+user Rs1,000, then the user owes Nimal Rs400, so Nimal owes Rs600.
+
+FR-DBT-002 listed debts by direction, owed to the user above and owed by
+the user below, and added each side up. Rs1,000 lent to Nimal and Rs400
+borrowed from him were two rows on two sides, and the totals said the
+user was owed Rs1,000 and owed Rs400, which is not what anyone would say.
+
+**Resolution.** Requirements raised here:
+
+| ID | Requirement |
+|---|---|
+| FR-DBT-005 | List the debts by person, a person matched by name whatever its case and spacing: one row each with what they owe the user, or the user owes them, net of every open record either way, opening to the records behind it; overdue people first, then by the soonest due day; people with nothing open folded away below; and at the top, the nets added up each way, saying how. |
+| FR-DBT-006 | Offer the people already recorded as a name is typed; rename a person on every one of their records at once, and, after asking, put them together with a person already listed. |
+
+1. **The list is by person** (FR-DBT-005, in place of FR-DBT-002's two
+   sides). One row per person with something open: "Owes you
+   Rs600.00", "You owe Rs250.00", or "All square", and "overdue" when a
+   record running the way the net runs is past its due day. A row opens
+   to that person's records, each still ticked paid with Undo, opened to
+   change, or deleted, as FR-DBT-003 has it. People with nothing open
+   are under "Settled". A person is named as most of their records
+   spell them, the first written breaking a tie.
+2. **A new record either way offsets what is there.** A person's net is
+   what they owe the user less what the user owes them, over the open
+   records. No record is deleted, changed or merged to do it: the
+   history stays.
+3. **The totals add the nets.** Everyone who owes the user on balance is
+   in "Owed to you", everyone the user owes on balance in "You owe", and
+   the card says so. "Overdue" counts people.
+4. **People are matched by name**, trimmed, in lower case, with one space
+   between words: "Nimal", " nimal " and "NIMAL" are one person.
+   Grouping is worked out from the rows as they are: no migration, and
+   every existing debt keeps working unchanged.
+5. **Near duplicates are the user's to join** (FR-DBT-006). "Nimal" and
+   "Nimal P." stay two people until the user says otherwise. The name
+   field, on the debt form and on Split bill, offers the people already
+   recorded as the first letters are typed. Rename changes a person's
+   name on every one of their records in one write; renaming them to a
+   person already listed asks first, then puts the two together under
+   the spelling already listed. Nothing is put together without asking.
 
 ---
 

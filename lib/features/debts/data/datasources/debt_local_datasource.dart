@@ -28,6 +28,10 @@ abstract interface class DebtLocalDataSource {
   /// Replaces the row with [debt]'s id.
   Future<void> update(DebtModel debt);
 
+  /// Replaces the row of every one of [debts] in one database transaction,
+  /// all or none. FR-DBT-006.
+  Future<void> updateAll(List<DebtModel> debts);
+
   /// Deletes the row with [id].
   Future<void> delete(int id);
 
@@ -126,6 +130,28 @@ class DebtLocalDataSourceImpl implements DebtLocalDataSource {
         whereArgs: [id],
       );
       if (changed == 0) throw CacheException('No debt with id $id.');
+    });
+    _changes.notify();
+  }
+
+  @override
+  Future<void> updateAll(List<DebtModel> debts) async {
+    if (debts.any((d) => d.id == null)) {
+      throw const CacheException('Cannot update a debt with no id.');
+    }
+    final now = _clock();
+    await _guard('save the debts', () {
+      return _db.transaction((txn) async {
+        for (final debt in debts) {
+          final changed = await txn.update(
+            'debts',
+            debt.toMap(now: now),
+            where: 'id = ?',
+            whereArgs: [debt.id],
+          );
+          if (changed == 0) throw CacheException('No debt with id ${debt.id}.');
+        }
+      });
     });
     _changes.notify();
   }

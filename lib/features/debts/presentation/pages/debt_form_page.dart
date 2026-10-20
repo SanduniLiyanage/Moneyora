@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../domain/entities/debt.dart';
+import '../../domain/entities/debt_person.dart';
 import '../../domain/usecases/save_debt.dart';
 import '../providers/debt_providers.dart';
+import '../widgets/person_name_field.dart';
 
 /// Recording a debt, or changing, settling or deleting one. FR-DBT-001,
 /// FR-DBT-003.
@@ -183,6 +185,8 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
     final day = DateFormat.yMMMd();
     final due = _dueOn;
     final dueError = _errorFor('dueOn');
+    // Everyone recorded so far, for the name field to offer (FR-DBT-006).
+    final names = DebtPerson.names(ref.watch(debtsProvider).valueOrNull ?? []);
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEditing ? 'Edit debt' : 'New debt')),
@@ -208,10 +212,10 @@ class _DebtFormPageState extends ConsumerState<DebtFormPage> {
                   setState(() => _direction = next.single),
             ),
             const SizedBox(height: 16),
-            TextField(
+            PersonNameField(
               controller: _person,
+              names: names,
               autofocus: !_isEditing,
-              textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
                 labelText: _direction == DebtDirection.owedToMe
                     ? 'Who owes you'

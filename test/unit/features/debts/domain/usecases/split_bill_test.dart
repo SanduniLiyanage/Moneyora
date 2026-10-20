@@ -22,6 +22,10 @@ class _FakeRepository implements DebtRepository {
   Future<Either<Failure, Unit>> update(Debt debt) => throw UnimplementedError();
 
   @override
+  Future<Either<Failure, Unit>> updateAll(List<Debt> debts) =>
+      throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
 
   @override

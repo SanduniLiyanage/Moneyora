@@ -179,6 +179,53 @@ void main() {
     expect(await source.list(), isEmpty);
   });
 
+  group('several changed together. FR-DBT-006', () {
+    test('every row is rewritten, and announced once', () async {
+      final ids = await source.addAll([
+        debt(person: 'Nimal P.'),
+        debt(person: 'nimal p.'),
+      ]);
+      var heard = 0;
+      final listening = source.changes.listen((_) => heard++);
+      addTearDown(listening.cancel);
+
+      await source.updateAll([
+        for (final model in await source.list())
+          DebtModel.fromEntity(model.toEntity().withPerson('Nimal')),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect((await source.list()).map((d) => (d.id, d.person)).toSet(), {
+        (ids[0], 'Nimal'),
+        (ids[1], 'Nimal'),
+      });
+      expect(heard, 1);
+    });
+
+    test('all or none: a row that is not there changes none of them', () async {
+      final id = await source.add(debt(person: 'Nimal P.'));
+      final kept = (await source.list()).single.toEntity();
+
+      await expectLater(
+        source.updateAll([
+          DebtModel.fromEntity(kept.withPerson('Nimal')),
+          DebtModel.fromEntity(
+            Debt(
+              id: id + 99,
+              direction: DebtDirection.owedToMe,
+              person: 'Nimal',
+              amountCents: 100,
+              incurredOn: DateTime(2026, 10, 1),
+            ),
+          ),
+        ]),
+        throwsA(isA<CacheException>()),
+      );
+
+      expect((await source.list()).single.person, 'Nimal P.');
+    });
+  });
+
   test('a row the CHECKs refuse is a CacheException', () async {
     await expectLater(
       source.add(debt(cents: 0)),
