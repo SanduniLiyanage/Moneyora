@@ -35,6 +35,15 @@ abstract interface class DebtLocalDataSource {
   /// Deletes the row with [id].
   Future<void> delete(int id);
 
+  /// Inserts [add], replaces [update] and deletes the rows with the ids in
+  /// [delete], in one database transaction, all or none, and returns the
+  /// new ids of [add] in order. FR-DBT-007.
+  Future<List<int>> batch({
+    List<DebtModel> add = const [],
+    List<DebtModel> update = const [],
+    List<int> delete = const [],
+  });
+
   /// Fires after every successful write.
   Stream<void> get changes;
 
@@ -135,14 +144,22 @@ class DebtLocalDataSourceImpl implements DebtLocalDataSource {
   }
 
   @override
-  Future<void> updateAll(List<DebtModel> debts) async {
-    if (debts.any((d) => d.id == null)) {
+  Future<void> updateAll(List<DebtModel> debts) => batch(update: debts);
+
+  @override
+  Future<List<int>> batch({
+    List<DebtModel> add = const [],
+    List<DebtModel> update = const [],
+    List<int> delete = const [],
+  }) async {
+    if (update.any((d) => d.id == null)) {
       throw const CacheException('Cannot update a debt with no id.');
     }
     final now = _clock();
-    await _guard('save the debts', () {
+    final stamp = now.toUtc().toIso8601String();
+    final ids = await _guard('save the debts', () {
       return _db.transaction((txn) async {
-        for (final debt in debts) {
+        for (final debt in update) {
           final changed = await txn.update(
             'debts',
             debt.toMap(now: now),
@@ -151,9 +168,25 @@ class DebtLocalDataSourceImpl implements DebtLocalDataSource {
           );
           if (changed == 0) throw CacheException('No debt with id ${debt.id}.');
         }
+        for (final id in delete) {
+          final removed = await txn.delete(
+            'debts',
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          if (removed == 0) throw CacheException('No debt with id $id.');
+        }
+        return [
+          for (final debt in add)
+            await txn.insert('debts', {
+              ...debt.toMap(now: now),
+              'created_at': stamp,
+            }),
+        ];
       });
     });
     _changes.notify();
+    return ids;
   }
 
   @override

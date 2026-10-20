@@ -46,6 +46,12 @@ class _InMemoryDebts implements DebtRepository {
 
   @override
   Future<Either<Failure, int>> add(Debt debt) async {
+    final id = _put(debt);
+    _changes.add(null);
+    return Right(id);
+  }
+
+  int _put(Debt debt) {
     final id = _nextId++;
     _debts.add(
       Debt(
@@ -57,10 +63,25 @@ class _InMemoryDebts implements DebtRepository {
         incurredOn: debt.incurredOn,
         dueOn: debt.dueOn,
         paidOn: debt.paidOn,
+        isPayment: debt.isPayment,
       ),
     );
+    return id;
+  }
+
+  @override
+  Future<Either<Failure, List<int>>> batch({
+    List<Debt> add = const [],
+    List<Debt> update = const [],
+    List<int> delete = const [],
+  }) async {
+    for (final debt in update) {
+      _debts[_debts.indexWhere((d) => d.id == debt.id)] = debt;
+    }
+    _debts.removeWhere((d) => delete.contains(d.id));
+    final ids = [for (final debt in add) _put(debt)];
     _changes.add(null);
-    return Right(id);
+    return Right(ids);
   }
 
   @override
@@ -364,6 +385,207 @@ void main() {
 
       expect(find.text('Say who.'), findsOneWidget);
       expect(repository.debts.single.person, 'Nimal');
+    });
+  });
+
+  group('settling up. FR-DBT-007, E-47', () {
+    Future<void> settle(WidgetTester tester, String name) async {
+      await tester.tap(find.text(name));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Settle up'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('says the net changes hands, then closes every record and '
+        'records it paid', (tester) async {
+      final repository = _InMemoryDebts([
+        debt(1, 'Nimal', DebtDirection.owedToMe, 100000),
+        debt(2, 'Nimal', DebtDirection.iOwe, 40000),
+      ]);
+      await open(tester, repository);
+      await settle(tester, 'Nimal');
+
+      expect(find.text('Settle up with Nimal?'), findsOneWidget);
+      expect(
+        find.text(
+          'Nimal pays you Rs600.00: what they owe you, less what you owe '
+          'them.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('All 2 open records are marked paid on that day.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Settle up').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.every((d) => !d.isOpen), isTrue);
+      final payment = repository.debts.singleWhere((d) => d.isPayment);
+      expect(payment.amountCents, 60000);
+      expect(payment.direction, DebtDirection.iOwe);
+      expect(find.text('Settled · 1'), findsOneWidget);
+      expect(find.text('Settled up with Nimal'), findsOneWidget);
+    });
+
+    testWidgets('Undo opens them again and takes the payment away', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts([
+        debt(1, 'Nimal', DebtDirection.owedToMe, 100000),
+        debt(2, 'Nimal', DebtDirection.iOwe, 40000),
+      ]);
+      await open(tester, repository);
+      await settle(tester, 'Nimal');
+      await tester.tap(find.widgetWithText(TextButton, 'Settle up').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts, hasLength(2));
+      expect(repository.debts.every((d) => d.isOpen), isTrue);
+      expect(find.text('Owes you Rs600.00'), findsOneWidget);
+    });
+
+    testWidgets('owing them, the user pays the net', (tester) async {
+      await open(
+        tester,
+        _InMemoryDebts([
+          debt(1, 'Saman', DebtDirection.owedToMe, 10000),
+          debt(2, 'Saman', DebtDirection.iOwe, 35000),
+        ]),
+      );
+      await settle(tester, 'Saman');
+
+      expect(
+        find.text(
+          'You pay Saman Rs250.00: what you owe them, less what they owe '
+          'you.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('square, nothing changes hands', (tester) async {
+      final repository = _InMemoryDebts([
+        debt(1, 'Saman', DebtDirection.owedToMe, 35000),
+        debt(2, 'Saman', DebtDirection.iOwe, 35000),
+      ]);
+      await open(tester, repository);
+      await settle(tester, 'Saman');
+
+      expect(
+        find.text('You are square, so nothing changes hands.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Settle up').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.any((d) => d.isPayment), isFalse);
+      expect(repository.debts.every((d) => !d.isOpen), isTrue);
+    });
+
+    testWidgets('cancelled, nothing is written', (tester) async {
+      final repository = _InMemoryDebts([
+        debt(1, 'Nimal', DebtDirection.owedToMe, 100000),
+      ]);
+      await open(tester, repository);
+      await settle(tester, 'Nimal');
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.single.isOpen, isTrue);
+    });
+  });
+
+  group('a payment. FR-DBT-008, E-47', () {
+    testWidgets('is recorded from the person, the net offsetting it', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts([
+        debt(1, 'Nimal', DebtDirection.owedToMe, 100000),
+      ]);
+      await open(tester, repository);
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record a payment'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New payment'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Who paid you'), findsOneWidget);
+      expect(find.text('Rs1,000.00 settles it'), findsOneWidget);
+      expect(find.text('Due by (optional)'), findsNothing);
+      expect(find.text('Mark as paid'), findsNothing);
+      await tester.enterText(find.widgetWithText(TextField, 'Amount'), '300');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save payment'));
+      await tester.pumpAndSettle();
+
+      final payment = repository.debts.singleWhere((d) => d.isPayment);
+      expect(payment.person, 'Nimal');
+      expect(payment.direction, DebtDirection.iOwe);
+      expect(payment.amountCents, 30000);
+      expect(payment.isOpen, isTrue);
+      expect(find.text('Owes you Rs700.00'), findsOneWidget);
+    });
+
+    testWidgets('reads as paid, with no tick of its own', (tester) async {
+      await open(
+        tester,
+        _InMemoryDebts([
+          debt(1, 'Nimal', DebtDirection.owedToMe, 100000),
+          Debt(
+            id: 2,
+            direction: DebtDirection.iOwe,
+            person: 'Nimal',
+            amountCents: 30000,
+            incurredOn: DateTime(2026, 10, 5),
+            isPayment: true,
+          ),
+        ]),
+      );
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Paid you'), findsOneWidget);
+      expect(find.text('On Oct 5, 2026'), findsOneWidget);
+      // The debt's tick only.
+      expect(find.byTooltip('Mark as paid'), findsOneWidget);
+    });
+
+    testWidgets('is opened to change or delete, never to mark paid', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts([
+        debt(1, 'Nimal', DebtDirection.owedToMe, 100000),
+        Debt(
+          id: 2,
+          direction: DebtDirection.iOwe,
+          person: 'Nimal',
+          amountCents: 30000,
+          incurredOn: DateTime(2026, 10, 5),
+          isPayment: true,
+        ),
+      ]);
+      await open(tester, repository);
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Paid you'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit payment'), findsOneWidget);
+      expect(find.text('Mark as paid'), findsNothing);
+      await tester.tap(find.text('Delete payment'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('It is removed for good, and what it paid is owed again.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.any((d) => d.isPayment), isFalse);
+      expect(find.text('Owes you Rs1,000.00'), findsOneWidget);
     });
   });
 
@@ -745,6 +967,76 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.text('Say who.'), findsOneWidget);
+      });
+
+      testWidgets('the settle-up dialog says what changes hands ($theme)', (
+        tester,
+      ) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts([
+              debt(
+                1,
+                'Someone with a long name',
+                DebtDirection.owedToMe,
+                123456789,
+              ),
+              debt(2, 'Someone with a long name', DebtDirection.iOwe, 100),
+            ]),
+            dark: dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await expand(tester, 'Someone with a long name');
+        await scrollToEnd(tester);
+        await tester.tap(find.text('Settle up'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.widgetWithText(TextButton, 'Settle up'), findsWidgets);
+        expect(find.text('Settled on'), findsOneWidget);
+      });
+
+      testWidgets('a payment names who paid, whole ($theme)', (tester) async {
+        // At the ordinary font: the test font is twice Roboto's width.
+        useSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts([debt(1, 'Ama', DebtDirection.owedToMe, 100000)]),
+            dark: dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Ama'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Record a payment'));
+        await tester.pumpAndSettle();
+
+        expect(isCut(tester, find.text('Paid me')), isFalse);
+        expect(isCut(tester, find.text('I paid')), isFalse);
+        expect(isCut(tester, find.text('Rs1,000.00 settles it')), isFalse);
+      });
+
+      testWidgets('the payment form holds at the largest font ($theme)', (
+        tester,
+      ) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts([debt(1, 'Ama', DebtDirection.owedToMe, 123456789)]),
+            dark: dark,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await expand(tester, 'Ama');
+        await scrollToEnd(tester);
+        await tester.tap(find.text('Record a payment'));
+        await tester.pumpAndSettle();
+        await scrollToEnd(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Save payment'), findsOneWidget);
       });
 
       testWidgets('the debt form names its note field in full ($theme)', (

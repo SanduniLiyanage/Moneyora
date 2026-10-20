@@ -9,6 +9,7 @@ import 'migrations/v5_budget_alerts.dart';
 import 'migrations/v6_recurring_reminders.dart';
 import 'migrations/v7_debts.dart';
 import 'migrations/v8_credit_cards.dart';
+import 'migrations/v9_debt_payments.dart';
 
 /// Every schema version, keyed by the version it produces.
 ///
@@ -31,6 +32,7 @@ const Map<int, List<String>> schemaMigrations = <int, List<String>>{
   v6SchemaVersion: v6Statements,
   v7SchemaVersion: v7Statements,
   v8SchemaVersion: v8Statements,
+  v9SchemaVersion: v9Statements,
 };
 
 /// The version a fresh install lands on.

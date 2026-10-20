@@ -61,7 +61,17 @@ void main() {
   test('adds carry_over_cents at zero and keeps every row', () async {
     await DatabaseHelper.migrate(db);
 
-    expect(await DatabaseHelper.appliedVersions(db), {1, 2, 3, 4, 5, 6, 7, 8});
+    expect(await DatabaseHelper.appliedVersions(db), {
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+    });
     final rows = await db.query('plan_allocations');
     expect(rows, hasLength(1));
     expect(rows.single['spent_amount_cents'], 1234500, reason: 'intact');

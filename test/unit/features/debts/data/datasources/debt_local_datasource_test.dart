@@ -226,6 +226,69 @@ void main() {
     });
   });
 
+  group('a settlement and its undo, as one write. FR-DBT-007', () {
+    test('adds, changes and removes together, and says so once', () async {
+      final keep = await source.add(debt(person: 'Nimal'));
+      final gone = await source.add(debt(person: 'Saman'));
+      final kept = (await source.list())
+          .firstWhere((d) => d.id == keep)
+          .toEntity();
+      var heard = 0;
+      final listening = source.changes.listen((_) => heard++);
+      addTearDown(listening.cancel);
+
+      final ids = await source.batch(
+        add: [
+          DebtModel.fromEntity(
+            Debt(
+              direction: DebtDirection.iOwe,
+              person: 'Nimal',
+              amountCents: 250000,
+              incurredOn: DateTime(2026, 10, 20),
+              paidOn: DateTime(2026, 10, 20),
+              note: 'Settled up',
+              isPayment: true,
+            ),
+          ),
+        ],
+        update: [DebtModel.fromEntity(kept.withPaidOn(DateTime(2026, 10, 20)))],
+        delete: [gone],
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final rows = await source.list();
+      expect(rows, hasLength(2));
+      final payment = rows.firstWhere((d) => d.id == ids.single);
+      expect(payment.isPayment, isTrue, reason: 'read back as a payment');
+      expect(payment.paidOn, DateTime(2026, 10, 20));
+      expect(
+        rows.firstWhere((d) => d.id == keep).paidOn,
+        DateTime(2026, 10, 20),
+      );
+      final stored = await db.query(
+        'debts',
+        where: 'id = ?',
+        whereArgs: [ids.single],
+      );
+      expect(stored.single['is_payment'], 1);
+      expect(heard, 1);
+    });
+
+    test('all or none: a row that is not there writes nothing', () async {
+      final id = await source.add(debt(person: 'Nimal'));
+
+      await expectLater(
+        source.batch(
+          add: [debt(person: 'Saman')],
+          delete: [id + 99],
+        ),
+        throwsA(isA<CacheException>()),
+      );
+
+      expect((await source.list()).single.id, id);
+    });
+  });
+
   test('a row the CHECKs refuse is a CacheException', () async {
     await expectLater(
       source.add(debt(cents: 0)),

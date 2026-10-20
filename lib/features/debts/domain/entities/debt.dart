@@ -34,6 +34,7 @@ class Debt extends Equatable {
     this.note,
     this.dueOn,
     this.paidOn,
+    this.isPayment = false,
   });
 
   /// Row id, null before it is saved.
@@ -60,6 +61,16 @@ class Debt extends Equatable {
   /// The day it was paid, or null while it is still open. FR-DBT-003.
   final DateTime? paidOn;
 
+  /// Whether this is a payment between the user and [person] rather than
+  /// money owed: part or all of what is owed, paid back. FR-DBT-008, E-47.
+  ///
+  /// It runs the other way from what it pays, so it offsets it in the
+  /// person's net: Nimal paying back Rs300 of Rs1,000 is a record of
+  /// Rs300 running from Nimal to the user, [DebtDirection.iOwe]. It is
+  /// money that has moved, so it has no due day, and it closes when the
+  /// person is settled up (FR-DBT-007), not with a tick of its own.
+  final bool isPayment;
+
   /// True until it is paid.
   bool get isOpen => paidOn == null;
 
@@ -85,6 +96,7 @@ class Debt extends Equatable {
     incurredOn: incurredOn,
     dueOn: dueOn,
     paidOn: paidOn,
+    isPayment: isPayment,
   );
 
   /// This debt, paid on [day], or open again when [day] is null.
@@ -97,6 +109,7 @@ class Debt extends Equatable {
     incurredOn: incurredOn,
     dueOn: dueOn,
     paidOn: day,
+    isPayment: isPayment,
   );
 
   @override
@@ -109,5 +122,6 @@ class Debt extends Equatable {
     incurredOn,
     dueOn,
     paidOn,
+    isPayment,
   ];
 }

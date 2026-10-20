@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fpdart/fpdart.dart' show Left, Right;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -16,6 +17,7 @@ import '../../domain/entities/debt.dart';
 import '../../domain/entities/debt_person.dart';
 import '../../domain/entities/debt_totals.dart';
 import '../../domain/usecases/rename_person.dart';
+import '../../domain/usecases/settle_up.dart';
 import '../providers/debt_providers.dart';
 
 /// Money owed, either way, person by person. FR-DBT-002, FR-DBT-005,
@@ -254,6 +256,31 @@ class _PersonTile extends ConsumerWidget {
           child: Wrap(
             spacing: 8,
             children: [
+              if (person.hasOpen)
+                TextButton.icon(
+                  onPressed: () => _settleUp(context, ref),
+                  icon: const Icon(Icons.handshake_outlined),
+                  label: const Text('Settle up'),
+                ),
+              if (net != 0)
+                TextButton.icon(
+                  onPressed: () => context.push(
+                    Routes.debtForm,
+                    // A payment towards the net, in the way it runs: from
+                    // them when they owe the user, to them otherwise.
+                    extra: Debt(
+                      direction: net > 0
+                          ? DebtDirection.iOwe
+                          : DebtDirection.owedToMe,
+                      person: person.name,
+                      amountCents: 0,
+                      incurredOn: today,
+                      isPayment: true,
+                    ),
+                  ),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Record a payment'),
+                ),
               TextButton.icon(
                 onPressed: () => _rename(context, ref),
                 icon: const Icon(Icons.edit_outlined),
@@ -264,6 +291,36 @@ class _PersonTile extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// Asks for the day, says what changes hands, settles, and offers Undo.
+  /// FR-DBT-007.
+  Future<void> _settleUp(BuildContext context, WidgetRef ref) async {
+    final actions = ref.read(debtActionsControllerProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    final on = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => _SettleDialog(person: person, today: today),
+    );
+    if (on == null) return;
+
+    final result = await actions.settleUp(person, on: on);
+    messenger.clearSnackBars();
+    switch (result) {
+      case Left(value: final failure):
+        messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+      case Right(value: final settled):
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Settled up with ${person.name}'),
+            persist: false,
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => actions.undoSettleUp(settled),
+            ),
+          ),
+        );
+    }
   }
 
   /// Asks for the new name, and before putting two people together.
@@ -284,6 +341,7 @@ class _PersonTile extends ConsumerWidget {
       final together = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: Text('Put them with ${other.name}?'),
           content: Text(
             '${other.name} is already in your debts. ${person.name}\'s '
@@ -320,6 +378,101 @@ class _PersonTile extends ConsumerWidget {
   }
 }
 
+/// Settling up with a person: what changes hands, on which day.
+/// FR-DBT-007.
+///
+/// When the two are not square it says the net is what changes hands, not
+/// each record: settling is the net paid, and every record closed.
+class _SettleDialog extends StatefulWidget {
+  const _SettleDialog({required this.person, required this.today});
+
+  final DebtPerson person;
+  final DateTime today;
+
+  @override
+  State<_SettleDialog> createState() => _SettleDialogState();
+}
+
+class _SettleDialogState extends State<_SettleDialog> {
+  late DateTime _on = widget.today;
+
+  Future<void> _pickDay() async {
+    final open = widget.person.open;
+    final first = open
+        .map((d) => d.incurredOn)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _on,
+      // Not before the latest record began, nor after today: SettleUp
+      // refuses both, so the picker does not offer them.
+      firstDate: DateTime(first.year, first.month, first.day),
+      lastDate: widget.today,
+    );
+    if (picked != null) setState(() => _on = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final person = widget.person;
+    final net = person.netCents;
+    final count = person.open.length;
+    final records = count == 1
+        ? 'The open record is'
+        : 'All $count open records are';
+    final day = DateFormat.yMMMd();
+    final problem = SettleUp.validate(Settlement(person, on: _on));
+
+    return AlertDialog(
+      // Title and all scroll together: at the largest font on a 320dp
+      // phone a long name in the title alone ran 272px past the dialog.
+      scrollable: true,
+      title: Text('Settle up with ${person.name}?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(switch (net) {
+            > 0 =>
+              '${person.name} pays you ${formatCents(net)}: what they owe '
+                  'you, less what you owe them.',
+            < 0 =>
+              'You pay ${person.name} ${formatCents(-net)}: what you owe '
+                  'them, less what they owe you.',
+            _ => 'You are square, so nothing changes hands.',
+          }),
+          const SizedBox(height: 8),
+          Text('$records marked paid on that day.'),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.event_outlined),
+            title: const Text('Settled on'),
+            subtitle: Text(day.format(_on)),
+            onTap: _pickDay,
+          ),
+          if (problem != null)
+            Text(
+              problem.message,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: problem == null
+              ? () => Navigator.of(context).pop(_on)
+              : null,
+          child: const Text('Settle up'),
+        ),
+      ],
+    );
+  }
+}
+
 /// The new name for a person, refused in [RenamePerson.validate]'s words.
 class _RenameDialog extends StatefulWidget {
   const _RenameDialog({required this.name});
@@ -351,6 +504,7 @@ class _RenameDialogState extends State<_RenameDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: const Text('Rename'),
     content: TextField(
       controller: _controller,
@@ -411,18 +565,24 @@ class _DebtTile extends ConsumerWidget {
     final colors = theme.extension<AppColors>()!;
     final owedToMe = debt.direction == DebtDirection.owedToMe;
     final muted = theme.colorScheme.onSurface.withValues(alpha: 0.7);
-    final tint = debt.isOpen
-        ? (owedToMe ? colors.income : colors.expense)
-        : muted;
+    // A payment is money that moved, neither owed to the user nor by them:
+    // it is drawn plainly, and the person's net says what it changed.
+    final tint = !debt.isOpen
+        ? muted
+        : debt.isPayment
+        ? theme.colorScheme.onSurface
+        : (owedToMe ? colors.income : colors.expense);
     final overdue = debt.isOverdue(today);
     final day = DateFormat.yMMMd();
 
     // What it was: the user's own words, or which way it runs.
     final what = switch (debt.note) {
       final note? => note,
+      null when debt.isPayment => owedToMe ? 'You paid' : 'Paid you',
       null => owedToMe ? 'Owed to you' : 'You owe',
     };
     final when = switch (debt) {
+      Debt(isPayment: true) => 'On ${day.format(debt.incurredOn)}',
       Debt(paidOn: final paid?) => 'Paid ${day.format(paid)}',
       Debt(dueOn: final due?) when overdue =>
         'Overdue since ${day.format(due)}',
@@ -441,7 +601,8 @@ class _DebtTile extends ConsumerWidget {
       overflow: TextOverflow.ellipsis,
       style: overdue ? TextStyle(color: theme.colorScheme.error) : null,
     );
-    final tick = debt.isOpen
+    // A payment closes when the person is settled up, not on its own.
+    final tick = debt.isOpen && !debt.isPayment
         ? IconButton(
             tooltip: 'Mark as paid',
             icon: const Icon(Icons.check_circle_outline),
@@ -465,7 +626,9 @@ class _DebtTile extends ConsumerWidget {
           onTap: () => context.push(Routes.debtForm, extra: debt),
           leading: Icon(
             // Money coming back to the user, or going out from them.
-            owedToMe ? Icons.call_received : Icons.call_made,
+            debt.isPayment
+                ? Icons.payments_outlined
+                : (owedToMe ? Icons.call_received : Icons.call_made),
             color: tint,
             size: 20,
           ),

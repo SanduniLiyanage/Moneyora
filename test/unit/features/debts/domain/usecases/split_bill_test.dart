@@ -26,6 +26,13 @@ class _FakeRepository implements DebtRepository {
       throw UnimplementedError();
 
   @override
+  Future<Either<Failure, List<int>>> batch({
+    List<Debt> add = const [],
+    List<Debt> update = const [],
+    List<int> delete = const [],
+  }) => throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> delete(int id) => throw UnimplementedError();
 
   @override

@@ -32,6 +32,13 @@ class _FakeRepository implements DebtRepository {
   }
 
   @override
+  Future<Either<Failure, List<int>>> batch({
+    List<Debt> add = const [],
+    List<Debt> update = const [],
+    List<int> delete = const [],
+  }) => throw UnimplementedError();
+
+  @override
   Future<Either<Failure, Unit>> delete(int id) async {
     deleted.add(id);
     return const Right(unit);
@@ -85,6 +92,23 @@ void main() {
       await SaveDebt(repository)(debt(note: '   '));
 
       expect(repository.added.single.note, isNull);
+    });
+
+    test('a payment is kept as one, with no due day. FR-DBT-008', () async {
+      await SaveDebt(repository)(
+        Debt(
+          direction: DebtDirection.iOwe,
+          person: 'Nimal',
+          amountCents: 30000,
+          incurredOn: DateTime(2026, 10, 5),
+          dueOn: DateTime(2026, 11, 1),
+          isPayment: true,
+        ),
+      );
+
+      expect(repository.added.single.isPayment, isTrue);
+      expect(repository.added.single.dueOn, isNull);
+      expect(repository.added.single.amountCents, 30000);
     });
 
     test('one with an id is a change, not a second debt', () async {
@@ -162,6 +186,31 @@ void main() {
       expect(early.isLeft(), isTrue);
       expect(repository.updated, isEmpty);
     });
+
+    test(
+      'refuses a payment, which closes when the person is settled up',
+      () async {
+        final result = await SetDebtPaid(repository)(
+          DebtPayment(
+            Debt(
+              id: 3,
+              direction: DebtDirection.iOwe,
+              person: 'Nimal',
+              amountCents: 30000,
+              incurredOn: DateTime(2026, 10, 5),
+              isPayment: true,
+            ),
+            paidOn: DateTime(2026, 10, 9),
+          ),
+        );
+
+        expect(
+          result.match((f) => f.message, (_) => 'written'),
+          'A payment closes when you settle up with the person.',
+        );
+        expect(repository.updated, isEmpty);
+      },
+    );
   });
 
   test('DeleteDebt removes the one named', () async {

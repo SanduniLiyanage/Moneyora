@@ -91,6 +91,7 @@ void main() {
         6,
         7,
         8,
+        9,
       });
       final rows = await db.query('transfers');
       expect(rows, hasLength(1));
