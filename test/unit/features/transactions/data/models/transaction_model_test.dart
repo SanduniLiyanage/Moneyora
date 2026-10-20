@@ -161,6 +161,22 @@ void main() {
     test('an unsaved transaction omits id so SQLite assigns one', () {
       expect(expense(id: null).toMap(now: now).containsKey('id'), isFalse);
     });
+
+    test("a debt's money movement reads its debt, which toMap never writes "
+        '(E-47)', () {
+      // v9's column belongs to the debts feature, which writes it; an edit
+      // here must leave it as it was.
+      final read = TransactionModel.fromMap({
+        ...transferHalf(TransferDirection.out).toMap(now: now),
+        'debt_id': 5,
+      });
+
+      expect(read.debtId, 5);
+      expect(read.isDebtMovement, isTrue);
+      expect(read.toEntity().debtId, 5);
+      expect(read.toMap(now: now).containsKey('debt_id'), isFalse);
+      expect(transferHalf(TransferDirection.out).isDebtMovement, isFalse);
+    });
   });
 
   group('transfer direction', () {

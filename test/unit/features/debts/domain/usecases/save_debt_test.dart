@@ -111,6 +111,32 @@ void main() {
       expect(repository.added.single.amountCents, 30000);
     });
 
+    test('keeps the account it went through, and the one it came back '
+        'through only once paid. FR-DBT-009', () async {
+      Debt linked({DateTime? paidOn, bool payment = false}) => Debt(
+        direction: DebtDirection.owedToMe,
+        person: 'Nimal',
+        amountCents: 1000,
+        incurredOn: DateTime(2026, 10, 1),
+        accountId: 1,
+        paidOn: paidOn,
+        paidAccountId: 2,
+        isPayment: payment,
+      );
+
+      await SaveDebt(repository)(linked());
+      await SaveDebt(repository)(linked(paidOn: DateTime(2026, 10, 3)));
+      await SaveDebt(repository)(
+        linked(paidOn: DateTime(2026, 10, 3), payment: true),
+      );
+
+      expect([for (final d in repository.added) d.accountId], [1, 1, 1]);
+      expect(
+        [for (final d in repository.added) d.paidAccountId],
+        [null, 2, null],
+      );
+    });
+
     test('one with an id is a change, not a second debt', () async {
       await SaveDebt(repository)(debt(id: 4));
 
@@ -185,6 +211,34 @@ void main() {
       expect(unsaved.isLeft(), isTrue);
       expect(early.isLeft(), isTrue);
       expect(repository.updated, isEmpty);
+    });
+
+    test('paid back through an account, and opened again through none. '
+        'FR-DBT-009', () async {
+      final linked = Debt(
+        id: 2,
+        direction: DebtDirection.owedToMe,
+        person: 'Nimal',
+        amountCents: 1000,
+        incurredOn: DateTime(2026, 10, 1),
+        accountId: 1,
+      );
+
+      await SetDebtPaid(repository)(
+        DebtPayment(linked, paidOn: DateTime(2026, 10, 9), through: 2),
+      );
+      await SetDebtPaid(repository)(
+        DebtPayment(
+          linked.withPaidOn(DateTime(2026, 10, 9), through: 2),
+          paidOn: null,
+          through: 2,
+        ),
+      );
+
+      expect(repository.updated.first.paidAccountId, 2);
+      expect(repository.updated.first.accountId, 1);
+      expect(repository.updated.last.paidOn, isNull);
+      expect(repository.updated.last.paidAccountId, isNull);
     });
 
     test(

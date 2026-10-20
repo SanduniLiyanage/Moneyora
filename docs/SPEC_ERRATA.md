@@ -62,7 +62,7 @@ follows the Resolution sections.
 | [E-44](#e-44) | A bill shared between several people: split it into debts | Resolved (raises FR-DBT-004) | FR-DBT-004 |
 | [E-45](#e-45) | A receipt's lines are never checked against its own total | Resolved | FR-RCP-005, FR-RCP-007, FR-RCP-011 |
 | [E-46](#e-46) | A credit card with a limit shows a balance of nothing | Resolved | FR-ACC-003, FR-ACC-009 |
-| [E-47](#e-47) | Debts are kept record by record, not person by person | Resolved (raises FR-DBT-005..008) | FR-DBT-002, FR-DBT-003, FR-DBT-005, FR-DBT-006, FR-DBT-007, FR-DBT-008 |
+| [E-47](#e-47) | Debts are kept record by record, not person by person, and apart from the accounts their money moves through | Resolved (raises FR-DBT-005..009; supersedes E-42 item 2) | FR-DBT-002, FR-DBT-003, FR-DBT-005, FR-DBT-006, FR-DBT-007, FR-DBT-008, FR-DBT-009 |
 
 **E-02, E-03 and E-05 are amended** by the DBD audit — see
 [Amendment A](#amendment-a). Read that before implementing any of them.
@@ -2584,7 +2584,9 @@ changed and marked paid.
    moves through, recorded there as any income or expense is; marking it
    paid records only that it was paid and when. Writing a transaction on
    "mark as paid" would duplicate one the user may already have
-   recorded, and would have to guess the account.
+   recorded, and would have to guess the account. *Superseded by
+   [E-47](#e-47) item 8 on 2026-10-20: a debt may now name its account,
+   chosen by the user, never guessed; without one, this still holds.*
 3. **Backup, restore and Clear all data** cover the table without
    change: they read the tables from `sqlite_master`.
 4. Reached from the menu, as **Debts**, after Recurring.
@@ -2814,15 +2816,17 @@ choice and the transfer screen, and the limit looked lost.
 
 <a id="e-47"></a>
 
-## E-47 — Debts are kept record by record, not person by person
+## E-47 — Debts are kept record by record, not person by person, and apart from the accounts their money moves through
 
-**Severity:** Medium · **Affects:** E-42, E-44, DBD · **Requirement:**
-FR-DBT-002, FR-DBT-003; raises FR-DBT-005 to FR-DBT-008
+**Severity:** Medium · **Affects:** E-42, E-44, E-02, E-18, DBD ·
+**Requirement:** FR-DBT-002, FR-DBT-003; raises FR-DBT-005 to FR-DBT-009
 
 Raised 2026-10-20, from a tester using 1.2.0, who asked for debts to be
 kept separately for each person, and for a new record to offset what is
 already there rather than every record running one way: Nimal owes the
-user Rs1,000, then the user owes Nimal Rs400, so Nimal owes Rs600.
+user Rs1,000, then the user owes Nimal Rs400, so Nimal owes Rs600. And,
+when adding a debt, to choose the account the money went out of or came
+into, optionally, so its balance goes down or up.
 
 FR-DBT-002 listed debts by direction, owed to the user above and owed by
 the user below, and added each side up. Rs1,000 lent to Nimal and Rs400
@@ -2837,6 +2841,7 @@ user was owed Rs1,000 and owed Rs400, which is not what anyone would say.
 | FR-DBT-006 | Offer the people already recorded as a name is typed; rename a person on every one of their records at once, and, after asking, put them together with a person already listed. |
 | FR-DBT-007 | Settle up with a person: mark every open record with them paid on one day, recording the net as having changed hands, and saying so before it is done; with Undo. |
 | FR-DBT-008 | Record a payment from or to a person, part or all of what is owed, as a record of its own that their net offsets, with the day it was made. |
+| FR-DBT-009 | Optionally name the account a debt's money moved through, and, when it is paid back, the account it moved back through: each movement moves that account's balance and shows in its history, and is never income or spending. |
 
 1. **The list is by person** (FR-DBT-005, in place of FR-DBT-002's two
    sides). One row per person with something open: "Owes you
@@ -2883,9 +2888,49 @@ user was owed Rs1,000 and owed Rs400, which is not what anyone would say.
    day and no tick of its own: it is money that has moved, and it closes
    when the person is settled up. FR-DBT-003's Mark as paid applies to
    debts, not payments.
-8. **Schema v9** adds `debts.is_payment`, 0 or 1, 0 on every existing
-   row: every debt upgrades as a debt (`v9_debt_payments_test.dart`).
-   Additive, per SDD §5.3.
+8. **A debt may name an account** (FR-DBT-009), which **supersedes E-42
+   item 2**: a debt that names one is no longer only a promise. The
+   form's account field is optional and starts on "No account"; without
+   one nothing moves, as before. Lent from an account, the money leaves
+   it on the day the debt began; borrowed into one, it arrives. A
+   payment moves its account once, the way it ran. Marked paid, the
+   user is asked which account it came back through or left from — the
+   debt's own first, another, or none — and that one moves the other
+   way; the list's tick takes the debt's own and says so. Settled up
+   through an account, the net moves it once, as the payment written
+   for it; the records it closes move nothing more.
+9. **The movement is a balance movement, never income or spending.**
+   Each is a ledger row of its own in `transactions`: one side of a
+   transfer (`type = 'transfer'`, no category, no `transfers` header),
+   with `debt_id` naming the debt. So, as for a transfer (E-02), the
+   charts, the summary card, the reports, the plan and budget alerts
+   never see it; the account's balance has it, Recalculate account
+   balances counts it (E-18), and the account's history shows it as
+   "Debt", "Lent to Nimal", so the balance can be explained. One
+   account's Balance bar counts it in and out, as it does a transfer.
+   Exports list it as a transfer in or out, with that note.
+10. **It belongs to its debt.** The debts feature writes it, in the same
+    database transaction as the debt, moving the cached balance through
+    the one write the ledger uses (`core/database/balance_cache.dart`).
+    Every change to a debt — its amount, account, day, person, paid or
+    not, deleted — takes its movements back out and writes them again
+    from what the debt now says, so an account moves by exactly the
+    difference, and a debt deleted leaves it as it was. In the
+    transaction list it opens Debts; the ledger refuses to change or
+    delete it on its own.
+11. **Only rupee accounts are offered.** A debt has no currency of its
+    own: it is shown, and moves an account, in rupees, and moving a
+    dollar account by a rupee figure would state something false.
+12. **Split bill names no account** (E-44 unchanged). The user records
+    what they paid as an expense; moving the account again for each
+    share would count the money twice. A share paid back can be marked
+    paid into an account like any other debt.
+13. **Schema v9** adds `debts.is_payment` (0 or 1), `debts.account_id`
+    and `debts.paid_account_id` (null, or an account), and
+    `transactions.debt_id` (null, or a debt) with its index. Every
+    existing debt upgrades as a debt through no account, every
+    transaction as no debt's, and no balance moves
+    (`v9_debt_payments_test.dart`). Additive, per SDD §5.3.
 
 ---
 

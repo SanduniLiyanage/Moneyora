@@ -39,6 +39,12 @@ class SaveDebt implements UseCase<Unit, Debt> {
       dueOn: params.isPayment ? null : params.dueOn,
       paidOn: params.paidOn,
       isPayment: params.isPayment,
+      accountId: params.accountId,
+      // Paid back through an account only once paid, and never for a
+      // payment, which is itself the money moving (FR-DBT-009).
+      paidAccountId: params.paidOn == null || params.isPayment
+          ? null
+          : params.paidAccountId,
     );
     if (debt.id == null) return (await _repository.add(debt)).map((_) => unit);
     return _repository.update(debt);

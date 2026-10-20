@@ -48,6 +48,7 @@ class TransactionModel extends Transaction {
     super.receiptImagePath,
     super.recurringRuleId,
     super.isRecurring,
+    super.debtId,
     this.createdAt,
     this.updatedAt,
   });
@@ -76,6 +77,7 @@ class TransactionModel extends Transaction {
     receiptImagePath: transaction.receiptImagePath,
     recurringRuleId: transaction.recurringRuleId,
     isRecurring: transaction.isRecurring,
+    debtId: transaction.debtId,
     createdAt: createdAt,
     updatedAt: updatedAt,
   );
@@ -111,6 +113,9 @@ class TransactionModel extends Transaction {
     receiptImagePath: map['receipt_image_path'] as String?,
     recurringRuleId: map['recurring_rule_id'] as int?,
     isRecurring: _decodeBool(map['is_recurring']),
+    // Written by the debts feature, never by this one: absent from toMap,
+    // so an update here never clears it (E-47).
+    debtId: map['debt_id'] as int?,
     createdAt: _decodeTimestamp(map['created_at'] as String?),
     updatedAt: _decodeTimestamp(map['updated_at'] as String?),
   );
@@ -189,6 +194,7 @@ class TransactionModel extends Transaction {
     receiptImagePath: receiptImagePath,
     recurringRuleId: recurringRuleId,
     isRecurring: isRecurring,
+    debtId: debtId,
   );
 
   /// Formats [date] as the `YYYY-MM-DD` the schema stores.

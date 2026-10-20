@@ -83,7 +83,15 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
   /// Opens [transaction] to change it. Its Delete comes back here, so the
   /// row goes with the same undo window as one deleted from the list.
+  ///
+  /// A debt's money movement is changed with its debt, so it opens Debts
+  /// instead (FR-DBT-009, E-47).
   Future<void> _edit(Transaction transaction) async {
+    if (transaction.isDebtMovement) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      await context.push(Routes.debts);
+      return;
+    }
     final deleted = await _open<bool>(AddTransactionPage(initial: transaction));
     if (deleted == true && mounted) _delete(transaction);
   }
@@ -99,7 +107,11 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
   /// A held row's choices. A sideways swipe on this screen steps the period,
   /// as on home, so deleting moved here from a swipe on 2026-10-06.
+  ///
+  /// A debt's money movement has none here: it opens Debts, where it is
+  /// changed or deleted with its debt.
   Future<void> _offer(Transaction transaction) async {
+    if (transaction.isDebtMovement) return _edit(transaction);
     final choice = await showModalBottomSheet<_RowChoice>(
       context: context,
       showDragHandle: true,
@@ -537,6 +549,9 @@ class TransactionRow extends StatelessWidget {
     final note = transaction.note?.trim() ?? '';
     final date = _formatDate(transaction.date);
     final title = switch (transaction.type) {
+      // A debt's money movement: what it was is its note, "Lent to Nimal"
+      // (E-47).
+      _ when transaction.isDebtMovement => 'Debt',
       TransactionType.transfer => _transferLabel(),
       _ when inGroup => note.isNotEmpty ? note : date,
       _ =>
@@ -570,6 +585,7 @@ class TransactionRow extends StatelessWidget {
         backgroundColor: tint.withValues(alpha: 0.12),
         child: Icon(
           switch (transaction.type) {
+            _ when transaction.isDebtMovement => Icons.handshake_outlined,
             // The way the balance moves: income up, an expense down.
             TransactionType.income => Icons.arrow_upward,
             TransactionType.expense => Icons.arrow_downward,

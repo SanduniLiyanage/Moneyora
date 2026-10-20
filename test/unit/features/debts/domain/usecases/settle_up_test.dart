@@ -98,6 +98,22 @@ void main() {
     });
   });
 
+  test('through an account, the net moves it, and nothing else does. '
+      'FR-DBT-009', () async {
+    await SettleUp(repository)(
+      Settlement(
+        nimal([debt(1, DebtDirection.owedToMe, 100000)]),
+        on: on,
+        through: 7,
+      ),
+    );
+
+    final write = repository.batches.single;
+    expect(write.add.single.accountId, 7);
+    expect(write.add.single.paidAccountId, isNull);
+    expect(write.update.single.paidAccountId, isNull);
+  });
+
   test('owing them, the user pays the net', () async {
     await SettleUp(repository)(
       Settlement(

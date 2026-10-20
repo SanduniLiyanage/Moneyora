@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moneyora/core/errors/failures.dart';
+import 'package:moneyora/core/ports/account_reader.dart';
 import 'package:moneyora/core/router/app_router.dart';
 import 'package:moneyora/core/theme/app_theme.dart';
 import 'package:moneyora/features/debts/domain/entities/debt.dart';
@@ -16,6 +17,7 @@ import 'package:moneyora/features/debts/domain/repositories/debt_repository.dart
 import 'package:moneyora/features/debts/presentation/pages/debt_form_page.dart';
 import 'package:moneyora/features/debts/presentation/pages/debts_page.dart';
 import 'package:moneyora/features/debts/presentation/pages/split_bill_page.dart';
+import 'package:moneyora/features/debts/presentation/providers/debt_providers.dart';
 import 'package:moneyora/features/debts/presentation/widgets/person_name_field.dart';
 import 'package:moneyora/injection.dart';
 
@@ -64,6 +66,8 @@ class _InMemoryDebts implements DebtRepository {
         dueOn: debt.dueOn,
         paidOn: debt.paidOn,
         isPayment: debt.isPayment,
+        accountId: debt.accountId,
+        paidAccountId: debt.paidAccountId,
       ),
     );
     return id;
@@ -135,10 +139,15 @@ void main() {
     note: note,
   );
 
-  Widget boot(_InMemoryDebts repository, {bool dark = false}) => ProviderScope(
+  Widget boot(
+    _InMemoryDebts repository, {
+    bool dark = false,
+    List<AccountOption> accounts = const [],
+  }) => ProviderScope(
     overrides: [
       clockProvider.overrideWithValue(() => today),
       debtRepositoryProvider.overrideWith((ref) async => repository),
+      debtAccountsProvider.overrideWith((ref) => Stream.value(accounts)),
     ],
     child: MaterialApp.router(
       theme: dark ? AppTheme.dark : AppTheme.light,
@@ -586,6 +595,145 @@ void main() {
 
       expect(repository.debts.any((d) => d.isPayment), isFalse);
       expect(find.text('Owes you Rs1,000.00'), findsOneWidget);
+    });
+  });
+
+  group('through an account. FR-DBT-009, E-47', () {
+    const accounts = [
+      AccountOption(id: 1, name: 'Cash', balanceCents: 100000),
+      AccountOption(id: 2, name: 'Bank', balanceCents: 500000),
+      AccountOption(
+        id: 3,
+        name: 'PayPal',
+        balanceCents: 30000,
+        currency: 'USD',
+      ),
+    ];
+
+    Future<void> openWith(WidgetTester tester, _InMemoryDebts debts) async {
+      tester.view
+        ..physicalSize = const Size(1080, 2400)
+        ..devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(boot(debts, accounts: accounts));
+      await tester.pumpAndSettle();
+    }
+
+    Debt throughCash(int id, String person, DebtDirection direction) => Debt(
+      id: id,
+      direction: direction,
+      person: person,
+      amountCents: 100000,
+      incurredOn: DateTime(2026, 9, 20),
+      accountId: 1,
+    );
+
+    testWidgets('the form offers one, none to start with, rupee accounts '
+        'only; chosen, it is saved', (tester) async {
+      final repository = _InMemoryDebts();
+      await openWith(tester, repository);
+      await tester.tap(find.text('Add debt'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lent from'), findsOneWidget);
+      expect(find.text('No account'), findsOneWidget);
+      await tester.tap(find.text('No account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bank'), findsWidgets);
+      expect(find.text('PayPal'), findsNothing);
+      await tester.tap(find.text('Cash').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Who owes you'),
+        'Nimal',
+      );
+      await tester.enterText(find.widgetWithText(TextField, 'Amount'), '1000');
+      await tester.tap(find.widgetWithText(FilledButton, 'Add debt'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.single.accountId, 1);
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(' · from Cash'), findsOneWidget);
+    });
+
+    testWidgets('borrowing, it is the account the money went into', (
+      tester,
+    ) async {
+      await openWith(tester, _InMemoryDebts());
+      await tester.tap(find.text('Add debt'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('I owe'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Borrowed into'), findsOneWidget);
+    });
+
+    testWidgets('the tick pays it back into its own account, and says so', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts([
+        throughCash(1, 'Nimal', DebtDirection.owedToMe),
+      ]);
+      await openWith(tester, repository);
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Mark as paid'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.single.paidAccountId, 1);
+      expect(
+        find.text('Nimal: marked as paid, back into Cash'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('marked paid on the form, it asks which account', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts([
+        throughCash(1, 'Nimal', DebtDirection.owedToMe),
+      ]);
+      await openWith(tester, repository);
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Owed to you').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark as paid'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Paid back into'), findsOneWidget);
+      await tester.tap(find.text('Cash').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bank').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Mark as paid'));
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.single.paidOn, isNotNull);
+      expect(repository.debts.single.paidAccountId, 2);
+    });
+
+    testWidgets('settling up offers the account their debts went through', (
+      tester,
+    ) async {
+      final repository = _InMemoryDebts([
+        throughCash(1, 'Nimal', DebtDirection.owedToMe),
+      ]);
+      await openWith(tester, repository);
+      await tester.tap(find.text('Nimal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Settle up'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Paid into'), findsOneWidget);
+      expect(find.text('Cash'), findsWidgets);
+      await tester.tap(find.widgetWithText(TextButton, 'Settle up').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.debts.singleWhere((d) => d.isPayment).accountId, 1);
     });
   });
 
@@ -1037,6 +1185,70 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.text('Save payment'), findsOneWidget);
+      });
+
+      testWidgets('the form holds its account field at the largest font '
+          '($theme)', (tester) async {
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts(),
+            dark: dark,
+            accounts: const [
+              AccountOption(
+                id: 1,
+                name: 'A savings account with a long name',
+                balanceCents: 0,
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add debt'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('I owe'));
+        await tester.pumpAndSettle();
+        await scrollToEnd(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Borrowed into'), findsOneWidget);
+      });
+
+      testWidgets('the account field is named in full ($theme)', (
+        tester,
+      ) async {
+        // At the ordinary font: the test font is twice Roboto's width.
+        useSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts(),
+            dark: dark,
+            accounts: const [
+              AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add debt'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('I owe'));
+        await tester.pumpAndSettle();
+        await tester.dragUntilVisible(
+          find.text('Borrowed into'),
+          find.byType(ListView).last,
+          const Offset(0, -150),
+        );
+
+        expect(isCut(tester, find.text('Borrowed into')), isFalse);
+        expect(
+          isCut(
+            tester,
+            find.text(
+              'Optional. Its balance moves; it is not income or spending.',
+            ),
+          ),
+          isFalse,
+        );
       });
 
       testWidgets('the debt form names its note field in full ($theme)', (
