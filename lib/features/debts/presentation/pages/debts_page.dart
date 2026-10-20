@@ -686,12 +686,25 @@ class _DebtTile extends ConsumerWidget {
       fontWeight: FontWeight.w600,
       decoration: debt.isOpen ? null : TextDecoration.lineThrough,
     );
-    final details = Text(
-      [when, ?through].join(' · '),
-      maxLines: 2,
+    // The account on a line of its own: at the largest font "Overdue since
+    // Oct 10, 2026 · from Cash" lost its end, and with it the account.
+    final whenText = Text(
+      when,
+      // Beside the tick, at the largest font, "Overdue since Oct 10, 2026"
+      // is three lines.
+      maxLines: 3,
       overflow: TextOverflow.ellipsis,
       style: overdue ? TextStyle(color: theme.colorScheme.error) : null,
     );
+    final details = through == null
+        ? whenText
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              whenText,
+              Text(through, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          );
     // A payment closes when the person is settled up, not on its own.
     final tick = debt.isOpen && !debt.isPayment
         ? IconButton(

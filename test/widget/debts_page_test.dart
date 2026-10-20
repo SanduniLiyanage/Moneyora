@@ -655,7 +655,7 @@ void main() {
       expect(repository.debts.single.accountId, 1);
       await tester.tap(find.text('Nimal'));
       await tester.pumpAndSettle();
-      expect(find.textContaining(' · from Cash'), findsOneWidget);
+      expect(find.text('from Cash'), findsOneWidget);
     });
 
     testWidgets('borrowing, it is the account the money went into', (
@@ -1066,6 +1066,38 @@ void main() {
           greaterThan(tester.getBottomLeft(find.text('Rent')).dy - 1),
         );
         expect(find.byTooltip('Mark as paid'), findsOneWidget);
+      });
+
+      testWidgets('a record says when and through which account, each in '
+          'full ($theme)', (tester) async {
+        // "Overdue since Oct 10, 2026 · from Cash" on one line lost its
+        // end, and with it the account. At the ordinary font: the test font
+        // is twice Roboto's width.
+        useSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            _InMemoryDebts([
+              Debt(
+                id: 1,
+                direction: DebtDirection.owedToMe,
+                person: 'Ama',
+                amountCents: 123456789,
+                incurredOn: DateTime(2026, 9, 20),
+                dueOn: DateTime(2026, 10, 1),
+                accountId: 1,
+              ),
+            ]),
+            dark: dark,
+            accounts: const [
+              AccountOption(id: 1, name: 'Cash', balanceCents: 0),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        await expand(tester, 'Ama');
+
+        expect(isCut(tester, find.text('Overdue since Oct 1, 2026')), isFalse);
+        expect(isCut(tester, find.text('from Cash')), isFalse);
       });
 
       testWidgets('a person says what is owed in full ($theme)', (

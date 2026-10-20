@@ -9,6 +9,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/category_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/widgets/amount_beside.dart';
 import '../../../../core/widgets/category_icons.dart';
 import '../../../../core/widgets/scale_down_text.dart';
 import '../../domain/entities/category_group.dart';
@@ -570,14 +571,57 @@ class TransactionRow extends StatelessWidget {
       ?time,
       if (showNote) note,
     ];
-    final subtitle = details.isEmpty
+    final detailsText = details.isEmpty
         ? null
         : Text(
             details.join(' · '),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           );
+    final amount =
+        '$sign${formatCents(amountCents ?? transaction.amountCents)}';
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // At the largest font on a 320dp phone the amount left the name
+        // about 80dp, and "Debt" broke as "Deb/t"; there the amount moves
+        // under the name, and the name has the row. SRS §4.1.
+        final beside = amountFitsBeside(
+          context,
+          rowWidth: constraints.maxWidth,
+          amount: amount,
+          style: _Amount.styleOf(context, amountTint),
+          words: [(title, Theme.of(context).textTheme.bodyLarge)],
+        );
+        return _tile(
+          title: title,
+          tint: tint,
+          subtitle: beside
+              ? detailsText
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Amount(
+                      amount,
+                      color: amountTint,
+                      alignment: AlignmentDirectional.centerStart,
+                      maxWidthFactor: 1,
+                    ),
+                    ?detailsText,
+                  ],
+                ),
+          trailing: beside ? _Amount(amount, color: amountTint) : null,
+        );
+      },
+    );
+  }
+
+  Widget _tile({
+    required String title,
+    required Color tint,
+    required Widget? subtitle,
+    required Widget? trailing,
+  }) {
     return ListTile(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -600,10 +644,7 @@ class TransactionRow extends StatelessWidget {
       // alone does not say it was filed under Food, and a misfiled row is
       // exactly what someone scanning the list is looking for.
       subtitle: subtitle,
-      trailing: _Amount(
-        '$sign${formatCents(amountCents ?? transaction.amountCents)}',
-        color: amountTint,
-      ),
+      trailing: trailing,
     );
   }
 
@@ -793,16 +834,29 @@ class _CategoryGroupTile extends StatelessWidget {
 /// wider than a 320dp phone, and a `ListTile` whose trailing widget takes
 /// the whole row throws rather than lays out; [ScaleDownText] caps it.
 class _Amount extends StatelessWidget {
-  const _Amount(this.text, {required this.color});
+  const _Amount(
+    this.text, {
+    required this.color,
+    this.alignment = Alignment.centerRight,
+    this.maxWidthFactor = 0.45,
+  });
 
   final String text;
   final Color color;
+  final AlignmentGeometry alignment;
+  final double maxWidthFactor;
+
+  /// How an amount is drawn in [color].
+  static TextStyle? styleOf(BuildContext context, Color color) =>
+      Theme.of(context).textTheme.titleMedium
+          ?.copyWith(color: color, fontWeight: FontWeight.w600);
 
   @override
   Widget build(BuildContext context) => ScaleDownText(
     text,
-    style: Theme.of(context).textTheme.titleMedium
-        ?.copyWith(color: color, fontWeight: FontWeight.w600),
+    style: styleOf(context, color),
+    alignment: alignment,
+    maxWidthFactor: maxWidthFactor,
   );
 }
 

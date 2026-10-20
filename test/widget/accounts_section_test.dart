@@ -259,6 +259,31 @@ void main() {
     for (final dark in [false, true]) {
       final theme = dark ? 'dark' : 'light';
 
+      testWidgets('at the largest font the figure goes under the name, so no '
+          'word breaks in two ($theme)', (tester) async {
+        // Beside the figure, with Roboto at 2x on 320dp, "Visa Platinum"
+        // broke as "Platinu/m" and the line under it as "Availabl/e".
+        useLargeTextOnSmallPhone(tester);
+        await tester.pumpWidget(
+          boot(
+            accounts: [card(id: 2, name: 'Visa Platinum', owedCents: 1250000)],
+            dark: dark,
+          ),
+        );
+        await openDrawer(tester);
+
+        final name = find.text('Visa Platinum');
+        final figure = find.text('Rs37,500.00');
+        expect(
+          tester.getTopLeft(figure).dy,
+          greaterThan(tester.getBottomLeft(name).dy - 1),
+        );
+        expect(
+          tester.getTopLeft(figure).dx,
+          moreOrLessEquals(tester.getTopLeft(name).dx, epsilon: 1),
+        );
+      });
+
       testWidgets('holds at the largest font on a 320dp phone ($theme). '
           'SRS §4.1', (tester) async {
         useLargeTextOnSmallPhone(tester);
