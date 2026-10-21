@@ -16,7 +16,9 @@ a **pre-release for testers** on 2026-10-11: a testers' round (#181) —
 debts and split bills, a credit card's terms, the time of day, SAVE after
 the category, an opening balance in its period — and the receipt parser
 rewritten to read in stages and check a receipt against its own total
-(#182). **Since 1.2.0, not yet released:** a friend's round on it
+(#182). Then
+[1.3.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.3.0),
+a **pre-release for testers** on 2026-10-21: a friend's round on 1.2.0
 (#185) — a credit card's available credit where its balance read Rs0.00
 ([E-46](SPEC_ERRATA.md)); debts by person, netted, with Settle up,
 payments and an optional account ([E-47](SPEC_ERRATA.md), schema v9);
@@ -2300,8 +2302,8 @@ screenshots.
   lists each. The test that failed on some nights was the date wrapping a
   line longer, not the time; it now runs on a pinned date.
 
-**Since 1.2.0, not yet released — a friend's round (#185), `main` at
-`e44409c`.** A friend testing 1.2.0 sent five items; #185 is one commit
+**1.3.0 (2026-10-21), a pre-release for testers — #185, `main` at
+`e44409c` plus the documents and the version, 1.3.0+2006.** A friend testing 1.2.0 sent five items; #185 is one commit
 per item, then the fixes a review found:
 
 - **A credit card read Rs0.00** ([E-46](SPEC_ERRATA.md)). A card's
@@ -2343,9 +2345,7 @@ The branch's debug build upgraded the owner's emulator data in place:
 Settings › About reads **Version 9 · 2 accounts · 19 categories · 19
 transactions**, and the four settled debts are under Settled.
 
-**What is left.** First, **1.3.0**: #185 released as a pre-release for
-testers, at build number 2006. Then [`RELEASE.md`](RELEASE.md) sets out
-the accounts:
+**What is left.** [`RELEASE.md`](RELEASE.md) sets out the accounts:
 
 1. **The Samsung Galaxy Store** submission (§3) — free, and it updates
    installed copies by itself, which GitHub Releases cannot.

@@ -19,7 +19,7 @@ and the Samsung Galaxy Store. Google Play ($25, once) and the App Store
 |---|---|---|---|
 | Upload key generated, backed up twice | you, once | 5 minutes | **Done** |
 | Four repository secrets set | you, once | 5 minutes | **Done** |
-| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06), `v1.1.0` (2026-10-07), `v1.2.0` (2026-10-11, a pre-release for testers) |
+| Tag a version and push it | you | the workflow takes ~15 minutes | **Done** — `v1.0.0` (2026-10-05), `v1.0.1` (2026-10-06), `v1.1.0` (2026-10-07), `v1.2.0` (2026-10-11, a pre-release for testers), `v1.3.0` (2026-10-21, a pre-release for testers) |
 | Galaxy Store seller account | you | free; a day or so | Next |
 | Galaxy Store review | Samsung | several days | |
 | *Later:* Google Play | you + 12 testers | $25 once; **14 days** of closed testing | |
@@ -85,7 +85,7 @@ again, not even to you.
 **Each release.**
 
 1. Raise the version in `pubspec.yaml`: `1.0.0+1`, then `1.0.1+2`, then
-   `1.1.0+4` (`1.0.2+3` was never tagged), then `1.2.0+5`, and so on. The number after the `+` must go up every time, or phones refuse the
+   `1.1.0+4` (`1.0.2+3` was never tagged), then `1.2.0+5`, then `1.3.0+2006`, and so on. The number after the `+` must go up every time, or phones refuse the
    update as a downgrade.
 
    **From 1.3.0 the build number starts at 2006.** Up to 1.2.0, Flutter
