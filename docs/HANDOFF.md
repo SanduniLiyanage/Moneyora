@@ -1,7 +1,7 @@
 # Moneyora — Session Handoff
 
-State of the project as of **2026-10-11**, `main` at `636e3ef`, after
-**180 merged pull requests** (#2–#182; #1 and #178 were closed
+State of the project as of **2026-10-21**, `main` at `e44409c`, after
+**183 merged pull requests** (#2–#185; #1 and #178 were closed
 unmerged). **Moneyora is released**:
 [1.0.0](https://github.com/SanduniLiyanage/Moneyora/releases/tag/v1.0.0)
 on GitHub Releases on 2026-10-05, after a walk of the release APK fixed
@@ -16,7 +16,12 @@ a **pre-release for testers** on 2026-10-11: a testers' round (#181) —
 debts and split bills, a credit card's terms, the time of day, SAVE after
 the category, an opening balance in its period — and the receipt parser
 rewritten to read in stages and check a receipt against its own total
-(#182). "What is next" below has all of it. Sprint 10 itself: plans only from the user's own history or built by hand
+(#182). **Since 1.2.0, not yet released:** a friend's round on it
+(#185) — a credit card's available credit where its balance read Rs0.00
+([E-46](SPEC_ERRATA.md)); debts by person, netted, with Settle up,
+payments and an optional account ([E-47](SPEC_ERRATA.md), schema v9);
+and two ways an update could lose data, closed. "What is next" below has
+all of it. Sprint 10 itself: plans only from the user's own history or built by hand
 ([E-39](SPEC_ERRATA.md), #137), budget alerts offered on save (#138), the
 bug-fix pass (#136, #138–#140), the user manual and privacy policy
 (#141), the store listing (#143), a balance for the chosen period and
@@ -67,7 +72,7 @@ encrypted photo
 ### The numbers, measured — and the only place they live
 
 Every figure below was produced by running the command beside it on `main`
-at `636e3ef`, with PR #182 merged; the coverage figure is CI's, from its
+at `e44409c`, with PR #185 merged; the coverage figure is CI's, from its
 run on that commit.
 **This section is the single source of truth for counts.** `README.md` and
 `ARCHITECTURE.md` link here rather than restating them: a number kept in one
@@ -77,16 +82,29 @@ of date.
 
 | Figure | Value | Command |
 |---|---|---|
-| Tests | **2737 passing** | `flutter test` |
+| Tests | **2888 passing** | `flutter test` |
 | Analyzer | **0 issues** | `flutter analyze` |
 | Layer boundaries | **clean, exit 0** | `bash scripts/check_architecture.sh` |
 | Requirement citations | **clean, exit 0** | `bash scripts/check_citations.sh` |
 | R8 keep rules | **clean, exit 0** — ML Kit's registrar constructors ([E-09](SPEC_ERRATA.md)); a Windows checkout needs the LF copy, see Environment | `bash scripts/check_proguard.sh` |
-| Domain line coverage | **92.4%** (3601 of 3896 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
-| Schema | **15 tables, 12 indexes**, at version 8. Sprints 8 to 10 left it at v6 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`; Sprint 8's backup reads the tables from `sqlite_master` rather than needing any); v7 adds `debts` and its index (E-42), v8 four credit-card columns on `accounts` (E-43) (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
-| Dart files | 377 in `lib/`, 197 in `test/` | `find lib -name '*.dart' \| wc -l` |
+| Domain line coverage | **92.5%** (3778 of 4084 lines), against a 75% floor (NFR-MNT-002) — measured in CI; `lcov` isn't on this machine | `flutter test --coverage`, then CI's `lcov --extract coverage/lcov.info '*/domain/*'` |
+| Schema | **15 tables, 13 indexes**, at version 9. Sprints 8 to 10 left it at v6 (E-39's hand-built rows reuse `confidence_level` and `is_user_modified`; Sprint 8's backup reads the tables from `sqlite_master` rather than needing any); v7 adds `debts` and its index (E-42), v8 four credit-card columns on `accounts` (E-43), v9 three debt columns and `transactions.debt_id` with its index (E-47) (v2 adds one column, E-33; v3 adds one column and recreates `keyword_dictionary` with its cascade, E-31; v4 adds `exchange_rates` and a transfer column, E-34; v5 two columns, E-35; v6 three, E-37) | `grep -c 'CREATE TABLE\|CREATE INDEX' lib/core/database/migrations/*.dart` — v3's pair is a recreate, not a new table |
+| Dart files | 387 in `lib/`, 207 in `test/` | `find lib -name '*.dart' \| wc -l` |
 
-Tests by area: 2462 at `9e549ce` (PR #179, merged) plus **275 net new**
+Tests by area: 2737 at `636e3ef` (PR #182, merged) plus **151 net new**
+from #185, whose description names them: the card's figure and the total
+on three screens; grouping, netting, names and rename; Settle up, Undo
+and payments; every case of a debt carried through an account against
+real SQLite, each ending on E-18's oracle and E-02's rule; the v9
+migration; an upgrade from a database as 1.2.0 and 1.1.0 leave it; the
+key store that never replaces a key over existing data; and the review's
+fixes at the largest font, in both themes. Assertions that changed shape
+rather than growing: the Debts tests open a person before reaching a
+record, and "Paid · n" became "Settled · n"; `DebtTotals` nets per
+person, so one person owed both ways is on one side; overdue counts
+people; and a record's account is a line of its own.
+
+Before that: 2462 at `9e549ce` (PR #179, merged) plus **275 net new**
 from #181 and #182, each PR's description naming its own. #181 added 127:
 the list's − and +, the analytics figures re-reading on a write, the
 default account, opening balances in the summary, the bar and the list,
@@ -2074,6 +2092,17 @@ The parser now reads in three stages in `domain/usecases/parsing/` —
 checks a receipt's items against its total ([E-45](SPEC_ERRATA.md)); a
 debug build's review screen copies the OCR text for a fixture.
 
+**After 1.2.0, a friend's round** (#185). Debts are grouped and netted per
+person in the domain (`DebtPerson`), settled with `SettleUp` and its Undo,
+and paid in part by a record with `debts.is_payment` set; a debt's account
+moves through ledger rows tied by `transactions.debt_id`, written by the
+debts datasource through `core/database/balance_cache.dart`, the write the
+ledger shares ([E-47](SPEC_ERRATA.md), schema v9). A card's available
+credit comes from `core/utils/account_figure.dart` ([E-46](SPEC_ERRATA.md));
+`core/widgets/amount_beside.dart` decides when a row's amount moves under
+its title. The database key store never makes a new key over a database
+already on the phone.
+
 ```
 lib/
 ├── core/          database (SQLCipher, migrations v1–v8, seeds), errors,
@@ -2271,7 +2300,52 @@ screenshots.
   lists each. The test that failed on some nights was the date wrapping a
   line longer, not the time; it now runs on a pinned date.
 
-**What is left.** [`RELEASE.md`](RELEASE.md) sets out the accounts:
+**Since 1.2.0, not yet released — a friend's round (#185), `main` at
+`e44409c`.** A friend testing 1.2.0 sent five items; #185 is one commit
+per item, then the fixes a review found:
+
+- **A credit card read Rs0.00** ([E-46](SPEC_ERRATA.md)). A card's
+  balance is what is owed, so an unused card showed nothing. A card with
+  a limit now shows what is left to spend in the account list, the entry
+  screen's account choice and the transfer screen, with what is owed
+  beside it; the total still takes off only what is owed.
+- **Debts by person** ([E-47](SPEC_ERRATA.md), FR-DBT-005, FR-DBT-006).
+  One row per person, netted over the open records either way, opening to
+  the records; the totals add the nets. Worked out from the rows, so no
+  migration. Names are offered as typed; Rename joins two spellings after
+  asking.
+- **Settle up and payments** (FR-DBT-007, FR-DBT-008). Settle up closes a
+  person's records on one day and writes the net as a payment, with Undo.
+  A part payment is a record of its own, running the other way; the owner
+  chose that over a "paid so far" figure.
+- **A debt's account** (FR-DBT-009), which supersedes E-42 item 2.
+  Optional. Its money movement is a ledger row of its own, one side of a
+  transfer tied to the debt by `transactions.debt_id`: the account's
+  balance and history have it, recalculation counts it, and it is never
+  income or spending. The debts datasource rewrites the movements in the
+  debt's own database transaction on every change. Split bill names no
+  account. Schema v9.
+- **Updates that cannot lose data.** 1.2.0's two APKs had versionCodes
+  2005 and 1005, so a phone with the first refused the second; both now
+  carry the build number, which is therefore 2006 from 1.3.0
+  ([`RELEASE.md`](RELEASE.md)), and the release workflow checks it. The
+  secure-storage plugin's Android default erased every stored value on a
+  read error, after which a new database key was written; the key is now
+  read with that off and never replaced over an existing database.
+- **Before #185 merged**, the changed screens were drawn with Roboto, not
+  the test font, at 2x on a 320 dp phone in both themes. Account and
+  transaction rows broke a word beside their amount ("Deb/t"), so the
+  amount now moves under a title that would not keep room for its longest
+  word; a debt record's account got a line of its own; and a long name
+  ran the Settle up dialog 272 px past itself.
+
+The branch's debug build upgraded the owner's emulator data in place:
+Settings › About reads **Version 9 · 2 accounts · 19 categories · 19
+transactions**, and the four settled debts are under Settled.
+
+**What is left.** First, **1.3.0**: #185 released as a pre-release for
+testers, at build number 2006. Then [`RELEASE.md`](RELEASE.md) sets out
+the accounts:
 
 1. **The Samsung Galaxy Store** submission (§3) — free, and it updates
    installed copies by itself, which GitHub Releases cannot.

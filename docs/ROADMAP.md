@@ -1052,8 +1052,32 @@ the line above, and a points block set aside. Before it merged, the new
 screens were reviewed at the largest font on a 320 dp phone in both
 themes, and what was cut short or could not be read was fixed.
 
+### A friend's round on 1.2.0 — done (#185), not yet released
+
+A friend testing 1.2.0 asked for five things. #185 is one commit per
+item, then the fixes a review found:
+
+- **A credit card's available credit** where its balance read Rs0.00
+  ([E-46](SPEC_ERRATA.md)), with the total unchanged.
+- **Debts by person**, netted, with the people already recorded offered
+  as a name is typed, and Rename to join two spellings
+  ([E-47](SPEC_ERRATA.md)).
+- **Settle up**, with Undo, and a part payment as a record of its own.
+- **A debt's account**, optional: its balance moves, never as income or
+  spending. Schema v9.
+- **Updates that cannot lose data**: one versionCode for both APKs, so
+  the next build number is 2006, and a database key that is never
+  replaced over an existing database.
+
+Before it merged, the changed screens were drawn with Roboto at 2x on a
+320 dp phone in both themes, and what broke a word or lost its end was
+fixed.
+
 ### Still open
 
+- **Debts in other currencies.** A debt has no currency of its own: it is
+  shown, and moves an account, in rupees, so only rupee accounts are
+  offered for one.
 - **The bus ticket.** It came back as one item named with the whole
   ticket's text. Fixing the parser needs that photo as a fixture.
 - **The parser's known gaps.** A camera photo of a paper receipt has been
