@@ -87,6 +87,18 @@ again, not even to you.
 1. Raise the version in `pubspec.yaml`: `1.0.0+1`, then `1.0.1+2`, then
    `1.1.0+4` (`1.0.2+3` was never tagged), then `1.2.0+5`, and so on. The number after the `+` must go up every time, or phones refuse the
    update as a downgrade.
+
+   **From 1.3.0 the build number starts at 2006.** Up to 1.2.0, Flutter
+   added 1000 per CPU type to it for the split APKs: 1.2.0's arm64-v8a APK
+   is versionCode **2005** and its armeabi-v7a APK **1005**. A phone that
+   had the first refused the second as a downgrade, and the only way past
+   "App not installed" is an uninstall, which deletes everything.
+   `android/gradle.properties` now turns that off
+   (`force-version-code-ignoring-abi=true`), so both APKs carry the build
+   number itself, and it has to be above 2005 for any phone to take the
+   update. Either APK then updates any earlier install. The release
+   workflow checks both: it refuses to publish when an APK's versionCode
+   is not the build number, or the build number is not above 2005.
 2. Merge that to `main`, then tag it:
 
    ```powershell
@@ -120,10 +132,15 @@ release page for a new version.
 the new APK from the release page and open it. Android offers **Update**,
 not Install, and keeps every transaction, plan and setting, because two
 things hold: the new APK is signed with the **same upload key**, and its
-build number (after the `+`) is **higher** than the one installed. Break
-either and Android refuses ("App not installed"), and the only way past is
-to uninstall, which deletes their data unless they made a backup first.
-Never uninstall to "fix" an update.
+versionCode is **higher** than the one installed. Break either and
+Android refuses ("App not installed"), and the only way past is to
+uninstall, which deletes their data unless they made a backup first.
+Never uninstall to "fix" an update; ask for a screenshot instead. Up to
+1.2.0 the two APKs had different versionCodes, so a phone with the
+arm64-v8a one refused the other; from 1.3.0 either updates any earlier
+install. The database itself is upgraded on the first launch,
+additively, and `upgrade_from_released_test.dart` upgrades a database as
+1.2.0 and 1.1.0 leave it and checks every row.
 
 Nothing tells them an update exists. Post the release where your testers
 are, with what changed. Someone who wants to be told can add the
