@@ -102,10 +102,13 @@ phone.
   currencies counted at rates you enter. A new account's opening balance
   shows in the list on the day it was set.
 - **Credit cards** — a card's limit, statement and payment days and interest
-  rate: what is left to spend, when payment is due, what owing costs a
-  month, and how long a monthly payment takes to clear it.
-- **Debts** — money lent and borrowed, ticked off when it is paid back, and a
-  bill **split** evenly with friends saved as who owes whom.
+  rate: what is left to spend, shown in the account list in place of a
+  balance, when payment is due, what owing costs a month, and how long a
+  monthly payment takes to clear it.
+- **Debts** — money lent and borrowed, person by person, each netted: what
+  they owe you less what you owe them. Settle up in one tap, record a part
+  payment, optionally move the account the money went through (never as
+  income or spending), and **split** a bill evenly with friends.
 - **Transfers** between your own accounts, which move each account's balance
   without counting as spending.
 - **Recurring** expenses and income, with an optional reminder before each.
