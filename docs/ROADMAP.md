@@ -1052,10 +1052,11 @@ the line above, and a points block set aside. Before it merged, the new
 screens were reviewed at the largest font on a 320 dp phone in both
 themes, and what was cut short or could not be read was fixed.
 
-### A friend's round on 1.2.0 — done (#185), not yet released
+### A friend's round on 1.2.0 — done (#185), in 1.3.0
 
-A friend testing 1.2.0 asked for five things. #185 is one commit per
-item, then the fixes a review found:
+**1.3.0**, published 2026-10-21 as a pre-release for testers at build
+number 2006, carries it. A friend testing 1.2.0 asked for five things.
+#185 is one commit per item, then the fixes a review found:
 
 - **A credit card's available credit** where its balance read Rs0.00
   ([E-46](SPEC_ERRATA.md)), with the total unchanged.
